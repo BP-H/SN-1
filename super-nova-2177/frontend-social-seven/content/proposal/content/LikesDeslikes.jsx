@@ -1,0 +1,243 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
+import { IoChevronUp } from "react-icons/io5";
+import { useUser } from "@/content/profile/UserContext";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+import LikesInfo from "./LikesInfo";
+
+/* Interpolate between blue (hsl 230, 100, 75) and pink (hsl 335, 100, 65)
+   based on a 0–100 ratio. At 0% = pure blue, at 100% = pure pink. */
+function getSliderColor(ratio) {
+  const t = Math.min(Math.max(ratio / 100, 0), 1);
+  const h = 230 + (335 - 230) * t;
+  const s = 80 + (100 - 80) * t;
+  const l = 75 + (65 - 75) * t;
+  return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+}
+
+function LikesDeslikes({
+  initialLikes,
+  initialDislikes,
+  initialLikesList = [],
+  initialDislikesList = [],
+  initialClicked = null,
+  proposalId,
+  setErrorMsg,
+}) {
+  const [clicked, setClicked] = useState(initialClicked);
+  const [likes, setLikes] = useState(initialLikes);
+  const [dislikes, setDislikes] = useState(initialDislikes);
+  const [likesList, setLikesList] = useState(initialLikesList);
+  const [dislikesList, setDislikesList] = useState(initialDislikesList);
+  const [showInfo, setShowInfo] = useState(false);
+  const containerRef = useRef(null);
+  const { userData } = useUser();
+  const backendUrl = userData?.activeBackend || API_BASE_URL;
+  const voterType = userData?.species?.trim() || "human";
+
+  useEffect(() => {
+    setLikes(Number(initialLikes) || 0);
+    setDislikes(Number(initialDislikes) || 0);
+    setLikesList(initialLikesList || []);
+    setDislikesList(initialDislikesList || []);
+    setClicked(initialClicked);
+  }, [initialLikes, initialDislikes, initialLikesList, initialDislikesList, initialClicked]);
+
+  const weighted = useMemo(() => {
+    return buildWeightedVoteSummary(likesList, dislikesList);
+  }, [likesList, dislikesList]);
+
+  const pct = Math.max(weighted.supportPercent || 0, 0);
+  const approvalRatio = Math.round(pct);
+  const knobColor = getSliderColor(pct);
+
+  /* Close popup on outside click */
+  useEffect(() => {
+    if (!showInfo) return undefined;
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setShowInfo(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showInfo]);
+
+  async function getApiError(response, fallback) {
+    try {
+      const payload = await response.json();
+      return payload?.detail || payload?.message || fallback;
+    } catch {
+      try { return (await response.text()) || fallback; } catch { return fallback; }
+    }
+  }
+
+  const validateProfile = () => {
+    const errors = [];
+    if (!backendUrl) errors.push("API base URL is not configured.");
+    if (!userData?.name) errors.push("Add a display name in your profile before voting.");
+    if (errors.length > 0) { setErrorMsg(errors); return false; }
+    return true;
+  };
+
+  async function sendVote(choice) {
+    try {
+      const response = await fetch(`${backendUrl}/votes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposal_id: proposalId, username: userData.name, choice, voter_type: voterType }),
+      });
+      if (!response.ok) { setErrorMsg([await getApiError(response, `Vote failed: ${response.status}`)]); return false; }
+      return true;
+    } catch (err) { setErrorMsg([`Vote failed: ${err.message}`]); return false; }
+  }
+
+  async function removeVote() {
+    try {
+      const response = await fetch(`${backendUrl}/votes?proposal_id=${proposalId}&username=${userData.name}`, { method: "DELETE" });
+      if (!response.ok) { setErrorMsg([await getApiError(response, `Remove failed: ${response.status}`)]); return false; }
+      return true;
+    } catch (err) { setErrorMsg([`Remove failed: ${err.message}`]); return false; }
+  }
+
+  const handleLikeClick = async () => {
+    if (!validateProfile()) return;
+    if (clicked === "like") {
+      if (await removeVote()) {
+        setLikes((v) => Math.max(0, v - 1));
+        setLikesList((v) => v.filter((vote) => vote.voter !== userData.name));
+        setClicked(null);
+      }
+      return;
+    }
+    if (clicked === "dislike") {
+      if (!(await removeVote())) return;
+      setDislikes((v) => Math.max(0, v - 1));
+      setDislikesList((v) => v.filter((vote) => vote.voter !== userData.name));
+    }
+    if (await sendVote("up")) {
+      setLikes((v) => v + 1);
+      setLikesList((v) => [...v, { voter: userData.name, type: voterType }]);
+      setClicked("like");
+    }
+  };
+
+  const handleDislikeClick = async () => {
+    if (!validateProfile()) return;
+    if (clicked === "dislike") {
+      if (await removeVote()) {
+        setDislikes((v) => Math.max(0, v - 1));
+        setDislikesList((v) => v.filter((vote) => vote.voter !== userData.name));
+        setClicked(null);
+      }
+      return;
+    }
+    if (clicked === "like") {
+      if (!(await removeVote())) return;
+      setLikes((v) => Math.max(0, v - 1));
+      setLikesList((v) => v.filter((vote) => vote.voter !== userData.name));
+    }
+    if (await sendVote("down")) {
+      setDislikes((v) => v + 1);
+      setDislikesList((v) => [...v, { voter: userData.name, type: voterType }]);
+      setClicked("dislike");
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative flex items-center gap-1.5">
+      {/* 👎 DOWN — left */}
+      <button
+        type="button"
+        onClick={handleDislikeClick}
+        aria-label="Vote no"
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
+          clicked === "dislike"
+            ? "bg-[var(--blue)] text-white shadow-[var(--shadow-blue)] scale-110"
+            : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+        }`}
+      >
+        <BiSolidDislike className="text-[0.9rem]" />
+      </button>
+
+      {/* Slider */}
+      <div className="relative flex min-w-[4.5rem] flex-1 items-center py-1">
+        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[0.58rem] font-bold tabular-nums" style={{ color: knobColor }}>
+          {approvalRatio}%
+        </span>
+        <div className="relative h-[3px] w-full rounded-full bg-[rgba(255,255,255,0.1)]">
+          {/* Fill — solid color that matches the endpoint position */}
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${pct}%`,
+              background: `linear-gradient(90deg, hsl(230,80%,75%) 0%, ${knobColor} 100%)`,
+            }}
+          />
+          {/* Knob — glowing dot */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 transition-all duration-500"
+            style={{ left: `calc(${Math.min(pct, 100)}% - (${Math.min(pct, 100)} * 14px / 100))` }}
+          >
+            <div
+              className="h-3.5 w-3.5 rounded-full border-2 border-[rgba(255,255,255,0.9)]"
+              style={{
+                background: knobColor,
+                boxShadow: `0 0 6px ${knobColor}, 0 0 14px ${knobColor}40`,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 👍 UP — right */}
+      <button
+        type="button"
+        onClick={handleLikeClick}
+        aria-label="Vote yes"
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
+          clicked === "like"
+            ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] scale-110"
+            : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+        }`}
+      >
+        <BiSolidLike className="text-[0.9rem]" />
+      </button>
+
+      {/* Expand chevron */}
+      <button
+        type="button"
+        onClick={() => setShowInfo((v) => !v)}
+        aria-label={showInfo ? "Hide vote breakdown" : "Show vote breakdown"}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+      >
+        <IoChevronUp className={`text-[0.8rem] transition-transform ${showInfo ? "rotate-180" : ""}`} />
+      </button>
+
+      {/* Fullscreen vote breakdown overlay */}
+      {showInfo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          style={{ animation: "fadeSlideIn 0.2s ease-out" }}
+          onClick={() => setShowInfo(false)}
+        >
+          <div
+            className="w-full max-w-[28rem]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <LikesInfo
+              proposalId={proposalId}
+              likesData={likesList}
+              dislikesData={dislikesList}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default LikesDeslikes;

@@ -1,0 +1,8 @@
+# Optional, heavier packages for ML/analysis features
+matplotlib
+scipy
+pandas
+statsmodels
+pygame
+torch
+qutip

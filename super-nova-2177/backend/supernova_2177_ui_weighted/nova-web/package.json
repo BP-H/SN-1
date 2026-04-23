@@ -1,0 +1,30 @@
+{
+  "name": "supernova-2177",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@react-three/drei": "9.122.0",
+    "@react-three/fiber": "8.18.0",
+    "framer-motion": "^10.16.4",
+    "lucide-react": "^0.263.1",
+    "next": "14.2.31",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "three": "0.179.0",
+    "three-mesh-bvh": "0.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.2.1",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.51.0",
+    "eslint-config-next": "14.0.0",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5"
+  }
+}

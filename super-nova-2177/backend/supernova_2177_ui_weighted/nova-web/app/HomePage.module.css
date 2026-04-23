@@ -1,0 +1,142 @@
+/*
+  File: nova-web/src/app/HomePage.module.css
+  Replace the entire contents of your file with this.
+*/
+
+.globalBody {
+  margin: 0;
+  background-color: #0a0b10; /* --bg color from ui.py */
+  color: #e9ecf1; /* --text color */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+}
+
+.pageLayout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+.sidebar {
+  width: 280px;
+  background: radial-gradient(
+    90% 70% at 0% 0%,
+    rgba(155, 140, 255, 0.08),
+    transparent 60%
+  ),
+  #0f1117; /* --panel color */
+  border-right: 1px solid #1c2130; /* --stroke color */
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  z-index: 10;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #e9ecf1;
+  margin-bottom: 2rem;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  color: #a1a7b3; /* --muted color */
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.navLink:hover {
+  background-color: #1c2130;
+  color: #e9ecf1;
+}
+
+.mainContent {
+  flex: 1;
+  position: relative;
+  overflow-y: auto; /* Allow content to scroll */
+}
+
+/* This is for the 3D canvas background */
+.threeCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.contentWrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.pageTitle {
+  font-size: 4rem;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: white;
+  text-shadow: 0 0 10px #fff, 0 0 20px #9b8cff, 0 0 30px #9b8cff; /* --brand color */
+}
+
+.feedContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.feedCardLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.feedCardLink:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 40px rgba(155, 140, 255, 0.2);
+}
+
+.feedCard {
+  background: rgba(17, 19, 29, 0.7); /* --card color with transparency */
+  border: 1px solid #1c2130; /* --stroke color */
+  border-radius: 20px;
+  padding: 30px;
+  backdrop-filter: blur(10px);
+  height: 100%;
+}
+
+.feedCard h3 {
+  font-size: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #e9ecf1;
+}
+
+.feedCard p {
+  color: #a1a7b3;
+  line-height: 1.6;
+  margin-bottom: 0;
+}

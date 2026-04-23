@@ -1,0 +1,7 @@
+nicegui
+httpx
+pytest
+pytest-asyncio
+sentence-transformers
+streamlit
+streamlit-shadcn-ui

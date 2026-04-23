@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  supernova_db:
+    image: postgres:15
+    container_name: supernova_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: postgres
+    ports:
+      - '5433:5432'
+    volumes:
+      - supernova_db_data:/var/lib/postgresql/data
+
+  supernova_backend:
+    build: ./backend
+    container_name: supernova_backend
+    command: uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - type: bind
+        source: ./backend
+        target: /app/backend
+      - type: bind
+        source: ./backend/supernova_2177_ui_weighted
+        target: /app/backend/supernova_2177_ui_weighted
+    environment:
+      DATABASE_URL: postgresql://postgres:example@supernova_db:5432/postgres
+    depends_on:
+      - supernova_db
+    ports:
+      - '8000:8000'
+
+  supernova_frontend:
+    build: ./frontend
+    container_name: supernova_frontend
+    ports:
+      - '3000:3000'
+    environment:
+      CHOKIDAR_USEPOLLING: 'true'
+
+volumes:
+  supernova_db_data:

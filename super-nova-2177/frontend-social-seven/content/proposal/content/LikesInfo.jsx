@@ -1,0 +1,154 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { BsFillCpuFill } from "react-icons/bs";
+import { FaBriefcase, FaUser } from "react-icons/fa";
+import LiquidGlass from "@/content/liquid glass/LiquidGlass";
+import { useUser } from "@/content/profile/UserContext";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+
+function getSliderColor(ratio) {
+  const t = Math.min(Math.max(ratio / 100, 0), 1);
+  const h = 230 + (335 - 230) * t;
+  const s = 80 + (100 - 80) * t;
+  const l = 75 + (65 - 75) * t;
+  return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+}
+
+function SpeciesVoteRow({ icon: Icon, label, likes, dislikes, internalPercent, accent }) {
+  const ratio = Math.round(internalPercent || 0);
+  const hasVotes = likes + dislikes > 0;
+
+  return (
+    <div className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-3 py-2.5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] text-[var(--text-black)]">
+        <Icon />
+      </span>
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[0.78rem] font-semibold text-[var(--text-black)]">{label}</span>
+          <span className="text-right text-[0.72rem] text-[var(--text-gray-light)]">
+            {hasVotes ? `${ratio}% · ${likes} yes · ${dislikes} no` : "No votes yet"}
+          </span>
+        </div>
+      </div>
+      <div className="col-start-2 h-1.5 rounded-full bg-[rgba(255,255,255,0.08)]">
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{
+            width: `${internalPercent || 0}%`,
+            background: accent,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
+  const [likes, setLikes] = useState([]);
+  const [dislikes, setDislikes] = useState([]);
+  const [error, setError] = useState("");
+  const { userData } = useUser();
+  const backendUrl = userData?.activeBackend || API_BASE_URL;
+
+  useEffect(() => {
+    if (likesData || dislikesData) {
+      setLikes(likesData || []);
+      setDislikes(dislikesData || []);
+      setError("");
+      return;
+    }
+
+    async function fetchVotes() {
+      if (!backendUrl) {
+        setError("API base URL is not configured.");
+        return;
+      }
+
+      try {
+        setError("");
+        const response = await fetch(`${backendUrl}/proposals/${proposalId}`);
+        if (!response.ok) {
+          setError(`Failed to load proposal: ${response.status} ${response.statusText}`);
+          return;
+        }
+
+        const data = await response.json();
+        setLikes(data.likes || []);
+        setDislikes(data.dislikes || []);
+      } catch (err) {
+        setError(`Failed to fetch vote details: ${err.message}`);
+      }
+    }
+
+    fetchVotes();
+  }, [backendUrl, proposalId, likesData, dislikesData]);
+
+  const counts = useMemo(() => buildWeightedVoteSummary(likes, dislikes), [likes, dislikes]);
+
+  const totalVotes = likes.length + dislikes.length;
+  const overallApproval = Math.round(counts.supportPercent || 0);
+
+  return (
+    <LiquidGlass className={`w-full rounded-[1.2rem] p-3 ${className}`.trim()}>
+      <div className="flex w-full flex-col gap-2.5">
+        {error ? (
+          <p className="text-[0.76rem] text-red-400">{error}</p>
+        ) : (
+          <>
+            {/* Overall weighted approval header */}
+            <div className="flex items-center justify-between rounded-[0.8rem] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+              <span className="text-[0.76rem] font-semibold text-[var(--text-black)]">
+                Weighted Approval
+              </span>
+              <span className="text-[0.82rem] font-bold" style={{ color: getSliderColor(overallApproval) }}>
+                {overallApproval}%
+              </span>
+            </div>
+            <div className="mx-3 mb-1 h-1 rounded-full bg-[rgba(255,255,255,0.06)]">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min(counts.supportPercent, 100)}%`,
+                  background: `linear-gradient(90deg, hsl(230,80%,75%) 0%, ${getSliderColor(counts.supportPercent)} 100%)`,
+                }}
+              />
+            </div>
+            <p className="mb-1 text-center text-[0.66rem] text-[var(--text-gray-light)]">
+              {totalVotes} total vote{totalVotes !== 1 ? "s" : ""} · Each species carries 33% weight
+            </p>
+
+            <SpeciesVoteRow
+              icon={FaUser}
+              label="Humans"
+              likes={counts.bySpecies.human.yes}
+              dislikes={counts.bySpecies.human.no}
+              internalPercent={counts.bySpecies.human.internalPercent}
+              accent="linear-gradient(90deg, #e8457a, #f5a0bd)"
+            />
+            <SpeciesVoteRow
+              icon={FaBriefcase}
+              label="ORG"
+              likes={counts.bySpecies.company.yes}
+              dislikes={counts.bySpecies.company.no}
+              internalPercent={counts.bySpecies.company.internalPercent}
+              accent="linear-gradient(90deg, #4a8fe7, #92c0f5)"
+            />
+            <SpeciesVoteRow
+              icon={BsFillCpuFill}
+              label="AI"
+              likes={counts.bySpecies.ai.yes}
+              dislikes={counts.bySpecies.ai.no}
+              internalPercent={counts.bySpecies.ai.internalPercent}
+              accent="linear-gradient(90deg, #9b6dff, #c4a8ff)"
+            />
+          </>
+        )}
+      </div>
+    </LiquidGlass>
+  );
+}
+
+export default LikesInfo;
