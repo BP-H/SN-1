@@ -73,6 +73,7 @@ body {
 body {
   display: flex;
   justify-content: center;
+  padding-inline: 0.25rem;
 }
 
 a {
@@ -331,9 +332,9 @@ h6 {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 420px) {
   :root {
-    --shell-gutter: 0;
+    --shell-gutter: 0.5rem;
     --header-offset: 5.9rem;
     --dock-offset: 6rem;
   }
