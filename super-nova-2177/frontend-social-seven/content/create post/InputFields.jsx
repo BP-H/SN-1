@@ -8,7 +8,7 @@ import { IoClose } from "react-icons/io5";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import LiquidGlass from "../liquid glass/LiquidGlass";
 import { useUser } from "../profile/UserContext";
-import Error from "../Error";
+import ErrorMessage from "../Error";
 import MediaInput from "./Media";
 import { API_BASE_URL } from "@/utils/apiBase";
 
@@ -334,7 +334,7 @@ function InputFields({ setDiscard, setPosts, refetchPosts, embedded = false, aut
 
   return (
     <div className="w-full">
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorMessage messages={errorMsg} />}
       {embedded ? (
         renderContent()
       ) : (
