@@ -164,7 +164,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
       <div className="space-y-4 pt-2">
         {/* ── System Vote ── */}
-        <section className="social-panel rounded-[1.35rem] px-4 py-4">
+        <section className="social-panel max-[480px]:rounded-none max-[480px]:border-x-0 rounded-[1.35rem] px-4 py-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IoStarOutline className="text-[1rem] text-[var(--pink)]" />
@@ -276,7 +276,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
         {/* ── Create Post ── */}
         {discard ? (
-          <section className="social-panel rounded-[1.35rem] px-4 py-4">
+          <section className="social-panel max-[480px]:rounded-none max-[480px]:border-x-0 rounded-[1.35rem] px-4 py-4">
             <div className="mb-3 flex items-center gap-3">
               {userData?.avatar ? (
                 <img
@@ -319,7 +319,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
           </section>
         ) : (
-          <section ref={inputRef} className="social-panel rounded-[1.35rem] px-4 py-4">
+          <section ref={inputRef} className="social-panel max-[480px]:rounded-none max-[480px]:border-x-0 rounded-[1.35rem] px-4 py-4">
             <InputFields embedded autoFocus setDiscard={setDiscard} />
           </section>
         )}

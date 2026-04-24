@@ -116,7 +116,7 @@ function ProposalCard({
 
   return (
     <div
-      className={`bgWhiteTrue social-panel-compact mx-auto flex w-full flex-col gap-4 rounded-[1.75rem] p-5 text-[var(--text-black)] shadow-sm ${
+      className={`bgWhiteTrue social-panel-compact mx-auto flex w-full flex-col gap-4 max-[480px]:rounded-none max-[480px]:border-x-0 rounded-[1.75rem] p-5 text-[var(--text-black)] shadow-sm ${
         isDetailPage ? "" : "hover:shadow-md"
       }`}
     >
