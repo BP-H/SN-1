@@ -37,3 +37,9 @@ yarn-debug.log*
 yarn-error.log*
 logs/
 *.log
+
+# Databases and Local State
+*.db
+*.sqlite
+*.sqlite3
+local_data/
