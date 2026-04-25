@@ -134,6 +134,10 @@ export default function HeaderMobile({
       label: "Profile",
       icon: IoPersonOutline,
       onClick: () => {
+        if (!isAuthenticated) {
+          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+          return;
+        }
         setShowSettings((value) => !value);
       },
     },

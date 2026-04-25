@@ -92,6 +92,11 @@ export default function Header({
     return () => window.removeEventListener("supernova:open-menu", openSupernovaMenu);
   }, []);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.dataset.headerHidden = headerHidden ? "true" : "false";
+  }, [headerHidden]);
+
   const markNotificationsSeen = () => {
     if (!activitySignature || typeof window === "undefined") return;
     localStorage.setItem("supernova_seen_activity_signature", activitySignature);

@@ -1936,6 +1936,12 @@ html[data-theme="light"] .post-action-bar {
     padding: 0.9rem 0.8rem;
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
+    transition: top 240ms ease, padding 240ms ease, box-shadow 240ms ease;
+  }
+
+  html[data-header-hidden="true"] .desktop-shell-nav {
+    top: 0;
+    padding-top: 1rem;
   }
 
   .desktop-brand-button,
@@ -2062,14 +2068,8 @@ html[data-theme="light"] .post-action-bar {
     border-radius: 0 !important;
   }
 
-  .mobile-settings-sheet {
-    top: 6.15rem !important;
-    right: clamp(1.25rem, 4vw, 4rem) !important;
-    bottom: auto !important;
-    left: auto !important;
-    width: min(22rem, calc(100vw - 2rem)) !important;
-    translate: none !important;
-    transform: none !important;
+  .profile-settings-modal-shell {
+    width: min(23rem, calc(100vw - 1.25rem));
   }
 
   .mobile-feed-panel,
@@ -2139,6 +2139,11 @@ html[data-theme="light"] .post-action-bar {
     gap: 0.85rem;
     overflow-y: auto;
     padding-right: 0.15rem;
+    transition: top 240ms ease, bottom 240ms ease;
+  }
+
+  html[data-header-hidden="true"] .desktop-right-rail {
+    top: 1rem;
   }
 
   .desktop-insight-panel {
@@ -2293,6 +2298,12 @@ html[data-theme="light"] .post-action-bar {
       radial-gradient(circle at 66% 28%, rgba(120, 206, 255, 0.12), transparent 30%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
     border: 1px solid rgba(255, 255, 255, 0.075);
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .desktop-constellation-stage:active {
+    cursor: grabbing;
   }
 
   .desktop-constellation-stage::before {
@@ -2306,6 +2317,37 @@ html[data-theme="light"] .post-action-bar {
     background-size: 42px 42px, 56px 56px;
     opacity: 0.16;
     pointer-events: none;
+    animation: constellationStarDrift 18s linear infinite;
+  }
+
+  .desktop-constellation-controls {
+    position: absolute;
+    right: 0.55rem;
+    top: 0.55rem;
+    z-index: 3;
+    display: flex;
+    gap: 0.3rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(4, 7, 12, 0.58);
+    padding: 0.25rem;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .desktop-constellation-controls button {
+    display: flex;
+    height: 1.55rem;
+    width: 1.55rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: var(--text-gray-light);
+  }
+
+  .desktop-constellation-controls button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-black);
   }
 
   .desktop-constellation-svg {
@@ -2316,6 +2358,13 @@ html[data-theme="light"] .post-action-bar {
     aspect-ratio: 4 / 3;
     min-height: 13rem;
     color: #8ee9ff;
+    user-select: none;
+  }
+
+  .desktop-constellation-orbit {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    animation: constellationSlowOrbit 28s ease-in-out infinite alternate;
   }
 
   .desktop-constellation-depth {
@@ -2351,6 +2400,13 @@ html[data-theme="light"] .post-action-bar {
   .desktop-constellation-node {
     cursor: pointer;
     opacity: calc(0.72 + (var(--node-depth, 0.8) * 0.22));
+  }
+
+  .desktop-node-float {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: constellationNodeFloat 5.8s ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
   }
 
   .desktop-node-human {
@@ -2447,6 +2503,33 @@ html[data-theme="light"] .post-action-bar {
     }
   }
 
+  @keyframes constellationNodeFloat {
+    0%, 100% {
+      transform: translate3d(0, -1px, 0) scale(0.98);
+    }
+    50% {
+      transform: translate3d(0, 1.5px, 0) scale(1.035);
+    }
+  }
+
+  @keyframes constellationSlowOrbit {
+    0% {
+      transform: rotate(-0.8deg) translate3d(-1px, 0, 0);
+    }
+    100% {
+      transform: rotate(0.9deg) translate3d(1px, -1px, 0);
+    }
+  }
+
+  @keyframes constellationStarDrift {
+    0% {
+      background-position: 0 0, 14px 18px;
+    }
+    100% {
+      background-position: 42px 42px, 70px 74px;
+    }
+  }
+
   html[data-theme="light"] .desktop-insight-panel {
     border-color: rgba(31, 41, 55, 0.08);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.92));
@@ -2475,6 +2558,11 @@ html[data-theme="light"] .post-action-bar {
       radial-gradient(circle, rgba(23, 31, 48, 0.12) 0 1px, transparent 1px);
   }
 
+  html[data-theme="light"] .desktop-constellation-controls {
+    border-color: rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.68);
+  }
+
   html[data-theme="light"] .desktop-constellation-depth {
     stroke: rgba(15, 23, 42, 0.08);
   }
@@ -2489,6 +2577,15 @@ html[data-theme="light"] .post-action-bar {
 
   html[data-theme="light"] .desktop-person-row:hover {
     background: rgba(15, 23, 42, 0.055);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-constellation-stage::before,
+    .desktop-constellation-orbit,
+    .desktop-node-aura,
+    .desktop-node-float {
+      animation: none !important;
+    }
   }
 }
 

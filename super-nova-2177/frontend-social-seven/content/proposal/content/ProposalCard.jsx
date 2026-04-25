@@ -266,13 +266,20 @@ function ProposalCard({
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to delete comment.");
-      setLocalComments((prevComments) =>
-        prevComments.filter((comment) => String(comment.id || "") !== String(commentId))
-      );
+      setLocalComments((prevComments) => {
+        if (payload?.tombstone && payload?.comment) {
+          return prevComments.map((comment) =>
+            String(comment.id || "") === String(commentId)
+              ? { ...comment, ...payload.comment }
+              : comment
+          );
+        }
+        return prevComments.filter((comment) => String(comment.id || "") !== String(commentId));
+      });
       if (String(replyTarget?.id || "") === String(commentId)) {
         setReplyTarget(null);
       }
-      setNotify?.(["Comment deleted."]);
+      setNotify?.([payload?.tombstone ? "Comment removed, replies preserved." : "Comment deleted."]);
       refreshFeeds();
     } catch (error) {
       setErrorMsg?.([error.message || "Unable to delete comment."]);
@@ -761,12 +768,13 @@ function ProposalCard({
               {threadedComments.map(({ comment, index, depth }) => {
                 const commentId = comment.id ?? "";
                 const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
+                const isDeletedComment = Boolean(comment.deleted || comment.user === "[deleted]");
                 const isCommentAuthor = Boolean(
                   comment.user &&
                     userData?.name &&
                     String(comment.user).toLowerCase() === String(userData.name).toLowerCase()
                 );
-                const canDeleteComment = Boolean(commentId && (isOwner || isCommentAuthor));
+                const canDeleteComment = Boolean(!isDeletedComment && commentId && (isOwner || isCommentAuthor));
                 return (
                   <DisplayComments
                     key={commentId || `${comment.user || "comment"}-${index}`}
@@ -775,7 +783,7 @@ function ProposalCard({
                     image={comment.user_img}
                     comment={comment.comment}
                     canDelete={canDeleteComment}
-                    canEdit={Boolean(commentId && isCommentAuthor)}
+                    canEdit={Boolean(!isDeletedComment && commentId && isCommentAuthor)}
                     deleting={String(deletingCommentId || "") === String(commentId)}
                     onDelete={() => handleDeleteComment(commentId)}
                     onEdit={handleEditComment}

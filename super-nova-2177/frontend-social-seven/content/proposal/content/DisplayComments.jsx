@@ -60,7 +60,8 @@ function DisplayComments({
   const isSelf = Boolean(
     name && userData?.name && String(name).toLowerCase() === String(userData.name).toLowerCase()
   );
-  const showMenu = Boolean(name || canDelete || canEdit);
+  const isDeleted = name === "[deleted]";
+  const showMenu = !isDeleted && Boolean(name || canDelete || canEdit);
 
   useEffect(() => {
     setEditText(comment || "");
@@ -205,7 +206,7 @@ function DisplayComments({
                 <IoCreateOutline /> Edit
               </button>
             )}
-            {commentId && name && (
+            {commentId && name && !isDeleted && (
               <button
                 type="button"
                 onClick={() => {
@@ -261,26 +262,40 @@ function DisplayComments({
       className="comment-row flex w-full min-w-0 items-start gap-2"
       style={depth ? { marginLeft: `${Math.min(depth, 2) * 0.85}rem`, width: `calc(100% - ${Math.min(depth, 2) * 0.85}rem)` } : undefined}
     >
-      <Link href={profileHref} className="shrink-0" aria-label={`${name || "User"} profile`}>
-        {imageUrl && !imageFailed ? (
-          <img
-            src={imageUrl}
-            alt={name}
-            className="h-9 w-9 rounded-full object-cover shadow-md"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--gray)] p-2 shadow-sm">
-            <p className="text-[0.78rem] font-semibold">{initials}</p>
+      {isDeleted ? (
+        <div className="shrink-0" aria-hidden="true">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.045] p-2 text-[var(--text-gray-light)] shadow-sm">
+            <IoTrashOutline />
           </div>
-        )}
-      </Link>
+        </div>
+      ) : (
+        <Link href={profileHref} className="shrink-0" aria-label={`${name || "User"} profile`}>
+          {imageUrl && !imageFailed ? (
+            <img
+              src={imageUrl}
+              alt={name}
+              className="h-9 w-9 rounded-full object-cover shadow-md"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--gray)] p-2 shadow-sm">
+              <p className="text-[0.78rem] font-semibold">{initials}</p>
+            </div>
+          )}
+        </Link>
+      )}
 
       <div className="comment-bubble flex min-w-0 flex-1 flex-col gap-1 rounded-[0.95rem] bg-[rgba(255,255,255,0.04)] p-3 shadow-sm">
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <Link href={profileHref} className="truncate text-[0.88rem] font-semibold text-[var(--text-black)]">
-            {name}
-          </Link>
+          {isDeleted ? (
+            <span className="truncate text-[0.88rem] font-semibold text-[var(--text-gray-light)]">
+              Deleted comment
+            </span>
+          ) : (
+            <Link href={profileHref} className="truncate text-[0.88rem] font-semibold text-[var(--text-black)]">
+              {name}
+            </Link>
+          )}
           {showMenu && (
             <div className="relative shrink-0">
               <button
@@ -336,7 +351,9 @@ function DisplayComments({
                 Replying to {replyingToName}
               </p>
             )}
-            <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)] [overflow-wrap:anywhere]">{comment}</p>
+            <p className={`break-words text-[0.86rem] leading-6 [overflow-wrap:anywhere] ${
+              isDeleted ? "italic text-[var(--text-gray-light)]" : "text-[var(--transparent-black)]"
+            }`}>{comment}</p>
           </>
         )}
       </div>

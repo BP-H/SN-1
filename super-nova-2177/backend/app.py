@@ -55,6 +55,7 @@ SUPER_NOVA_STATUS = runtime_status(_runtime)
 SUPER_NOVA_ERROR = _runtime.get('error')
 SUPER_NOVA_CORE_APP = _runtime.get('core_app')
 SUPER_NOVA_CORE_ROUTES = _runtime.get('core_routes') or []
+DELETED_COMMENT_TEXT = "[deleted]"
 
 if SUPER_NOVA_AVAILABLE:
     SessionLocal = _runtime['session_local']
@@ -246,15 +247,17 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
         or "human"
     )
     content = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
+    deleted = str(content or "").strip() == DELETED_COMMENT_TEXT
 
     return {
         "id": getattr(comment, "id", None),
         "proposal_id": getattr(comment, "proposal_id", None),
         "parent_comment_id": getattr(comment, "parent_comment_id", None),
-        "user": user_name,
-        "user_img": "" if user_img == "default.jpg" else user_img,
-        "species": species,
-        "comment": content,
+        "user": "[deleted]" if deleted else user_name,
+        "user_img": "" if deleted or user_img == "default.jpg" else user_img,
+        "species": "human" if deleted else species,
+        "comment": "This comment was deleted." if deleted else content,
+        "deleted": deleted,
         "created_at": _format_timestamp(getattr(comment, "created_at", None)),
     }
 
@@ -1811,12 +1814,14 @@ def social_graph(
             for comment in comments[:80]:
                 payload = _serialize_comment_record(db, comment)
                 comments_by_id[str(payload.get("id"))] = payload
+                if payload.get("deleted"):
+                    continue
                 commenter = payload.get("user", "")
                 ensure_node(commenter, payload.get("species", "human"), payload.get("user_img", ""), 3)
                 add_edge(commenter, author, 5, "comments")
                 parent_id = payload.get("parent_comment_id")
                 parent = comments_by_id.get(str(parent_id)) if parent_id is not None else None
-                if parent:
+                if parent and not parent.get("deleted"):
                     add_edge(commenter, parent.get("user", ""), 4, "replies")
 
             try:
@@ -3168,9 +3173,21 @@ def delete_comment(
             if not allowed:
                 raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
 
+            child_count = db.query(Comment).filter(Comment.parent_comment_id == comment_id).count()
+            if child_count:
+                comment.content = DELETED_COMMENT_TEXT
+                db.commit()
+                db.refresh(comment)
+                return {
+                    "ok": True,
+                    "deleted": comment_id,
+                    "tombstone": True,
+                    "comment": _serialize_comment_record(db, comment),
+                }
+
             db.query(Comment).filter(Comment.id == comment_id).delete()
             db.commit()
-            return {"ok": True, "deleted": comment_id}
+            return {"ok": True, "deleted": comment_id, "tombstone": False}
 
         row = db.execute(
             text("SELECT * FROM comments WHERE id = :comment_id"),
@@ -3194,9 +3211,40 @@ def delete_comment(
         if not allowed:
             raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
 
+        child_count = db.execute(
+            text("SELECT COUNT(*) FROM comments WHERE parent_comment_id = :comment_id"),
+            {"comment_id": comment_id},
+        ).scalar() or 0
+        if child_count:
+            try:
+                db.execute(
+                    text(
+                        "UPDATE comments SET comment = :deleted, user = :user, user_img = '' "
+                        "WHERE id = :comment_id"
+                    ),
+                    {"deleted": DELETED_COMMENT_TEXT, "user": "[deleted]", "comment_id": comment_id},
+                )
+            except Exception:
+                db.rollback()
+                db.execute(
+                    text("UPDATE comments SET comment = :deleted WHERE id = :comment_id"),
+                    {"deleted": DELETED_COMMENT_TEXT, "comment_id": comment_id},
+                )
+            db.commit()
+            updated = db.execute(
+                text("SELECT * FROM comments WHERE id = :comment_id"),
+                {"comment_id": comment_id},
+            ).fetchone()
+            return {
+                "ok": True,
+                "deleted": comment_id,
+                "tombstone": True,
+                "comment": _serialize_comment_record(db, updated),
+            }
+
         db.execute(text("DELETE FROM comments WHERE id = :comment_id"), {"comment_id": comment_id})
         db.commit()
-        return {"ok": True, "deleted": comment_id}
+        return {"ok": True, "deleted": comment_id, "tombstone": False}
     except HTTPException:
         db.rollback()
         raise

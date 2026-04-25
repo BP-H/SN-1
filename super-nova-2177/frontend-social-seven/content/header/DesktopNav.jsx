@@ -86,6 +86,14 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
     window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
   };
 
+  const openProfile = () => {
+    if (!isAuthenticated) {
+      requireAccount();
+      return;
+    }
+    setShowSettings((value) => !value);
+  };
+
   const triggerComposer = () => {
     if (!isAuthenticated) {
       requireAccount();
@@ -117,7 +125,7 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
       action: () => (isAuthenticated ? router.push("/messages") : requireAccount()),
       badge: unreadCount,
     },
-    { key: "profile", label: "Profile", icon: IoPersonOutline, action: () => setShowSettings((value) => !value) },
+    { key: "profile", label: "Profile", icon: IoPersonOutline, action: openProfile },
   ];
 
   const isActive = (key) => {
@@ -156,7 +164,7 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
 
       <button
         type="button"
-        onClick={() => setShowSettings((value) => !value)}
+        onClick={openProfile}
         className="desktop-account-card"
       >
         <img

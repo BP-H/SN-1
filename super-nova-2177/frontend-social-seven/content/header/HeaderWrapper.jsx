@@ -17,7 +17,7 @@ export default function HeaderWrapper({
 }) {
   const [authIntent, setAuthIntent] = useState(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const { isAuthenticated, needsProfileSetup } = useUser();
+  const { authLoading, isAuthenticated, needsProfileSetup } = useUser();
 
   useEffect(() => {
     const openAccount = (event) => {
@@ -33,6 +33,13 @@ export default function HeaderWrapper({
     return () => window.removeEventListener("supernova:open-account", openAccount);
   }, [setErrorMsg, setShowSettings]);
 
+  useEffect(() => {
+    if (!showSettings || authLoading || isAuthenticated) return;
+    setAuthIntent({ mode: "create", nonce: Date.now() });
+    setShowSettings(false);
+    setAccountModalOpen(true);
+  }, [authLoading, isAuthenticated, setShowSettings, showSettings]);
+
   return (
     <>
       <Header
@@ -43,9 +50,16 @@ export default function HeaderWrapper({
         setErrorMsg={setErrorMsg}
       />
       <span id="createPost"></span>
-      {showSettings && (
-        <div className="mobile-settings-sheet pointer-events-none fixed bottom-[calc(5.6rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[9200] w-[min(calc(100vw-1.25rem),21rem)] -translate-x-1/2 px-0">
-          <div className="pointer-events-auto">
+      {showSettings && isAuthenticated && (
+        <div
+          className="profile-auth-portal profile-settings-portal fixed inset-0 z-[2147482900] flex items-center justify-center bg-black/65 px-4 py-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-sm"
+          onMouseDown={() => setShowSettings(false)}
+        >
+          <div
+            className="profile-settings-modal-shell w-full max-w-[23rem]"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
             <Settings
               authIntent={authIntent}
               setNotify={setNotify}
