@@ -1747,3 +1747,183 @@ html[data-theme="light"] .post-action-bar {
     0 8px 18px rgba(25, 30, 48, 0.045);
 }
 
+.desktop-shell-nav {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --header-offset: 6.4rem;
+    --dock-offset: 2rem;
+    --shell-inner: 48rem;
+  }
+
+  body {
+    justify-content: flex-start;
+  }
+
+  .app-shell {
+    width: 100vw;
+    max-width: none;
+    padding-top: var(--header-offset);
+    padding-right: clamp(1.25rem, 4vw, 4rem);
+    padding-bottom: 3rem;
+    padding-left: clamp(18rem, 22vw, 21rem);
+  }
+
+  .social-shell {
+    width: min(100%, var(--shell-inner));
+    max-width: var(--shell-inner);
+    margin-inline: auto;
+  }
+
+  .desktop-shell-nav {
+    position: fixed;
+    z-index: 9250;
+    top: 6.15rem;
+    bottom: 1.25rem;
+    left: clamp(1rem, 2vw, 2rem);
+    display: flex;
+    width: 15.5rem;
+    flex-direction: column;
+    gap: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.15rem;
+    background: linear-gradient(180deg, rgba(12, 15, 22, 0.92), rgba(7, 10, 15, 0.94));
+    box-shadow: var(--shadow);
+    padding: 0.8rem;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .desktop-brand-button,
+  .desktop-account-card,
+  .desktop-nav-item,
+  .desktop-compose-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    border-radius: 0.9rem;
+  }
+
+  .desktop-brand-button {
+    gap: 0.7rem;
+    padding: 0.45rem;
+    text-align: left;
+  }
+
+  .desktop-brand-mark {
+    display: flex;
+    height: 2.45rem;
+    width: 2.45rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, rgba(255, 79, 143, 0.9), rgba(146, 156, 255, 0.72));
+    color: white;
+    font-size: 0.82rem;
+    font-weight: 900;
+    box-shadow: var(--shadow-pink);
+  }
+
+  .desktop-compose-button {
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(180deg, rgba(255, 79, 143, 0.95), rgba(255, 79, 143, 0.75));
+    color: white;
+    font-size: 0.86rem;
+    font-weight: 900;
+    padding: 0.8rem 0.9rem;
+    box-shadow: var(--shadow-pink);
+  }
+
+  .desktop-nav-list {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .desktop-nav-item {
+    position: relative;
+    gap: 0.65rem;
+    padding: 0.72rem 0.78rem;
+    color: var(--text-gray-light);
+    text-align: left;
+  }
+
+  .desktop-nav-item:hover,
+  .desktop-nav-item-active {
+    background: rgba(255, 255, 255, 0.065);
+    color: var(--text-black);
+  }
+
+  .desktop-nav-item-active::before {
+    content: "";
+    position: absolute;
+    left: 0.42rem;
+    height: 1.25rem;
+    width: 0.18rem;
+    border-radius: 999px;
+    background: var(--pink);
+    box-shadow: var(--shadow-pink);
+  }
+
+  .desktop-nav-badge {
+    display: flex;
+    height: 1.15rem;
+    min-width: 1.15rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--pink);
+    color: white;
+    font-size: 0.58rem;
+    font-weight: 800;
+  }
+
+  .desktop-account-card {
+    gap: 0.65rem;
+    background: rgba(255, 255, 255, 0.045);
+    padding: 0.55rem;
+  }
+
+  .mobile-bottom-shell {
+    display: none !important;
+  }
+
+  .mobile-top-shell {
+    inset-inline: clamp(18rem, 22vw, 21rem) clamp(1.25rem, 4vw, 4rem) !important;
+    width: auto !important;
+    max-width: none !important;
+    padding-top: 1rem;
+  }
+
+  .mobile-topbar {
+    border-radius: 1.15rem !important;
+  }
+
+  .mobile-settings-sheet {
+    top: 6.15rem !important;
+    right: clamp(1.25rem, 4vw, 4rem) !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: min(22rem, calc(100vw - 2rem)) !important;
+    translate: none !important;
+    transform: none !important;
+  }
+
+  .mobile-feed-panel,
+  .mobile-post-card {
+    margin-inline: 0 !important;
+    border-radius: 1rem !important;
+  }
+
+  .mobile-media-bleed {
+    border-radius: 0.9rem;
+  }
+}
+

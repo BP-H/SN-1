@@ -50,7 +50,7 @@ Silent browser sync must not overwrite an existing account species. Explicit pro
 
 - Do not edit `supernovacore.py` for wrapper or frontend connectivity fixes unless a task explicitly asks for core changes.
 - Keep existing social endpoints stable: `/proposals`, `/votes`, `/comments`, `/profile`, `/messages`, `/follows`, `/auth/...`.
-- Keep feed reads bounded. `/proposals` supports `limit`, `offset`, and `author`; frontend seven should request small slices instead of loading the whole feed.
+- Keep feed reads bounded. `/proposals` supports `limit`, `offset`, `before_id`, and `author`; frontend seven should request small slices instead of loading the whole feed.
 - Add new core-backed frontend features through `API_BASE_URL + "/core/..."`.
 - Railway should provide `DATABASE_URL`; the runtime wrapper preserves that and does not force local SQLite in production.
 - Vercel should set `NEXT_PUBLIC_API_URL` to the Railway backend URL without a trailing slash.

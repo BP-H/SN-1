@@ -1904,6 +1904,7 @@ def list_proposals(
     filter: str = Query("all"),
     search: Optional[str] = Query(None),
     author: Optional[str] = Query(None),
+    before_id: Optional[int] = Query(None, ge=1),
     limit: int = Query(80, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
@@ -1930,6 +1931,8 @@ def list_proposals(
                 )
             if author and author.strip():
                 query = query.filter(func.lower(Proposal.userName) == author.strip().lower())
+            if before_id:
+                query = query.filter(Proposal.id < before_id)
 
             # FILTERS
             filter = (filter or "all").lower()
@@ -1965,6 +1968,8 @@ def list_proposals(
                     )
                 if author and author.strip():
                     query = query.filter(func.lower(Proposal.userName) == author.strip().lower())
+                if before_id:
+                    query = query.filter(Proposal.id < before_id)
                 query = query.group_by(Proposal.id).order_by(desc(vote_count))
                 proposals = [p for p, _ in query.offset(offset).limit(limit).all()]
             elif filter == "ai":
@@ -2009,6 +2014,9 @@ def list_proposals(
             if author and author.strip():
                 where_clauses.append("LOWER(userName) = LOWER(:author)")
                 params["author"] = author.strip()
+            if before_id:
+                where_clauses.append("id < :before_id")
+                params["before_id"] = before_id
 
             # FILTERS
             if filter_sql == "latest":

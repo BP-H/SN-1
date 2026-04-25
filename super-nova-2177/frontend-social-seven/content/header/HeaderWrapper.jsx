@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Header from "@/content/header/Header";
 import HeaderMobile from "@/content/header/HeaderMobile";
+import DesktopNav from "@/content/header/DesktopNav";
 import Settings from "@/content/header/content/Settings";
 import AccountModal from "@/content/profile/AccountModal";
 import { useUser } from "@/content/profile/UserContext";
@@ -61,6 +62,7 @@ export default function HeaderWrapper({
         errorMsg={errorMsg}
         setErrorMsg={setErrorMsg}
       />
+      <DesktopNav showSettings={showSettings} setShowSettings={setShowSettings} />
       <AccountModal
         open={accountModalOpen && !isAuthenticated}
         initialMode={authIntent?.mode || "create"}
