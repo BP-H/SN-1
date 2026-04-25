@@ -393,6 +393,7 @@ h6 {
 }
 
 .messages-shell {
+  height: calc(var(--messages-visual-height, 100dvh) - var(--header-offset) - var(--dock-offset) - 0.4rem);
   overflow: hidden;
 }
 
@@ -402,9 +403,32 @@ h6 {
   overflow: hidden;
 }
 
+.messages-layout {
+  height: 100%;
+}
+
+.messages-chat-panel {
+  flex: 1 1 auto;
+}
+
 .messages-thread-pane {
+  flex: 1 1 auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+html.messages-keyboard-open .app-shell {
+  padding-bottom: 0.35rem;
+}
+
+html.messages-keyboard-open .messages-shell {
+  height: calc(var(--messages-visual-height, 100dvh) - var(--header-offset) - 0.35rem);
+}
+
+html.messages-keyboard-open .mobile-bottom-shell {
+  transform: translateY(110%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .profile-compact-card {

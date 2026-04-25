@@ -38,6 +38,7 @@ export default function MessagesPage() {
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const [readMarkers, setReadMarkers] = useState({});
+  const [composerFocused, setComposerFocused] = useState(false);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
   const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
 
@@ -169,6 +170,47 @@ export default function MessagesPage() {
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [draft, selectedPeer]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const root = document.documentElement;
+    let raf = 0;
+
+    const updateViewport = () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(() => {
+        const viewport = window.visualViewport;
+        const visualHeight = Math.round(viewport?.height || window.innerHeight || 0);
+        const keyboardLift = Math.max(0, Math.round((window.innerHeight || visualHeight) - visualHeight));
+        const keyboardOpen = composerFocused && keyboardLift > 80;
+        root.style.setProperty("--messages-visual-height", `${visualHeight}px`);
+        root.classList.toggle("messages-keyboard-open", keyboardOpen);
+
+        if (keyboardOpen && threadPaneRef.current) {
+          threadPaneRef.current.scrollTo({
+            top: threadPaneRef.current.scrollHeight,
+            behavior: "auto",
+          });
+        }
+      });
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
+
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener("scroll", updateViewport);
+      root.classList.remove("messages-keyboard-open");
+      root.style.removeProperty("--messages-visual-height");
+    };
+  }, [composerFocused]);
+
   const sendMutation = useMutation({
     mutationFn: async () => {
       if (!isAuthenticated) throw new Error("Sign in to send messages.");
@@ -274,7 +316,6 @@ export default function MessagesPage() {
     <div className="messages-shell social-shell pb-0">
       <div
         className="messages-layout flex min-h-0 flex-col gap-2.5"
-        style={{ height: "calc(100dvh - var(--header-offset) - var(--dock-offset) - 0.4rem)" }}
       >
         <section className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
           <div className="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-2">
@@ -434,6 +475,8 @@ export default function MessagesPage() {
                   ref={messageBoxRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onFocus={() => setComposerFocused(true)}
+                  onBlur={() => setComposerFocused(false)}
                   placeholder={`Message ${selectedPeer}`}
                   rows={1}
                   className="composer-textarea max-h-32 min-h-11 flex-1 resize-none overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.045] px-3 py-2.5 text-[0.88rem] outline-none placeholder:text-[var(--text-gray-light)]"
