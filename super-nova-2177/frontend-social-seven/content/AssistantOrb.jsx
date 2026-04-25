@@ -20,6 +20,7 @@ import { useUser } from "@/content/profile/UserContext";
 
 const KEY_STORAGE = "supernova-ai-cursor-key";
 const ORB_SIZE = 56;
+const DIAL_SIZE = 184;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -506,14 +507,14 @@ export default function AssistantOrb() {
   };
 
   const actions = [
-    { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -48, dy: -74, size: "primary", tone: "blue" },
-    { action: "like", label: "Support", icon: BiSolidLike, dx: 48, dy: -74, size: "primary", tone: "pink" },
-    { action: "comment", label: "Comment", icon: IoClipboardOutline, dx: -78, dy: -4 },
-    { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 78, dy: -4 },
-    { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -48, dy: 60 },
-    { action: "share", label: "Share", icon: IoShareSocialOutline, dx: 48, dy: 60 },
-    { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: 0, dy: 84 },
-    { action: "key", label: "AI key", icon: IoKeyOutline, dx: 0, dy: 126 },
+    { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -56, dy: -88, size: "primary", tone: "blue" },
+    { action: "like", label: "Support", icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
+    { action: "comment", label: "Comment", icon: IoClipboardOutline, dx: -100, dy: -28 },
+    { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 100, dy: -28 },
+    { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
+    { action: "share", label: "Share", icon: IoShareSocialOutline, dx: 90, dy: 48 },
+    { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
+    { action: "key", label: "AI key", icon: IoKeyOutline, dx: 34, dy: 96 },
   ];
   const dockHidden = dragging || ghostVisible || menuOpen || settingsOpen || commentOpen || Boolean(reply);
   const floatingPanelStyle =
@@ -587,7 +588,11 @@ export default function AssistantOrb() {
           <div
             data-ai-cursor-root
             className="pointer-events-none fixed z-[2147482500] rounded-full ai-cursor-dial"
-            style={{ left: pos.x - 50, top: pos.y - 50 }}
+            style={{
+              left: pos.x + ORB_SIZE / 2 - DIAL_SIZE / 2,
+              top: pos.y + ORB_SIZE / 2 - DIAL_SIZE / 2,
+              "--ai-dial-size": `${DIAL_SIZE}px`,
+            }}
           />
           {actions.map((item) => {
             const Icon = item.icon;

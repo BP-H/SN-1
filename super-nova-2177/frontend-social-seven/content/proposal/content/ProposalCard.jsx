@@ -18,6 +18,7 @@ import {
   IoPersonAddOutline,
   IoPersonRemoveOutline,
   IoChatbubbleOutline,
+  IoShieldCheckmarkOutline,
   IoTrashOutline,
 } from "react-icons/io5";
 import LikesDeslikes from "./LikesDeslikes";
@@ -73,18 +74,20 @@ function ProposalCard({
   const isDecisionProposal = governance?.kind === "decision";
   const decisionThreshold = Number(governance?.approval_threshold ?? governance?.threshold ?? 0);
   const decisionThresholdLabel = decisionThreshold > 0 ? `${Math.round(decisionThreshold * 100)}%` : "";
-  const decisionLevelLabel = governance?.decision_level === "important" ? "Important" : "Standard";
+  const decisionExecutionMode = String(governance?.execution_mode || governance?.execution || "manual").toLowerCase();
+  const decisionExecutionLabel = decisionExecutionMode === "automatic" || decisionExecutionMode === "auto" ? "Automatic execution" : "Manual execution";
   const decisionDeadlineLabel = (() => {
     if (!isDecisionProposal) return "";
     const fallbackDays = Number(governance?.voting_days || 0);
-    if (!governance?.voting_deadline) return fallbackDays > 0 ? `${fallbackDays}d vote` : "Voting window";
+    const dayLabel = (days) => `${days} ${days === 1 ? "day" : "days"}`;
+    if (!governance?.voting_deadline) return fallbackDays > 0 ? dayLabel(fallbackDays) : "Voting window";
     const deadline = new Date(governance.voting_deadline);
-    if (Number.isNaN(deadline.getTime())) return fallbackDays > 0 ? `${fallbackDays}d vote` : "Voting window";
+    if (Number.isNaN(deadline.getTime())) return fallbackDays > 0 ? dayLabel(fallbackDays) : "Voting window";
     const diffMs = deadline.getTime() - Date.now();
     if (diffMs <= 0) return "Vote ended";
     const hours = Math.ceil(diffMs / (60 * 60 * 1000));
-    if (hours < 24) return `Ends in ${Math.max(1, hours)}h`;
-    return `Ends in ${Math.ceil(hours / 24)}d`;
+    if (hours < 24) return `${Math.max(1, hours)}h left`;
+    return dayLabel(Math.ceil(hours / 24));
   })();
   const commentsById = useMemo(() => {
     const map = new Map();
@@ -585,21 +588,17 @@ function ProposalCard({
 
           {isDecisionProposal && (
             <div className="flex flex-wrap items-center gap-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[var(--text-gray-light)]">
-              <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.045] px-2.5 py-1 text-[var(--pink)]">
-                Decision
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--horizontal-line)] bg-white/[0.045] px-2.5 py-1 text-[var(--pink)]">
+                <IoShieldCheckmarkOutline className="text-[0.82rem]" />
+                Decision{decisionThresholdLabel ? ` ${decisionThresholdLabel}` : ""}
               </span>
               {decisionDeadlineLabel && (
                 <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
                   {decisionDeadlineLabel}
                 </span>
               )}
-              {decisionThresholdLabel && (
-                <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
-                  {decisionLevelLabel} {decisionThresholdLabel}
-                </span>
-              )}
               <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
-                Manual execution
+                {decisionExecutionLabel}
               </span>
             </div>
           )}

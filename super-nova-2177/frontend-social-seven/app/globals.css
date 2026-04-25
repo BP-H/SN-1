@@ -1170,8 +1170,8 @@ html[data-theme="light"] .composer-governance-button.active {
   }
 
   .ai-cursor-dial {
-    height: 9.75rem;
-    width: 9.75rem;
+    height: var(--ai-dial-size, 10.9rem);
+    width: var(--ai-dial-size, 10.9rem);
     border: 1px solid rgba(255, 79, 143, 0.12);
     background: radial-gradient(circle, rgba(255, 79, 143, 0.08), rgba(139, 109, 255, 0.04) 44%, transparent 68%);
     box-shadow: 0 0 24px rgba(255, 79, 143, 0.12);
