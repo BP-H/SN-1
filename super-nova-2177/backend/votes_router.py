@@ -16,11 +16,21 @@ if supernova_path not in sys.path:
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from backend.db_utils import get_db
+try:
+    from .db_utils import get_db
+    from .supernova_runtime import load_supernova_runtime
+except ImportError:  # pragma: no cover - supports running votes_router as a top-level module
+    from db_utils import get_db
+    from supernova_runtime import load_supernova_runtime
 
 try:
-    from db_models import ProposalVote, Harmonizer
-except ImportError:
+    _runtime = load_supernova_runtime()
+    _models = _runtime.get("models") or {}
+    ProposalVote = _models.get("ProposalVote")
+    Harmonizer = _models.get("Harmonizer")
+    if ProposalVote is None or Harmonizer is None:
+        from db_models import ProposalVote, Harmonizer
+except Exception:
     ProposalVote = None
     Harmonizer = None
 

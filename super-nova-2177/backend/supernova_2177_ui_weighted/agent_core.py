@@ -21,6 +21,7 @@ from typing import Any, Dict, TYPE_CHECKING
 from virtual_diary import load_entries
 from config import Config, get_emoji_weights
 from hook_manager import HookManager
+from quantum_sim import QuantumContext
 
 if TYPE_CHECKING:
     from superNova_2177 import (
@@ -97,7 +98,10 @@ def VerifiedScientificModel(*args: Any, **kwargs: Any):  # placeholder
 
 def _load_globals() -> None:
     """Import symbols from superNova_2177 at runtime to avoid circular deps."""
-    import superNova_2177 as sn
+    try:
+        import supernovacore as sn
+    except Exception:  # pragma: no cover - legacy compatibility fallback
+        import superNova_2177 as sn
 
     for k, v in sn.__dict__.items():
         if not k.startswith("__"):

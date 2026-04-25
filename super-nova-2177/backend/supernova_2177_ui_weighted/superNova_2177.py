@@ -6,4 +6,7 @@ public surface here keeps older modules, tests, and scripts working while
 the package is gradually normalized.
 """
 
-from .supernovacore import *  # noqa: F401,F403
+try:
+    from .supernovacore import *  # noqa: F401,F403
+except ImportError:  # pragma: no cover - supports legacy top-level imports
+    from supernovacore import *  # noqa: F401,F403

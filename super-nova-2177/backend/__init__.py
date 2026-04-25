@@ -1,21 +1,15 @@
 from __future__ import annotations
 
 from .db_utils import SessionLocal, get_db
+from .supernova_runtime import load_supernova_runtime
 
-try:
-    from .supernova_2177_ui_weighted.supernovacore import (
-        DB_ENGINE_URL,
-        get_settings,
-        get_threshold,
-        tally_votes,
-        decide,
-    )
-except Exception:
-    DB_ENGINE_URL = None
-    get_settings = None
-    get_threshold = None
-    tally_votes = None
-    decide = None
+_runtime = load_supernova_runtime()
+
+DB_ENGINE_URL = _runtime.get("db_engine_url")
+get_settings = _runtime.get("get_settings")
+get_threshold = _runtime.get("get_weighted_threshold")
+tally_votes = _runtime.get("tally_votes")
+decide = _runtime.get("weighted_decide")
 
 __all__ = [
     "DB_ENGINE_URL",

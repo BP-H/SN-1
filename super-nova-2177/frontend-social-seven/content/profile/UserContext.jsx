@@ -88,6 +88,7 @@ function getPasswordProfile(passwordAuth) {
     email: passwordAuth.email || "",
     name: passwordAuth.username || "",
     avatar: normalizeAvatarValue(passwordAuth.avatar || ""),
+    species: passwordAuth.species || "",
     provider: "password",
   };
 }
@@ -113,7 +114,7 @@ function mergeUserData(providerProfile, storedProfile = {}) {
   const storedAvatar = normalizeAvatarValue(storedProfile.customAvatar || "");
   const providerAvatar = normalizeAvatarValue(providerProfile.avatar || "");
   const effectiveAvatar = storedAvatar || providerAvatar || "";
-  const species = storedProfile.species || "human";
+  const species = storedProfile.species || providerProfile.species || "human";
 
   return {
     id: providerProfile.id,
@@ -196,21 +197,35 @@ export function UserProvider({ children }) {
       providerProfile.email?.split("@")[0] ||
       `${providerProfile.provider}-${providerProfile.id.slice(0, 8)}`;
 
+    const syncPayload = {
+      provider: providerProfile.provider,
+      provider_id: providerProfile.id,
+      email: providerProfile.email,
+      username,
+      avatar_url: normalizeAvatarValue(userData.avatar || providerProfile.avatar || ""),
+    };
+    const explicitSpecies = storedProfile?.species || providerProfile.species || "";
+    if (explicitSpecies) {
+      syncPayload.species = explicitSpecies;
+    }
+
     fetch(`${API_BASE_URL}/auth/social/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: providerProfile.provider,
-        provider_id: providerProfile.id,
-        email: providerProfile.email,
-        username,
-        avatar_url: normalizeAvatarValue(userData.avatar || providerProfile.avatar || ""),
-        species: userData.species || "human",
-      }),
+      body: JSON.stringify(syncPayload),
     })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         if (cancelled || !payload?.username) return;
+        if (!storedProfile?.species && payload.species) {
+          const key = getCustomStorageKey(authUser, passwordAuth);
+          const nextStored = {
+            ...(storedProfile || {}),
+            species: payload.species,
+          };
+          writeStorage(key, nextStored);
+          setStoredProfile(nextStored);
+        }
       })
       .catch(() => {
         // Social auth remains usable even if the local backend is offline.
@@ -225,9 +240,13 @@ export function UserProvider({ children }) {
     providerProfile.id,
     providerProfile.name,
     providerProfile.provider,
+    providerProfile.species,
+    storedProfile?.species,
+    storedProfile,
     userData.avatar,
     userData.name,
-    userData.species,
+    authUser,
+    passwordAuth,
   ]);
 
   const persistProfile = useCallback((nextStored) => {

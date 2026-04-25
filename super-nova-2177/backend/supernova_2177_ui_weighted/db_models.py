@@ -398,6 +398,8 @@ class ProposalVote(Base):
 
     proposal = relationship("Proposal", back_populates="votes")
     voter = relationship("Harmonizer", foreign_keys=[harmonizer_id])
+
+proposal_votes = ProposalVote.__table__
     
 class Notification(Base):
     __tablename__ = "notifications"
@@ -742,6 +744,5 @@ def seed_default_users() -> None:
         session.commit()
     finally:
         session.close()
-
 
 

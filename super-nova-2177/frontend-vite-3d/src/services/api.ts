@@ -2,7 +2,23 @@
 
 import { SystemMetrics, GraphData, VibeNode, Proposal, AuthResponse, User } from '../types';
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+function normalizeBaseUrl(url?: string): string {
+  return (url || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+}
+
+function joinApiUrl(baseUrl: string, endpoint = ''): string {
+  if (!endpoint) return baseUrl;
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) return endpoint;
+  if (!endpoint.startsWith('/')) return `${baseUrl}/${endpoint}`;
+  return `${baseUrl}${endpoint}`;
+}
+
+export const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_URL);
+export const CORE_API_BASE_URL = `${API_BASE_URL}/core`;
+
+export function coreApiUrl(endpoint = ''): string {
+  return joinApiUrl(CORE_API_BASE_URL, endpoint);
+}
 
 let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
@@ -17,7 +33,7 @@ const getHeaders = () => {
 };
 
 async function fetchJson<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = joinApiUrl(API_BASE_URL, endpoint);
   const config = {
     ...options,
     headers: { ...getHeaders(), ...options.headers },

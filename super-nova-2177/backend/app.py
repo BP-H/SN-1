@@ -30,52 +30,18 @@ for path in (BACKEND_DIR, SUPER_NOVA_DIR):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
+try:
+    from .supernova_runtime import load_supernova_runtime, runtime_status
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from supernova_runtime import load_supernova_runtime, runtime_status
+
 
 def _load_supernova_runtime():
-    try:
-        from supernovacore import (
-            DB_ENGINE_URL,
-            SessionLocal,
-            get_db,
-            get_settings,
-            get_threshold as get_weighted_threshold,
-            decide as weighted_decide,
-            tally_votes,
-        )
-        from db_models import (
-            Comment,
-            Decision,
-            Harmonizer,
-            Proposal,
-            ProposalVote,
-            Run,
-            SystemState,
-            VibeNode,
-        )
-
-        return {
-            'available': True,
-            'db_engine_url': DB_ENGINE_URL,
-            'session_local': SessionLocal,
-            'get_db': get_db,
-            'get_settings': get_settings,
-            'get_weighted_threshold': get_weighted_threshold,
-            'weighted_decide': weighted_decide,
-            'tally_votes': tally_votes,
-            'models': {
-                'Comment': Comment,
-                'Decision': Decision,
-                'Harmonizer': Harmonizer,
-                'Proposal': Proposal,
-                'ProposalVote': ProposalVote,
-                'Run': Run,
-                'SystemState': SystemState,
-                'VibeNode': VibeNode,
-            },
-        }
-    except Exception as exc:  # pragma: no cover - dependency/import failures
+    runtime = load_supernova_runtime()
+    if not runtime.get('available'):
+        exc = runtime.get('error')
         print(f'Warning: falling back to standalone backend mode: {exc}')
-        return {'available': False, 'error': exc}
+    return runtime
 
 try:
     import auth_utils
@@ -85,6 +51,10 @@ except Exception:  # pragma: no cover - auth helpers may be unavailable in parti
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
+SUPER_NOVA_STATUS = runtime_status(_runtime)
+SUPER_NOVA_ERROR = _runtime.get('error')
+SUPER_NOVA_CORE_APP = _runtime.get('core_app')
+SUPER_NOVA_CORE_ROUTES = _runtime.get('core_routes') or []
 
 if SUPER_NOVA_AVAILABLE:
     SessionLocal = _runtime['session_local']
@@ -211,6 +181,8 @@ app.add_middleware(
 uploads_dir = os.environ.get("UPLOADS_DIR") or os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+if SUPER_NOVA_CORE_APP is not None:
+    app.mount("/core", SUPER_NOVA_CORE_APP, name="supernova_core")
 
 
 def _format_timestamp(value) -> str:
@@ -509,12 +481,12 @@ class RegisterUserIn(BaseModel):
 
 
 class SocialAuthSyncIn(BaseModel):
-    provider: str = "oauth"
-    provider_id: str = ""
+    provider: Optional[str] = "oauth"
+    provider_id: Optional[str] = ""
     email: Optional[str] = None
     username: Optional[str] = None
     avatar_url: Optional[str] = None
-    species: Optional[str] = "human"
+    species: Optional[str] = None
 
 
 class CredentialLoginIn(BaseModel):
@@ -1008,19 +980,33 @@ def universe_info():
         }
 
 # --- Health & Status ---
+def _supernova_runtime_payload(include_routes: bool = True) -> Dict[str, Any]:
+    payload = runtime_status(_runtime)
+    payload["integration"] = "connected" if SUPER_NOVA_AVAILABLE else "disconnected"
+    payload["mount_path"] = "/core" if payload.get("core_mounted") else None
+    payload["wrapper_routes_stable"] = True
+    if not include_routes:
+        routes = payload.get("core_routes") or []
+        payload["core_routes_sample"] = routes[:8]
+        payload.pop("core_routes", None)
+    return payload
+
+
 @app.get("/health", summary="Check API health")
 def health(db: Session = Depends(get_db)):
-    supernova_status = "connected" if SUPER_NOVA_AVAILABLE else "disconnected"
     try:
         db.execute(text("SELECT 1"))
         db_status = "connected"
     except Exception:
         db_status = "disconnected"
     
+    supernova_runtime = _supernova_runtime_payload(include_routes=False)
     return {
         "ok": True,
         "database": db_status,
-        "supernova_integration": supernova_status,
+        "database_engine": DB_ENGINE_URL,
+        "supernova_integration": supernova_runtime["integration"],
+        "supernova": supernova_runtime,
         "timestamp": datetime.datetime.now().isoformat()
     }
 
@@ -1042,12 +1028,16 @@ def get_universe_state():
    
 @app.get("/supernova-status", summary="Check SuperNova integration status")
 def supernova_status():
+    supernova_runtime = _supernova_runtime_payload(include_routes=True)
     return {
         "supernova_connected": SUPER_NOVA_AVAILABLE,
+        "supernova": supernova_runtime,
+        "database_engine": DB_ENGINE_URL,
         "features_available": {
             "weighted_voting": SUPER_NOVA_AVAILABLE,
             "karma_system": SUPER_NOVA_AVAILABLE,
             "governance": SUPER_NOVA_AVAILABLE,
+            "core_routes": bool(SUPER_NOVA_CORE_ROUTES),
             "search_filters": True,
             "advanced_sorting": True
         }
@@ -1180,10 +1170,12 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         or f"{provider}-{provider_id[:8] or uuid.uuid4().hex[:8]}"
     )
     avatar_url = (payload.avatar_url or "").strip()
-    try:
-        species = _normalize_species(payload.species)
-    except HTTPException:
-        species = "human"
+    species = None
+    if payload.species:
+        try:
+            species = _normalize_species(payload.species)
+        except HTTPException:
+            species = None
 
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
@@ -1196,7 +1188,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
             "username": username,
             "email": email,
             "provider": provider,
-            "species": species,
+            "species": species or "human",
             "avatar_url": _social_avatar(avatar_url),
             "backend": "fallback",
         }
@@ -1210,7 +1202,11 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         if avatar_url:
             existing.profile_pic = avatar_url
             avatar_to_sync = avatar_url
-        existing.species = species or getattr(existing, "species", "human")
+        existing_species = getattr(existing, "species", None)
+        if species and not (species == "human" and existing_species in {"ai", "company"}):
+            existing.species = species
+        elif not existing_species:
+            existing.species = "human"
         existing.is_active = True
         existing.consent_given = True
         db.add(existing)
@@ -1246,7 +1242,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         username=candidate,
         email=email,
         hashed_password=hashed_password,
-        species=species,
+        species=species or "human",
         bio=f"Signed in with {provider}.",
         profile_pic=avatar_url or "default.jpg",
         is_active=True,
@@ -1272,10 +1268,12 @@ def debug_supernova():
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "supernova_available": SUPER_NOVA_AVAILABLE,
+        "supernova": _supernova_runtime_payload(include_routes=True),
         "python_path": sys.path,
         "current_dir": os.getcwd(),
         "dir_contents": os.listdir('.'),
-        "supernova_dir_exists": os.path.exists('./supernova_2177_ui_weighted')
+        "supernova_dir": str(SUPER_NOVA_DIR),
+        "supernova_dir_exists": SUPER_NOVA_DIR.exists()
     }
 
 @app.get("/debug/search-test")
@@ -1737,9 +1735,14 @@ async def create_proposal(
         if not final_user:
             final_user = "Unknown"
         initials = (final_user[:2].upper() if final_user else "UN")
+        author_obj = None
+        if Harmonizer is not None and final_user:
+            author_obj = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == final_user.lower()).first()
+            account_species = getattr(author_obj, "species", None) if author_obj else None
+            if account_species in ("human", "company", "ai"):
+                author_type = account_species
 
         if CRUD_MODELS_AVAILABLE:
-            author_obj = db.query(Harmonizer).filter(Harmonizer.username == final_user).first()
             if author_obj:
                 user_name = author_obj.username
             else:
@@ -2925,8 +2928,15 @@ def delete_all_proposals(
 # --- Register routers ---
 
 # Import routers from backend package
-from backend.votes_router import router as votes_router
-from supernova_2177_ui_weighted.login_router import router as login_router
+try:
+    from .votes_router import router as votes_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from votes_router import router as votes_router
+
+try:
+    from supernova_2177_ui_weighted.login_router import router as login_router
+except ImportError:  # pragma: no cover - supports running from the core directory on sys.path
+    from login_router import router as login_router
 
 app.include_router(votes_router)
 app.include_router(login_router)

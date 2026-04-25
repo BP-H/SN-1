@@ -1,4 +1,20 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+function normalizeBaseUrl(url?: string): string {
+  return (url || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+}
+
+function joinApiUrl(baseUrl: string, endpoint = ''): string {
+  if (!endpoint) return baseUrl;
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) return endpoint;
+  if (!endpoint.startsWith('/')) return `${baseUrl}/${endpoint}`;
+  return `${baseUrl}${endpoint}`;
+}
+
+export const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_URL);
+export const CORE_API_BASE_URL = `${API_BASE_URL}/core`;
+
+export function coreApiUrl(endpoint = ''): string {
+  return joinApiUrl(CORE_API_BASE_URL, endpoint);
+}
 
 let authToken: string | null = localStorage.getItem('token');
 
@@ -67,7 +83,7 @@ async function fetchJson<T>(endpoint: string, options: RequestInit = {}): Promis
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(joinApiUrl(API_BASE_URL, endpoint), {
     ...options,
     headers
   });

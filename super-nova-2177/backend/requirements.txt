@@ -6,7 +6,7 @@ psycopg2-binary
 python-multipart
 python-jose[cryptography]
 passlib[bcrypt]
-prometheus_client
+prometheus-client
 networkx
 sympy
 mido

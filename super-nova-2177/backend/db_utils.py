@@ -6,7 +6,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 try:
-    from supernova_2177_ui_weighted.db_models import SessionLocal as SharedSessionLocal
+    from .supernova_runtime import load_supernova_runtime
+except Exception:
+    from supernova_runtime import load_supernova_runtime
+
+try:
+    _runtime = load_supernova_runtime()
+    if not _runtime.get("available") or _runtime.get("session_local") is None:
+        raise RuntimeError("SuperNova runtime session unavailable")
+    SharedSessionLocal = _runtime["session_local"]
 except Exception:
     DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./supernova_local.db")
     engine = create_engine(
