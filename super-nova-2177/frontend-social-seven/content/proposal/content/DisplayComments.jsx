@@ -2,6 +2,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { FaUser, FaBriefcase } from "react-icons/fa";
 import { BsFillCpuFill } from "react-icons/bs";
+import { IoTrashOutline } from "react-icons/io5";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 const SPECIES_CONFIG = {
@@ -10,7 +11,15 @@ const SPECIES_CONFIG = {
   ai: { icon: BsFillCpuFill, bg: "bg-[#9b6dff]", shadow: "shadow-[0_0_8px_rgba(155,109,255,0.3)]" },
 };
 
-function DisplayComments({ comment, name, image, userSpecie }) {
+function DisplayComments({
+  comment,
+  name,
+  image,
+  userSpecie,
+  canDelete = false,
+  onDelete = () => {},
+  deleting = false,
+}) {
   const [imageFailed, setImageFailed] = useState(false);
 
   const getInitials = (fullName) => {
@@ -55,6 +64,18 @@ function DisplayComments({ comment, name, image, userSpecie }) {
           >
             <Icon />
           </span>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-gray-light)] transition-colors hover:bg-white/[0.08] hover:text-[var(--pink)] disabled:opacity-45"
+              aria-label="Delete comment"
+              title="Delete comment"
+            >
+              <IoTrashOutline className="text-[0.8rem]" />
+            </button>
+          )}
         </div>
         <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)]">{comment}</p>
       </div>

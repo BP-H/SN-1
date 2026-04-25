@@ -58,6 +58,7 @@ function ProposalCard({
   const [followBusy, setFollowBusy] = useState(false);
   const [followingAuthor, setFollowingAuthor] = useState(false);
   const [localLogo, setLocalLogo] = useState(logo || "");
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
 
   const { userData, defaultAvatar } = useUser();
   const queryClient = useQueryClient();
@@ -200,6 +201,28 @@ function ProposalCard({
     } finally {
       setFollowBusy(false);
       setMenuOpen(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!commentId || !userData?.name || deletingCommentId) return;
+    setDeletingCommentId(commentId);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/comments/${encodeURIComponent(commentId)}?user=${encodeURIComponent(userData.name)}`,
+        { method: "DELETE" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to delete comment.");
+      setLocalComments((prevComments) =>
+        prevComments.filter((comment) => String(comment.id || "") !== String(commentId))
+      );
+      setNotify?.(["Comment deleted."]);
+      refreshFeeds();
+    } catch (error) {
+      setErrorMsg?.([error.message || "Unable to delete comment."]);
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -622,15 +645,27 @@ function ProposalCard({
               />
             </div>
             <div className="hide-scrollbar flex max-h-[18rem] min-w-0 flex-col gap-2 overflow-y-auto pr-1">
-              {localComments.map((comment, index) => (
-                <DisplayComments
-                  key={index}
-                  name={comment.user}
-                  image={comment.user_img}
-                  comment={comment.comment}
-                  userSpecie={comment.species}
-                />
-              ))}
+              {localComments.map((comment, index) => {
+                const commentId = comment.id ?? "";
+                const isCommentAuthor = Boolean(
+                  comment.user &&
+                    userData?.name &&
+                    String(comment.user).toLowerCase() === String(userData.name).toLowerCase()
+                );
+                const canDeleteComment = Boolean(commentId && (isOwner || isCommentAuthor));
+                return (
+                  <DisplayComments
+                    key={commentId || `${comment.user || "comment"}-${index}`}
+                    name={comment.user}
+                    image={comment.user_img}
+                    comment={comment.comment}
+                    userSpecie={comment.species}
+                    canDelete={canDeleteComment}
+                    deleting={String(deletingCommentId || "") === String(commentId)}
+                    onDelete={() => handleDeleteComment(commentId)}
+                  />
+                );
+              })}
             </div>
           </div>
         )}

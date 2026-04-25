@@ -43,3 +43,7 @@ logs/
 *.sqlite
 *.sqlite3
 local_data/
+super-nova-2177/backend/uploads/
+super-nova-2177/backend/messages_store.json
+super-nova-2177/backend/follows_store.json
+test_upload.py

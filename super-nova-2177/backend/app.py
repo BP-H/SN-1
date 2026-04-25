@@ -276,11 +276,13 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
     content = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
 
     return {
+        "id": getattr(comment, "id", None),
         "proposal_id": getattr(comment, "proposal_id", None),
         "user": user_name,
         "user_img": "" if user_img == "default.jpg" else user_img,
         "species": species,
         "comment": content,
+        "created_at": _format_timestamp(getattr(comment, "created_at", None)),
     }
 
 
@@ -2219,22 +2221,47 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
                 comments_list = [_serialize_comment_record(db, comment)]
         else:
             user_img_value = c.user_img if c.user_img else ""
-            db.execute(
-                text("INSERT INTO comments (proposal_id, user, user_img, comment) VALUES (:pid, :user, :user_img, :comment)"),
-                {
-                    "pid": c.proposal_id,
-                    "user": c.user or "Anonymous",
-                    "user_img": user_img_value,
-                    "comment": c.comment
-                }
-            )
+            created_at = datetime.datetime.utcnow()
+            insert_payload = {
+                "pid": c.proposal_id,
+                "user": c.user or "Anonymous",
+                "user_img": user_img_value,
+                "comment": c.comment,
+                "created_at": created_at,
+            }
+            inserted_id = None
+            try:
+                inserted = db.execute(
+                    text(
+                        "INSERT INTO comments (proposal_id, user, user_img, comment) "
+                        "VALUES (:pid, :user, :user_img, :comment) RETURNING id"
+                    ),
+                    insert_payload,
+                ).fetchone()
+                inserted_id = getattr(inserted, "id", None) if inserted else None
+            except Exception:
+                db.rollback()
+                db.execute(
+                    text("INSERT INTO comments (proposal_id, user, user_img, comment) VALUES (:pid, :user, :user_img, :comment)"),
+                    insert_payload,
+                )
+                latest = db.execute(
+                    text(
+                        "SELECT id FROM comments WHERE proposal_id = :pid AND user = :user "
+                        "ORDER BY id DESC LIMIT 1"
+                    ),
+                    insert_payload,
+                ).fetchone()
+                inserted_id = getattr(latest, "id", None) if latest else None
             db.commit()
             comments_list = [{
+                "id": inserted_id,
                 "proposal_id": c.proposal_id,
                 "user": c.user or "Anonymous",
                 "user_img": user_img_value,
                 "species": c.species or "human",
-                "comment": c.comment
+                "comment": c.comment,
+                "created_at": _format_timestamp(created_at),
             }]
 
         return {
@@ -2247,6 +2274,80 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
         import traceback
         print("Failed to add comment:", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to add comment: {str(e)}")
+
+
+@app.delete("/comments/{comment_id}")
+def delete_comment(
+    comment_id: int,
+    user: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    requester = _safe_user_key(user)
+    if not requester:
+        raise HTTPException(status_code=400, detail="user is required")
+
+    try:
+        if CRUD_MODELS_AVAILABLE:
+            comment = db.query(Comment).filter(Comment.id == comment_id).first()
+            if not comment:
+                raise HTTPException(status_code=404, detail="Comment not found")
+
+            comment_author = ""
+            if getattr(comment, "author", None) is not None:
+                comment_author = getattr(comment.author, "username", "") or ""
+            elif getattr(comment, "author_id", None):
+                author_obj = db.query(Harmonizer).filter(Harmonizer.id == comment.author_id).first()
+                comment_author = getattr(author_obj, "username", "") if author_obj else ""
+
+            proposal_owner = ""
+            proposal_id = getattr(comment, "proposal_id", None)
+            if proposal_id:
+                proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+                if proposal:
+                    proposal_owner = getattr(proposal, "userName", "") or ""
+                    if not proposal_owner and getattr(proposal, "author_id", None):
+                        owner_obj = db.query(Harmonizer).filter(Harmonizer.id == proposal.author_id).first()
+                        proposal_owner = getattr(owner_obj, "username", "") if owner_obj else ""
+
+            allowed = requester in {_safe_user_key(comment_author), _safe_user_key(proposal_owner)}
+            if not allowed:
+                raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
+
+            db.query(Comment).filter(Comment.id == comment_id).delete()
+            db.commit()
+            return {"ok": True, "deleted": comment_id}
+
+        row = db.execute(
+            text("SELECT * FROM comments WHERE id = :comment_id"),
+            {"comment_id": comment_id},
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Comment not found")
+
+        comment_author = getattr(row, "user", "") or ""
+        proposal_id = getattr(row, "proposal_id", None)
+        proposal_owner = ""
+        if proposal_id:
+            proposal = db.execute(
+                text("SELECT userName, author FROM proposals WHERE id = :pid"),
+                {"pid": proposal_id},
+            ).fetchone()
+            if proposal:
+                proposal_owner = getattr(proposal, "userName", "") or getattr(proposal, "author", "") or ""
+
+        allowed = requester in {_safe_user_key(comment_author), _safe_user_key(proposal_owner)}
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
+
+        db.execute(text("DELETE FROM comments WHERE id = :comment_id"), {"comment_id": comment_id})
+        db.commit()
+        return {"ok": True, "deleted": comment_id}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete comment: {str(exc)}")
 
 # --- Karma endpoint ---
 @app.get("/users/{username}/karma")
@@ -2437,13 +2538,6 @@ async def upload_image(
     if file.content_type and not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image")
 
-    clean_username = (username or "").strip()
-    user = None
-    if clean_username and Harmonizer is not None:
-        user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found for profile photo update")
-
     ext = os.path.splitext(file.filename)[1]
     unique_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(uploads_dir, unique_name)
@@ -2451,17 +2545,35 @@ async def upload_image(
         shutil.copyfileobj(file.file, f)
 
     avatar_url = f"/uploads/{unique_name}"
+    clean_username = (username or "").strip()
+    profile_synced = False
+    sync_error = ""
+    user = None
+    if clean_username and Harmonizer is not None:
+        try:
+            user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
+        except Exception as exc:
+            db.rollback()
+            sync_error = str(exc)
+
     if user is not None:
         try:
             user.profile_pic = avatar_url
             _sync_user_avatar_references(db, user.username, avatar_url, getattr(user, "id", None))
             db.add(user)
             db.commit()
+            profile_synced = True
         except Exception as exc:
             db.rollback()
-            raise HTTPException(status_code=500, detail=f"Profile photo saved but profile sync failed: {str(exc)}")
+            sync_error = str(exc)
 
-    return {"filename": unique_name, "url": avatar_url, "content_type": file.content_type}
+    return {
+        "filename": unique_name,
+        "url": avatar_url,
+        "content_type": file.content_type,
+        "profile_synced": profile_synced,
+        "sync_error": sync_error,
+    }
 
 @app.post("/upload-file")
 async def upload_file(file: UploadFile = File(...)):

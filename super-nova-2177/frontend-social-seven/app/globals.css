@@ -385,11 +385,26 @@ h6 {
 }
 
 .messages-composer {
-  position: relative;
-  bottom: auto;
+  position: sticky;
+  bottom: 0;
   flex-shrink: 0;
   z-index: 25;
   box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.22);
+}
+
+.messages-shell {
+  overflow: hidden;
+}
+
+.messages-layout,
+.messages-chat-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.messages-thread-pane {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .profile-compact-card {
