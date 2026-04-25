@@ -1,26 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FaUser, FaBriefcase } from "react-icons/fa";
-import { BsFillCpuFill } from "react-icons/bs";
-import { IoTrashOutline } from "react-icons/io5";
+import { useRouter } from "next/navigation";
+import {
+  IoChatbubbleOutline,
+  IoCheckmark,
+  IoClose,
+  IoCreateOutline,
+  IoEllipsisHorizontal,
+  IoPersonAddOutline,
+  IoPersonRemoveOutline,
+  IoTrashOutline,
+} from "react-icons/io5";
+import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
-
-const SPECIES_CONFIG = {
-  human: { icon: FaUser, bg: "bg-[#e8457a]", shadow: "shadow-[0_0_8px_rgba(232,69,122,0.3)]" },
-  company: { icon: FaBriefcase, bg: "bg-[#4a8fe7]", shadow: "shadow-[0_0_8px_rgba(74,143,231,0.25)]" },
-  ai: { icon: BsFillCpuFill, bg: "bg-[#9b6dff]", shadow: "shadow-[0_0_8px_rgba(155,109,255,0.3)]" },
-};
+import { useUser } from "@/content/profile/UserContext";
 
 function DisplayComments({
+  commentId = "",
   comment,
   name,
   image,
-  userSpecie,
   canDelete = false,
+  canEdit = false,
   onDelete = () => {},
+  onEdit = async () => {},
   deleting = false,
+  setErrorMsg = () => {},
+  setNotify = () => {},
 }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(comment || "");
+  const [editBusy, setEditBusy] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followingAuthor, setFollowingAuthor] = useState(false);
+  const router = useRouter();
+  const { userData, isAuthenticated } = useUser();
 
   const getInitials = (fullName) => {
     if (!fullName) return "";
@@ -31,10 +47,97 @@ function DisplayComments({
   };
 
   const initials = getInitials(name);
-  const conf = SPECIES_CONFIG[userSpecie] || SPECIES_CONFIG.human;
-  const Icon = conf.icon;
   const imageUrl = normalizeAvatarValue(image) ? avatarDisplayUrl(image) : "";
   const profileHref = name ? `/users/${encodeURIComponent(name)}` : "/profile";
+  const isSelf = Boolean(
+    name && userData?.name && String(name).toLowerCase() === String(userData.name).toLowerCase()
+  );
+  const showMenu = Boolean(name || canDelete || canEdit);
+
+  useEffect(() => {
+    setEditText(comment || "");
+  }, [comment]);
+
+  useEffect(() => {
+    if (!menuOpen || isSelf || !isAuthenticated || !userData?.name || !name) return undefined;
+    let cancelled = false;
+    fetch(
+      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(name)}`
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload) setFollowingAuthor(Boolean(payload.following));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isSelf, menuOpen, name, userData?.name]);
+
+  const requireAccount = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+    }
+  };
+
+  const handleMessage = () => {
+    if (!isAuthenticated || !userData?.name) {
+      requireAccount();
+      return;
+    }
+    if (!name || isSelf) return;
+    setMenuOpen(false);
+    router.push(`/messages?to=${encodeURIComponent(name)}`);
+  };
+
+  const handleToggleFollow = async () => {
+    if (!isAuthenticated || !userData?.name) {
+      requireAccount();
+      return;
+    }
+    if (!name || isSelf || followBusy) return;
+    setFollowBusy(true);
+    try {
+      const response = await fetch(
+        followingAuthor
+          ? `${API_BASE_URL}/follows?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(name)}`
+          : `${API_BASE_URL}/follows`,
+        {
+          method: followingAuthor ? "DELETE" : "POST",
+          headers: followingAuthor ? undefined : { "Content-Type": "application/json" },
+          body: followingAuthor ? undefined : JSON.stringify({ follower: userData.name, target: name }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
+      setFollowingAuthor(Boolean(payload.following));
+      setNotify([payload.following ? `Following ${name}.` : `Unfollowed ${name}.`]);
+    } catch (error) {
+      setErrorMsg([error.message || "Follow action failed."]);
+    } finally {
+      setFollowBusy(false);
+      setMenuOpen(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    const nextText = editText.trim();
+    if (!nextText) {
+      setErrorMsg(["Comment cannot be empty."]);
+      return;
+    }
+    setEditBusy(true);
+    try {
+      await onEdit(commentId, nextText);
+      setEditing(false);
+      setMenuOpen(false);
+      setNotify(["Comment updated."]);
+    } catch (error) {
+      setErrorMsg([error.message || "Unable to edit comment."]);
+    } finally {
+      setEditBusy(false);
+    }
+  };
 
   return (
     <div className="flex w-full min-w-0 items-start gap-2">
@@ -58,26 +161,106 @@ function DisplayComments({
           <Link href={profileHref} className="truncate text-[0.88rem] font-semibold text-[var(--text-black)]">
             {name}
           </Link>
-          <span
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.55rem] text-white ${conf.bg} ${conf.shadow}`}
-            title={userSpecie === "company" ? "ORG" : userSpecie === "ai" ? "AI" : "Human"}
-          >
-            <Icon />
-          </span>
-          {canDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-gray-light)] transition-colors hover:bg-white/[0.08] hover:text-[var(--pink)] disabled:opacity-45"
-              aria-label="Delete comment"
-              title="Delete comment"
-            >
-              <IoTrashOutline className="text-[0.8rem]" />
-            </button>
+          {showMenu && (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setMenuOpen((value) => !value);
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-gray-light)] hover:bg-white/[0.07]"
+                aria-label="Comment options"
+              >
+                <IoEllipsisHorizontal />
+              </button>
+              {menuOpen && (
+                <div className="proposal-options-menu absolute right-0 top-8 z-30 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditText(comment || "");
+                        setEditing(true);
+                        setMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                    >
+                      <IoCreateOutline /> Edit
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDelete();
+                      }}
+                      disabled={deleting}
+                      className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left text-[var(--pink)] hover:bg-white/[0.07] disabled:opacity-50"
+                    >
+                      <IoTrashOutline /> Delete
+                    </button>
+                  )}
+                  {!isSelf && name && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleMessage}
+                        className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                      >
+                        <IoChatbubbleOutline /> Message
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleFollow}
+                        disabled={followBusy}
+                        className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] disabled:opacity-50"
+                      >
+                        {followingAuthor ? <IoPersonRemoveOutline /> : <IoPersonAddOutline />}
+                        {followingAuthor ? "Unfollow" : "Follow"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
-        <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)]">{comment}</p>
+        {editing ? (
+          <div className="flex flex-col gap-2">
+            <textarea
+              value={editText}
+              onChange={(event) => setEditText(event.target.value)}
+              className="composer-textarea min-h-20 resize-none rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.055] px-3 py-2 text-[0.86rem] leading-5 outline-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setEditText(comment || "");
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.07] text-[var(--text-gray-light)]"
+                aria-label="Cancel comment edit"
+              >
+                <IoClose />
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={editBusy}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] disabled:opacity-50"
+                aria-label="Save comment edit"
+              >
+                <IoCheckmark />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)]">{comment}</p>
+        )}
       </div>
     </div>
   );

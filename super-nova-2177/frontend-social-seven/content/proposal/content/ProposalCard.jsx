@@ -226,6 +226,29 @@ function ProposalCard({
     }
   };
 
+  const handleEditComment = async (commentId, nextText) => {
+    if (!commentId || !userData?.name) throw new Error("Sign in to edit this comment.");
+    const response = await fetch(`${API_BASE_URL}/comments/${encodeURIComponent(commentId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user: userData.name,
+        comment: nextText,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload?.detail || "Unable to edit comment.");
+    const updatedComment = payload?.comment ? payload : payload?.comments?.[0] || null;
+    setLocalComments((prevComments) =>
+      prevComments.map((comment) =>
+        String(comment.id || "") === String(commentId)
+          ? { ...comment, ...(updatedComment || {}), comment: updatedComment?.comment || nextText }
+          : comment
+      )
+    );
+    refreshFeeds();
+  };
+
   const displayVideo = media.video || (getYouTubeId(media.link) ? media.link : null);
   const displayLink = displayVideo === media.link ? null : media.link;
   const displayImages =
@@ -656,13 +679,17 @@ function ProposalCard({
                 return (
                   <DisplayComments
                     key={commentId || `${comment.user || "comment"}-${index}`}
+                    commentId={commentId}
                     name={comment.user}
                     image={comment.user_img}
                     comment={comment.comment}
-                    userSpecie={comment.species}
                     canDelete={canDeleteComment}
+                    canEdit={Boolean(commentId && isCommentAuthor)}
                     deleting={String(deletingCommentId || "") === String(commentId)}
                     onDelete={() => handleDeleteComment(commentId)}
+                    onEdit={handleEditComment}
+                    setErrorMsg={setErrorMsg}
+                    setNotify={setNotify}
                   />
                 );
               })}

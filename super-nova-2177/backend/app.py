@@ -440,6 +440,11 @@ class CommentIn(BaseModel):
     comment: str
 
 
+class CommentUpdateIn(BaseModel):
+    user: str
+    comment: str
+
+
 class RegisterUserIn(BaseModel):
     username: str
     password: str
@@ -2286,6 +2291,69 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
         import traceback
         print("Failed to add comment:", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to add comment: {str(e)}")
+
+
+@app.patch("/comments/{comment_id}")
+def update_comment(
+    comment_id: int,
+    payload: CommentUpdateIn,
+    db: Session = Depends(get_db),
+):
+    requester = _safe_user_key(payload.user)
+    next_comment = (payload.comment or "").strip()
+    if not requester:
+        raise HTTPException(status_code=400, detail="user is required")
+    if not next_comment:
+        raise HTTPException(status_code=400, detail="comment is required")
+
+    try:
+        if CRUD_MODELS_AVAILABLE:
+            comment = db.query(Comment).filter(Comment.id == comment_id).first()
+            if not comment:
+                raise HTTPException(status_code=404, detail="Comment not found")
+
+            comment_author = ""
+            if getattr(comment, "author", None) is not None:
+                comment_author = getattr(comment.author, "username", "") or ""
+            elif getattr(comment, "author_id", None):
+                author_obj = db.query(Harmonizer).filter(Harmonizer.id == comment.author_id).first()
+                comment_author = getattr(author_obj, "username", "") if author_obj else ""
+
+            if requester != _safe_user_key(comment_author):
+                raise HTTPException(status_code=403, detail="Only the comment author can edit this comment")
+
+            comment.content = next_comment
+            db.commit()
+            db.refresh(comment)
+            return _serialize_comment_record(db, comment)
+
+        row = db.execute(
+            text("SELECT * FROM comments WHERE id = :comment_id"),
+            {"comment_id": comment_id},
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Comment not found")
+
+        comment_author = getattr(row, "user", "") or ""
+        if requester != _safe_user_key(comment_author):
+            raise HTTPException(status_code=403, detail="Only the comment author can edit this comment")
+
+        db.execute(
+            text("UPDATE comments SET comment = :comment WHERE id = :comment_id"),
+            {"comment": next_comment, "comment_id": comment_id},
+        )
+        db.commit()
+        updated = db.execute(
+            text("SELECT * FROM comments WHERE id = :comment_id"),
+            {"comment_id": comment_id},
+        ).fetchone()
+        return _serialize_comment_record(db, updated)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to edit comment: {str(exc)}")
 
 
 @app.delete("/comments/{comment_id}")

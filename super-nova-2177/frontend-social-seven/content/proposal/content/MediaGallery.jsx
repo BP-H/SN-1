@@ -350,7 +350,10 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
           <div
             ref={railRef}
             onScroll={updateIndexFromScroll}
-            onPointerDown={(event) => startSwipe(carouselSwipeRef, event)}
+            onPointerDown={(event) => {
+              startSwipe(carouselSwipeRef, event);
+              event.currentTarget.setPointerCapture?.(event.pointerId);
+            }}
             onPointerMove={(event) => trackSwipe(carouselSwipeRef, event)}
             onPointerUp={finishCarouselSwipe}
             onPointerCancel={() => cancelSwipe(carouselSwipeRef)}

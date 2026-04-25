@@ -4,6 +4,7 @@ import {
   FaPowerOff,
   FaUser,
 } from "react-icons/fa";
+import imageCompression from "browser-image-compression";
 import { FaFacebookF, FaGoogle } from "react-icons/fa6";
 import { BsFillCpuFill } from "react-icons/bs";
 import { useEffect, useMemo, useState } from "react";
@@ -190,8 +191,20 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
 
     setSaveBusy(true);
     try {
+      let uploadFile = file;
+      try {
+        uploadFile = await imageCompression(file, {
+          maxSizeMB: 0.18,
+          maxWidthOrHeight: 384,
+          useWebWorker: true,
+          initialQuality: 0.82,
+        });
+      } catch {
+        uploadFile = file;
+      }
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", uploadFile, uploadFile.name || file.name);
       if (accountUsername) {
         formData.append("username", accountUsername);
       }
