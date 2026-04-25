@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Header from "@/content/header/Header";
 import HeaderMobile from "@/content/header/HeaderMobile";
 import DesktopNav from "@/content/header/DesktopNav";
+import DesktopRightRail from "@/content/header/DesktopRightRail";
 import Settings from "@/content/header/content/Settings";
 import AccountModal from "@/content/profile/AccountModal";
 import { useUser } from "@/content/profile/UserContext";
@@ -63,6 +64,7 @@ export default function HeaderWrapper({
         setErrorMsg={setErrorMsg}
       />
       <DesktopNav showSettings={showSettings} setShowSettings={setShowSettings} />
+      <DesktopRightRail />
       <AccountModal
         open={accountModalOpen && !isAuthenticated}
         initialMode={authIntent?.mode || "create"}

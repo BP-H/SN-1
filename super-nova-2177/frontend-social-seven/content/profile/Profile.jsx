@@ -441,9 +441,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                   key={provider.key}
                   type="button"
                   onClick={() => handleProviderLogin(provider.key)}
-                  disabled={Boolean(authBusy)}
+                  disabled={Boolean(authBusy) || !authConfigured}
                   className="auth-provider-button flex h-11 items-center justify-center gap-2 rounded-full px-4 text-[0.82rem] font-bold disabled:opacity-45"
-                  title={`Continue with ${provider.label}`}
+                  title={authConfigured ? `Continue with ${provider.label}` : "Add Supabase environment variables to enable provider login"}
                 >
                   <span className="text-[1rem]" style={{ color: provider.color }}>
                     {authBusy === provider.key ? (
@@ -459,7 +459,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
 
             <div className="auth-divider my-3 flex items-center gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em]">
               <span className="h-px flex-1" />
-              <span>Email</span>
+              <span>Account</span>
               <span className="h-px flex-1" />
             </div>
 
@@ -522,7 +522,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             </button>
             {!authConfigured && (
               <p className="auth-muted mt-2 text-center text-[0.66rem] leading-4">
-                Provider login is ready in the UI and needs Supabase provider keys in the environment.
+                Google, Facebook, and GitHub need Supabase env vars and provider redirect URLs. Password accounts still work through the backend.
               </p>
             )}
           </form>

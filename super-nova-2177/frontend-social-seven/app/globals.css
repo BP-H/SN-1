@@ -1747,7 +1747,8 @@ html[data-theme="light"] .post-action-bar {
     0 8px 18px rgba(25, 30, 48, 0.045);
 }
 
-.desktop-shell-nav {
+.desktop-shell-nav,
+.desktop-right-rail {
   display: none;
 }
 
@@ -1953,6 +1954,183 @@ html[data-theme="light"] .post-action-bar {
   html[data-theme="light"] .desktop-account-card {
     border: 1px solid rgba(31, 41, 55, 0.08);
     background: rgba(255, 255, 255, 0.72);
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-shell {
+    padding-right: clamp(19rem, 24vw, 23rem);
+  }
+
+  .mobile-top-shell {
+    inset-inline: clamp(18rem, 22vw, 21rem) clamp(19rem, 24vw, 23rem) !important;
+  }
+
+  .mobile-settings-sheet {
+    right: clamp(19rem, 24vw, 23rem) !important;
+  }
+
+  .desktop-right-rail {
+    position: fixed;
+    z-index: 9100;
+    top: 6.15rem;
+    right: clamp(1rem, 2vw, 2rem);
+    bottom: 1.25rem;
+    display: flex;
+    width: 17.25rem;
+    flex-direction: column;
+    gap: 0.85rem;
+    overflow-y: auto;
+    padding-right: 0.15rem;
+  }
+
+  .desktop-insight-panel {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.15rem;
+    background: linear-gradient(180deg, rgba(12, 15, 22, 0.86), rgba(7, 10, 15, 0.9));
+    box-shadow: var(--shadow);
+    padding: 0.85rem;
+    color: var(--text-black);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .desktop-panel-heading {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .desktop-panel-icon {
+    display: flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--pink);
+    font-size: 1rem;
+  }
+
+  .desktop-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-top: 0.85rem;
+  }
+
+  .desktop-metric-grid > div {
+    min-width: 0;
+    border-radius: 0.8rem;
+    background: rgba(255, 255, 255, 0.055);
+    padding: 0.65rem;
+  }
+
+  .desktop-metric-label {
+    display: block;
+    color: var(--text-gray-light);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .desktop-metric-grid strong {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 1rem;
+    font-weight: 950;
+  }
+
+  .desktop-species-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+  }
+
+  .desktop-species-chip {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    border-radius: 999px;
+    padding: 0.45rem 0.2rem;
+    color: white;
+    font-size: 0.58rem;
+    font-weight: 850;
+  }
+
+  .desktop-species-chip b {
+    font-size: 0.62rem;
+  }
+
+  .desktop-species-human {
+    background: rgba(232, 69, 122, 0.78);
+  }
+
+  .desktop-species-ai {
+    background: rgba(155, 109, 255, 0.78);
+  }
+
+  .desktop-species-company {
+    background: rgba(74, 143, 231, 0.78);
+  }
+
+  .desktop-people-list {
+    display: grid;
+    gap: 0.3rem;
+    margin-top: 0.7rem;
+  }
+
+  .desktop-person-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.6rem;
+    border-radius: 0.85rem;
+    padding: 0.45rem;
+    color: inherit;
+  }
+
+  .desktop-person-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .desktop-person-row img {
+    height: 2.15rem;
+    width: 2.15rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    object-fit: cover;
+  }
+
+  .desktop-empty-rail {
+    margin-top: 0.75rem;
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.045);
+    padding: 0.75rem;
+    color: var(--text-gray-light);
+    font-size: 0.72rem;
+  }
+
+  html[data-theme="light"] .desktop-insight-panel {
+    border-color: rgba(31, 41, 55, 0.08);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.92));
+    box-shadow: 0 16px 45px rgba(15, 23, 42, 0.1);
+  }
+
+  html[data-theme="light"] .desktop-panel-icon,
+  html[data-theme="light"] .desktop-metric-grid > div,
+  html[data-theme="light"] .desktop-empty-rail {
+    background: rgba(15, 23, 42, 0.045);
+  }
+
+  html[data-theme="light"] .desktop-person-row:hover {
+    background: rgba(15, 23, 42, 0.055);
   }
 }
 
