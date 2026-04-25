@@ -524,6 +524,22 @@ def _normalize_species(value: Optional[str]) -> str:
     return species
 
 
+def _species_for_username(db: Session, username: str, fallback: Optional[str] = None) -> str:
+    """Resolve species from the saved account before trusting browser payloads."""
+    fallback_species = _normalize_species(fallback or "human")
+    if Harmonizer is None or not username:
+        return fallback_species
+
+    user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
+    saved_species = getattr(user, "species", None) if user else None
+    if saved_species in {"human", "ai", "company"}:
+        return saved_species
+    if user and not saved_species:
+        user.species = fallback_species
+        db.add(user)
+    return fallback_species
+
+
 def _public_user_payload(user, provider: str = "password") -> Dict[str, Any]:
     avatar_value = getattr(user, "profile_pic", "") or getattr(user, "avatar_url", "") or ""
     return {
@@ -1202,11 +1218,8 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         if avatar_url:
             existing.profile_pic = avatar_url
             avatar_to_sync = avatar_url
-        existing_species = getattr(existing, "species", None)
-        if species and not (species == "human" and existing_species in {"ai", "company"}):
-            existing.species = species
-        elif not existing_species:
-            existing.species = "human"
+        if not getattr(existing, "species", None):
+            existing.species = species or "human"
         existing.is_active = True
         existing.consent_given = True
         db.add(existing)
@@ -2153,7 +2166,7 @@ def cast_system_vote(payload: SystemVoteIn, db: Session = Depends(get_db)):
     if not username:
         raise HTTPException(status_code=400, detail="username is required")
     choice = _normalize_system_vote_choice(payload.choice)
-    voter_type = _normalize_species(payload.voter_type or "human")
+    voter_type = _species_for_username(db, username, payload.voter_type)
     now = datetime.datetime.utcnow()
 
     try:

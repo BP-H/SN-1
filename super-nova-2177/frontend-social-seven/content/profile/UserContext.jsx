@@ -11,6 +11,12 @@ const GUEST_STORAGE_KEY = "supernova_social_six_guest";
 const CUSTOM_STORAGE_PREFIX = "supernova_social_six_custom::";
 const PASSWORD_SESSION_KEY = "supernova_password_session";
 const DEFAULT_AVATAR = FALLBACK_AVATAR;
+const SPECIES_KEYS = new Set(["human", "ai", "company"]);
+
+function normalizeSpecies(value) {
+  const species = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return SPECIES_KEYS.has(species) ? species : "";
+}
 
 function calculateInitials(name) {
   if (!name || !name.trim()) return "";
@@ -95,7 +101,7 @@ function getPasswordProfile(passwordAuth) {
 
 function mergeUserData(providerProfile, storedProfile = {}) {
   if (!providerProfile.id) {
-    const species = storedProfile.species || "human";
+    const species = normalizeSpecies(storedProfile.species) || "human";
     return {
       id: null,
       email: "",
@@ -114,7 +120,7 @@ function mergeUserData(providerProfile, storedProfile = {}) {
   const storedAvatar = normalizeAvatarValue(storedProfile.customAvatar || "");
   const providerAvatar = normalizeAvatarValue(providerProfile.avatar || "");
   const effectiveAvatar = storedAvatar || providerAvatar || "";
-  const species = storedProfile.species || providerProfile.species || "human";
+  const species = normalizeSpecies(storedProfile.species) || normalizeSpecies(providerProfile.species) || "human";
 
   return {
     id: providerProfile.id,
@@ -204,7 +210,7 @@ export function UserProvider({ children }) {
       username,
       avatar_url: normalizeAvatarValue(userData.avatar || providerProfile.avatar || ""),
     };
-    const explicitSpecies = storedProfile?.species || providerProfile.species || "";
+    const explicitSpecies = normalizeSpecies(storedProfile?.species) || normalizeSpecies(providerProfile.species);
     if (explicitSpecies) {
       syncPayload.species = explicitSpecies;
     }
@@ -217,11 +223,12 @@ export function UserProvider({ children }) {
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         if (cancelled || !payload?.username) return;
-        if (!storedProfile?.species && payload.species) {
+        const responseSpecies = normalizeSpecies(payload.species);
+        if (!normalizeSpecies(storedProfile?.species) && responseSpecies) {
           const key = getCustomStorageKey(authUser, passwordAuth);
           const nextStored = {
             ...(storedProfile || {}),
-            species: payload.species,
+            species: responseSpecies,
           };
           writeStorage(key, nextStored);
           setStoredProfile(nextStored);
@@ -259,8 +266,9 @@ export function UserProvider({ children }) {
     const previous = storedProfile || {};
     const current = mergeUserData(providerProfile, previous);
     const patch = typeof update === "function" ? update(current) : update;
+    const nextSpecies = normalizeSpecies(patch?.species) || current.species || "human";
     const nextStored = {
-      species: patch?.species || current.species || "human",
+      species: nextSpecies,
       customName: typeof patch?.name === "string" ? patch.name : previous.customName || current.name || "",
       customAvatar: typeof patch?.avatar === "string"
         ? normalizeAvatarValue(patch.avatar)
@@ -279,7 +287,7 @@ export function UserProvider({ children }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           avatar_url: normalizeAvatarValue(nextStored.customAvatar || ""),
-          species: nextStored.species || "human",
+          species: normalizeSpecies(nextStored.species) || "human",
         }),
       }).catch(() => {
         // Local profile stays usable if backend sync is temporarily unavailable.
@@ -292,7 +300,7 @@ export function UserProvider({ children }) {
         const nextAuth = {
           ...prev,
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
-          species: nextStored.species || "human",
+          species: normalizeSpecies(nextStored.species) || "human",
         };
         writeStorage(PASSWORD_SESSION_KEY, nextAuth);
         return nextAuth;
@@ -313,7 +321,7 @@ export function UserProvider({ children }) {
       username: payload.user?.username || "",
       email: payload.user?.email || "",
       avatar: normalizeAvatarValue(payload.user?.avatar_url || payload.user?.profile_pic || ""),
-      species: payload.user?.species || "human",
+      species: normalizeSpecies(payload.user?.species) || "human",
     };
     writeStorage(PASSWORD_SESSION_KEY, authPayload);
     setSession(null);
@@ -356,10 +364,11 @@ export function UserProvider({ children }) {
   }, [applyPasswordSession]);
 
   const registerWithPassword = useCallback(async ({ username, password, email, species }) => {
+    const accountSpecies = normalizeSpecies(species) || "human";
     const response = await fetch(`${API_BASE_URL}/users/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, email, species }),
+      body: JSON.stringify({ username, password, email, species: accountSpecies }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {

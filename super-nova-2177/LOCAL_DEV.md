@@ -27,6 +27,7 @@ python run_local.py --frontend next
 python run_local.py --frontend professional
 python run_local.py --frontend vite-basic
 python run_local.py --frontend vite-3d
+python run_local.py --frontend social-seven
 ```
 
 ## What the launcher does
@@ -42,6 +43,9 @@ python run_local.py --frontend vite-3d
 - `professional`: `5173`
 - `vite-basic`: `5174`
 - `vite-3d`: `5175`
+- `nova`: `5176`
+- `social-six`: `3001`
+- `social-seven`: `3007`
 
 ## Requirements
 

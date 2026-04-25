@@ -15,6 +15,7 @@ if supernova_path not in sys.path:
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 try:
     from .db_utils import get_db
@@ -36,6 +37,14 @@ except Exception:
 
 router = APIRouter()
 logger = logging.getLogger("votes_router")
+VALID_SPECIES = {"human", "ai", "company"}
+
+
+def normalize_species(value: str | None) -> str:
+    species = (value or "human").strip().lower()
+    if species not in VALID_SPECIES:
+        raise HTTPException(status_code=400, detail="Invalid voter_type")
+    return species
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -48,25 +57,34 @@ def add_vote(v: VoteIn, db: Session = Depends(get_db)):
     """Register or update a vote for a proposal. Creates the Harmonizer if needed."""
     if ProposalVote is None or Harmonizer is None:
         raise HTTPException(status_code=503, detail="Voting system unavailable")
+    username = (v.username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    if v.choice not in {"up", "down"}:
+        raise HTTPException(status_code=400, detail="Invalid choice")
 
     logger.info("Vote payload: proposal=%s user=%s choice=%s type=%s",
-                v.proposal_id, v.username, v.choice, v.voter_type)
+                v.proposal_id, username, v.choice, v.voter_type)
     try:
-        harmonizer = db.query(Harmonizer).filter_by(username=v.username).first()
+        requested_species = normalize_species(v.voter_type)
+        harmonizer = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
         if harmonizer is None:
             harmonizer = Harmonizer(
-                username=v.username,
-                email=f"{v.username}@example.com",
+                username=username,
+                email=f"{username}@example.com",
                 hashed_password="dummy",
-                species=v.voter_type,
+                species=requested_species,
             )
             db.add(harmonizer)
             db.commit()
             db.refresh(harmonizer)
-            logger.info("Auto-created harmonizer '%s'", v.username)
+            logger.info("Auto-created harmonizer '%s'", username)
         else:
-            if hasattr(harmonizer, "species") and harmonizer.species != v.voter_type:
-                harmonizer.species = v.voter_type
+            saved_species = getattr(harmonizer, "species", None)
+            if saved_species in VALID_SPECIES:
+                requested_species = saved_species
+            elif hasattr(harmonizer, "species"):
+                harmonizer.species = requested_species
 
         harmonizer_id = harmonizer.id
 
@@ -80,27 +98,27 @@ def add_vote(v: VoteIn, db: Session = Depends(get_db)):
                 existing_vote.vote = v.choice
             if hasattr(existing_vote, "choice"):
                 existing_vote.choice = v.choice
-            existing_vote.voter_type = v.voter_type
+            existing_vote.voter_type = requested_species
             if hasattr(existing_vote, "species"):
-                existing_vote.species = v.voter_type
+                existing_vote.species = requested_species
         else:
             vote_kwargs = {
                 "proposal_id": v.proposal_id,
                 "harmonizer_id": harmonizer_id,
-                "voter_type": v.voter_type,
+                "voter_type": requested_species,
             }
             if hasattr(ProposalVote, "vote"):
                 vote_kwargs["vote"] = v.choice
             if hasattr(ProposalVote, "choice"):
                 vote_kwargs["choice"] = v.choice
             if hasattr(ProposalVote, "species"):
-                vote_kwargs["species"] = v.voter_type
+                vote_kwargs["species"] = requested_species
             vote = ProposalVote(**vote_kwargs)
             db.add(vote)
 
         db.commit()
         logger.info("Vote recorded: proposal=%s user=%s choice=%s",
-                     v.proposal_id, v.username, v.choice)
+                     v.proposal_id, username, v.choice)
         return {"ok": True}
     except Exception as e:
         db.rollback()
@@ -112,11 +130,14 @@ def remove_vote(proposal_id: int, username: str, db: Session = Depends(get_db)):
     """Remove a user's vote from a proposal."""
     if ProposalVote is None or Harmonizer is None:
         raise HTTPException(status_code=503, detail="Voting system unavailable")
+    clean_username = (username or "").strip()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="username is required")
 
     try:
-        harmonizer = db.query(Harmonizer).filter_by(username=username).first()
+        harmonizer = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
         if harmonizer is None:
-            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+            raise HTTPException(status_code=404, detail=f"User '{clean_username}' not found")
 
         harmonizer_id = harmonizer.id
         deleted_count = db.query(ProposalVote).filter(
@@ -129,7 +150,7 @@ def remove_vote(proposal_id: int, username: str, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Vote not found")
 
         logger.info("Removed %d vote(s) for proposal=%s user=%s",
-                     deleted_count, proposal_id, username)
+                     deleted_count, proposal_id, clean_username)
         return {"ok": True, "removed": deleted_count}
     except HTTPException:
         db.rollback()

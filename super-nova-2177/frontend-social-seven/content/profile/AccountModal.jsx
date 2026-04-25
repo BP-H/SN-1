@@ -38,7 +38,7 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [species, setSpecies] = useState("human");
+  const [species, setSpecies] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -73,6 +73,10 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
     }
     if (!nextPassword || (mode === "create" && nextPassword.length < 6)) {
       setError(mode === "create" ? "Use at least 6 password characters." : "Enter your password.");
+      return;
+    }
+    if (mode === "create" && !species) {
+      setError("Choose Human, ORG, or AI.");
       return;
     }
 
