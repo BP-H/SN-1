@@ -43,11 +43,11 @@ function DisplayComments({
   const { userData, isAuthenticated } = useUser();
 
   const getInitials = (fullName) => {
-    if (!fullName) return "";
+    if (!fullName) return "SN";
     const parts = fullName.trim().split(/\s+/);
     const firstInitial = parts[0]?.[0] || "";
     const lastInitial = parts.length > 1 ? parts[parts.length - 1]?.[0] || "" : "";
-    return (firstInitial + lastInitial).toUpperCase();
+    return (firstInitial + lastInitial).toUpperCase() || "SN";
   };
 
   const initials = getInitials(name);
@@ -311,7 +311,7 @@ function DisplayComments({
             </div>
           </div>
         ) : (
-          <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)]">{comment}</p>
+          <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)] [overflow-wrap:anywhere]">{comment}</p>
         )}
       </div>
     </div>

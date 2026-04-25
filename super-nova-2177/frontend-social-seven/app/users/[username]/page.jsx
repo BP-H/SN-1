@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { IoArrowBack, IoChatbubbleEllipsesOutline } from "react-icons/io5";
 import Error from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+
+const USER_POST_PAGE_SIZE = 30;
 
 function avatarUrl(value) {
   return normalizeAvatarValue(value) ? avatarDisplayUrl(value) : "";
@@ -47,15 +49,20 @@ export default function UserPostsPage() {
     },
   });
 
-  const postsQuery = useQuery({
+  const postsQuery = useInfiniteQuery({
     queryKey: ["user-posts", username],
     enabled: Boolean(username),
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
       const response = await fetch(
-        `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=100`
+        `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}`
       );
       if (!response.ok) throw new Error("Failed to load posts");
       return response.json();
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!Array.isArray(lastPage) || lastPage.length < USER_POST_PAGE_SIZE) return undefined;
+      return allPages.reduce((total, page) => total + (Array.isArray(page) ? page.length : 0), 0);
     },
   });
 
@@ -70,7 +77,7 @@ export default function UserPostsPage() {
   });
 
   const posts = useMemo(() => {
-    return (postsQuery.data || []).filter(
+    return (postsQuery.data?.pages?.flat() || []).filter(
       (post) => post.userName?.toLowerCase() === username.toLowerCase()
     );
   }, [postsQuery.data, username]);
@@ -140,30 +147,54 @@ export default function UserPostsPage() {
           Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className="load mx-[0.35rem] h-40 rounded-[1rem]" />
           ))
+        ) : postsQuery.isError ? (
+          <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+            <p className="font-semibold text-[var(--text-black)]">Could not load posts.</p>
+            <p className="mt-1">{postsQuery.error?.message || "The backend did not return posts."}</p>
+            <button
+              type="button"
+              onClick={() => postsQuery.refetch()}
+              className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)]"
+            >
+              Retry
+            </button>
+          </div>
         ) : posts.length === 0 ? (
           <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
             No posts from this user yet.
           </div>
         ) : (
-          posts.map((post) => (
-            <ProposalCard
-              key={post.id}
-              id={post.id}
-              userName={post.userName}
-              userInitials={post.userInitials}
-              time={formatRelativeTime(post.time)}
-              title={post.title}
-              text={post.text}
-              logo={post.author_img}
-              media={post.media}
-              comments={post.comments}
-              likes={post.likes}
-              dislikes={post.dislikes}
-              specie={post.author_type}
-              setErrorMsg={setErrorMsg}
-              setNotify={setNotify}
-            />
-          ))
+          <>
+            {posts.map((post) => (
+              <ProposalCard
+                key={post.id}
+                id={post.id}
+                userName={post.userName}
+                userInitials={post.userInitials}
+                time={formatRelativeTime(post.time)}
+                title={post.title}
+                text={post.text}
+                logo={post.author_img}
+                media={post.media}
+                comments={post.comments}
+                likes={post.likes}
+                dislikes={post.dislikes}
+                specie={post.author_type}
+                setErrorMsg={setErrorMsg}
+                setNotify={setNotify}
+              />
+            ))}
+            {postsQuery.hasNextPage && (
+              <button
+                type="button"
+                onClick={() => postsQuery.fetchNextPage()}
+                disabled={postsQuery.isFetchingNextPage}
+                className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-3 text-center text-[0.86rem] font-bold text-[var(--text-black)] disabled:opacity-60"
+              >
+                {postsQuery.isFetchingNextPage ? "Loading..." : "Load more"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

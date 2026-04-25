@@ -164,19 +164,19 @@ export default function Header({
               className="min-w-0 flex-1 overflow-hidden text-left"
               aria-label="Go home"
             >
-              <div className="flex items-center gap-1.5 overflow-hidden">
-                <span className="mobile-brand truncate text-[clamp(0.92rem,4vw,1.12rem)] font-black text-[var(--text-black)]">
+              <div className="flex items-center gap-1 overflow-hidden">
+                <span className="mobile-brand truncate text-[clamp(0.78rem,3.25vw,1rem)] font-black text-[var(--text-black)]">
                   SUPERN
                 </span>
                 <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />
-                <span className="mobile-brand truncate text-[clamp(0.92rem,4vw,1.12rem)] font-black text-[var(--text-black)]">
+                <span className="mobile-brand truncate text-[clamp(0.78rem,3.25vw,1rem)] font-black text-[var(--text-black)]">
                   VA
                 </span>
-                <span className="hidden shrink-0 text-[0.58rem] font-bold tracking-[0.26em] text-[var(--text-gray-light)] min-[380px]:inline">
+                <span className="hidden shrink-0 text-[0.54rem] font-bold tracking-[0.18em] text-[var(--text-gray-light)] min-[380px]:inline">
                   2177
                 </span>
               </div>
-              <p className="mt-1 truncate text-[0.48rem] uppercase tracking-[0.32em] text-[var(--text-gray-light)]">
+              <p className="mt-1 truncate text-[0.46rem] uppercase tracking-[0.24em] text-[var(--text-gray-light)]">
                 AI x Humans x ORG
               </p>
             </button>

@@ -104,18 +104,24 @@ function InsertComment({
       </div>
       <input
         type="text"
-        placeholder="Insert Comment"
+        placeholder="Add a comment..."
         value={comment}
         onChange={(e) => setComment(e.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            handlePublish();
+          }
+        }}
         className="h-10 min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.045)] px-4 text-[0.88rem] text-[var(--text-black)] outline-none placeholder:text-[var(--text-gray-light)]"
       />
       <button
         type="button"
         onClick={handlePublish}
         disabled={loading}
-        className="h-10 shrink-0 whitespace-nowrap rounded-full bg-[var(--pink)] px-3 text-[0.78rem] font-semibold text-white shadow-md hover:scale-95 disabled:opacity-50"
+        className="h-10 min-w-[4.75rem] shrink-0 whitespace-nowrap rounded-full bg-[var(--pink)] px-3 text-[0.78rem] font-semibold text-white shadow-md hover:scale-95 disabled:opacity-50"
       >
-        {loading ? "Publishing..." : "Publish"}
+        {loading ? "Posting..." : "Post"}
       </button>
     </div>
   );

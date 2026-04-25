@@ -559,6 +559,7 @@ class ProposalUpdateIn(BaseModel):
 
 
 class ProfileUpdateIn(BaseModel):
+    username: Optional[str] = None
     avatar_url: Optional[str] = None
     species: Optional[str] = None
     bio: Optional[str] = None
@@ -787,6 +788,98 @@ def _sync_user_avatar_references(
                 {"avatar": avatar_value, "username": clean_username},
             )
         run_avatar_sync(sync_comments_table)
+
+
+def _sync_username_references(old_username: str, new_username: str) -> None:
+    old_name = (old_username or "").strip()
+    new_name = (new_username or "").strip()
+    old_key = _safe_user_key(old_name)
+    new_key = _safe_user_key(new_name)
+    if not old_key or not new_key or old_key == new_key:
+        return
+
+    new_initials = (new_name[:2].upper() if new_name else "SN")
+
+    def run_username_sync(operation) -> None:
+        sync_db = SessionLocal()
+        try:
+            operation(sync_db)
+            sync_db.commit()
+        except Exception:
+            sync_db.rollback()
+        finally:
+            sync_db.close()
+
+    def sync_tables(sync_db: Session) -> None:
+        sync_db.execute(
+            text("UPDATE proposals SET userName = :new_name, userInitials = :initials WHERE lower(userName) = lower(:old_name)"),
+            {"new_name": new_name, "initials": new_initials, "old_name": old_name},
+        )
+        sync_db.execute(
+            text("UPDATE comments SET user = :new_name WHERE lower(user) = lower(:old_name)"),
+            {"new_name": new_name, "old_name": old_name},
+        )
+        try:
+            rows = sync_db.execute(
+                text(
+                    "SELECT id, sender, recipient FROM direct_messages "
+                    "WHERE lower(sender) = lower(:old_name) OR lower(recipient) = lower(:old_name)"
+                ),
+                {"old_name": old_name},
+            ).fetchall()
+            for row in rows:
+                data = getattr(row, "_mapping", row)
+                row_id = data["id"]
+                current_sender = data["sender"]
+                current_recipient = data["recipient"]
+                sender = new_name if _safe_user_key(current_sender) == old_key else current_sender
+                recipient = new_name if _safe_user_key(current_recipient) == old_key else current_recipient
+                sync_db.execute(
+                    text(
+                        "UPDATE direct_messages SET sender = :sender, recipient = :recipient, "
+                        "conversation_id = :conversation_id WHERE id = :id"
+                    ),
+                    {
+                        "id": row_id,
+                        "sender": sender,
+                        "recipient": recipient,
+                        "conversation_id": _conversation_id(sender, recipient),
+                    },
+                )
+        except Exception:
+            pass
+
+    run_username_sync(sync_tables)
+
+    follows = _read_follows_store()
+    follows_changed = False
+    for item in follows:
+        if item.get("follower_key") == old_key:
+            item["follower"] = new_name
+            item["follower_key"] = new_key
+            follows_changed = True
+        if item.get("target_key") == old_key:
+            item["target"] = new_name
+            item["target_key"] = new_key
+            follows_changed = True
+    if follows_changed:
+        _write_follows_store(follows)
+
+    messages = _read_messages_store()
+    messages_changed = False
+    for item in messages:
+        item_changed = False
+        if _safe_user_key(item.get("sender", "")) == old_key:
+            item["sender"] = new_name
+            item_changed = True
+        if _safe_user_key(item.get("recipient", "")) == old_key:
+            item["recipient"] = new_name
+            item_changed = True
+        if item_changed:
+            item["conversation_id"] = _conversation_id(item.get("sender", ""), item.get("recipient", ""))
+            messages_changed = True
+    if messages_changed:
+        _write_messages_store(messages)
 
 
 def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
@@ -1487,6 +1580,24 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    old_username = user.username
+    next_username = old_username
+    if payload.username is not None:
+        candidate_username = payload.username.strip()
+        if not candidate_username:
+            raise HTTPException(status_code=400, detail="Username is required")
+        if len(candidate_username) > 80:
+            raise HTTPException(status_code=400, detail="Username is too long")
+        existing_user = (
+            db.query(Harmonizer)
+            .filter(func.lower(Harmonizer.username) == candidate_username.lower())
+            .first()
+        )
+        if existing_user and getattr(existing_user, "id", None) != getattr(user, "id", None):
+            raise HTTPException(status_code=409, detail="Username is already taken")
+        user.username = candidate_username
+        next_username = candidate_username
+
     avatar_to_sync = ""
     if payload.avatar_url is not None:
         avatar_url = payload.avatar_url.strip()
@@ -1506,6 +1617,8 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
         db.add(user)
         db.commit()
         db.refresh(user)
+        if _safe_user_key(old_username) != _safe_user_key(next_username):
+            _sync_username_references(old_username, next_username)
         if avatar_to_sync:
             _sync_user_avatar_references(db, user.username, avatar_to_sync, getattr(user, "id", None))
         return _public_user_payload(user, provider="password")
@@ -1883,30 +1996,52 @@ async def create_proposal(
             db.commit()
             db.refresh(db_proposal)
         else:
-            result = db.execute(
-                text("""
-                    INSERT INTO proposals (
-                        title, description, userName, userInitials, author_type,
-                        author_img, created_at, voting_deadline, image, video, link, file
-                    )
-                    VALUES (
-                        :title, :description, :userName, :userInitials, :author_type,
-                        :author_img, :created_at, :voting_deadline, :image, :video, :link, :file
-                    )
-                    RETURNING id
-                """),
-                {
-                    "title": title,
-                    "description": body,
-                    "userName": final_user,
-                    "userInitials": initials,
-                    "author_type": author_type,
-                    "author_img": author_img,
-                    "created_at": created_at,
-                    "voting_deadline": voting_deadline,
-                    "image": image_filename, "video": video_value, "link": link, "file": file_filename
-                }
-            )
+            insert_params = {
+                "title": title,
+                "description": body,
+                "userName": final_user,
+                "userInitials": initials,
+                "author_type": author_type,
+                "author_img": author_img,
+                "created_at": created_at,
+                "voting_deadline": voting_deadline,
+                "image": image_filename,
+                "video": video_value,
+                "link": link,
+                "file": file_filename,
+                "payload": json.dumps(proposal_payload),
+            }
+            try:
+                result = db.execute(
+                    text("""
+                        INSERT INTO proposals (
+                            title, description, userName, userInitials, author_type,
+                            author_img, created_at, voting_deadline, image, video, link, file, payload
+                        )
+                        VALUES (
+                            :title, :description, :userName, :userInitials, :author_type,
+                            :author_img, :created_at, :voting_deadline, :image, :video, :link, :file, :payload
+                        )
+                        RETURNING id
+                    """),
+                    insert_params,
+                )
+            except Exception:
+                db.rollback()
+                result = db.execute(
+                    text("""
+                        INSERT INTO proposals (
+                            title, description, userName, userInitials, author_type,
+                            author_img, created_at, voting_deadline, image, video, link, file
+                        )
+                        VALUES (
+                            :title, :description, :userName, :userInitials, :author_type,
+                            :author_img, :created_at, :voting_deadline, :image, :video, :link, :file
+                        )
+                        RETURNING id
+                    """),
+                    insert_params,
+                )
             row = result.fetchone()
             if not row:
                 raise HTTPException(status_code=500, detail="Failed to create proposal")
@@ -2854,9 +2989,14 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             {"pid": pid}
         )
         votes = votes_result.fetchall()
-        # fallback for harmonizer_id: use voter if exists
-        likes = [{"voter": getattr(v, "harmonizer_id", None) or getattr(v, "voter", ""), "type": v.voter_type} for v in votes if getattr(v, "choice", None) == "up"]
-        dislikes = [{"voter": getattr(v, "harmonizer_id", None) or getattr(v, "voter", ""), "type": v.voter_type} for v in votes if getattr(v, "choice", None) == "down"]
+        likes = []
+        dislikes = []
+        for vote in votes:
+            like_entry, dislike_entry = _serialize_vote_record(db, vote)
+            if like_entry:
+                likes.append(like_entry)
+            if dislike_entry:
+                dislikes.append(dislike_entry)
 
         comments_result = db.execute(
             text("SELECT * FROM comments WHERE proposal_id = :pid"),

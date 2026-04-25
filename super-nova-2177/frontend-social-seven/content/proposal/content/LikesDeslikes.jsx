@@ -128,7 +128,11 @@ function LikesDeslikes({
 
   async function removeVote() {
     try {
-      const response = await fetch(`${backendUrl}/votes?proposal_id=${proposalId}&username=${userData.name}`, { method: "DELETE" });
+      const params = new URLSearchParams({
+        proposal_id: String(proposalId),
+        username: userData.name,
+      });
+      const response = await fetch(`${backendUrl}/votes?${params.toString()}`, { method: "DELETE" });
       if (!response.ok) { setErrorMsg([await getApiError(response, `Remove failed: ${response.status}`)]); return false; }
       return true;
     } catch (err) { setErrorMsg([`Remove failed: ${err.message}`]); return false; }

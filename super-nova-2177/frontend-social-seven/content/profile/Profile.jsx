@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   IoCameraOutline,
+  IoCheckmark,
   IoClose,
   IoLogInOutline,
   IoMailOutline,
@@ -38,7 +39,6 @@ const PROVIDERS = [
 function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = null }) {
   const {
     userData,
-    setUserData,
     defaultAvatar,
     authLoading,
     authConfigured,
@@ -46,14 +46,17 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     loginWithProvider,
     loginWithPassword,
     registerWithPassword,
+    saveUserProfile,
     signOut,
     passwordAuth,
   } = useUser();
 
   const [selectedSpecies, setSelectedSpecies] = useState(userData.species || "human");
   const [avatarUrl, setAvatarUrl] = useState(userData.avatar || "");
+  const [profileName, setProfileName] = useState(userData.name || "");
   const [authBusy, setAuthBusy] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
+  const [identityBusy, setIdentityBusy] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [authOpen, setAuthOpen] = useState(false);
   const [passwordMode, setPasswordMode] = useState("login");
@@ -66,6 +69,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
   useEffect(() => {
     setSelectedSpecies(userData.species || "human");
     setAvatarUrl(userData.avatar || "");
+    setProfileName(userData.name || "");
   }, [userData]);
 
   useEffect(() => {
@@ -220,31 +224,20 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       if (!data?.url) throw new Error("Avatar upload did not return an image URL.");
       const nextAvatar = normalizeAvatarValue(data.url);
 
-      if (!data.profile_synced && accountUsername) {
-        const syncResponse = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(accountUsername)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            avatar_url: nextAvatar,
-            species: selectedSpecies || "human",
-          }),
-        });
-        if (!syncResponse.ok) {
-          const syncPayload = await syncResponse.json().catch(() => ({}));
-          throw new Error(syncPayload?.detail || "Profile photo uploaded, but account sync failed.");
-        }
-      }
-
-      setAvatarUrl(nextAvatar);
-      setUserData({
-        name: currentName || accountUsername,
+      const payload = await saveUserProfile({
+        username: profileName || currentName || accountUsername,
         species: selectedSpecies || "human",
         avatar: nextAvatar,
       });
+      const savedAvatar = normalizeAvatarValue(payload.avatar_url || nextAvatar);
+      const savedUsername = payload.username || profileName || currentName || accountUsername;
+
+      setAvatarUrl(savedAvatar);
+      setProfileName(savedUsername);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("supernova:profile-avatar-updated", {
-            detail: { username: accountUsername || currentName, avatar: nextAvatar },
+            detail: { username: savedUsername, avatar: savedAvatar },
           })
         );
       }
@@ -257,6 +250,51 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     } finally {
       setSaveBusy(false);
       event.target.value = "";
+    }
+  }
+
+  async function handleIdentitySave(event) {
+    event?.stopPropagation?.();
+    if (!isAuthenticated) {
+      openAuth("create");
+      return;
+    }
+    const nextName = profileName.trim();
+    if (!nextName) {
+      setErrorMsg(["Choose a username."]);
+      return;
+    }
+    setIdentityBusy(true);
+    setErrorMsg([]);
+    try {
+      const payload = await saveUserProfile({
+        username: nextName,
+        species: selectedSpecies || "human",
+        avatar: avatarUrl || userData.avatar || "",
+      });
+      const savedName = payload.username || nextName;
+      const savedSpecies = payload.species || selectedSpecies || "human";
+      const savedAvatar = normalizeAvatarValue(payload.avatar_url || avatarUrl || userData.avatar || "");
+      setProfileName(savedName);
+      setSelectedSpecies(savedSpecies);
+      setAvatarUrl(savedAvatar);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("supernova:profile-avatar-updated", {
+            detail: { username: savedName, avatar: savedAvatar },
+          })
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["public-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["desktop-social-users"] });
+      setNotify(["Profile updated."]);
+    } catch (error) {
+      setErrorMsg([error.message || "Profile update failed."]);
+    } finally {
+      setIdentityBusy(false);
     }
   }
 
@@ -335,6 +373,11 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
           <p className="mt-0.5 truncate text-[0.7rem] text-[var(--text-gray-light)]">
             {authLoading ? "Checking account..." : isAuthenticated ? `${providerLabel} account` : "Sign in to sync across devices"}
           </p>
+          {!isAuthenticated && (
+            <p className="mt-1 text-[0.68rem] font-semibold text-[var(--pink)]">
+              Tap or click to sign up or sign in.
+            </p>
+          )}
         </div>
 
         {isAuthenticated ? (
@@ -363,13 +406,45 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       </div>
 
       {isAuthenticated && (
-        <div className="mt-3 flex items-center justify-between rounded-full bg-white/[0.055] px-3 py-2">
-          <span className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-            Species
-          </span>
-          <span className="rounded-full bg-[var(--pink)] px-3 py-1 text-[0.72rem] font-bold text-white">
-            {selectedSpecies === "company" ? "ORG" : selectedSpecies === "ai" ? "AI" : "Human"}
-          </span>
+        <div className="mt-3 grid gap-2" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <input
+              value={profileName}
+              onChange={(event) => setProfileName(event.target.value)}
+              className="auth-input h-10 min-w-0 flex-1 rounded-full px-3 text-[0.82rem] outline-none"
+              placeholder="Username"
+              autoComplete="username"
+            />
+            <button
+              type="button"
+              onClick={handleIdentitySave}
+              disabled={identityBusy}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
+              aria-label="Save profile"
+              title="Save profile"
+            >
+              <IoCheckmark />
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {SPECIES.map((item) => {
+              const selected = selectedSpecies === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setSelectedSpecies(item.key)}
+                  className={`flex h-9 items-center justify-center gap-1 rounded-full text-[0.68rem] font-semibold ${
+                    selected ? `${item.color} text-white` : "auth-pill-inactive"
+                  }`}
+                  aria-pressed={selected}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

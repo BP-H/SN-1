@@ -1,7 +1,7 @@
 "use client";
 
-import { useContext, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   IoDocumentTextOutline,
   IoImageOutline,
@@ -17,6 +17,8 @@ import InputFields from "../create post/InputFields";
 import CardLoading from "../CardLoading";
 import FilterHeader from "../filters/FilterHeader";
 import ProposalCard from "./content/ProposalCard";
+
+const PROPOSAL_PAGE_SIZE = 30;
 
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";
@@ -83,9 +85,18 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
     if (nextFilter) setFilter(nextFilter);
   }, []);
 
-  const { data: posts, isLoading } = useQuery({
+  const {
+    data: postsData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["proposals", filter, search, activeBE],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
       const filterMap = {
         All: "all",
         Latest: "latest",
@@ -101,7 +112,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
       };
 
       const filterParam = filterMap[filter];
-      let url = `${API_BASE_URL}/proposals?filter=${filterParam}&limit=80`;
+      let url = `${API_BASE_URL}/proposals?filter=${filterParam}&limit=${PROPOSAL_PAGE_SIZE}&offset=${pageParam}`;
       if (search.trim()) {
         url += `&search=${encodeURIComponent(search.trim())}`;
       }
@@ -112,8 +123,13 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
       }
       return response.json();
     },
-    keepPreviousData: true,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!Array.isArray(lastPage) || lastPage.length < PROPOSAL_PAGE_SIZE) return undefined;
+      return allPages.reduce((total, page) => total + (Array.isArray(page) ? page.length : 0), 0);
+    },
   });
+  const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
 
   return (
     <div className="social-shell px-0">
@@ -209,45 +225,69 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
         <div className="flex min-w-0 flex-col gap-2.5 pb-24">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, index) => <CardLoading key={index} />)
-          ) : posts && posts.length > 0 ? (
-            posts.map((post) => (
-              <ProposalCard
-                key={post.id}
-                id={post.id}
-                userName={post.userName}
-                userInitials={post.userInitials}
-                time={formatRelativeTime(post.time)}
-                title={post.title}
-                logo={post.author_img}
-                media={{
-                  image: post.media?.image
-                    ? absoluteApiUrl(post.media.image)
-                    : post.image
-                    ? absoluteApiUrl(post.image)
-                    : "",
-                  images: Array.isArray(post.media?.images)
-                    ? post.media.images.map((image) => absoluteApiUrl(image))
-                    : [],
-                  layout: post.media?.layout || "carousel",
-                  governance: post.media?.governance || null,
-                  video: post.media?.video || post.video || "",
-                  link: post.media?.link || post.link || "",
-                  file: post.media?.file
-                    ? absoluteApiUrl(post.media.file)
-                    : post.file
-                    ? absoluteApiUrl(post.file)
-                    : "",
-                }}
-                text={post.text}
-                comments={post.comments}
-                likes={post.likes}
-                dislikes={post.dislikes}
-                setErrorMsg={setErrorMsg}
-                setNotify={setNotify}
-                specie={post.author_type}
-                activeBE={activeBE}
-              />
-            ))
+          ) : isError ? (
+            <div className="mobile-feed-panel social-panel rounded-[28px] px-6 py-10 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+              <p className="font-semibold text-[var(--text-black)]">Could not load proposals.</p>
+              <p className="mt-1">{error?.message || "The backend did not return posts."}</p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : posts.length > 0 ? (
+            <>
+              {posts.map((post) => (
+                <ProposalCard
+                  key={post.id}
+                  id={post.id}
+                  userName={post.userName}
+                  userInitials={post.userInitials}
+                  time={formatRelativeTime(post.time)}
+                  title={post.title}
+                  logo={post.author_img}
+                  media={{
+                    image: post.media?.image
+                      ? absoluteApiUrl(post.media.image)
+                      : post.image
+                      ? absoluteApiUrl(post.image)
+                      : "",
+                    images: Array.isArray(post.media?.images)
+                      ? post.media.images.map((image) => absoluteApiUrl(image))
+                      : [],
+                    layout: post.media?.layout || "carousel",
+                    governance: post.media?.governance || null,
+                    video: post.media?.video || post.video || "",
+                    link: post.media?.link || post.link || "",
+                    file: post.media?.file
+                      ? absoluteApiUrl(post.media.file)
+                      : post.file
+                      ? absoluteApiUrl(post.file)
+                      : "",
+                  }}
+                  text={post.text}
+                  comments={post.comments}
+                  likes={post.likes}
+                  dislikes={post.dislikes}
+                  setErrorMsg={setErrorMsg}
+                  setNotify={setNotify}
+                  specie={post.author_type}
+                  activeBE={activeBE}
+                />
+              ))}
+              {hasNextPage && (
+                <button
+                  type="button"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-3 text-center text-[0.86rem] font-bold text-[var(--text-black)] disabled:opacity-60"
+                >
+                  {isFetchingNextPage ? "Loading..." : "Load more"}
+                </button>
+              )}
+            </>
           ) : (
             <div className="mobile-feed-panel social-panel rounded-[28px] px-6 py-10 text-center font-semibold text-gray-500">
               No proposals found.

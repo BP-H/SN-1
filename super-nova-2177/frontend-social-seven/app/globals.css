@@ -603,6 +603,75 @@ html.messages-keyboard-open .mobile-bottom-shell {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.composer-governance-strip {
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-gray-light);
+}
+
+.composer-governance-strip.is-decision {
+  border-color: rgba(255, 79, 143, 0.2);
+  background: rgba(255, 255, 255, 0.052);
+}
+
+.composer-governance-button,
+.composer-threshold-button,
+.composer-deadline-control {
+  background: rgba(255, 255, 255, 0.065);
+  color: var(--text-gray-light);
+}
+
+.composer-governance-button.active {
+  background: var(--pink);
+  color: #fff;
+  box-shadow: var(--shadow-pink);
+}
+
+.composer-threshold-button {
+  color: var(--text-black);
+}
+
+.composer-deadline-control input {
+  height: 0.2rem;
+}
+
+html[data-theme="light"] .composer-governance-strip {
+  border-color: rgba(17, 24, 39, 0.12);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-theme="light"] .composer-governance-strip.is-decision {
+  border-color: rgba(255, 79, 149, 0.28);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+html[data-theme="light"] .composer-governance-button,
+html[data-theme="light"] .composer-threshold-button,
+html[data-theme="light"] .composer-deadline-control {
+  background: rgba(17, 24, 39, 0.055);
+  color: #4b5568;
+}
+
+html[data-theme="light"] .composer-governance-button.active {
+  background: var(--pink);
+  color: #fff;
+}
+
+@media (max-width: 430px) {
+  .composer-action-avatar {
+    display: none !important;
+  }
+}
+
+.comments-section,
+.comments-thread-list,
+.comment-row,
+.comment-bubble {
+  min-width: 0;
+  overflow: visible;
+}
+
 .vote-info-glass .effect {
   filter: none !important;
 }
@@ -693,6 +762,16 @@ html.messages-keyboard-open .mobile-bottom-shell {
 .profile-auth-card .auth-error {
   background: rgba(255, 79, 143, 0.14);
   color: #fff;
+}
+
+.profile-compact-card .auth-input {
+  background: rgba(255, 255, 255, 0.065);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f7f0ff;
+}
+
+.profile-compact-card .auth-input::placeholder {
+  color: rgba(247, 240, 255, 0.42);
 }
 
 .pdf-pager,
@@ -912,7 +991,13 @@ html.messages-keyboard-open .mobile-bottom-shell {
   }
 
   .mobile-brand {
-    letter-spacing: 0.28em;
+    letter-spacing: 0.18em;
+  }
+
+  @media (max-width: 380px) {
+    .mobile-brand {
+      letter-spacing: 0.12em;
+    }
   }
 
   .mobile-profile-menu-button {
@@ -968,11 +1053,15 @@ html.messages-keyboard-open .mobile-bottom-shell {
 
   .mobile-settings-sheet {
     bottom: calc(4.9rem + env(safe-area-inset-bottom, 0px));
+    right: max(0.65rem, env(safe-area-inset-right, 0px)) !important;
+    left: auto !important;
     z-index: 9200;
     width: min(calc(100vw - 1.25rem), 21rem);
     max-height: calc(100dvh - 9.8rem);
     overflow-y: auto;
     overscroll-behavior: contain;
+    transform: none !important;
+    translate: none !important;
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
@@ -1200,6 +1289,16 @@ html.messages-keyboard-open .mobile-bottom-shell {
   html[data-theme="light"] .profile-auth-card .auth-error {
     background: rgba(255, 79, 149, 0.12);
     color: #a9255a;
+  }
+
+  html[data-theme="light"] .profile-compact-card .auth-input {
+    background: rgba(17, 24, 39, 0.04);
+    border-color: rgba(17, 24, 39, 0.1);
+    color: #161924;
+  }
+
+  html[data-theme="light"] .profile-compact-card .auth-input::placeholder {
+    color: rgba(22, 25, 36, 0.42);
   }
 
   html[data-theme="light"] .ai-cursor-panel {

@@ -192,9 +192,16 @@ export function UserProvider({ children }) {
     () => mergeUserData(providerProfile, storedProfile || {}),
     [providerProfile, storedProfile]
   );
+  const needsProfileSetup = useMemo(() => {
+    if (!providerProfile.id || providerProfile.provider === "guest" || providerProfile.provider === "password") {
+      return false;
+    }
+    return !storedProfile?.customName || !normalizeSpecies(storedProfile?.species);
+  }, [providerProfile.id, providerProfile.provider, storedProfile?.customName, storedProfile?.species]);
 
   useEffect(() => {
     if (!providerProfile.id || providerProfile.provider === "guest") return undefined;
+    if (needsProfileSetup) return undefined;
 
     let cancelled = false;
     const username =
@@ -263,6 +270,7 @@ export function UserProvider({ children }) {
     userData.name,
     authUser,
     passwordAuth,
+    needsProfileSetup,
   ]);
 
   const persistProfile = useCallback((nextStored) => {
@@ -287,7 +295,7 @@ export function UserProvider({ children }) {
     writeStorage(key, nextStored);
     setStoredProfile(nextStored);
 
-    const username = passwordAuth?.username || nextStored.customName || current.name || providerProfile.name || "";
+    const username = passwordAuth?.username || current.name || providerProfile.name || nextStored.customName || "";
     const shouldSyncProfile =
       Boolean(passwordAuth?.token) || Boolean(providerProfile.id && providerProfile.provider !== "guest");
     if (username && shouldSyncProfile) {
@@ -295,6 +303,7 @@ export function UserProvider({ children }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          username: nextStored.customName || username,
           avatar_url: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizeSpecies(nextStored.species) || "human",
         }),
@@ -308,6 +317,7 @@ export function UserProvider({ children }) {
         if (!prev) return prev;
         const nextAuth = {
           ...prev,
+          username: nextStored.customName || prev.username,
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizeSpecies(nextStored.species) || "human",
         };
@@ -315,6 +325,94 @@ export function UserProvider({ children }) {
         return nextAuth;
       });
     }
+  }, [authUser, passwordAuth, providerProfile, storedProfile]);
+
+  const syncSocialProfile = useCallback(async ({ username, species, avatar }) => {
+    const cleanUsername = String(username || "").trim();
+    const accountSpecies = normalizeSpecies(species);
+    if (!providerProfile.id || providerProfile.provider === "guest" || providerProfile.provider === "password") {
+      throw new Error("Social account is not ready.");
+    }
+    if (!cleanUsername) throw new Error("Choose a username.");
+    if (!accountSpecies) throw new Error("Choose Human, ORG, or AI.");
+
+    const response = await fetch(`${API_BASE_URL}/auth/social/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: providerProfile.provider,
+        provider_id: providerProfile.id,
+        email: providerProfile.email,
+        username: cleanUsername,
+        avatar_url: normalizeAvatarValue(avatar || storedProfile?.customAvatar || providerProfile.avatar || ""),
+        species: accountSpecies,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.detail || "Unable to sync your SuperNova identity.");
+    }
+
+    const nextStored = {
+      ...(storedProfile || {}),
+      customName: payload.username || cleanUsername,
+      species: normalizeSpecies(payload.species) || accountSpecies,
+      customAvatar: normalizeAvatarValue(payload.avatar_url || avatar || storedProfile?.customAvatar || providerProfile.avatar || ""),
+    };
+    const key = getCustomStorageKey(authUser, passwordAuth);
+    writeStorage(key, nextStored);
+    setStoredProfile(nextStored);
+    return payload;
+  }, [authUser, passwordAuth, providerProfile, storedProfile]);
+
+  const saveUserProfile = useCallback(async ({ username, species, avatar }) => {
+    const current = mergeUserData(providerProfile, storedProfile || {});
+    const currentUsername = passwordAuth?.username || current.name || providerProfile.name || "";
+    const cleanUsername = String(username || currentUsername || "").trim();
+    const accountSpecies = normalizeSpecies(species) || current.species || "human";
+    const nextAvatar = normalizeAvatarValue(avatar || current.avatar || "");
+    if (!currentUsername) throw new Error("Current username is missing.");
+    if (!cleanUsername) throw new Error("Choose a username.");
+
+    const response = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(currentUsername)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: cleanUsername,
+        avatar_url: nextAvatar,
+        species: accountSpecies,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.detail || "Unable to update profile.");
+    }
+
+    const nextStored = {
+      ...(storedProfile || {}),
+      species: normalizeSpecies(payload.species) || accountSpecies,
+      customName: payload.username || cleanUsername,
+      customAvatar: normalizeAvatarValue(payload.avatar_url || nextAvatar),
+    };
+    const key = getCustomStorageKey(authUser, passwordAuth);
+    writeStorage(key, nextStored);
+    setStoredProfile(nextStored);
+
+    if (passwordAuth?.token) {
+      setPasswordAuth((prev) => {
+        if (!prev) return prev;
+        const nextAuth = {
+          ...prev,
+          username: nextStored.customName || prev.username,
+          avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
+          species: normalizeSpecies(nextStored.species) || "human",
+        };
+        writeStorage(PASSWORD_SESSION_KEY, nextAuth);
+        return nextAuth;
+      });
+    }
+
+    return payload;
   }, [authUser, passwordAuth, providerProfile, storedProfile]);
 
   const resetCustomProfile = useCallback(() => {
@@ -437,6 +535,7 @@ export function UserProvider({ children }) {
         authLoading,
         authConfigured: isSupabaseConfigured,
         isAuthenticated: Boolean(session?.user || passwordAuth?.token),
+        needsProfileSetup,
         passwordAuth,
         authProvider: userData.provider,
         loginWithProvider,
@@ -445,6 +544,8 @@ export function UserProvider({ children }) {
         signOut,
         session,
         persistProfile,
+        syncSocialProfile,
+        saveUserProfile,
         resetCustomProfile,
       }}
     >

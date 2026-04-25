@@ -5,7 +5,7 @@ import HeaderMobile from "@/content/header/HeaderMobile";
 import DesktopNav from "@/content/header/DesktopNav";
 import DesktopRightRail from "@/content/header/DesktopRightRail";
 import Settings from "@/content/header/content/Settings";
-import AccountModal from "@/content/profile/AccountModal";
+import AccountModal, { ProfileSetupModal } from "@/content/profile/AccountModal";
 import { useUser } from "@/content/profile/UserContext";
 
 export default function HeaderWrapper({
@@ -17,7 +17,7 @@ export default function HeaderWrapper({
 }) {
   const [authIntent, setAuthIntent] = useState(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const { isAuthenticated } = useUser();
+  const { isAuthenticated, needsProfileSetup } = useUser();
 
   useEffect(() => {
     const openAccount = (event) => {
@@ -70,6 +70,7 @@ export default function HeaderWrapper({
         initialMode={authIntent?.mode || "create"}
         onClose={() => setAccountModalOpen(false)}
       />
+      <ProfileSetupModal open={needsProfileSetup} />
     </>
   );
 }

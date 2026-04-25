@@ -5,6 +5,7 @@ import imageCompression from "browser-image-compression";
 import { FaFileAlt } from "react-icons/fa";
 import {
   IoAlbumsOutline,
+  IoBarChartOutline,
   IoChevronBack,
   IoChevronForward,
   IoClose,
@@ -12,6 +13,8 @@ import {
   IoGridOutline,
   IoImageOutline,
   IoSend,
+  IoShieldCheckmarkOutline,
+  IoTimeOutline,
   IoVideocamOutline,
 } from "react-icons/io5";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -613,52 +616,10 @@ function InputFields({
         className="composer-textarea min-h-[7.4rem] max-h-[min(72dvh,58rem)] w-full resize-none rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.06)] px-4 py-3 text-[0.92rem] outline-none placeholder:text-[var(--text-gray-light)]"
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-2 text-[0.74rem] text-[var(--text-gray-light)]">
-        <button
-          type="button"
-          onClick={() => setProposalMode((mode) => (mode === "decision" ? "post" : "decision"))}
-          className={`flex h-8 items-center gap-1.5 rounded-full px-3 font-semibold transition-colors ${
-            isDecisionMode
-              ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-              : "bg-white/[0.055] text-[var(--text-gray-light)]"
-          }`}
-          aria-pressed={isDecisionMode}
-          title="Mark as decision proposal"
-        >
-          <IoDocumentTextOutline className="text-[0.95rem]" />
-          {isDecisionMode ? "Decision" : "Post"}
-        </button>
-
-        {isDecisionMode && (
-          <>
-            <label className="flex min-w-[8.75rem] flex-1 items-center gap-2 rounded-full bg-white/[0.045] px-3 py-1.5">
-              <span className="shrink-0 font-semibold text-[var(--text-black)]">{votingDays}d</span>
-              <input
-                type="range"
-                min="1"
-                max="14"
-                value={votingDays}
-                onChange={(event) => setVotingDays(Number(event.target.value))}
-                className="min-w-0 flex-1 accent-[var(--pink)]"
-                aria-label="Voting days"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => setDecisionLevel((level) => (level === "important" ? "standard" : "important"))}
-              className="flex h-8 items-center gap-1.5 rounded-full bg-white/[0.055] px-3 font-semibold text-[var(--text-black)]"
-              title="Toggle decision threshold"
-            >
-              {decisionLevel === "important" ? "Important" : "Standard"} {decisionThresholdLabel}
-            </button>
-          </>
-        )}
-      </div>
-
       {renderMediaPreview()}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[0.78rem]">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex flex-nowrap items-center justify-between gap-1.5 text-[0.78rem]">
+        <div className="flex min-w-0 shrink-0 items-center gap-1">
           {userAvatar ? (
             <img
               src={userAvatar}
@@ -666,10 +627,10 @@ function InputFields({
               onError={(event) => {
                 event.currentTarget.src = defaultAvatar;
               }}
-              className="mr-1 h-9 w-9 shrink-0 rounded-full object-cover"
+              className="composer-action-avatar mr-1 h-9 w-9 shrink-0 rounded-full object-cover"
             />
           ) : (
-            <div className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
+            <div className="composer-action-avatar mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
               {(userData?.name || "SN").slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -696,11 +657,27 @@ function InputFields({
           />
         </div>
 
-        <div className="flex items-center gap-2 pt-1 text-[0.82rem] text-white">
+        <div className="flex min-w-0 shrink-0 items-center gap-1.5 text-[0.82rem] text-white">
+          <button
+            type="button"
+            onClick={() => setProposalMode((mode) => (mode === "decision" ? "post" : "decision"))}
+            className={`composer-governance-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              isDecisionMode ? "active" : ""
+            }`}
+            aria-pressed={isDecisionMode}
+            aria-label={isDecisionMode ? "Switch to normal post" : "Mark as decision proposal"}
+            title={isDecisionMode ? "Vote settings on" : "Normal post"}
+          >
+            {isDecisionMode ? (
+              <IoBarChartOutline className="text-[1.08rem]" />
+            ) : (
+              <IoDocumentTextOutline className="text-[1.05rem]" />
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setDiscard(true)}
-            className="composer-icon-button flex h-10 w-10 items-center justify-center rounded-full font-semibold"
+            className="composer-icon-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold"
             aria-label="Close composer"
             title="Close composer"
           >
@@ -710,7 +687,7 @@ function InputFields({
             type="button"
             onClick={publish}
             disabled={mutation.isPending}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--pink)] font-semibold text-white shadow-[var(--shadow-pink)] transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] font-semibold text-white shadow-[var(--shadow-pink)] transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
             aria-label={mutation.isPending ? "Publishing" : "Post"}
             title={mutation.isPending ? "Publishing" : "Post"}
           >
@@ -718,6 +695,34 @@ function InputFields({
           </button>
         </div>
       </div>
+
+      {isDecisionMode && (
+        <div className="composer-governance-strip composer-decision-row is-decision flex h-10 w-full min-w-0 items-center gap-1 rounded-full px-1.5">
+          <label className="composer-deadline-control flex min-w-0 flex-1 items-center gap-1.5 rounded-full px-2">
+            <IoTimeOutline className="shrink-0 text-[0.92rem]" />
+            <span className="w-7 shrink-0 text-center text-[0.66rem] font-black tabular-nums">{votingDays}d</span>
+            <input
+              type="range"
+              min="1"
+              max="14"
+              value={votingDays}
+              onChange={(event) => setVotingDays(Number(event.target.value))}
+              className="min-w-0 flex-1 accent-[var(--pink)]"
+              aria-label="Voting days"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setDecisionLevel((level) => (level === "important" ? "standard" : "important"))}
+            className="composer-threshold-button flex h-8 w-14 shrink-0 items-center justify-center gap-1 rounded-full text-[0.66rem] font-black tabular-nums"
+            aria-label={`Decision threshold ${decisionThresholdLabel}`}
+            title="Toggle decision threshold"
+          >
+            <IoShieldCheckmarkOutline className="text-[0.82rem]" />
+            {decisionThresholdLabel}
+          </button>
+        </div>
+      )}
     </div>
   );
 

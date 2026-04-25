@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IoBarChartOutline,
   IoDocumentTextOutline,
@@ -57,6 +57,7 @@ const SYSTEM_VOTE_CONFIG = {
   question: "Should SuperNova prioritize AI rights as the next major research focus?",
   deadline: "2026-04-27T18:00:00-07:00",
 };
+const FEED_PAGE_SIZE = 30;
 
 function formatCountdown(deadlineString, nowMs) {
   const deadline = new Date(deadlineString);
@@ -114,15 +115,30 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     setDiscard(false);
   };
 
-  const { data: posts, isLoading } = useQuery({
+  const {
+    data: postsData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["home-feed", activeBE],
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=80`);
+    queryFn: async ({ pageParam = null }) => {
+      const cursor = pageParam ? `&before_id=${encodeURIComponent(pageParam)}` : "";
+      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=${FEED_PAGE_SIZE}${cursor}`);
       if (!response.ok) throw new Error("Failed to fetch posts");
       return response.json();
     },
-    keepPreviousData: true,
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => {
+      if (!Array.isArray(lastPage) || lastPage.length < FEED_PAGE_SIZE) return undefined;
+      return lastPage[lastPage.length - 1]?.id || undefined;
+    },
   });
+  const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
 
   const { data: systemVoteData } = useQuery({
     queryKey: ["system-vote", backendUrl, userData?.name || ""],
@@ -405,36 +421,64 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
         <div className="space-y-2.5">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, index) => <CardLoading key={index} />)
+          ) : isError ? (
+            <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+              <p className="font-semibold text-[var(--text-black)]">Could not load the feed.</p>
+              <p className="mt-1">{error?.message || "The backend did not return posts."}</p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)]"
+              >
+                Retry
+              </button>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+              No posts yet.
+            </div>
           ) : (
-            (posts || []).map((post) => (
-              <ProposalCard
-                key={post.id}
-                id={post.id}
-                userName={post.userName}
-                userInitials={post.userInitials}
-                time={formatRelativeTime(post.time)}
-                title={post.title}
-                logo={post.author_img}
-                media={{
-                  image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
-                  images: Array.isArray(post.media?.images)
-                    ? post.media.images.map((image) => absoluteApiUrl(image))
-                    : [],
-                  layout: post.media?.layout || "carousel",
-                  governance: post.media?.governance || null,
-                  video: post.media?.video || post.video || "",
-                  link: post.media?.link || post.link || "",
-                  file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",
-                }}
-                text={post.text}
-                comments={post.comments}
-                likes={post.likes}
-                dislikes={post.dislikes}
-                setErrorMsg={setErrorMsg}
-                setNotify={setNotify}
-                specie={post.author_type}
-              />
-            ))
+            <>
+              {posts.map((post) => (
+                <ProposalCard
+                  key={post.id}
+                  id={post.id}
+                  userName={post.userName}
+                  userInitials={post.userInitials}
+                  time={formatRelativeTime(post.time)}
+                  title={post.title}
+                  logo={post.author_img}
+                  media={{
+                    image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
+                    images: Array.isArray(post.media?.images)
+                      ? post.media.images.map((image) => absoluteApiUrl(image))
+                      : [],
+                    layout: post.media?.layout || "carousel",
+                    governance: post.media?.governance || null,
+                    video: post.media?.video || post.video || "",
+                    link: post.media?.link || post.link || "",
+                    file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",
+                  }}
+                  text={post.text}
+                  comments={post.comments}
+                  likes={post.likes}
+                  dislikes={post.dislikes}
+                  setErrorMsg={setErrorMsg}
+                  setNotify={setNotify}
+                  specie={post.author_type}
+                />
+              ))}
+              {hasNextPage && (
+                <button
+                  type="button"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="mobile-feed-panel social-panel mx-[0.35rem] rounded-[1rem] px-5 py-3 text-center text-[0.86rem] font-bold text-[var(--text-black)] disabled:opacity-60"
+                >
+                  {isFetchingNextPage ? "Loading..." : "Load more"}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
