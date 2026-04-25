@@ -298,6 +298,10 @@ function ProposalCard({
   }, [id, text]);
 
   useEffect(() => {
+    setLocalComments(Array.isArray(comments) ? comments : []);
+  }, [comments, id]);
+
+  useEffect(() => {
     setLocalLogo(logo || "");
   }, [id, logo]);
 
@@ -658,7 +662,15 @@ function ProposalCard({
 
         {/* ── Comments section ── */}
         {(showComments || isDetailPage) && (
-          <div className="flex min-w-0 flex-col gap-2 rounded-[15px] bg-[rgba(255,255,255,0.03)] p-2">
+          <div className="comments-section flex min-w-0 flex-col gap-2 rounded-[15px] bg-[rgba(255,255,255,0.03)] p-2">
+            <div className="flex min-w-0 items-center justify-between gap-3 px-1">
+              <span className="truncate text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                Comments
+              </span>
+              <span className="shrink-0 rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
+                {localComments.length}
+              </span>
+            </div>
             <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
               <InsertComment
                 setErrorMsg={setErrorMsg}
@@ -667,7 +679,7 @@ function ProposalCard({
                 setLocalComments={setLocalComments}
               />
             </div>
-            <div className="hide-scrollbar flex max-h-[18rem] min-w-0 flex-col gap-2 overflow-y-auto pr-1">
+            <div className="comments-thread-list flex min-w-0 flex-col gap-2">
               {localComments.map((comment, index) => {
                 const commentId = comment.id ?? "";
                 const isCommentAuthor = Boolean(

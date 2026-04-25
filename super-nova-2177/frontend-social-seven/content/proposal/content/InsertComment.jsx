@@ -113,7 +113,7 @@ function InsertComment({
         type="button"
         onClick={handlePublish}
         disabled={loading}
-        className="h-10 shrink-0 rounded-full bg-[var(--pink)] px-3 text-[0.78rem] font-semibold text-white shadow-md hover:scale-95 disabled:opacity-50"
+        className="h-10 shrink-0 whitespace-nowrap rounded-full bg-[var(--pink)] px-3 text-[0.78rem] font-semibold text-white shadow-md hover:scale-95 disabled:opacity-50"
       >
         {loading ? "Publishing..." : "Publish"}
       </button>

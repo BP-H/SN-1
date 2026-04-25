@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { IoMenu, IoNotificationsOutline, IoSearchOutline } from "react-icons/io5";
+import { FaGithub } from "react-icons/fa";
 import LiquidGlass from "../liquid glass/LiquidGlass";
 import AssistantOrb from "../AssistantOrb";
 import NotificationsPanel from "./content/NotificationsPanel";
@@ -182,6 +183,17 @@ export default function Header({
 
             <div className="flex shrink-0 items-center gap-2">
               <AssistantOrb />
+              <a
+                href="https://github.com/BP-H/SN-1"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="mobile-topbar-action hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bgGray text-[var(--text-black)] min-[390px]:flex"
+                aria-label="Open SuperNova GitHub repository"
+                title="Open SuperNova GitHub repository"
+              >
+                <FaGithub className="text-[1.12rem]" />
+              </a>
               <button
                 type="button"
                 onClick={(event) => {

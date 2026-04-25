@@ -2134,3 +2134,85 @@ html[data-theme="light"] .post-action-bar {
   }
 }
 
+.comments-section,
+.comments-thread-list,
+.comment-row,
+.comment-bubble {
+  min-width: 0;
+}
+
+.comments-section {
+  overflow: visible;
+}
+
+.comments-thread-list {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+html[data-theme="light"] .comments-section {
+  background: rgba(17, 24, 39, 0.035) !important;
+}
+
+html[data-theme="light"] .comment-bubble {
+  background: rgba(17, 24, 39, 0.045) !important;
+}
+
+html[data-theme="light"] .ai-cursor-core,
+html[data-theme="light"] .mobile-topbar .ai-cursor-dock,
+html[data-theme="light"] .ai-cursor-dock {
+  background:
+    radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.92) 0 8%, transparent 9%),
+    radial-gradient(circle at 52% 48%, rgba(255, 79, 143, 0.95), rgba(139, 109, 255, 0.92) 58%, rgba(31, 42, 60, 0.92)) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #fff !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 20px rgba(255, 79, 143, 0.24),
+    0 12px 28px rgba(0, 0, 0, 0.24) !important;
+}
+
+html[data-theme="light"] .ai-cursor-panel {
+  background: rgba(11, 16, 23, 0.96) !important;
+  color: #f7f0ff !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.32) !important;
+}
+
+html[data-theme="light"] .ai-cursor-panel input,
+html[data-theme="light"] .ai-cursor-panel textarea,
+html[data-theme="light"] .ai-cursor-panel [class*="bg-black/"],
+html[data-theme="light"] .ai-cursor-panel [class*="bg-white/"] {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f7f0ff !important;
+}
+
+html[data-theme="light"] .ai-cursor-action-button {
+  background: rgba(11, 16, 23, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #8f8ba3 !important;
+  box-shadow: 0 0 14px rgba(255, 79, 143, 0.14) !important;
+}
+
+html[data-theme="light"] .ai-cursor-action-button[data-tone="pink"] {
+  color: var(--pink) !important;
+}
+
+html[data-theme="light"] .ai-cursor-action-button[data-tone="blue"] {
+  color: var(--blue) !important;
+}
+
+html[data-theme="light"] .ai-cursor-action-button[data-active="true"] {
+  color: #fff !important;
+}
+
+html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone="pink"] {
+  background: var(--pink) !important;
+}
+
+html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone="blue"] {
+  background: var(--blue) !important;
+}
+

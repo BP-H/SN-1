@@ -241,7 +241,7 @@ function DisplayComments({
 
   return (
     <>
-    <div className="flex w-full min-w-0 items-start gap-2">
+    <div className="comment-row flex w-full min-w-0 items-start gap-2">
       <Link href={profileHref} className="shrink-0" aria-label={`${name || "User"} profile`}>
         {imageUrl && !imageFailed ? (
           <img
@@ -257,7 +257,7 @@ function DisplayComments({
         )}
       </Link>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1 rounded-[0.95rem] bg-[rgba(255,255,255,0.04)] p-3 shadow-sm">
+      <div className="comment-bubble flex min-w-0 flex-1 flex-col gap-1 rounded-[0.95rem] bg-[rgba(255,255,255,0.04)] p-3 shadow-sm">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <Link href={profileHref} className="truncate text-[0.88rem] font-semibold text-[var(--text-black)]">
             {name}
