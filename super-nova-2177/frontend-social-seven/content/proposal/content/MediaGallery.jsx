@@ -159,7 +159,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
     ? createPortal(
         <div className="vote-modal-backdrop" onClick={() => setLightboxIndex(null)}>
           <div
-            className="relative flex h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[44rem] items-center justify-center overflow-hidden rounded-[0.85rem] bg-black"
+            className="relative flex h-[calc(100dvh-2rem)] w-full max-w-[44rem] items-center justify-center overflow-hidden rounded-[0.85rem] bg-black"
             style={{ touchAction: "pan-y" }}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={startLightboxSwipe}
@@ -345,8 +345,8 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
 
   return (
     <>
-      <div className="mobile-media-bleed overflow-hidden rounded-[1rem] bg-[var(--gray)]">
-        <div className="relative">
+      <div className="mobile-media-bleed">
+        <div className="relative overflow-hidden rounded-[1rem] bg-[var(--gray)]">
           <div
             ref={railRef}
             onScroll={updateIndexFromScroll}
@@ -415,7 +415,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
           )}
         </div>
         {urls.length > 1 && (
-          <div className="flex items-center justify-center px-3 py-2">
+          <div className="flex items-center justify-center px-3 pt-2">
             <div className="flex items-center gap-1.5">
               {urls.map((url, index) => (
                 <span

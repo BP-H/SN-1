@@ -388,6 +388,56 @@ def _compute_vote_totals(db: Session, proposal_id: int) -> Dict[str, int]:
 
     return {"up": up, "down": down}
 
+
+def _normalize_system_vote_choice(choice: str) -> str:
+    value = (choice or "").strip().lower()
+    if value in {"yes", "up", "like", "support"}:
+        return "yes"
+    if value in {"no", "down", "dislike", "oppose"}:
+        return "no"
+    raise HTTPException(status_code=400, detail="choice must be yes or no")
+
+
+def _ensure_system_votes_table(db: Session) -> None:
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS system_votes (
+            username TEXT PRIMARY KEY,
+            choice TEXT NOT NULL,
+            voter_type TEXT DEFAULT 'human',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    db.commit()
+
+
+def _serialize_system_vote_rows(rows, username: Optional[str] = None) -> Dict:
+    requester = _safe_user_key(username or "")
+    likes: List[Dict] = []
+    dislikes: List[Dict] = []
+    user_vote = None
+    for row in rows:
+        voter = getattr(row, "username", "") or ""
+        voter_type = getattr(row, "voter_type", None) or "human"
+        choice = _normalize_system_vote_choice(getattr(row, "choice", ""))
+        entry = {"voter": voter, "type": voter_type}
+        if choice == "yes":
+            likes.append(entry)
+            if requester and _safe_user_key(voter) == requester:
+                user_vote = "like"
+        else:
+            dislikes.append(entry)
+            if requester and _safe_user_key(voter) == requester:
+                user_vote = "dislike"
+    return {
+        "question": "Should SuperNova prioritize the next major research focus?",
+        "likes": likes,
+        "dislikes": dislikes,
+        "user_vote": user_vote,
+        "total": len(likes) + len(dislikes),
+    }
+
+
 # --- Schemas (compat frontend) ---
 class ProposalIn(BaseModel):
     title: str
@@ -421,6 +471,11 @@ class VoteIn(BaseModel):
     voter: str
     choice: str
     voter_type: str
+
+class SystemVoteIn(BaseModel):
+    username: str
+    choice: str
+    voter_type: Optional[str] = "human"
 
 class DecisionSchema(BaseModel):
     id: int
@@ -2073,6 +2128,87 @@ def list_proposals(
 
 #
 #
+# --- Dedicated yes/no system vote ---
+@app.get("/system-vote")
+def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    try:
+        _ensure_system_votes_table(db)
+        rows = db.execute(
+            text("SELECT username, choice, voter_type FROM system_votes ORDER BY updated_at DESC")
+        ).fetchall()
+        return _serialize_system_vote_rows(rows, username)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to load system vote: {str(exc)}")
+
+
+@app.post("/system-vote")
+def cast_system_vote(payload: SystemVoteIn, db: Session = Depends(get_db)):
+    username = (payload.username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    choice = _normalize_system_vote_choice(payload.choice)
+    voter_type = _normalize_species(payload.voter_type or "human")
+    now = datetime.datetime.utcnow()
+
+    try:
+        _ensure_system_votes_table(db)
+        db.execute(
+            text("DELETE FROM system_votes WHERE lower(username) = lower(:username)"),
+            {"username": username},
+        )
+        db.execute(
+            text(
+                "INSERT INTO system_votes (username, choice, voter_type, created_at, updated_at) "
+                "VALUES (:username, :choice, :voter_type, :created_at, :updated_at)"
+            ),
+            {
+                "username": username,
+                "choice": choice,
+                "voter_type": voter_type,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        db.commit()
+        rows = db.execute(
+            text("SELECT username, choice, voter_type FROM system_votes ORDER BY updated_at DESC")
+        ).fetchall()
+        return _serialize_system_vote_rows(rows, username)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to cast system vote: {str(exc)}")
+
+
+@app.delete("/system-vote")
+def remove_system_vote(username: str = Query(...), db: Session = Depends(get_db)):
+    requester = (username or "").strip()
+    if not requester:
+        raise HTTPException(status_code=400, detail="username is required")
+    try:
+        _ensure_system_votes_table(db)
+        db.execute(
+            text("DELETE FROM system_votes WHERE lower(username) = lower(:username)"),
+            {"username": requester},
+        )
+        db.commit()
+        rows = db.execute(
+            text("SELECT username, choice, voter_type FROM system_votes ORDER BY updated_at DESC")
+        ).fetchall()
+        return _serialize_system_vote_rows(rows, requester)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to remove system vote: {str(exc)}")
+
+
 # --- Tally endpoints ---
 # REMOVE DUPLICATE get_proposal ENDPOINT
     

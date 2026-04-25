@@ -51,9 +51,31 @@ function getSliderColor(ratio) {
   return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
 }
 
+// Change the system-vote question and deadline here when you want a new top vote.
+// Keep the deadline as a real ISO date/time so the countdown can update live.
+const SYSTEM_VOTE_CONFIG = {
+  question: "Should SuperNova prioritize the next major research focus?",
+  deadline: "2026-04-27T18:00:00-07:00",
+};
+
+function formatCountdown(deadlineString, nowMs) {
+  const deadline = new Date(deadlineString);
+  if (Number.isNaN(deadline.getTime())) return "Set deadline";
+  const remaining = deadline.getTime() - nowMs;
+  if (remaining <= 0) return "Ended";
+  const totalMinutes = Math.ceil(remaining / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
+  const [systemNow, setSystemNow] = useState(() => Date.now());
 
   // Auto-open composer if navigated from a global '+' button click
   useEffect(() => {
@@ -71,6 +93,11 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
   const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setSystemNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -97,32 +124,34 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     keepPreviousData: true,
   });
 
-  /* The system vote aggregates ALL votes across ALL proposals */
-  const systemVote = useMemo(() => {
-    const list = posts || [];
-    const likes = list.flatMap((post) => post.likes || []);
-    const dislikes = list.flatMap((post) => post.dislikes || []);
-    const weighted = buildWeightedVoteSummary(likes, dislikes);
+  const { data: systemVoteData } = useQuery({
+    queryKey: ["system-vote", userData?.name || ""],
+    queryFn: async () => {
+      const query = userData?.name ? `?username=${encodeURIComponent(userData.name)}` : "";
+      const response = await fetch(`${API_BASE_URL}/system-vote${query}`);
+      if (!response.ok) throw new Error("Failed to fetch system vote");
+      return response.json();
+    },
+    keepPreviousData: true,
+  });
 
-    /* Decoupled system vote: We now track the system vote independently of the first post.
-       Since there isn't a dedicated endpoint returning the system vote state yet, we aggregate
-       all votes to show system health, and store the user's specific system vote locally for UI purposes. */
-    let userVote = null;
-    if (typeof window !== "undefined" && userData?.name) {
-      userVote = localStorage.getItem(`system_vote_${userData.name}`);
-    }
+  /* Dedicated yes/no system vote; configure question/deadline in SYSTEM_VOTE_CONFIG above. */
+  const systemVote = useMemo(() => {
+    const likes = systemVoteData?.likes || [];
+    const dislikes = systemVoteData?.dislikes || [];
+    const weighted = buildWeightedVoteSummary(likes, dislikes);
+    const userVote = systemVoteData?.user_vote || null;
 
     return {
-      question: "What should be our next major research focus?",
+      question: SYSTEM_VOTE_CONFIG.question,
       yesRatio: Math.round(weighted.supportPercent || 0),
       weighted,
       likes,
       dislikes,
-      endsIn: "21h 48m",
-      systemId: "system-vote-proxy",
+      endsIn: formatCountdown(SYSTEM_VOTE_CONFIG.deadline, systemNow),
       userVote,
     };
-  }, [posts, userData?.name]);
+  }, [systemNow, systemVoteData]);
 
   /* Sync system vote clicked state from data */
   useEffect(() => {
@@ -144,28 +173,34 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
     try {
       if (isToggle) {
-        localStorage.removeItem(`system_vote_${userData.name}`);
+        const response = await fetch(`${backendUrl}/system-vote?username=${encodeURIComponent(userData.name)}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.detail || "Unable to remove system vote.");
+        }
         setSystemVoteClicked(null);
       } else {
-        localStorage.setItem(`system_vote_${userData.name}`, choice);
-        setSystemVoteClicked(choice);
-        
-        // Attempt to cast to a dedicated system endpoint if backend supports it.
-        // We catch errors silently to gracefully handle if the backend doesn't have it yet.
-        const voteChoice = choice === "like" ? "up" : "down";
-        fetch(`${backendUrl}/votes`, {
+        const voteChoice = choice === "like" ? "yes" : "no";
+        const response = await fetch(`${backendUrl}/system-vote`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            proposal_id: "system-vote-1",
             username: userData.name,
             choice: voteChoice,
             voter_type: voterType,
           }),
-        }).catch(() => {});
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.detail || "Unable to cast system vote.");
+        }
+        setSystemVoteClicked(choice);
       }
 
       // Refetch to update all data
+      queryClient.invalidateQueries({ queryKey: ["system-vote"] });
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
     } catch (err) {
@@ -212,11 +247,11 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             <div className="flex items-center gap-2">
               <IoStarOutline className="text-[1rem] text-[var(--pink)]" />
               <span className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-[var(--pink)]">
-                System Vote
+                System Decision
               </span>
             </div>
             <span className="text-[0.72rem] text-[var(--text-gray-light)]">
-              Ends in {systemVote.endsIn}
+              {systemVote.endsIn === "Ended" ? "Vote ended" : `Ends in ${systemVote.endsIn}`}
             </span>
           </div>
           <p className="mb-4 text-[0.92rem] font-medium text-[var(--text-black)]">
@@ -244,7 +279,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[0.6rem] font-bold tabular-nums"
                 style={{ color: knobColor }}
               >
-                {systemVote.yesRatio}%
+                {systemVote.yesRatio}% yes
               </span>
               <div className="relative h-1 rounded-full bg-[rgba(255,255,255,0.09)]">
                 <div

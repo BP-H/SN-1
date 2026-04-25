@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   IoChatbubbleOutline,
   IoCheckmark,
@@ -35,6 +36,9 @@ function DisplayComments({
   const [editBusy, setEditBusy] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [followingAuthor, setFollowingAuthor] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const menuButtonRef = useRef(null);
+  const menuPanelRef = useRef(null);
   const router = useRouter();
   const { userData, isAuthenticated } = useUser();
 
@@ -73,6 +77,43 @@ function DisplayComments({
       cancelled = true;
     };
   }, [isAuthenticated, isSelf, menuOpen, name, userData?.name]);
+
+  useEffect(() => {
+    if (!menuOpen || typeof window === "undefined") return undefined;
+
+    const updateMenuPosition = () => {
+      const rect = menuButtonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = 160;
+      const rowCount = Number(canEdit) + Number(canDelete) + (!isSelf && name ? 2 : 0);
+      const menuHeight = Math.max(44, rowCount * 36 + 8);
+      const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+      let top = rect.bottom + 6;
+      if (top + menuHeight > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - menuHeight - 6);
+      }
+      setMenuPosition({ top, left });
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [canDelete, canEdit, isSelf, menuOpen, name]);
+
+  useEffect(() => {
+    if (!menuOpen || typeof document === "undefined") return undefined;
+    const handleOutside = (event) => {
+      if (menuButtonRef.current?.contains(event.target)) return;
+      if (menuPanelRef.current?.contains(event.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", handleOutside);
+    return () => document.removeEventListener("pointerdown", handleOutside);
+  }, [menuOpen]);
 
   const requireAccount = () => {
     if (typeof window !== "undefined") {
@@ -139,7 +180,67 @@ function DisplayComments({
     }
   };
 
+  const menuPanel =
+    menuOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuPanelRef}
+            className="proposal-options-menu fixed z-[2147482500] w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditText(comment || "");
+                  setEditing(true);
+                  setMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+              >
+                <IoCreateOutline /> Edit
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete();
+                }}
+                disabled={deleting}
+                className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left text-[var(--pink)] hover:bg-white/[0.07] disabled:opacity-50"
+              >
+                <IoTrashOutline /> Delete
+              </button>
+            )}
+            {!isSelf && name && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleMessage}
+                  className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                >
+                  <IoChatbubbleOutline /> Message
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleFollow}
+                  disabled={followBusy}
+                  className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] disabled:opacity-50"
+                >
+                  {followingAuthor ? <IoPersonRemoveOutline /> : <IoPersonAddOutline />}
+                  {followingAuthor ? "Unfollow" : "Follow"}
+                </button>
+              </>
+            )}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
+    <>
     <div className="flex w-full min-w-0 items-start gap-2">
       <Link href={profileHref} className="shrink-0" aria-label={`${name || "User"} profile`}>
         {imageUrl && !imageFailed ? (
@@ -164,6 +265,7 @@ function DisplayComments({
           {showMenu && (
             <div className="relative shrink-0">
               <button
+                ref={menuButtonRef}
                 type="button"
                 onClick={(event) => {
                   event.preventDefault();
@@ -175,56 +277,6 @@ function DisplayComments({
               >
                 <IoEllipsisHorizontal />
               </button>
-              {menuOpen && (
-                <div className="proposal-options-menu absolute right-0 top-8 z-30 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl">
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditText(comment || "");
-                        setEditing(true);
-                        setMenuOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
-                    >
-                      <IoCreateOutline /> Edit
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onDelete();
-                      }}
-                      disabled={deleting}
-                      className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left text-[var(--pink)] hover:bg-white/[0.07] disabled:opacity-50"
-                    >
-                      <IoTrashOutline /> Delete
-                    </button>
-                  )}
-                  {!isSelf && name && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleMessage}
-                        className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
-                      >
-                        <IoChatbubbleOutline /> Message
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleToggleFollow}
-                        disabled={followBusy}
-                        className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] disabled:opacity-50"
-                      >
-                        {followingAuthor ? <IoPersonRemoveOutline /> : <IoPersonAddOutline />}
-                        {followingAuthor ? "Unfollow" : "Follow"}
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -263,6 +315,8 @@ function DisplayComments({
         )}
       </div>
     </div>
+    {menuPanel}
+    </>
   );
 }
 
