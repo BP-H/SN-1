@@ -318,7 +318,64 @@ def _payload_dict(value) -> Dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _media_payload(image_value="", video_value="", link_value="", file_value="", payload_value=None) -> Dict:
+def _normalize_governance_kind(value: Optional[str]) -> str:
+    kind = str(value or "post").strip().lower()
+    return "decision" if kind in {"decision", "proposal", "governance"} else "post"
+
+
+def _normalize_decision_level(value: Optional[str]) -> str:
+    level = str(value or "standard").strip().lower()
+    return "important" if level == "important" else "standard"
+
+
+def _clamp_voting_days(value, default: int = 3) -> int:
+    try:
+        days = int(value)
+    except Exception:
+        days = default
+    return max(1, min(days, 30))
+
+
+def _governance_threshold(level: str) -> float:
+    try:
+        threshold = float(get_weighted_threshold(level))
+    except Exception:
+        threshold = 0.9 if level == "important" else 0.6
+    return threshold
+
+
+def _proposal_governance_payload(payload: Dict, voting_deadline_value=None) -> Optional[Dict]:
+    if _normalize_governance_kind(
+        payload.get("governance_kind") or payload.get("proposal_kind") or payload.get("kind")
+    ) != "decision":
+        return None
+    level = _normalize_decision_level(payload.get("decision_level"))
+    threshold = payload.get("approval_threshold")
+    try:
+        threshold = float(threshold)
+    except Exception:
+        threshold = _governance_threshold(level)
+    deadline = voting_deadline_value or payload.get("voting_deadline")
+    return {
+        "kind": "decision",
+        "decision_level": level,
+        "approval_threshold": threshold,
+        "threshold": threshold,
+        "voting_days": _clamp_voting_days(payload.get("voting_days")),
+        "voting_deadline": _format_timestamp(deadline),
+        "execution_mode": "manual",
+        "execution_status": str(payload.get("execution_status") or "pending_vote"),
+    }
+
+
+def _media_payload(
+    image_value="",
+    video_value="",
+    link_value="",
+    file_value="",
+    payload_value=None,
+    voting_deadline_value=None,
+) -> Dict:
     images = _image_urls_from_storage(image_value)
     payload = _payload_dict(payload_value)
     return {
@@ -328,6 +385,7 @@ def _media_payload(image_value="", video_value="", link_value="", file_value="",
         "link": link_value or "",
         "file": _uploads_url(file_value),
         "layout": _normalize_media_layout(payload.get("media_layout") or payload.get("mediaLayout")),
+        "governance": _proposal_governance_payload(payload, voting_deadline_value),
     }
 
 
@@ -1706,6 +1764,10 @@ async def create_proposal(
     video_file: Optional[UploadFile] = File(None),
     file: Optional[UploadFile] = File(None),
     voting_deadline: Optional[datetime.datetime] = Form(None),
+    governance_kind: str = Form("post"),
+    decision_level: str = Form("standard"),
+    voting_days: Optional[int] = Form(None),
+    execution_mode: str = Form("manual"),
     db: Session = Depends(get_db)
 ):
     if author_type not in ("human", "company", "ai"):
@@ -1717,6 +1779,10 @@ async def create_proposal(
     video_value = video or ""
     file_filename = None
     safe_media_layout = _normalize_media_layout(media_layout)
+    safe_governance_kind = _normalize_governance_kind(governance_kind)
+    safe_decision_level = _normalize_decision_level(decision_level)
+    safe_voting_days = _clamp_voting_days(voting_days)
+    safe_execution_mode = "manual" if str(execution_mode or "").strip().lower() != "manual" else "manual"
 
     # --- Process uploads ---
     image_uploads = []
@@ -1762,7 +1828,20 @@ async def create_proposal(
     else:
         created_at = dt.utcnow()
     if not voting_deadline:
-        voting_deadline = dt.utcnow() + timedelta(days=7)
+        deadline_days = safe_voting_days if safe_governance_kind == "decision" else 7
+        voting_deadline = created_at + timedelta(days=deadline_days)
+    proposal_payload = {"media_layout": safe_media_layout}
+    if safe_governance_kind == "decision":
+        approval_threshold = _governance_threshold(safe_decision_level)
+        proposal_payload.update({
+            "governance_kind": "decision",
+            "decision_level": safe_decision_level,
+            "approval_threshold": approval_threshold,
+            "execution_mode": safe_execution_mode,
+            "execution_status": "pending_vote",
+            "voting_days": safe_voting_days,
+            "voting_deadline": _format_timestamp(voting_deadline),
+        })
 
     try:
         final_user = None
@@ -1785,7 +1864,6 @@ async def create_proposal(
                 user_name = author_obj.username
             else:
                 user_name = final_user
-            import datetime
             db_proposal = Proposal(
                 title=title,
                 description=body,
@@ -1797,9 +1875,9 @@ async def create_proposal(
                 video=video_value,
                 link=link,
                 file=file_filename,
-                payload={"media_layout": safe_media_layout},
+                payload=proposal_payload,
                 created_at=created_at,
-                voting_deadline=created_at + datetime.timedelta(days=7)
+                voting_deadline=voting_deadline
             )
             db.add(db_proposal)
             db.commit()
@@ -1845,7 +1923,7 @@ async def create_proposal(
             db_proposal.video = video_value
             db_proposal.link = link
             db_proposal.file = file_filename
-            db_proposal.payload = {"media_layout": safe_media_layout}
+            db_proposal.payload = proposal_payload
             db_proposal.created_at = created_at
             db_proposal.voting_deadline = voting_deadline
             user_name = final_user
@@ -1868,6 +1946,7 @@ async def create_proposal(
                 db_proposal.link,
                 db_proposal.file,
                 getattr(db_proposal, "payload", None),
+                getattr(db_proposal, "voting_deadline", None),
             )
         )
     except Exception as e:
@@ -2184,6 +2263,7 @@ def list_proposals(
                     getattr(prop, "link", ""),
                     getattr(prop, "file", ""),
                     getattr(prop, "payload", None),
+                    getattr(prop, "voting_deadline", None),
                 )
             })
 
@@ -2758,7 +2838,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,
-            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None))
+            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline)
         )
     else:
         result = db.execute(
@@ -2809,6 +2889,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "link", ""),
                 getattr(row, "file", ""),
                 getattr(row, "payload", None),
+                getattr(row, "voting_deadline", None),
             )
         )
 

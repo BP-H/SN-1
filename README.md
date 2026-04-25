@@ -68,6 +68,17 @@ The backend wrapper is the stable bridge between the social app and SuperNova Co
 
 This keeps frontend seven usable while allowing future SuperNova Core changes to surface through a predictable API namespace.
 
+## Decision Proposals
+
+Frontend seven can tag a normal post as a decision proposal without changing the existing feed contract. The backend stores this as governance metadata in `Proposal.payload` and uses the existing `voting_deadline` column.
+
+- Standard decisions use the SuperNova Core threshold helper, currently 60%.
+- Important decisions use the core threshold helper, currently 90%.
+- Execution is intentionally `manual` for now; no AI, company, or external API action runs automatically from a vote yet.
+- Future clients such as mobile, Unreal, agents, or forked universes should consume the serialized `media.governance` object from `/proposals` and `/proposals/{id}`.
+
+This gives the project an auditable place to grow AI-assisted organization execution later without surprising the working social app today.
+
 ## Universe Forks
 
 Forks are welcome. The healthiest fork is not just a copy; it adds one meaningful improvement while preserving the symbolic, non-financial, tri-species spirit of the project.

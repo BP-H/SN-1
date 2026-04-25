@@ -421,6 +421,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                     ? post.media.images.map((image) => absoluteApiUrl(image))
                     : [],
                   layout: post.media?.layout || "carousel",
+                  governance: post.media?.governance || null,
                   video: post.media?.video || post.video || "",
                   link: post.media?.link || post.link || "",
                   file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",

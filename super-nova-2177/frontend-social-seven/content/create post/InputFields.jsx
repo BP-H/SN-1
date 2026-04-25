@@ -40,6 +40,9 @@ function InputFields({
   const [mediaType, setMediaType] = useState("");
   const [mediaValue, setMediaValue] = useState("");
   const [mediaLayout, setMediaLayout] = useState("carousel");
+  const [proposalMode, setProposalMode] = useState("post");
+  const [decisionLevel, setDecisionLevel] = useState("standard");
+  const [votingDays, setVotingDays] = useState(3);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -61,6 +64,8 @@ function InputFields({
     Boolean(selectedFile) &&
     (selectedFile.type === "application/pdf" || /\.pdf$/i.test(selectedFile.name || ""));
   const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
+  const isDecisionMode = proposalMode === "decision";
+  const decisionThresholdLabel = decisionLevel === "important" ? "90%" : "60%";
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -227,6 +232,12 @@ function InputFields({
       formData.append("author_type", newPost.author_type);
       formData.append("author_img", newPost.author_img);
       formData.append("date", newPost.date);
+      formData.append("governance_kind", newPost.governance_kind || "post");
+      if (newPost.governance_kind === "decision") {
+        formData.append("decision_level", newPost.decision_level || "standard");
+        formData.append("voting_days", String(newPost.voting_days || 3));
+        formData.append("execution_mode", "manual");
+      }
 
       if (newPost.images?.length) {
         newPost.images.forEach((imageFile) => formData.append("images", imageFile));
@@ -263,6 +274,9 @@ function InputFields({
       refetchPosts?.();
       setDiscard(true);
       handleRemoveMedia();
+      setProposalMode("post");
+      setDecisionLevel("standard");
+      setVotingDays(3);
       setText("");
     },
     onError: (error) => setErrorMsg([error.message]),
@@ -315,6 +329,9 @@ function InputFields({
       file: mediaType === "file" ? selectedFile : null,
       video: mediaType === "video" ? selectedFile : "",
       link: mediaType === "link" ? mediaValue : "",
+      governance_kind: isDecisionMode ? "decision" : "post",
+      decision_level: decisionLevel,
+      voting_days: votingDays,
     });
   };
 
@@ -595,6 +612,48 @@ function InputFields({
         rows={1}
         className="composer-textarea min-h-[7.4rem] max-h-[min(72dvh,58rem)] w-full resize-none rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.06)] px-4 py-3 text-[0.92rem] outline-none placeholder:text-[var(--text-gray-light)]"
       />
+
+      <div className="flex flex-wrap items-center gap-2 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-2 text-[0.74rem] text-[var(--text-gray-light)]">
+        <button
+          type="button"
+          onClick={() => setProposalMode((mode) => (mode === "decision" ? "post" : "decision"))}
+          className={`flex h-8 items-center gap-1.5 rounded-full px-3 font-semibold transition-colors ${
+            isDecisionMode
+              ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+              : "bg-white/[0.055] text-[var(--text-gray-light)]"
+          }`}
+          aria-pressed={isDecisionMode}
+          title="Mark as decision proposal"
+        >
+          <IoDocumentTextOutline className="text-[0.95rem]" />
+          {isDecisionMode ? "Decision" : "Post"}
+        </button>
+
+        {isDecisionMode && (
+          <>
+            <label className="flex min-w-[8.75rem] flex-1 items-center gap-2 rounded-full bg-white/[0.045] px-3 py-1.5">
+              <span className="shrink-0 font-semibold text-[var(--text-black)]">{votingDays}d</span>
+              <input
+                type="range"
+                min="1"
+                max="14"
+                value={votingDays}
+                onChange={(event) => setVotingDays(Number(event.target.value))}
+                className="min-w-0 flex-1 accent-[var(--pink)]"
+                aria-label="Voting days"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => setDecisionLevel((level) => (level === "important" ? "standard" : "important"))}
+              className="flex h-8 items-center gap-1.5 rounded-full bg-white/[0.055] px-3 font-semibold text-[var(--text-black)]"
+              title="Toggle decision threshold"
+            >
+              {decisionLevel === "important" ? "Important" : "Standard"} {decisionThresholdLabel}
+            </button>
+          </>
+        )}
+      </div>
 
       {renderMediaPreview()}
 

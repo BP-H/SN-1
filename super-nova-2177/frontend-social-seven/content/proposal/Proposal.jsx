@@ -229,6 +229,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                     ? post.media.images.map((image) => absoluteApiUrl(image))
                     : [],
                   layout: post.media?.layout || "carousel",
+                  governance: post.media?.governance || null,
                   video: post.media?.video || post.video || "",
                   link: post.media?.link || post.link || "",
                   file: post.media?.file

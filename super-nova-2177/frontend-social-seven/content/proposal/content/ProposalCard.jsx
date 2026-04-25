@@ -66,6 +66,23 @@ function ProposalCard({
   const isOwner = Boolean(userName && userData?.name && userName.toLowerCase() === userData.name.toLowerCase());
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
+  const governance = media?.governance || null;
+  const isDecisionProposal = governance?.kind === "decision";
+  const decisionThreshold = Number(governance?.approval_threshold ?? governance?.threshold ?? 0);
+  const decisionThresholdLabel = decisionThreshold > 0 ? `${Math.round(decisionThreshold * 100)}%` : "";
+  const decisionLevelLabel = governance?.decision_level === "important" ? "Important" : "Standard";
+  const decisionDeadlineLabel = (() => {
+    if (!isDecisionProposal) return "";
+    const fallbackDays = Number(governance?.voting_days || 0);
+    if (!governance?.voting_deadline) return fallbackDays > 0 ? `${fallbackDays}d vote` : "Voting window";
+    const deadline = new Date(governance.voting_deadline);
+    if (Number.isNaN(deadline.getTime())) return fallbackDays > 0 ? `${fallbackDays}d vote` : "Voting window";
+    const diffMs = deadline.getTime() - Date.now();
+    if (diffMs <= 0) return "Vote ended";
+    const hours = Math.ceil(diffMs / (60 * 60 * 1000));
+    if (hours < 24) return `Ends in ${Math.max(1, hours)}h`;
+    return `Ends in ${Math.ceil(hours / 24)}d`;
+  })();
 
   const getFullImageUrl = (url) => {
     const value = normalizeAvatarValue(url);
@@ -496,6 +513,27 @@ function ProposalCard({
                   {readMore ? "Show Less" : "Read More"}
                 </button>
               )}
+            </div>
+          )}
+
+          {isDecisionProposal && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[var(--text-gray-light)]">
+              <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.045] px-2.5 py-1 text-[var(--pink)]">
+                Decision
+              </span>
+              {decisionDeadlineLabel && (
+                <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
+                  {decisionDeadlineLabel}
+                </span>
+              )}
+              {decisionThresholdLabel && (
+                <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
+                  {decisionLevelLabel} {decisionThresholdLabel}
+                </span>
+              )}
+              <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
+                Manual execution
+              </span>
             </div>
           )}
 
