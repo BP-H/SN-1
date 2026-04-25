@@ -54,7 +54,7 @@ function getSliderColor(ratio) {
 // Change the system-vote question and deadline here when you want a new top vote.
 // Keep the deadline as a real ISO date/time so the countdown can update live.
 const SYSTEM_VOTE_CONFIG = {
-  question: "Should SuperNova prioritize the next major research focus?",
+  question: "Should SuperNova prioritize AI rights as the next major research focus?",
   deadline: "2026-04-27T18:00:00-07:00",
 };
 
@@ -125,10 +125,10 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   });
 
   const { data: systemVoteData } = useQuery({
-    queryKey: ["system-vote", userData?.name || ""],
+    queryKey: ["system-vote", backendUrl, userData?.name || ""],
     queryFn: async () => {
       const query = userData?.name ? `?username=${encodeURIComponent(userData.name)}` : "";
-      const response = await fetch(`${API_BASE_URL}/system-vote${query}`);
+      const response = await fetch(`${backendUrl}/system-vote${query}`);
       if (!response.ok) throw new Error("Failed to fetch system vote");
       return response.json();
     },

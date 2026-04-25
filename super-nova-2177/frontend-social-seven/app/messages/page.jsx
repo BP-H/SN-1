@@ -43,7 +43,40 @@ export default function MessagesPage() {
   const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
 
   useEffect(() => {
-    setRequestedPeer(new URLSearchParams(window.location.search).get("to") || "");
+    if (typeof window === "undefined") return undefined;
+
+    const readPeerFromUrl = () => {
+      const nextPeer = new URLSearchParams(window.location.search).get("to") || "";
+      if (!nextPeer) return;
+      setSearch("");
+      setRequestedPeer(nextPeer);
+    };
+
+    const notifyRouteChange = () => window.dispatchEvent(new Event("supernova:location-change"));
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    window.history.pushState = function pushStateWithMessageSync(...args) {
+      const result = originalPushState.apply(this, args);
+      notifyRouteChange();
+      return result;
+    };
+    window.history.replaceState = function replaceStateWithMessageSync(...args) {
+      const result = originalReplaceState.apply(this, args);
+      notifyRouteChange();
+      return result;
+    };
+
+    readPeerFromUrl();
+    window.addEventListener("popstate", readPeerFromUrl);
+    window.addEventListener("supernova:location-change", readPeerFromUrl);
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      window.removeEventListener("popstate", readPeerFromUrl);
+      window.removeEventListener("supernova:location-change", readPeerFromUrl);
+    };
   }, []);
 
   useEffect(() => {
@@ -108,6 +141,18 @@ export default function MessagesPage() {
       });
     });
 
+    const requestedUsername = requestedPeer.trim();
+    const requestedKey = requestedUsername.toLowerCase();
+    if (requestedUsername && requestedKey !== currentUser.toLowerCase() && !merged.has(requestedKey)) {
+      merged.set(requestedKey, {
+        username: requestedUsername,
+        initials: initials(requestedUsername),
+        species: "human",
+        avatar: "",
+        post_count: 0,
+      });
+    }
+
     return Array.from(merged.values())
       .sort((left, right) => {
         const leftTime = left.conversation?.updated_at || "";
@@ -115,7 +160,7 @@ export default function MessagesPage() {
         return rightTime.localeCompare(leftTime);
       })
       .filter((user) => user.username.toLowerCase().includes(search.trim().toLowerCase()));
-  }, [conversationsQuery.data, currentUser, search, usersQuery.data]);
+  }, [conversationsQuery.data, currentUser, requestedPeer, search, usersQuery.data]);
 
   const unreadPeerKeys = useMemo(() => {
     return new Set(

@@ -266,6 +266,11 @@ h6 {
   overflow: hidden;
 }
 
+.post-action-bar {
+  background: rgba(255, 255, 255, 0.026);
+  border: 1px solid rgba(255, 255, 255, 0.018);
+}
+
 .listening-border {
   position: relative;
   z-index: 0;
@@ -1730,5 +1735,15 @@ html[data-theme="light"] .proposal-options-menu {
 
 html[data-theme="light"] .proposal-options-menu button:hover {
   background: rgba(17, 24, 39, 0.055) !important;
+}
+
+html[data-theme="light"] .post-action-bar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(246, 248, 253, 0.7)),
+    rgba(17, 24, 39, 0.018) !important;
+  border-color: rgba(17, 24, 39, 0.055) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 8px 18px rgba(25, 30, 48, 0.045);
 }
 

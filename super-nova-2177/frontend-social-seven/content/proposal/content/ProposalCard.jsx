@@ -594,7 +594,7 @@ function ProposalCard({
 
         {/* ── Unified action bar: [voting] ··· [comment · bookmark · share] ── */}
         <div
-          className="mt-0.5 flex w-full items-center gap-2 rounded-[0.8rem] bg-[rgba(255,255,255,0.026)] px-1.5 py-1.5"
+          className="post-action-bar mt-0.5 flex w-full items-center gap-2 rounded-[0.8rem] px-1.5 py-1.5"
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
         >
           {/* Left: voting controls */}
