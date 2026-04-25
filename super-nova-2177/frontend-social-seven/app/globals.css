@@ -2274,6 +2274,179 @@ html[data-theme="light"] .post-action-bar {
     font-size: 0.72rem;
   }
 
+  .desktop-constellation-panel {
+    overflow: hidden;
+  }
+
+  .desktop-constellation {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.8rem;
+  }
+
+  .desktop-constellation-stage {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    background:
+      radial-gradient(circle at 48% 44%, rgba(255, 79, 143, 0.14), transparent 34%),
+      radial-gradient(circle at 66% 28%, rgba(120, 206, 255, 0.12), transparent 30%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+    border: 1px solid rgba(255, 255, 255, 0.075);
+  }
+
+  .desktop-constellation-stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle, rgba(255, 255, 255, 0.38) 0 1px, transparent 1px),
+      radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px);
+    background-position: 0 0, 14px 18px;
+    background-size: 42px 42px, 56px 56px;
+    opacity: 0.16;
+    pointer-events: none;
+  }
+
+  .desktop-constellation-svg {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    min-height: 13rem;
+    color: #8ee9ff;
+  }
+
+  .desktop-constellation-depth {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 0.65;
+    stroke-dasharray: 2 8;
+  }
+
+  .desktop-constellation-depth-wide {
+    stroke: rgba(255, 255, 255, 0.045);
+  }
+
+  .desktop-constellation-edge {
+    stroke: rgba(127, 213, 255, 0.44);
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 5px rgba(127, 213, 255, 0.28));
+    transition: stroke 160ms ease, stroke-width 160ms ease, opacity 160ms ease;
+  }
+
+  .desktop-constellation-edge.is-active {
+    stroke: rgba(255, 79, 143, 0.82);
+    filter: drop-shadow(0 0 8px rgba(255, 79, 143, 0.45));
+  }
+
+  .desktop-constellation-edge-hit {
+    cursor: pointer;
+    stroke: transparent;
+    stroke-linecap: round;
+    stroke-width: 12;
+  }
+
+  .desktop-constellation-node {
+    cursor: pointer;
+    opacity: calc(0.72 + (var(--node-depth, 0.8) * 0.22));
+  }
+
+  .desktop-node-human {
+    color: #67e8f9;
+  }
+
+  .desktop-node-ai {
+    color: #b99cff;
+  }
+
+  .desktop-node-company {
+    color: #ffcf72;
+  }
+
+  .desktop-node-aura {
+    fill: currentColor;
+    opacity: 0.14;
+    animation: constellationPulse 4.2s ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+  }
+
+  .desktop-node-ring {
+    fill: transparent;
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 1.2;
+  }
+
+  .desktop-constellation-node.is-current .desktop-node-ring,
+  .desktop-constellation-node.is-selected .desktop-node-ring {
+    stroke: var(--pink);
+    stroke-width: 2.4;
+    filter: drop-shadow(0 0 8px rgba(255, 79, 143, 0.58));
+  }
+
+  .desktop-node-core {
+    fill: currentColor;
+    stroke: rgba(255, 255, 255, 0.32);
+    stroke-width: 0.65;
+  }
+
+  .desktop-node-label {
+    fill: rgba(255, 255, 255, 0.94);
+    font-size: 0.46rem;
+    font-weight: 950;
+    pointer-events: none;
+  }
+
+  .desktop-constellation-detail {
+    display: grid;
+    gap: 0.16rem;
+    min-height: 4.6rem;
+    border-radius: 0.95rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.72rem;
+    color: var(--text-gray-light);
+    font-size: 0.68rem;
+  }
+
+  .desktop-constellation-detail strong {
+    display: block;
+    min-width: 0;
+    color: var(--text-black);
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-detail-kicker {
+    color: var(--pink);
+    font-size: 0.6rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .desktop-detail-link {
+    margin-top: 0.35rem;
+    width: fit-content;
+    border-radius: 999px;
+    background: rgba(255, 79, 143, 0.14);
+    color: var(--pink);
+    padding: 0.32rem 0.58rem;
+    font-size: 0.64rem;
+    font-weight: 850;
+  }
+
+  @keyframes constellationPulse {
+    0%, 100% {
+      opacity: 0.12;
+    }
+    50% {
+      opacity: 0.24;
+    }
+  }
+
   html[data-theme="light"] .desktop-insight-panel {
     border-color: rgba(31, 41, 55, 0.08);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.92));
@@ -2282,8 +2455,36 @@ html[data-theme="light"] .post-action-bar {
 
   html[data-theme="light"] .desktop-panel-icon,
   html[data-theme="light"] .desktop-metric-grid > div,
-  html[data-theme="light"] .desktop-empty-rail {
+  html[data-theme="light"] .desktop-empty-rail,
+  html[data-theme="light"] .desktop-constellation-detail {
     background: rgba(15, 23, 42, 0.045);
+  }
+
+  html[data-theme="light"] .desktop-constellation-stage {
+    border-color: rgba(15, 23, 42, 0.08);
+    background:
+      radial-gradient(circle at 48% 44%, rgba(255, 79, 143, 0.12), transparent 34%),
+      radial-gradient(circle at 66% 28%, rgba(63, 184, 214, 0.12), transparent 30%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 249, 253, 0.68));
+  }
+
+  html[data-theme="light"] .desktop-constellation-stage::before {
+    opacity: 0.42;
+    background-image:
+      radial-gradient(circle, rgba(23, 31, 48, 0.18) 0 1px, transparent 1px),
+      radial-gradient(circle, rgba(23, 31, 48, 0.12) 0 1px, transparent 1px);
+  }
+
+  html[data-theme="light"] .desktop-constellation-depth {
+    stroke: rgba(15, 23, 42, 0.08);
+  }
+
+  html[data-theme="light"] .desktop-node-ring {
+    stroke: rgba(15, 23, 42, 0.18);
+  }
+
+  html[data-theme="light"] .desktop-node-label {
+    fill: #111827;
   }
 
   html[data-theme="light"] .desktop-person-row:hover {

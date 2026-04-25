@@ -1700,6 +1700,183 @@ def social_users(
     return users
 
 
+@app.get("/social-graph", summary="Desktop social constellation graph")
+def social_graph(
+    username: Optional[str] = Query(None),
+    limit: int = Query(14, ge=4, le=24),
+    db: Session = Depends(get_db),
+):
+    current_key = _safe_user_key(username or "")
+    nodes: Dict[str, Dict[str, Any]] = {}
+    edges: Dict[str, Dict[str, Any]] = {}
+
+    def ensure_node(name: str, species: str = "human", avatar: str = "", activity: int = 0) -> str:
+        clean_name = (name or "").strip()
+        key = _safe_user_key(clean_name)
+        if not key:
+            return ""
+        existing = nodes.get(key)
+        if not existing:
+            existing = {
+                "id": key,
+                "username": clean_name,
+                "display_name": clean_name,
+                "species": species or "human",
+                "avatar_url": _social_avatar(avatar),
+                "activity_score": 0,
+                "is_current": bool(current_key and key == current_key),
+            }
+            nodes[key] = existing
+        existing["activity_score"] = int(existing.get("activity_score", 0)) + max(0, int(activity or 0))
+        if avatar and not existing.get("avatar_url"):
+            existing["avatar_url"] = _social_avatar(avatar)
+        if species and existing.get("species") == "human":
+            existing["species"] = species
+        return key
+
+    def add_edge(source: str, target: str, amount: int, reason: str) -> None:
+        source_key = _safe_user_key(source)
+        target_key = _safe_user_key(target)
+        if not source_key or not target_key or source_key == target_key:
+            return
+        if source_key not in nodes or target_key not in nodes:
+            return
+        edge_key = "::".join(sorted([source_key, target_key]))
+        edge = edges.get(edge_key)
+        if not edge:
+            edge = {
+                "id": edge_key,
+                "source": source_key,
+                "target": target_key,
+                "strength": 0,
+                "reasons": {"comments": 0, "replies": 0, "votes": 0, "follows": 0, "messages": 0},
+            }
+            edges[edge_key] = edge
+        edge["strength"] = int(edge.get("strength", 0)) + amount
+        reasons = edge.setdefault("reasons", {})
+        reasons[reason] = int(reasons.get(reason, 0)) + 1
+
+    for user in _collect_social_users(db, limit=max(limit * 3, 36)):
+        ensure_node(
+            user.get("username", ""),
+            user.get("species", "human"),
+            user.get("avatar", ""),
+            int(user.get("post_count", 0)) * 3,
+        )
+
+    if username and current_key not in nodes:
+        user = _find_harmonizer_by_username(db, username)
+        ensure_node(
+            username,
+            getattr(user, "species", "human") if user else "human",
+            getattr(user, "profile_pic", "") if user else "",
+            4,
+        )
+
+    try:
+        for item in _read_follows_store()[-1000:]:
+            follower = item.get("follower", "")
+            target = item.get("target", "")
+            ensure_node(follower, "human", "", 4)
+            ensure_node(target, "human", "", 4)
+            add_edge(follower, target, 8, "follows")
+    except Exception:
+        pass
+
+    try:
+        proposals = []
+        if Proposal is not None:
+            proposals = db.query(Proposal).order_by(desc(Proposal.id)).limit(80).all()
+        else:
+            proposals = db.execute(
+                text("SELECT id, userName, author_type, author_img FROM proposals ORDER BY id DESC LIMIT 80")
+            ).fetchall()
+
+        for proposal in proposals:
+            proposal_id = getattr(proposal, "id", None)
+            author = getattr(proposal, "userName", None) or getattr(proposal, "author", None) or "Unknown"
+            author_species = getattr(proposal, "author_type", None) or "human"
+            author_avatar = getattr(proposal, "author_img", None) or ""
+            ensure_node(author, author_species, author_avatar, 5)
+
+            try:
+                comments = (
+                    db.query(Comment).filter(Comment.proposal_id == proposal_id).all()
+                    if CRUD_MODELS_AVAILABLE
+                    else db.execute(text("SELECT * FROM comments WHERE proposal_id = :pid"), {"pid": proposal_id}).fetchall()
+                )
+            except Exception:
+                comments = []
+            comments_by_id = {}
+            for comment in comments[:80]:
+                payload = _serialize_comment_record(db, comment)
+                comments_by_id[str(payload.get("id"))] = payload
+                commenter = payload.get("user", "")
+                ensure_node(commenter, payload.get("species", "human"), payload.get("user_img", ""), 3)
+                add_edge(commenter, author, 5, "comments")
+                parent_id = payload.get("parent_comment_id")
+                parent = comments_by_id.get(str(parent_id)) if parent_id is not None else None
+                if parent:
+                    add_edge(commenter, parent.get("user", ""), 4, "replies")
+
+            try:
+                votes = (
+                    db.query(ProposalVote).filter(ProposalVote.proposal_id == proposal_id).all()
+                    if CRUD_MODELS_AVAILABLE
+                    else db.execute(text("SELECT * FROM proposal_votes WHERE proposal_id = :pid"), {"pid": proposal_id}).fetchall()
+                )
+            except Exception:
+                votes = []
+            vote_entries = []
+            for vote in votes[:80]:
+                like_entry, dislike_entry = _serialize_vote_record(db, vote)
+                entry = like_entry or dislike_entry
+                if not entry:
+                    continue
+                voter = entry.get("voter", "")
+                ensure_node(voter, entry.get("type", "human"), "", 2)
+                add_edge(voter, author, 2, "votes")
+                vote_entries.append((voter, bool(like_entry)))
+            for index, (left_user, left_choice) in enumerate(vote_entries[:16]):
+                for right_user, right_choice in vote_entries[index + 1:16]:
+                    add_edge(left_user, right_user, 3 if left_choice == right_choice else 2, "votes")
+    except Exception:
+        pass
+
+    try:
+        rows = db.execute(
+            text("SELECT sender, recipient FROM direct_messages ORDER BY created_at DESC LIMIT 160")
+        ).fetchall()
+        for row in rows:
+            data = getattr(row, "_mapping", row)
+            ensure_node(data["sender"], "human", "", 2)
+            ensure_node(data["recipient"], "human", "", 2)
+            add_edge(data["sender"], data["recipient"], 6, "messages")
+    except Exception:
+        pass
+
+    ordered_nodes = sorted(
+        nodes.values(),
+        key=lambda node: (not node.get("is_current"), -int(node.get("activity_score", 0)), node.get("username", "")),
+    )[:limit]
+    allowed = {node["id"] for node in ordered_nodes}
+    ordered_edges = sorted(
+        [edge for edge in edges.values() if edge["source"] in allowed and edge["target"] in allowed],
+        key=lambda edge: int(edge.get("strength", 0)),
+        reverse=True,
+    )[:max(18, limit * 2)]
+    return {
+        "nodes": ordered_nodes,
+        "edges": ordered_edges,
+        "meta": {
+            "node_count": len(ordered_nodes),
+            "edge_count": len(ordered_edges),
+            "current_user": current_key,
+            "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+        },
+    }
+
+
 @app.get("/follows", summary="List follow relationships for a user")
 def get_follows(user: str = Query(...)):
     current = _safe_user_key(user)
