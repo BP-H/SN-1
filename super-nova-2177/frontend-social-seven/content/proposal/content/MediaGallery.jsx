@@ -20,9 +20,17 @@ function CoverImage({ src, alt = "", onLoad }) {
   );
 }
 
+function getSwipePoint(event) {
+  const touch = event.changedTouches?.[0] || event.touches?.[0];
+  if (touch) return { x: touch.clientX, y: touch.clientY };
+  return { x: event.clientX, y: event.clientY };
+}
+
 export default function MediaGallery({ images = [], layout = "carousel", title = "", getUrl }) {
   const railRef = useRef(null);
-  const lightboxSwipeRef = useRef({ x: 0, y: 0 });
+  const carouselSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
+  const lightboxSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
+  const suppressCarouselClickRef = useRef(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [frameRatio, setFrameRatio] = useState(0.8);
@@ -69,21 +77,69 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
     setLightboxIndex(nextIndex);
   };
 
+  const startSwipe = (ref, event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const point = getSwipePoint(event);
+    ref.current = { active: true, x: point.x, y: point.y, moved: false };
+  };
+
+  const trackSwipe = (ref, event) => {
+    if (!ref.current.active) return;
+    const point = getSwipePoint(event);
+    const deltaX = point.x - ref.current.x;
+    const deltaY = point.y - ref.current.y;
+    if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+      ref.current = { ...ref.current, moved: true };
+    }
+  };
+
+  const finishSwipe = (ref, event, minDistance = 44) => {
+    const state = ref.current;
+    if (!state.active) return { moved: false, direction: 0 };
+    const point = getSwipePoint(event);
+    const deltaX = point.x - state.x;
+    const deltaY = point.y - state.y;
+    const moved = state.moved || Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8;
+    const isSwipe = Math.abs(deltaX) >= minDistance && Math.abs(deltaX) >= Math.abs(deltaY) * 1.18;
+    ref.current = { active: false, x: 0, y: 0, moved: false };
+    return { moved, direction: isSwipe ? (deltaX < 0 ? 1 : -1) : 0 };
+  };
+
+  const cancelSwipe = (ref) => {
+    ref.current = { active: false, x: 0, y: 0, moved: false };
+  };
+
   const openLightbox = (index) => {
     setActiveIndex(index);
     setLightboxIndex(index);
   };
 
   const startLightboxSwipe = (event) => {
-    lightboxSwipeRef.current = { x: event.clientX, y: event.clientY };
+    startSwipe(lightboxSwipeRef, event);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
   const finishLightboxSwipe = (event) => {
     if (urls.length <= 1) return;
-    const deltaX = event.clientX - lightboxSwipeRef.current.x;
-    const deltaY = event.clientY - lightboxSwipeRef.current.y;
-    if (Math.abs(deltaX) < 46 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
-    goTo(lightboxIndex + (deltaX < 0 ? 1 : -1));
+    const swipe = finishSwipe(lightboxSwipeRef, event, 42);
+    if (!swipe.direction) return;
+    event.preventDefault();
+    goTo(lightboxIndex + swipe.direction);
+  };
+
+  const finishCarouselSwipe = (event) => {
+    if (urls.length <= 1) return;
+    const swipe = finishSwipe(carouselSwipeRef, event, 42);
+    if (swipe.moved) {
+      suppressCarouselClickRef.current = true;
+      window.setTimeout(() => {
+        suppressCarouselClickRef.current = false;
+      }, 180);
+    }
+    if (!swipe.direction) return;
+    event.preventDefault();
+    event.stopPropagation();
+    scrollToIndex(activeIndex + swipe.direction);
   };
 
   useEffect(() => {
@@ -104,9 +160,16 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
         <div className="vote-modal-backdrop" onClick={() => setLightboxIndex(null)}>
           <div
             className="relative flex h-[calc(100dvh-1.5rem)] w-[calc(100vw-1rem)] max-w-[44rem] items-center justify-center overflow-hidden rounded-[0.85rem] bg-black"
+            style={{ touchAction: "pan-y" }}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={startLightboxSwipe}
+            onPointerMove={(event) => trackSwipe(lightboxSwipeRef, event)}
             onPointerUp={finishLightboxSwipe}
+            onPointerCancel={() => cancelSwipe(lightboxSwipeRef)}
+            onTouchStart={(event) => startSwipe(lightboxSwipeRef, event)}
+            onTouchMove={(event) => trackSwipe(lightboxSwipeRef, event)}
+            onTouchEnd={finishLightboxSwipe}
+            onTouchCancel={() => cancelSwipe(lightboxSwipeRef)}
           >
             <button
               type="button"
@@ -287,7 +350,16 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
           <div
             ref={railRef}
             onScroll={updateIndexFromScroll}
+            onPointerDown={(event) => startSwipe(carouselSwipeRef, event)}
+            onPointerMove={(event) => trackSwipe(carouselSwipeRef, event)}
+            onPointerUp={finishCarouselSwipe}
+            onPointerCancel={() => cancelSwipe(carouselSwipeRef)}
+            onTouchStart={(event) => startSwipe(carouselSwipeRef, event)}
+            onTouchMove={(event) => trackSwipe(carouselSwipeRef, event)}
+            onTouchEnd={finishCarouselSwipe}
+            onTouchCancel={() => cancelSwipe(carouselSwipeRef)}
             className="hide-scrollbar flex snap-x snap-mandatory overflow-x-auto"
+            style={{ touchAction: "pan-y" }}
           >
           {urls.map((url, index) => (
             <button
@@ -296,6 +368,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                if (suppressCarouselClickRef.current) return;
                 openLightbox(index);
               }}
               className="relative min-w-full snap-center overflow-hidden bg-black/20"

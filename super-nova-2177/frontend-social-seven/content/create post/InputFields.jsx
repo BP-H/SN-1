@@ -47,6 +47,7 @@ function InputFields({
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const previewSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
   const imagePreviewUrls = useMemo(() => {
     if (mediaType !== "image") return [];
     return selectedFiles.map((file) => URL.createObjectURL(file));
@@ -336,6 +337,38 @@ function InputFields({
       if (previewCount <= 1) return;
       setPreviewIndex((index) => (index + direction + previewCount) % previewCount);
     };
+    const getPreviewPoint = (event) => {
+      const touch = event.changedTouches?.[0] || event.touches?.[0];
+      if (touch) return { x: touch.clientX, y: touch.clientY };
+      return { x: event.clientX, y: event.clientY };
+    };
+    const startPreviewSwipe = (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      const point = getPreviewPoint(event);
+      previewSwipeRef.current = { active: true, x: point.x, y: point.y, moved: false };
+    };
+    const trackPreviewSwipe = (event) => {
+      if (!previewSwipeRef.current.active) return;
+      const point = getPreviewPoint(event);
+      const deltaX = point.x - previewSwipeRef.current.x;
+      const deltaY = point.y - previewSwipeRef.current.y;
+      if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+        previewSwipeRef.current = { ...previewSwipeRef.current, moved: true };
+      }
+    };
+    const finishPreviewSwipe = (event) => {
+      if (previewCount <= 1 || !previewSwipeRef.current.active) return;
+      const point = getPreviewPoint(event);
+      const deltaX = point.x - previewSwipeRef.current.x;
+      const deltaY = point.y - previewSwipeRef.current.y;
+      previewSwipeRef.current = { active: false, x: 0, y: 0, moved: false };
+      if (Math.abs(deltaX) < 42 || Math.abs(deltaX) < Math.abs(deltaY) * 1.18) return;
+      event.preventDefault();
+      movePreview(deltaX < 0 ? 1 : -1);
+    };
+    const cancelPreviewSwipe = () => {
+      previewSwipeRef.current = { active: false, x: 0, y: 0, moved: false };
+    };
     const gridPreviewStyle = { height: "clamp(11.5rem, 52vw, 18rem)" };
 
     return (
@@ -400,7 +433,18 @@ function InputFields({
                 </div>
               )
             ) : (
-              <div className="relative overflow-hidden rounded-[0.8rem] bg-black/20">
+              <div
+                className="relative overflow-hidden rounded-[0.8rem] bg-black/20"
+                style={{ touchAction: "pan-y" }}
+                onPointerDown={startPreviewSwipe}
+                onPointerMove={trackPreviewSwipe}
+                onPointerUp={finishPreviewSwipe}
+                onPointerCancel={cancelPreviewSwipe}
+                onTouchStart={startPreviewSwipe}
+                onTouchMove={trackPreviewSwipe}
+                onTouchEnd={finishPreviewSwipe}
+                onTouchCancel={cancelPreviewSwipe}
+              >
                 <img
                   src={imagePreviewUrls[safePreviewIndex]}
                   alt={`Preview ${safePreviewIndex + 1}`}

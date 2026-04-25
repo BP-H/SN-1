@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
 
 function pageUrl(src, page) {
@@ -10,6 +10,7 @@ function pageUrl(src, page) {
 }
 
 export default function PdfPager({ src, title = "PDF preview", compact = false }) {
+  const swipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(null);
   const framedSrc = useMemo(() => pageUrl(src, page), [page, src]);
@@ -45,6 +46,39 @@ export default function PdfPager({ src, title = "PDF preview", compact = false }
     });
   };
 
+  const getSwipePoint = (event) => {
+    const touch = event.changedTouches?.[0] || event.touches?.[0];
+    if (touch) return { x: touch.clientX, y: touch.clientY };
+    return { x: event.clientX, y: event.clientY };
+  };
+
+  const startSwipe = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const point = getSwipePoint(event);
+    swipeRef.current = { active: true, x: point.x, y: point.y, moved: false };
+  };
+
+  const trackSwipe = (event) => {
+    if (!swipeRef.current.active) return;
+    const point = getSwipePoint(event);
+    const deltaX = point.x - swipeRef.current.x;
+    const deltaY = point.y - swipeRef.current.y;
+    if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+      swipeRef.current = { ...swipeRef.current, moved: true };
+    }
+  };
+
+  const finishSwipe = (event) => {
+    if (!swipeRef.current.active) return;
+    const point = getSwipePoint(event);
+    const deltaX = point.x - swipeRef.current.x;
+    const deltaY = point.y - swipeRef.current.y;
+    swipeRef.current = { active: false, x: 0, y: 0, moved: false };
+    if (Math.abs(deltaX) < 42 || Math.abs(deltaX) < Math.abs(deltaY) * 1.18) return;
+    event.preventDefault();
+    move(deltaX < 0 ? 1 : -1);
+  };
+
   if (!src) return null;
 
   return (
@@ -54,7 +88,20 @@ export default function PdfPager({ src, title = "PDF preview", compact = false }
         if (event.key === "ArrowLeft") move(-1);
         if (event.key === "ArrowRight") move(1);
       }}
+      onPointerDown={startSwipe}
+      onPointerMove={trackSwipe}
+      onPointerUp={finishSwipe}
+      onPointerCancel={() => {
+        swipeRef.current = { active: false, x: 0, y: 0, moved: false };
+      }}
+      onTouchStart={startSwipe}
+      onTouchMove={trackSwipe}
+      onTouchEnd={finishSwipe}
+      onTouchCancel={() => {
+        swipeRef.current = { active: false, x: 0, y: 0, moved: false };
+      }}
       className={`pdf-pager ${compact ? "pdf-pager-compact" : "pdf-pager-full"} relative overflow-hidden rounded-[1rem] bg-white outline-none ring-1 ring-white/10`}
+      style={{ touchAction: "pan-y" }}
       aria-label={`${title} page viewer`}
     >
       <object
