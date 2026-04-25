@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { IoEllipse } from "react-icons/io5";
 import LiquidGlass from "@/content/liquid glass/LiquidGlass";
@@ -20,7 +21,7 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
-export default function NotificationsPanel() {
+export default function NotificationsPanel({ onSelect = () => {} }) {
   const { data } = useQuery({
     queryKey: ["header-notifications"],
     queryFn: async () => {
@@ -38,7 +39,7 @@ export default function NotificationsPanel() {
   }));
 
   return (
-    <LiquidGlass className="w-full rounded-[1.3rem] p-3">
+    <LiquidGlass className="notification-glass-panel w-full rounded-[1.3rem] p-3">
       <div className="flex w-full flex-col gap-2.5">
         <div className="flex items-center justify-between gap-2 px-1">
           <h3 className="text-[0.84rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-gray-light)]">
@@ -55,9 +56,11 @@ export default function NotificationsPanel() {
           </div>
         ) : (
           items.map((item) => (
-            <div
+            <Link
               key={item.id}
-              className="rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-4 py-3"
+              href={`/proposals/${encodeURIComponent(item.id)}`}
+              onClick={onSelect}
+              className="block rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-4 py-3 hover:bg-[rgba(255,255,255,0.075)]"
             >
               <div className="mb-1 flex items-center gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
                 <IoEllipse className="text-[0.55rem] text-[var(--pink)]" />
@@ -68,7 +71,7 @@ export default function NotificationsPanel() {
               <p className="line-clamp-2 text-[0.84rem] font-medium text-[var(--text-black)]">
                 {item.title}
               </p>
-            </div>
+            </Link>
           ))
         )}
       </div>

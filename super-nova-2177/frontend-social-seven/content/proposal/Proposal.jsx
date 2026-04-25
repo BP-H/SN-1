@@ -1,13 +1,13 @@
 "use client";
 
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  IoBarChartOutline,
-  IoGlobeOutline,
-  IoSparklesOutline,
+  IoDocumentTextOutline,
+  IoImageOutline,
+  IoSend,
+  IoVideocamOutline,
 } from "react-icons/io5";
-import { HiOutlinePhoto } from "react-icons/hi2";
 import { SearchInputContext } from "@/app/layout";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { useUser } from "@/content/profile/UserContext";
@@ -21,17 +21,21 @@ function formatRelativeTime(dateString) {
   if (!dateString) return "now";
 
   const now = new Date();
-  const date = new Date(dateString);
+  const raw = String(dateString);
+  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw}Z`);
+  if (Number.isNaN(date.getTime())) return "now";
   const diffMs = now.getTime() - date.getTime();
 
   if (diffMs < 0) return "now";
 
-  const diffMin = Math.floor(diffMs / 1000 / 60);
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
   const diffHours = Math.floor(diffMin / 60);
   const diffDays = Math.floor(diffHours / 24);
   const diffMonths = Math.floor(diffDays / 30);
   const diffYears = Math.floor(diffDays / 365);
 
+  if (diffSec >= 10 && diffSec < 60) return `${diffSec}s`;
   if (diffYears > 0) return diffYears === 1 ? "1y" : `${diffYears}y`;
   if (diffMonths > 0) return diffMonths === 1 ? "1mo" : `${diffMonths}mo`;
   if (diffDays > 0) return diffDays === 1 ? "1d" : `${diffDays}d`;
@@ -42,10 +46,45 @@ function formatRelativeTime(dateString) {
 
 export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
   const [discard, setDiscard] = useState(true);
+  const [pendingMediaPicker, setPendingMediaPicker] = useState("");
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const { inputRef } = useContext(SearchInputContext);
-  const { userData } = useUser();
+  const { userData, defaultAvatar, isAuthenticated } = useUser();
+  const userAvatar = isAuthenticated && userData?.avatar?.startsWith("/")
+    ? absoluteApiUrl(userData.avatar)
+    : isAuthenticated && userData?.avatar
+    ? userData.avatar
+    : defaultAvatar;
+
+  const requireAccount = (message) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create", reason: message } }));
+    }
+  };
+
+  const openComposerWithMedia = (type) => {
+    if (!isAuthenticated) {
+      requireAccount("Sign in to attach media and post on SuperNova.");
+      return;
+    }
+    setPendingMediaPicker(type);
+    setDiscard(false);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const filterParam = (params.get("filter") || "").toLowerCase();
+    const nextFilter =
+      filterParam === "ai"
+        ? "AI"
+        : filterParam === "company" || filterParam === "org"
+        ? "Company"
+        : filterParam === "human"
+        ? "Human"
+        : "";
+    if (nextFilter) setFilter(nextFilter);
+  }, []);
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ["proposals", filter, search, activeBE],
@@ -81,85 +120,93 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
 
   return (
     <div className="social-shell px-0">
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-2.5">
         <FilterHeader setSearch={setSearch} search={search} filter={filter} setFilter={setFilter} />
 
         <CreatePost discard={discard} setDiscard={setDiscard} />
 
-        {discard ? (
-          <section className="social-panel rounded-[1.35rem] px-4 py-4">
-            <div className="mb-3 flex items-center gap-3">
-              {userData?.avatar ? (
+        <section ref={inputRef} className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
+          {discard ? (
+            <div className="flex items-center gap-2.5">
+              {userAvatar ? (
                 <img
-                  src={userData.avatar}
+                  src={userAvatar}
                   alt="profile"
-                  className="h-10 w-10 rounded-full object-cover"
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bgGray text-[0.78rem] font-semibold">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
                   {(userData?.name || "SN").slice(0, 2).toUpperCase()}
                 </div>
               )}
               <button
                 type="button"
-                onClick={() => setDiscard(false)}
-                className="flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-4 py-2.5 text-left text-[0.92rem] text-[var(--text-gray-light)]"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    requireAccount("Sign in to post on SuperNova.");
+                    return;
+                  }
+                  setDiscard(false);
+                }}
+                className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-3.5 py-2.5 text-left text-[0.88rem] text-[var(--text-gray-light)]"
               >
                 Share your thoughts...
               </button>
-            </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
-              <div className="grid min-w-0 flex-1 grid-cols-4 gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5 text-[var(--text-gray-light)]">
                 <button
                   type="button"
-                  onClick={() => setDiscard(false)}
-                  className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]"
+                  onClick={() => openComposerWithMedia("image")}
+                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full"
+                  aria-label="Add media"
                 >
-                  <HiOutlinePhoto className="text-[1rem]" />
-                  <span>Media</span>
+                  <IoImageOutline className="text-[1rem]" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDiscard(false)}
-                  className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]"
+                  onClick={() => openComposerWithMedia("video")}
+                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full"
+                  aria-label="Add video"
                 >
-                  <IoSparklesOutline className="text-[1rem]" />
-                  <span>AI Assist</span>
+                  <IoVideocamOutline className="text-[1rem]" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDiscard(false)}
-                  className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]"
+                  onClick={() => openComposerWithMedia("file")}
+                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full"
+                  aria-label="Add document"
                 >
-                  <IoBarChartOutline className="text-[1rem]" />
-                  <span>Poll / Vote</span>
+                  <IoDocumentTextOutline className="text-[1rem]" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDiscard(false)}
-                  className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      requireAccount("Sign in to post on SuperNova.");
+                      return;
+                    }
+                    setDiscard(false);
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                  aria-label="Post"
+                  title="Post"
                 >
-                  <IoGlobeOutline className="text-[1rem]" />
-                  <span>Space</span>
+                  <IoSend className="text-[1rem]" />
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setDiscard(false)}
-                className="shrink-0 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.82rem] font-semibold text-white shadow-[var(--shadow-pink)]"
-              >
-                Post
-              </button>
             </div>
-          </section>
-        ) : (
-          <section ref={inputRef} className="social-panel rounded-[1.35rem] px-4 py-4">
-            <InputFields embedded autoFocus setDiscard={setDiscard} />
-          </section>
-        )}
+          ) : (
+            <InputFields
+              embedded
+              autoFocus
+              setDiscard={setDiscard}
+              autoOpenMediaType={pendingMediaPicker}
+              onAutoOpenConsumed={() => setPendingMediaPicker("")}
+            />
+          )}
+        </section>
 
-        <div className="flex min-w-0 flex-col gap-5 pb-24">
+        <div className="flex min-w-0 flex-col gap-2.5 pb-24">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, index) => <CardLoading key={index} />)
           ) : posts && posts.length > 0 ? (
@@ -178,6 +225,10 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                     : post.image
                     ? absoluteApiUrl(post.image)
                     : "",
+                  images: Array.isArray(post.media?.images)
+                    ? post.media.images.map((image) => absoluteApiUrl(image))
+                    : [],
+                  layout: post.media?.layout || "carousel",
                   video: post.media?.video || post.video || "",
                   link: post.media?.link || post.link || "",
                   file: post.media?.file
@@ -197,7 +248,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
               />
             ))
           ) : (
-            <div className="social-panel rounded-[28px] px-6 py-10 text-center font-semibold text-gray-500">
+            <div className="mobile-feed-panel social-panel rounded-[28px] px-6 py-10 text-center font-semibold text-gray-500">
               No proposals found.
             </div>
           )}

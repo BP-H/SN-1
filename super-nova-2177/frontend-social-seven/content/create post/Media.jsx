@@ -5,6 +5,9 @@ export default function MediaInput({
   icon,
   accept,
   handleFileChange,
+  multiple = false,
+  inputRef,
+  className = "",
 }) {
   const titleMap = {
     image: "Upload Image",
@@ -18,7 +21,7 @@ export default function MediaInput({
     <div className="relative group">
       <label
         htmlFor={inputId}
-        className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] text-[var(--text-black)] shadow-sm hover:bg-[rgba(255,255,255,0.12)] transition-colors"
+        className={`composer-icon-button flex h-9 w-9 cursor-pointer items-center justify-center rounded-full shadow-sm transition-colors ${className}`}
         title={titleMap[type]}
       >
         {icon}
@@ -27,9 +30,11 @@ export default function MediaInput({
         </span>
       </label>
       <input
+        ref={inputRef}
         id={inputId}
         type="file"
         accept={accept}
+        multiple={multiple}
         className="hidden"
         onChange={handleFileChange}
       />

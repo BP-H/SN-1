@@ -1,7 +1,5 @@
-import content from "@/assets/content.json";
 import {
   FaBriefcase,
-  FaCloudUploadAlt,
   FaGithub,
   FaPowerOff,
   FaUser,
@@ -9,47 +7,74 @@ import {
 import { FaFacebookF, FaGoogle } from "react-icons/fa6";
 import { BsFillCpuFill } from "react-icons/bs";
 import { useEffect, useMemo, useState } from "react";
-import { IoClose } from "react-icons/io5";
+import { createPortal } from "react-dom";
+import {
+  IoCameraOutline,
+  IoClose,
+  IoLogInOutline,
+  IoMailOutline,
+  IoMoonOutline,
+  IoShieldCheckmarkOutline,
+  IoSunnyOutline,
+} from "react-icons/io5";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "./UserContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 
-const typeIcons = {
-  human: <FaUser />,
-  company: <FaBriefcase />,
-  ai: <BsFillCpuFill />,
-};
-
-const PROVIDERS = [
-  { key: "google", label: "Continue with Google", icon: <FaGoogle /> },
-  { key: "facebook", label: "Continue with Facebook", icon: <FaFacebookF /> },
-  { key: "github", label: "Continue with GitHub", icon: <FaGithub /> },
+const SPECIES = [
+  { key: "human", label: "Human", icon: <FaUser />, color: "bg-[#e8457a]" },
+  { key: "company", label: "ORG", icon: <FaBriefcase />, color: "bg-[#4a8fe7]" },
+  { key: "ai", label: "AI", icon: <BsFillCpuFill />, color: "bg-[#9b6dff]" },
 ];
 
-function Profile({ setErrorMsg, setNotify }) {
+const PROVIDERS = [
+  { key: "google", label: "Google", icon: <FaGoogle />, color: "#DB4437" },
+  { key: "facebook", label: "Facebook", icon: <FaFacebookF />, color: "#4267B2" },
+  { key: "github", label: "GitHub", icon: <FaGithub />, color: "#d4d1e1" },
+];
+
+function avatarDisplayUrl(value, fallback = "/supernova.png") {
+  const src = value && value !== "default.jpg" ? value : fallback;
+  if (!src) return "";
+  if (src.startsWith("/uploads/")) return absoluteApiUrl(src);
+  return src;
+}
+
+function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = null }) {
   const {
     userData,
     setUserData,
+    defaultAvatar,
     authLoading,
     authConfigured,
     isAuthenticated,
     loginWithProvider,
+    loginWithPassword,
+    registerWithPassword,
     signOut,
-    resetCustomProfile,
   } = useUser();
 
-  const settings = content.header.profile;
   const [selectedSpecies, setSelectedSpecies] = useState(userData.species || "human");
-  const [displayName, setDisplayName] = useState(userData.name || "");
   const [avatarUrl, setAvatarUrl] = useState(userData.avatar || "");
   const [authBusy, setAuthBusy] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [theme, setTheme] = useState("dark");
+  const [authOpen, setAuthOpen] = useState(false);
+  const [passwordMode, setPasswordMode] = useState("login");
+  const [accountName, setAccountName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setSelectedSpecies(userData.species || "human");
-    setDisplayName(userData.name || "");
     setAvatarUrl(userData.avatar || "");
   }, [userData]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -57,10 +82,38 @@ function Profile({ setErrorMsg, setNotify }) {
     setTheme(savedTheme);
   }, []);
 
+  useEffect(() => {
+    if (!authIntent || isAuthenticated) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("supernova:open-account", {
+          detail: { mode: authIntent.mode === "login" ? "login" : "create" },
+        })
+      );
+    }
+  }, [authIntent, isAuthenticated]);
+
   const providerLabel = useMemo(() => {
     if (!isAuthenticated) return "Guest";
-    return (userData.provider || "oauth").replace(/^\w/, (char) => char.toUpperCase());
+    return (userData.provider || "account").replace(/^\w/, (char) => char.toUpperCase());
   }, [isAuthenticated, userData.provider]);
+
+  const currentName = userData.name || "";
+  const avatarPreview = isAuthenticated
+    ? avatarDisplayUrl(avatarUrl || userData.avatar, defaultAvatar)
+    : defaultAvatar;
+  const openAuth = (mode) => {
+    if (!isAuthenticated && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("supernova:open-account", {
+          detail: { mode: mode === "login" ? "login" : "create" },
+        })
+      );
+      return;
+    }
+    setPasswordMode(mode);
+    setAuthOpen(true);
+  };
 
   async function handleProviderLogin(provider) {
     setErrorMsg([]);
@@ -76,9 +129,67 @@ function Profile({ setErrorMsg, setNotify }) {
     }
   }
 
+  async function handlePasswordSubmit(event) {
+    event.preventDefault();
+    const username = accountName.trim();
+    const email = accountEmail.trim();
+    const password = accountPassword;
+    const errors = [];
+
+    if (!username) errors.push("Username is required.");
+    if (passwordMode === "create" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push("Enter a valid email for account recovery later.");
+    }
+    if (!password) errors.push("Password is required.");
+    if (passwordMode === "create" && password.length < 6) {
+      errors.push("Use at least 6 characters for now.");
+    }
+    if (errors.length) {
+      setErrorMsg(errors);
+      return;
+    }
+
+    setAuthBusy(passwordMode);
+    setErrorMsg([]);
+    setNotify([]);
+    try {
+      if (passwordMode === "create") {
+        await registerWithPassword({
+          username,
+          password,
+          email,
+          species: selectedSpecies || "human",
+        });
+        setNotify(["Account created and signed in."]);
+      } else {
+        await loginWithPassword({ username, password });
+        setNotify(["Signed in."]);
+      }
+      setAccountPassword("");
+      setAuthOpen(false);
+    } catch (error) {
+      setErrorMsg([error.message || "Account action failed."]);
+    } finally {
+      setAuthBusy("");
+    }
+  }
+
   async function handleAvatarSelect(event) {
+    if (!isAuthenticated) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      }
+      event.target.value = "";
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      setErrorMsg(["Choose an image file for your profile photo."]);
+      event.target.value = "";
+      return;
+    }
 
     setSaveBusy(true);
     try {
@@ -90,39 +201,30 @@ function Profile({ setErrorMsg, setNotify }) {
       });
       if (!response.ok) throw new Error("Failed to upload avatar.");
       const data = await response.json();
-      setAvatarUrl(absoluteApiUrl(data.url));
-      setNotify(["Custom avatar uploaded."]);
+      if (!data?.url) throw new Error("Avatar upload did not return an image URL.");
+      setAvatarUrl(data.url);
+      setUserData({
+        name: currentName,
+        species: selectedSpecies || "human",
+        avatar: data.url,
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("supernova:profile-avatar-updated", {
+            detail: { username: currentName, avatar: data.url },
+          })
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      setNotify(["Profile photo updated."]);
     } catch (error) {
       setErrorMsg([error.message || "Avatar upload failed."]);
     } finally {
       setSaveBusy(false);
+      event.target.value = "";
     }
-  }
-
-  function handleSaveProfile() {
-    const errors = [];
-    if (!displayName.trim()) errors.push("Profile name is required.");
-    if (!selectedSpecies) errors.push("Pick a species to continue.");
-    if (errors.length > 0) {
-      setErrorMsg(errors);
-      return;
-    }
-
-    setErrorMsg([]);
-    setUserData({
-      name: displayName.trim(),
-      species: selectedSpecies,
-      avatar: avatarUrl,
-    });
-    setNotify(["Profile saved."]);
-  }
-
-  function handleResetProfile() {
-    resetCustomProfile();
-    setSelectedSpecies("human");
-    setDisplayName(userData.providerName || "");
-    setAvatarUrl(userData.providerAvatar || "");
-    setNotify(["Profile customizations reset."]);
   }
 
   async function handleSignOut() {
@@ -137,162 +239,49 @@ function Profile({ setErrorMsg, setNotify }) {
     }
   }
 
-  function useProviderPhoto() {
-    if (!userData.providerAvatar) {
-      setErrorMsg(["No provider profile photo is available for this account."]);
-      return;
-    }
-    setAvatarUrl(userData.providerAvatar);
-    setNotify(["Provider profile photo applied."]);
-  }
-
   function applyTheme(nextTheme) {
     setTheme(nextTheme);
     if (typeof window !== "undefined") {
       localStorage.setItem("supernova-theme", nextTheme);
     }
     document.documentElement.dataset.theme = nextTheme;
-    setNotify([`${nextTheme === "dark" ? "Dark" : "Light"} mode enabled.`]);
   }
 
   return (
-    <div className="bgWhiteTrue w-full rounded-[1.45rem] p-4 text-[var(--text-black)] shadow-lg sm:p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[1.2rem] font-black">{settings.profile}</h1>
-          <p className="mt-1.5 max-w-[17rem] text-[0.77rem] leading-5 text-[var(--text-gray-light)]">
-            Social identity, provider sync, and quick profile customization.
-          </p>
-        </div>
-        <div className="shrink-0 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.05)] px-3 py-1.5 text-[0.72rem] font-semibold text-[var(--text-gray-light)]">
-          {authLoading ? "Checking..." : providerLabel}
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap justify-center gap-3 border-b border-[var(--horizontal-line)] pb-4">
-        {PROVIDERS.map((provider) => (
-          <button
-            key={provider.key}
-            type="button"
-            onClick={() => handleProviderLogin(provider.key)}
-            disabled={!authConfigured || Boolean(authBusy)}
-            title={provider.label}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.04)] text-[1rem] shadow-sm disabled:opacity-50"
-            style={{
-              color:
-                provider.key === "google"
-                  ? "#DB4437"
-                  : provider.key === "facebook"
-                  ? "#4267B2"
-                  : "#d4d1e1",
-            }}
-          >
-            {authBusy === provider.key ? (
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: "currentColor", borderTopColor: "transparent" }} />
-            ) : (
-              provider.icon
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <h2 className="mb-3 text-[0.78rem] font-bold uppercase tracking-[0.18em] text-[var(--text-gray-light)]">
-            Theme
-          </h2>
-          <div className="grid grid-cols-2 gap-2">
-            {["dark", "light"].map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => applyTheme(mode)}
-                className={`rounded-[1rem] px-3 py-2.5 text-[0.78rem] font-semibold capitalize ${
-                  theme === mode
-                    ? "bgPink text-white shadow-[var(--shadow-pink)]"
-                    : "bgGray text-[var(--text-black)]"
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h2 className="mb-3 text-[0.78rem] font-bold uppercase tracking-[0.18em] text-[var(--text-gray-light)]">
-            {settings.species}
-          </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            {Object.entries(settings.types).map(([key, label]) => {
-              const bgClass =
-                key === "human"
-                  ? "bg-[#e8457a]"
-                  : key === "company"
-                  ? "bg-[#4a8fe7]"
-                  : "bg-[#9b6dff]";
-              const shadowClass =
-                key === "human"
-                  ? "shadow-[0_0_12px_rgba(232,69,122,0.4)]"
-                  : key === "company"
-                  ? "shadow-[0_0_12px_rgba(74,143,231,0.4)]"
-                  : "shadow-[0_0_12px_rgba(155,109,255,0.4)]";
-
-              const isSelected = selectedSpecies === key;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelectedSpecies(key)}
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-all ${
-                    isSelected
-                      ? `${bgClass} text-white ${shadowClass} scale-110`
-                      : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
-                  }`}
-                  title={label}
-                  aria-label={`Select species: ${label}`}
-                >
-                  <span className="text-[1.2rem]">{typeIcons[key]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <h2 className="mb-3 text-[0.78rem] font-bold uppercase tracking-[0.18em] text-[var(--text-gray-light)]">
-            {settings.avatar}
-          </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            {avatarUrl ? (
-              <div className="relative">
-                <img
-                  src={avatarUrl}
-                  alt="Avatar"
-                  className="h-12 w-12 rounded-full border border-[var(--horizontal-line)] object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => setAvatarUrl("")}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--pink)] text-white"
-                >
-                  <IoClose className="text-[0.9rem]" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(255,255,255,0.9)] font-black text-[var(--blue)]">
-                {userData.initials || "SN"}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
+    <div
+      className={`profile-compact-card w-full rounded-[1.05rem] p-3 text-[var(--text-black)] ${
+        isAuthenticated ? "" : "cursor-pointer"
+      }`}
+      role={isAuthenticated ? undefined : "button"}
+      tabIndex={isAuthenticated ? undefined : 0}
+      onClick={() => {
+        if (!isAuthenticated) openAuth("create");
+      }}
+      onKeyDown={(event) => {
+        if (!isAuthenticated && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          openAuth("create");
+        }
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          <img
+            src={avatarPreview}
+            alt="Avatar"
+            className="h-14 w-14 rounded-full border border-[var(--horizontal-line)] object-cover"
+          />
+          {isAuthenticated && (
+            <>
               <label
                 htmlFor="avatarInputSocialSeven"
-                className="flex cursor-pointer items-center gap-2 rounded-full bg-[var(--blue)] px-4 py-2 text-[0.74rem] font-semibold text-white shadow-[var(--shadow-blue)]"
+                className={`absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] ${
+                  saveBusy ? "pointer-events-none opacity-70" : "cursor-pointer"
+                }`}
+                title="Upload profile photo"
+                onClick={(event) => event.stopPropagation()}
               >
-                <FaCloudUploadAlt />
-                {saveBusy ? "Uploading..." : "Upload Photo"}
+                <IoCameraOutline />
               </label>
               <input
                 type="file"
@@ -301,64 +290,209 @@ function Profile({ setErrorMsg, setNotify }) {
                 className="hidden"
                 onChange={handleAvatarSelect}
               />
-              {userData.providerAvatar && (
-                <button
-                  type="button"
-                  onClick={useProviderPhoto}
-                  className="rounded-full bgGray px-4 py-2 text-[0.74rem] font-semibold"
-                >
-                  Use Provider Photo
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="mb-3 text-[0.78rem] font-bold uppercase tracking-[0.18em] text-[var(--text-gray-light)]">
-            {settings.name}
-          </h2>
-          <input
-            className="h-11 w-full rounded-[1rem] border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.06)] px-4 text-[0.92rem] outline-none"
-            type="text"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="Display name"
-          />
-          {userData.email && (
-            <p className="mt-2 text-[0.74rem] text-[var(--text-gray-light)]">
-              Connected email: {userData.email}
-            </p>
+            </>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--horizontal-line)] pt-4">
-          <button
-            type="button"
-            onClick={handleSaveProfile}
-            className="rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-semibold text-white shadow-[var(--shadow-pink)]"
-          >
-            Save Profile
-          </button>
-          <button
-            type="button"
-            onClick={handleResetProfile}
-            className="rounded-full bgGray px-4 py-2 text-[0.78rem] font-semibold"
-          >
-            Reset
-          </button>
-          {isAuthenticated && (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="flex items-center gap-2 rounded-full bg-[rgba(255,255,255,0.08)] px-4 py-2 text-[0.78rem] font-semibold sm:ml-auto"
-            >
-              <FaPowerOff />
-              {authBusy === "signout" ? "Signing Out..." : "Sign Out"}
-            </button>
-          )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[0.98rem] font-black">{isAuthenticated ? currentName : "SuperNova account"}</p>
+          <p className="mt-0.5 truncate text-[0.7rem] text-[var(--text-gray-light)]">
+            {authLoading ? "Checking account..." : isAuthenticated ? `${providerLabel} account` : "Sign in to sync across devices"}
+          </p>
         </div>
+
+        {isAuthenticated ? (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={authBusy === "signout"}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-[var(--text-gray-light)] disabled:opacity-50"
+            aria-label="Sign out"
+          >
+            <FaPowerOff />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              openAuth("create");
+            }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+            aria-label="Sign in"
+          >
+            <IoLogInOutline />
+          </button>
+        )}
       </div>
+
+      {isAuthenticated && (
+        <div className="mt-3 flex items-center justify-between rounded-full bg-white/[0.055] px-3 py-2">
+          <span className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+            Species
+          </span>
+          <span className="rounded-full bg-[var(--pink)] px-3 py-1 text-[0.72rem] font-bold text-white">
+            {selectedSpecies === "company" ? "ORG" : selectedSpecies === "ai" ? "AI" : "Human"}
+          </span>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {["dark", "light"].map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              applyTheme(mode);
+            }}
+            className={`flex h-10 items-center justify-center gap-2 rounded-full px-3 text-[0.74rem] font-semibold capitalize ${
+              theme === mode
+                ? "bgPink text-white shadow-[var(--shadow-pink)]"
+                : "bgGray text-[var(--text-black)]"
+            }`}
+          >
+            {mode === "dark" ? <IoMoonOutline /> : <IoSunnyOutline />}
+            {mode}
+          </button>
+        ))}
+      </div>
+
+      {mounted && authOpen && createPortal(
+        <div
+          className="profile-auth-portal fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-sm"
+          onClick={() => setAuthOpen(false)}
+        >
+          <form
+            onSubmit={handlePasswordSubmit}
+            className="profile-auth-card hide-scrollbar w-full max-w-[24rem] overflow-y-auto rounded-[1.35rem] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.48)]"
+            style={{ maxHeight: "calc(100dvh - 2.5rem)" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-[1rem] font-black">SuperNova account</p>
+                <p className="auth-muted mt-0.5 text-[0.7rem]">Sign in or create your synced identity.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuthOpen(false)}
+                className="auth-icon-button flex h-9 w-9 items-center justify-center rounded-full"
+                aria-label="Close account panel"
+              >
+                <IoClose />
+              </button>
+            </div>
+
+            <div className="auth-segment mb-3 grid grid-cols-2 rounded-full p-1 text-[0.74rem] font-bold">
+              {["login", "create"].map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPasswordMode(mode)}
+                  className={`rounded-full px-3 py-2 ${
+                    passwordMode === mode ? "bg-[var(--pink)] text-white" : "auth-muted"
+                  }`}
+                >
+                  {mode === "create" ? "Sign up" : "Sign in"}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-2">
+              {PROVIDERS.map((provider) => (
+                <button
+                  key={provider.key}
+                  type="button"
+                  onClick={() => handleProviderLogin(provider.key)}
+                  disabled={Boolean(authBusy)}
+                  className="auth-provider-button flex h-11 items-center justify-center gap-2 rounded-full px-4 text-[0.82rem] font-bold disabled:opacity-45"
+                  title={`Continue with ${provider.label}`}
+                >
+                  <span className="text-[1rem]" style={{ color: provider.color }}>
+                    {authBusy === provider.key ? (
+                      <span className="block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      provider.icon
+                    )}
+                  </span>
+                  Continue with {provider.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="auth-divider my-3 flex items-center gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em]">
+              <span className="h-px flex-1" />
+              <span>Email</span>
+              <span className="h-px flex-1" />
+            </div>
+
+            <div className="grid gap-2">
+              <input
+                value={accountName}
+                onChange={(event) => setAccountName(event.target.value)}
+                className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
+                placeholder="Username"
+                autoComplete="username"
+              />
+              {passwordMode === "create" && (
+                <input
+                  value={accountEmail}
+                  onChange={(event) => setAccountEmail(event.target.value)}
+                  className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
+                  placeholder="Email"
+                  type="email"
+                  autoComplete="email"
+                />
+              )}
+              <input
+                value={accountPassword}
+                onChange={(event) => setAccountPassword(event.target.value)}
+                className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
+                placeholder="Password"
+                type="password"
+                autoComplete={passwordMode === "create" ? "new-password" : "current-password"}
+              />
+            </div>
+
+            {passwordMode === "create" && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {SPECIES.map((item) => {
+                  const selected = selectedSpecies === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setSelectedSpecies(item.key)}
+                      className={`flex h-10 items-center justify-center gap-1.5 rounded-full text-[0.72rem] font-semibold ${
+                        selected ? `${item.color} text-white` : "auth-pill-inactive"
+                      }`}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={Boolean(authBusy)}
+              className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--pink)] text-[0.82rem] font-black text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
+            >
+              {passwordMode === "create" ? <IoMailOutline /> : <IoShieldCheckmarkOutline />}
+              {authBusy === passwordMode ? "Working..." : passwordMode === "create" ? "Create account" : "Sign in"}
+            </button>
+            {!authConfigured && (
+              <p className="auth-muted mt-2 text-center text-[0.66rem] leading-4">
+                Provider login is ready in the UI and needs Supabase provider keys in the environment.
+              </p>
+            )}
+          </form>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -5,12 +5,9 @@ import dynamic from "next/dynamic";
 const ProposalWrapper = dynamic(() => import("@/content/proposal/ProposalWrapper"), {
   ssr: false,
   loading: () => (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[var(--backgroundGray)] text-[var(--text-black)]">
-      <div className="bgWhiteTrue rounded-[28px] shadow-md px-8 py-6 text-center">
-        <h1 className="text-[1.25rem] font-black mb-2">Loading Proposals</h1>
-        <p className="text-[0.95rem] opacity-70">
-          Fetching proposals…
-        </p>
+    <div className="flex min-h-screen w-full items-center justify-center bg-[var(--backgroundGray)] text-[var(--text-black)]">
+      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/[0.04] shadow-[var(--shadow-pink)]">
+        <span className="loading-spinner-glyph h-12 w-12" role="img" aria-label="Loading" />
       </div>
     </div>
   ),

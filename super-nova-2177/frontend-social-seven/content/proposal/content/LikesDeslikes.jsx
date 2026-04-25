@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { IoChevronUp } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
@@ -25,7 +26,7 @@ function LikesDeslikes({
   initialDislikesList = [],
   initialClicked = null,
   proposalId,
-  setErrorMsg,
+  setErrorMsg = () => {},
 }) {
   const [clicked, setClicked] = useState(initialClicked);
   const [likes, setLikes] = useState(initialLikes);
@@ -34,7 +35,7 @@ function LikesDeslikes({
   const [dislikesList, setDislikesList] = useState(initialDislikesList);
   const [showInfo, setShowInfo] = useState(false);
   const containerRef = useRef(null);
-  const { userData } = useUser();
+  const { userData, isAuthenticated } = useUser();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
 
@@ -46,6 +47,11 @@ function LikesDeslikes({
     setClicked(initialClicked);
   }, [initialLikes, initialDislikes, initialLikesList, initialDislikesList, initialClicked]);
 
+  useEffect(() => {
+    const postCard = containerRef.current?.closest?.("[data-proposal-card]");
+    if (postCard) postCard.dataset.proposalUserVote = clicked || "";
+  }, [clicked]);
+
   const weighted = useMemo(() => {
     return buildWeightedVoteSummary(likesList, dislikesList);
   }, [likesList, dislikesList]);
@@ -53,11 +59,27 @@ function LikesDeslikes({
   const pct = Math.max(weighted.supportPercent || 0, 0);
   const approvalRatio = Math.round(pct);
   const knobColor = getSliderColor(pct);
+  const voteModal =
+    showInfo && typeof document !== "undefined"
+      ? createPortal(
+          <div className="vote-modal-backdrop" onClick={() => setShowInfo(false)}>
+            <div data-vote-modal className="vote-modal-card" onClick={(e) => e.stopPropagation()}>
+              <LikesInfo
+                proposalId={proposalId}
+                likesData={likesList}
+                dislikesData={dislikesList}
+              />
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
   /* Close popup on outside click */
   useEffect(() => {
     if (!showInfo) return undefined;
     const handleOutsideClick = (e) => {
+      if (e.target.closest("[data-vote-modal]")) return;
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setShowInfo(false);
       }
@@ -76,10 +98,19 @@ function LikesDeslikes({
   }
 
   const validateProfile = () => {
+    if (!isAuthenticated) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      }
+      return false;
+    }
     const errors = [];
     if (!backendUrl) errors.push("API base URL is not configured.");
-    if (!userData?.name) errors.push("Add a display name in your profile before voting.");
-    if (errors.length > 0) { setErrorMsg(errors); return false; }
+    if (isAuthenticated && !userData?.name) errors.push("Add a display name in your profile before voting.");
+    if (errors.length > 0) {
+      setErrorMsg(errors);
+      return false;
+    }
     return true;
   };
 
@@ -103,9 +134,10 @@ function LikesDeslikes({
     } catch (err) { setErrorMsg([`Remove failed: ${err.message}`]); return false; }
   }
 
-  const handleLikeClick = async () => {
+  const handleLikeClick = async ({ allowToggle = true } = {}) => {
     if (!validateProfile()) return;
     if (clicked === "like") {
+      if (!allowToggle) return;
       if (await removeVote()) {
         setLikes((v) => Math.max(0, v - 1));
         setLikesList((v) => v.filter((vote) => vote.voter !== userData.name));
@@ -125,9 +157,10 @@ function LikesDeslikes({
     }
   };
 
-  const handleDislikeClick = async () => {
+  const handleDislikeClick = async ({ allowToggle = true } = {}) => {
     if (!validateProfile()) return;
     if (clicked === "dislike") {
+      if (!allowToggle) return;
       if (await removeVote()) {
         setDislikes((v) => Math.max(0, v - 1));
         setDislikesList((v) => v.filter((vote) => vote.voter !== userData.name));
@@ -147,8 +180,29 @@ function LikesDeslikes({
     }
   };
 
+  useEffect(() => {
+    const handleCursorAction = (event) => {
+      const detail = event.detail || {};
+      if (String(detail.id) !== String(proposalId)) return;
+      const allowToggle =
+        typeof detail.allowToggle === "boolean"
+          ? detail.allowToggle
+          : detail.source !== "ai-widget";
+      if (detail.action === "like") {
+        handleLikeClick({ allowToggle });
+      }
+      if (detail.action === "dislike") {
+        handleDislikeClick({ allowToggle });
+      }
+    };
+
+    window.addEventListener("supernova:post-action", handleCursorAction);
+    return () => window.removeEventListener("supernova:post-action", handleCursorAction);
+  }, [proposalId, handleLikeClick, handleDislikeClick]);
+
   return (
-    <div ref={containerRef} className="relative flex items-center gap-1.5">
+    <>
+    <div ref={containerRef} className="relative flex items-center gap-2">
       {/* 👎 DOWN — left */}
       <button
         type="button"
@@ -157,7 +211,7 @@ function LikesDeslikes({
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
           clicked === "dislike"
             ? "bg-[var(--blue)] text-white shadow-[var(--shadow-blue)] scale-110"
-            : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+            : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
         }`}
       >
         <BiSolidDislike className="text-[0.9rem]" />
@@ -201,7 +255,7 @@ function LikesDeslikes({
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
           clicked === "like"
             ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] scale-110"
-            : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+            : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
         }`}
       >
         <BiSolidLike className="text-[0.9rem]" />
@@ -212,31 +266,14 @@ function LikesDeslikes({
         type="button"
         onClick={() => setShowInfo((v) => !v)}
         aria-label={showInfo ? "Hide vote breakdown" : "Show vote breakdown"}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
       >
         <IoChevronUp className={`text-[0.8rem] transition-transform ${showInfo ? "rotate-180" : ""}`} />
       </button>
 
-      {/* Fullscreen vote breakdown overlay */}
-      {showInfo && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-          style={{ animation: "fadeSlideIn 0.2s ease-out" }}
-          onClick={() => setShowInfo(false)}
-        >
-          <div
-            className="w-full max-w-[28rem]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <LikesInfo
-              proposalId={proposalId}
-              likesData={likesList}
-              dislikesData={dislikesList}
-            />
-          </div>
-        </div>
-      )}
     </div>
+    {voteModal}
+    </>
   );
 }
 

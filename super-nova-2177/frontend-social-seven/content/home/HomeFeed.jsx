@@ -1,15 +1,17 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IoBarChartOutline,
-  IoGlobeOutline,
-  IoSparklesOutline,
+  IoDocumentTextOutline,
+  IoImageOutline,
+  IoSend,
+  IoVideocamOutline,
   IoStarOutline,
 } from "react-icons/io5";
 import { BiSolidLike, BiSolidDislike } from "react-icons/bi";
-import { HiOutlinePhoto } from "react-icons/hi2";
 import { SearchInputContext } from "@/app/layout";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { useUser } from "@/content/profile/UserContext";
@@ -23,12 +25,16 @@ import CardLoading from "../CardLoading";
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";
   const now = new Date();
-  const date = new Date(dateString);
+  const raw = String(dateString);
+  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw}Z`);
+  if (Number.isNaN(date.getTime())) return "now";
   const diffMs = now.getTime() - date.getTime();
   if (diffMs < 0) return "now";
-  const diffMin = Math.floor(diffMs / 1000 / 60);
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
   const diffHours = Math.floor(diffMin / 60);
   const diffDays = Math.floor(diffHours / 24);
+  if (diffSec >= 10 && diffSec < 60) return `${diffSec}s`;
   if (diffDays > 0) return `${diffDays}d`;
   if (diffHours > 0) return `${diffHours}h`;
   if (diffMin > 0) return `${diffMin}m`;
@@ -46,6 +52,7 @@ function getSliderColor(ratio) {
 
 export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const [discard, setDiscard] = useState(true);
+  const [pendingMediaPicker, setPendingMediaPicker] = useState("");
 
   // Auto-open composer if navigated from a global '+' button click
   useEffect(() => {
@@ -58,10 +65,30 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const [showSystemVoteInfo, setShowSystemVoteInfo] = useState(false);
   const [systemVoteClicked, setSystemVoteClicked] = useState(null);
   const { inputRef } = useContext(SearchInputContext);
-  const { userData } = useUser();
+  const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
+  const userAvatar = isAuthenticated && userData?.avatar?.startsWith("/")
+    ? absoluteApiUrl(userData.avatar)
+    : isAuthenticated && userData?.avatar
+    ? userData.avatar
+    : defaultAvatar;
+
+  const requireAccount = (message) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create", reason: message } }));
+    }
+  };
+
+  const openComposerWithMedia = (type) => {
+    if (!isAuthenticated) {
+      requireAccount("Sign in to attach media and post on SuperNova.");
+      return;
+    }
+    setPendingMediaPicker(type);
+    setDiscard(false);
+  };
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ["home-feed", activeBE],
@@ -107,6 +134,10 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   /* System vote handler — casts an independent system-level vote */
   const handleSystemVote = async (choice) => {
+    if (!isAuthenticated) {
+      requireAccount("Sign in to cast a system vote.");
+      return;
+    }
     if (!userData?.name) {
       setErrorMsg(["Add a display name in your profile before voting."]);
       return;
@@ -157,14 +188,29 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   const pct = Math.max(systemVote.weighted.supportPercent || 0, 0);
   const knobColor = getSliderColor(pct);
+  const systemVoteModal =
+    showSystemVoteInfo && typeof document !== "undefined"
+      ? createPortal(
+          <div className="vote-modal-backdrop" onClick={() => setShowSystemVoteInfo(false)}>
+            <div
+              data-system-vote-overlay
+              className="vote-modal-card"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <LikesInfo likesData={systemVote.likes} dislikesData={systemVote.dislikes} />
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
-    <div className="social-shell px-0 pb-6">
+    <div className="social-shell px-0 pb-5">
       <CreatePost discard={discard} setDiscard={setDiscard} />
 
-      <div className="space-y-4 pt-2">
+      <div className="space-y-2.5 pt-2">
         {/* ── System Vote ── */}
-        <section className="social-panel rounded-[1.35rem] px-4 py-4">
+        <section className="mobile-feed-panel social-panel rounded-[1.35rem] px-4 py-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IoStarOutline className="text-[1rem] text-[var(--pink)]" />
@@ -250,82 +296,78 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </button>
           </div>
 
-          <div className="mt-3 flex items-center justify-between text-[0.72rem] text-[var(--text-gray-light)]">
-            <span>NO</span>
-            <span>Pass threshold: 60%</span>
-            <span>YES</span>
-          </div>
-
-          {/* Fullscreen species breakdown overlay */}
-          {showSystemVoteInfo && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-              style={{ animation: "fadeSlideIn 0.2s ease-out" }}
-              onClick={() => setShowSystemVoteInfo(false)}
-            >
-              <div
-                data-system-vote-overlay
-                className="w-full max-w-[28rem]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <LikesInfo likesData={systemVote.likes} dislikesData={systemVote.dislikes} />
-              </div>
-            </div>
-          )}
         </section>
+        {systemVoteModal}
 
         {/* ── Create Post ── */}
-        {discard ? (
-          <section className="social-panel rounded-[1.35rem] px-4 py-4">
-            <div className="mb-3 flex items-center gap-3">
-              {userData?.avatar ? (
+        <section ref={inputRef} className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
+          {discard ? (
+            <div className="flex items-center gap-2.5">
+              {userAvatar ? (
                 <img
-                  src={userData.avatar}
+                  src={userAvatar}
                   alt="profile"
-                  className="h-10 w-10 rounded-full object-cover"
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bgGray text-[0.78rem] font-semibold">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
                   {(userData?.name || "SN").slice(0, 2).toUpperCase()}
                 </div>
               )}
               <button
                 type="button"
-                onClick={() => setDiscard(false)}
-                className="flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-4 py-2.5 text-left text-[0.92rem] text-[var(--text-gray-light)]"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    requireAccount("Sign in to post on SuperNova.");
+                    return;
+                  }
+                  setDiscard(false);
+                }}
+                className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-3.5 py-2.5 text-left text-[0.88rem] text-[var(--text-gray-light)]"
               >
                 Share your thoughts...
               </button>
-            </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
-              <div className="grid min-w-0 flex-1 grid-cols-4 gap-1.5">
-                <button type="button" onClick={() => setDiscard(false)} className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]">
-                  <HiOutlinePhoto className="text-[1rem]" /><span>Media</span>
+              <div className="flex shrink-0 items-center gap-1.5 text-[var(--text-gray-light)]">
+                <button type="button" onClick={() => openComposerWithMedia("image")} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full" aria-label="Add media">
+                  <IoImageOutline className="text-[1rem]" />
                 </button>
-                <button type="button" onClick={() => setDiscard(false)} className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]">
-                  <IoSparklesOutline className="text-[1rem]" /><span>AI Assist</span>
+                <button type="button" onClick={() => openComposerWithMedia("video")} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full" aria-label="Add video">
+                  <IoVideocamOutline className="text-[1rem]" />
                 </button>
-                <button type="button" onClick={() => setDiscard(false)} className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]">
-                  <IoBarChartOutline className="text-[1rem]" /><span>Poll / Vote</span>
+                <button type="button" onClick={() => openComposerWithMedia("file")} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full" aria-label="Add document">
+                  <IoDocumentTextOutline className="text-[1rem]" />
                 </button>
-                <button type="button" onClick={() => setDiscard(false)} className="flex flex-col items-center gap-1 rounded-[0.9rem] px-1 py-1.5 hover:bg-[rgba(255,255,255,0.04)]">
-                  <IoGlobeOutline className="text-[1rem]" /><span>Space</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      requireAccount("Sign in to post on SuperNova.");
+                      return;
+                    }
+                    setDiscard(false);
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                  aria-label="Post"
+                  title="Post"
+                >
+                  <IoSend className="text-[1rem]" />
                 </button>
               </div>
-              <button type="button" onClick={() => setDiscard(false)} className="shrink-0 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.82rem] font-semibold text-white shadow-[var(--shadow-pink)]">
-                Post
-              </button>
             </div>
-          </section>
-        ) : (
-          <section ref={inputRef} className="social-panel rounded-[1.35rem] px-4 py-4">
-            <InputFields embedded autoFocus setDiscard={setDiscard} />
-          </section>
-        )}
+          ) : (
+            <InputFields
+              embedded
+              autoFocus
+              setDiscard={setDiscard}
+              autoOpenMediaType={pendingMediaPicker}
+              onAutoOpenConsumed={() => setPendingMediaPicker("")}
+            />
+          )}
+        </section>
 
         {/* ── Feed ── */}
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, index) => <CardLoading key={index} />)
           ) : (
@@ -340,6 +382,10 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 logo={post.author_img}
                 media={{
                   image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
+                  images: Array.isArray(post.media?.images)
+                    ? post.media.images.map((image) => absoluteApiUrl(image))
+                    : [],
+                  layout: post.media?.layout || "carousel",
                   video: post.media?.video || post.video || "",
                   link: post.media?.link || post.link || "",
                   file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",

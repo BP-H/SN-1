@@ -1,72 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FaFileAlt, FaUser, FaBriefcase, FaLink } from "react-icons/fa";
-import { BsFillCpuFill } from "react-icons/bs";
-import { IoMdArrowRoundBack } from "react-icons/io";
+import { useRouter } from "next/navigation";
+import { FaFileAlt, FaLink } from "react-icons/fa";
 import { FaCommentAlt } from "react-icons/fa";
 import { IoMdBookmark } from "react-icons/io";
 import { IoIosShare } from "react-icons/io";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
-import { absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import {
+  IoCheckmark,
+  IoClose,
+  IoCreateOutline,
+  IoEllipsisHorizontal,
+  IoPersonAddOutline,
+  IoPersonRemoveOutline,
+  IoChatbubbleOutline,
+  IoTrashOutline,
+} from "react-icons/io5";
 import LikesDeslikes from "./LikesDeslikes";
 import DisplayComments from "./DisplayComments";
 import InsertComment from "./InsertComment";
-
-/* Species config: icon + colors */
-const SPECIES_CONFIG = {
-  human: {
-    icon: FaUser,
-    bg: "bg-[#e8457a]",
-    shadow: "shadow-[0_0_10px_rgba(232,69,122,0.35)]",
-  },
-  company: {
-    icon: FaBriefcase,
-    bg: "bg-[#4a8fe7]",
-    shadow: "shadow-[0_0_10px_rgba(74,143,231,0.3)]",
-  },
-  ai: {
-    icon: BsFillCpuFill,
-    bg: "bg-[#9b6dff]",
-    shadow: "shadow-[0_0_10px_rgba(155,109,255,0.35)]",
-  },
-};
+import MediaGallery from "./MediaGallery";
+import PdfPager from "./PdfPager";
 
 function ProposalCard({
   id,
   userName,
-  userInitials,
   time,
   title,
   text,
   media = {},
   logo,
-  likes,
-  dislikes,
+  likes = [],
+  dislikes = [],
   comments = [],
   setErrorMsg,
   setNotify,
-  specie,
   isDetailPage = false,
 }) {
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
+  const [localText, setLocalText] = useState(text || "");
+  const [editText, setEditText] = useState(text || "");
   const [readMore, setReadMore] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
-  const [imageZoom, setImageZoom] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [ownerBusy, setOwnerBusy] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followingAuthor, setFollowingAuthor] = useState(false);
+  const [localLogo, setLocalLogo] = useState(logo || "");
 
-  const speciesConf = SPECIES_CONFIG[specie] || SPECIES_CONFIG.human;
-  const SpeciesIcon = speciesConf.icon;
-
-  const { userData } = useUser();
+  const { userData, defaultAvatar } = useUser();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const isOwner = Boolean(userName && userData?.name && userName.toLowerCase() === userData.name.toLowerCase());
+  const displayLogo = isOwner && userData?.avatar ? userData.avatar : localLogo;
 
   const getFullImageUrl = (url) => {
     if (!url) return null;
+    if (url === "default.jpg") return null;
+    if (url === "/default-avatar.png" || url.endsWith("/default-avatar.png")) return null;
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
     return absoluteApiUrl(url);
   };
@@ -103,8 +104,122 @@ function ProposalCard({
     } catch { /* clipboard unavailable */ }
   };
 
+  const refreshFeeds = () => {
+    queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+    queryClient.invalidateQueries({ queryKey: ["proposals"] });
+    queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim()) {
+      setErrorMsg?.(["Post text cannot be empty."]);
+      return;
+    }
+    setOwnerBusy(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editText.trim().replace(/\s+/g, " ").slice(0, 70),
+          body: editText.trim(),
+          author: userData.name,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to edit post.");
+      setLocalText(payload.text || editText.trim());
+      setEditing(false);
+      setMenuOpen(false);
+      setNotify?.(["Post updated."]);
+      refreshFeeds();
+    } catch (error) {
+      setErrorMsg?.([error.message || "Unable to edit post."]);
+    } finally {
+      setOwnerBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!isOwner || !window.confirm("Delete this post?")) return;
+    setOwnerBusy(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/proposals/${encodeURIComponent(id)}?author=${encodeURIComponent(userData.name)}`,
+        { method: "DELETE" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to delete post.");
+      setDeleted(true);
+      setNotify?.(["Post deleted."]);
+      refreshFeeds();
+    } catch (error) {
+      setErrorMsg?.([error.message || "Unable to delete post."]);
+    } finally {
+      setOwnerBusy(false);
+    }
+  };
+
+  const handleMessageAuthor = () => {
+    if (!userData?.name) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (!userName || isOwner) return;
+    setMenuOpen(false);
+    router.push(`/messages?to=${encodeURIComponent(userName)}`);
+  };
+
+  const handleToggleFollow = async () => {
+    if (!userData?.name) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (!userName || isOwner || followBusy) return;
+    setFollowBusy(true);
+    try {
+      const response = await fetch(
+        followingAuthor
+          ? `${API_BASE_URL}/follows?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(userName)}`
+          : `${API_BASE_URL}/follows`,
+        {
+          method: followingAuthor ? "DELETE" : "POST",
+          headers: followingAuthor ? undefined : { "Content-Type": "application/json" },
+          body: followingAuthor
+            ? undefined
+            : JSON.stringify({ follower: userData.name, target: userName }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
+      setFollowingAuthor(Boolean(payload.following));
+      setNotify?.([payload.following ? `Following ${userName}.` : `Unfollowed ${userName}.`]);
+    } catch (error) {
+      setErrorMsg?.([error.message || "Follow action failed."]);
+    } finally {
+      setFollowBusy(false);
+      setMenuOpen(false);
+    }
+  };
+
   const displayVideo = media.video || (getYouTubeId(media.link) ? media.link : null);
   const displayLink = displayVideo === media.link ? null : media.link;
+  const displayImages =
+    Array.isArray(media.images) && media.images.length > 0
+      ? media.images
+      : media.image
+      ? [media.image]
+      : [];
+  const displayFile = media.file ? getFullImageUrl(media.file) : "";
+  const isPdfFile = /\.pdf(?:$|\?)/i.test(displayFile || "");
+  const mediaLayout = media.layout === "grid" ? "grid" : "carousel";
+  const detailHref = id !== undefined && id !== null && id !== "" ? `/proposals/${encodeURIComponent(id)}` : "/proposals";
+  const userHref = userName ? `/users/${encodeURIComponent(userName)}` : "/profile";
+  const userVote = likes.some((v) => v.voter === userData?.name)
+    ? "like"
+    : dislikes.some((v) => v.voter === userData?.name)
+    ? "dislike"
+    : "";
 
   const youtubeId = getYouTubeId(displayVideo);
   const videoThumbnail = youtubeId
@@ -114,54 +229,214 @@ function ProposalCard({
     ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`
     : "";
 
+  useEffect(() => {
+    const handlePostAction = (event) => {
+      const detail = event.detail || {};
+      if (String(detail.id) !== String(id)) return;
+      if (detail.action === "comment" || detail.action === "engage") {
+        setShowComments(true);
+      }
+      if (detail.action === "comment-posted" && detail.comment) {
+        setShowComments(true);
+        setLocalComments((prevComments) => [...prevComments, detail.comment]);
+      }
+    };
+    window.addEventListener("supernova:post-action", handlePostAction);
+    return () => window.removeEventListener("supernova:post-action", handlePostAction);
+  }, [id]);
+
+  useEffect(() => {
+    setLocalText(text || "");
+    setEditText(text || "");
+  }, [id, text]);
+
+  useEffect(() => {
+    setLocalLogo(logo || "");
+  }, [id, logo]);
+
+  useEffect(() => {
+    if (!menuOpen || isOwner || !userData?.name || !userName) return undefined;
+    let cancelled = false;
+    fetch(
+      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(userName)}`
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload) setFollowingAuthor(Boolean(payload.following));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, menuOpen, userData?.name, userName]);
+
+  useEffect(() => {
+    const handleAvatarUpdate = (event) => {
+      const detail = event.detail || {};
+      if (!detail.username || !userName) return;
+      if (String(detail.username).toLowerCase() !== String(userName).toLowerCase()) return;
+      setLocalLogo(detail.avatar || "");
+      setLocalComments((prevComments) =>
+        prevComments.map((comment) =>
+          String(comment.user || "").toLowerCase() === String(userName).toLowerCase()
+            ? { ...comment, user_img: detail.avatar || "" }
+            : comment
+        )
+      );
+    };
+    window.addEventListener("supernova:profile-avatar-updated", handleAvatarUpdate);
+    return () => window.removeEventListener("supernova:profile-avatar-updated", handleAvatarUpdate);
+  }, [userName]);
+
+  if (deleted) return null;
+
   return (
     <div
-      className={`bgWhiteTrue social-panel-compact mx-auto flex w-full flex-col gap-4 rounded-[1.75rem] p-5 text-[var(--text-black)] shadow-sm ${
+      data-proposal-card
+      data-proposal-id={id}
+      data-proposal-title={(title || localText || "").slice(0, 180)}
+      data-proposal-author={userName || ""}
+      data-proposal-text={(localText || title || "").slice(0, 360)}
+      data-proposal-user-vote={userVote}
+      className={`mobile-post-card bgWhiteTrue social-panel-compact relative mx-auto flex w-full flex-col gap-4 rounded-[1.75rem] p-5 text-[var(--text-black)] shadow-sm ${
         isDetailPage ? "" : "hover:shadow-md"
       }`}
     >
-      {/* ── Header: avatar · name · time · species icon ── */}
-      <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-        <div className="shrink-0">
-          {logo ? (
-            <img
-              src={getFullImageUrl(logo)}
-              alt="user avatar"
-              className="h-10 w-10 rounded-full object-cover shadow-md"
-            />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--gray)] text-[0.78rem] font-semibold shadow-sm">
-              {userInitials}
+      {/* Header: avatar, name, time, options */}
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <Link href={userHref} className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0">
+            {displayLogo && getFullImageUrl(displayLogo) ? (
+              <img
+                src={getFullImageUrl(displayLogo)}
+                alt="user avatar"
+                onError={(event) => {
+                  event.currentTarget.src = defaultAvatar;
+                }}
+                className="h-10 w-10 rounded-full object-cover shadow-md"
+              />
+            ) : (
+              <img
+                src={defaultAvatar}
+                alt="user avatar"
+                className="h-10 w-10 rounded-full object-cover shadow-md"
+              />
+            )}
+          </div>
+          <div className="min-w-0 truncate text-[0.9rem]">
+            <span className="font-semibold text-[var(--text-black)]">{userName}</span>
+            <span className="mx-2 text-[var(--text-gray-light)]">•</span>
+            <span className="text-[var(--text-gray-light)]">{time}</span>
+          </div>
+        </Link>
+
+        {/* Species icon badge — replaces text label */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMenuOpen((value) => !value);
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-gray-light)] hover:bg-white/[0.07]"
+            aria-label="Post options"
+          >
+            <IoEllipsisHorizontal />
+          </button>
+          {menuOpen && (
+            <div className="proposal-options-menu absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl">
+              {isOwner ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditText(localText || "");
+                      setEditing(true);
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                  >
+                    <IoCreateOutline /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={ownerBusy}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left text-[var(--pink)] hover:bg-white/[0.07] disabled:opacity-50"
+                  >
+                    <IoTrashOutline /> Delete
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleMessageAuthor}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                  >
+                    <IoChatbubbleOutline /> Message
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleFollow}
+                    disabled={followBusy}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] disabled:opacity-50"
+                  >
+                    {followingAuthor ? <IoPersonRemoveOutline /> : <IoPersonAddOutline />}
+                    {followingAuthor ? "Unfollow" : "Follow"}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
-        <div className="min-w-0 truncate text-[0.9rem]">
-          <span className="font-semibold text-[var(--text-black)]">{userName}</span>
-          <span className="mx-2 text-[var(--text-gray-light)]">•</span>
-          <span className="text-[var(--text-gray-light)]">{time}</span>
-        </div>
-
-        {/* Species icon badge — replaces text label */}
-        <span
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.8rem] text-white ${speciesConf.bg} ${speciesConf.shadow}`}
-          title={specie === "company" ? "ORG" : specie === "ai" ? "AI" : "Human"}
-        >
-          <SpeciesIcon />
-        </span>
       </div>
 
       {/* ── Post content (text + media) ── */}
       <div className="flex w-full min-w-0 flex-col gap-3">
-        <Link href={`/proposals/${id}`} className="flex min-w-0 flex-col gap-3">
-          {text && (
+        <div className="flex min-w-0 flex-col gap-3">
+          {editing ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={editText}
+                onChange={(event) => setEditText(event.target.value)}
+                className="composer-textarea min-h-28 resize-y rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.055] px-3 py-3 text-[0.92rem] outline-none"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    setEditText(localText || "");
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.07] text-[var(--text-gray-light)]"
+                  aria-label="Cancel edit"
+                >
+                  <IoClose />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={ownerBusy}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] disabled:opacity-50"
+                  aria-label="Save edit"
+                >
+                  <IoCheckmark />
+                </button>
+              </div>
+            </div>
+          ) : localText && (
             <div className="flex min-w-0 flex-col gap-1">
-              <p
-                className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
-                style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
-              >
-                {text}
-              </p>
-              {(text.length > 220 || (text.match(/\n/g) || []).length >= 4) && (
+              <Link href={detailHref} className="block min-w-0">
+                <p
+                  className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
+                  style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
+                >
+                  {localText}
+                </p>
+              </Link>
+              {(localText.length > 220 || (localText.match(/\n/g) || []).length >= 4) && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); setReadMore((v) => !v); }}
@@ -173,35 +448,13 @@ function ProposalCard({
             </div>
           )}
 
-          {media.image && (
-            <>
-              {!imageLoaded && (
-                <div className="flex h-52 w-full items-center justify-center rounded-[18px] bg-[var(--gray)] shadow-sm">
-                  <img src="./spinner.svg" alt="loading" />
-                </div>
-              )}
-              <div
-                className={`flex w-full flex-col items-center justify-center overflow-hidden rounded-[18px] shadow-sm ${
-                  !imageZoom
-                    ? "bg-[var(--gray)]"
-                    : "fixed left-0 top-0 z-[9999] h-screen w-screen rounded-none bg-black p-5"
-                }`}
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setImageZoom(true); }}
-              >
-                {imageZoom && (
-                  <IoMdArrowRoundBack
-                    className="absolute left-5 top-5 cursor-pointer text-3xl text-white"
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setImageZoom(false); }}
-                  />
-                )}
-                <img
-                  src={getFullImageUrl(media.image)}
-                  alt={title}
-                  className={`max-h-[32rem] w-full object-cover ${imageLoaded ? "" : "hidden"}`}
-                  onLoad={() => setImageLoaded(true)}
-                />
-              </div>
-            </>
+          {displayImages.length > 0 && (
+            <MediaGallery
+              images={displayImages}
+              layout={mediaLayout}
+              title={title}
+              getUrl={getFullImageUrl}
+            />
           )}
 
           {displayVideo && (
@@ -210,7 +463,7 @@ function ProposalCard({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); setVideoOpen(true); }}
-                  className="relative aspect-video w-full overflow-hidden rounded-[1.15rem] bg-[var(--gray)] shadow-sm"
+                  className="mobile-media-bleed relative aspect-video w-full overflow-hidden rounded-[1.15rem] bg-[var(--gray)] shadow-sm"
                 >
                   <img
                     src={videoThumbnail}
@@ -223,14 +476,14 @@ function ProposalCard({
                     <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(255,59,48,0.94)] text-[1.4rem] text-white shadow-[0_0_24px_rgba(255,59,48,0.45)]">▶</span>
                   </div>
                 </button>
-              ) : (
+              ) : youtubeId ? (
                 <>
                   {!videoLoaded && (
-                    <div className="flex h-52 w-full items-center justify-center rounded-[18px] bg-[var(--gray)] shadow-sm">
+                    <div className="mobile-media-bleed flex h-52 w-full items-center justify-center rounded-[18px] bg-[var(--gray)] shadow-sm">
                       <img src="./spinner.svg" alt="loading" />
                     </div>
                   )}
-                  <div className={`aspect-video w-full overflow-hidden rounded-[18px] bg-[var(--gray)] shadow-sm ${videoLoaded ? "" : "hidden"}`}>
+                  <div className={`mobile-media-bleed aspect-video w-full overflow-hidden rounded-[18px] bg-[var(--gray)] shadow-sm ${videoLoaded ? "" : "hidden"}`}>
                     <iframe
                       src={getEmbedUrl(displayVideo)}
                       title="Video"
@@ -244,10 +497,19 @@ function ProposalCard({
                     />
                   </div>
                 </>
+              ) : (
+                <div className="mobile-media-bleed aspect-video w-full overflow-hidden rounded-[18px] bg-[var(--gray)] shadow-sm">
+                  <video
+                    src={getFullImageUrl(displayVideo)}
+                    controls
+                    preload="metadata"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               )}
             </>
           )}
-        </Link>
+        </div>
 
         {displayLink && (
           <div className="flex items-center gap-3 rounded-[0.8rem] bg-[rgba(255,255,255,0.05)] p-4 hover:bg-[rgba(255,255,255,0.08)] transition-colors">
@@ -264,21 +526,28 @@ function ProposalCard({
           </div>
         )}
 
-        {media.file && (
-          <span
-            onClick={(e) => { e.stopPropagation(); window.open(getFullImageUrl(media.file), "_blank"); }}
+        {displayFile && isPdfFile && (
+          <div className="mobile-media-bleed">
+            <PdfPager src={displayFile} title={`${title || "Post"} PDF`} />
+          </div>
+        )}
+
+        {displayFile && !isPdfFile && (
+          <a
+            href={displayFile}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
             className="flex w-fit cursor-pointer items-center gap-2 rounded-full bg-[var(--blue)] px-3 py-2 text-white shadow-[var(--shadow-blue)]"
-            role="button" tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.open(getFullImageUrl(media.file), "_blank"); } }}
           >
             <FaFileAlt className="text-[1.2rem]" />
-            <p>Download file</p>
-          </span>
+            <p>View document</p>
+          </a>
         )}
 
         {/* ── Unified action bar: [voting] ··· [comment · bookmark · share] ── */}
         <div
-          className="flex w-full items-center gap-2 rounded-full bg-[rgba(255,255,255,0.04)] px-2.5 py-1.5"
+          className="mt-0.5 flex w-full items-center gap-2 rounded-[0.8rem] bg-[rgba(255,255,255,0.026)] px-1.5 py-1.5"
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
         >
           {/* Left: voting controls */}
@@ -289,19 +558,13 @@ function ProposalCard({
               initialDislikes={dislikes.length}
               initialLikesList={likes}
               initialDislikesList={dislikes}
-              initialClicked={
-                likes.some((v) => v.voter === userData?.name)
-                  ? "like"
-                  : dislikes.some((v) => v.voter === userData?.name)
-                  ? "dislike"
-                  : null
-              }
+              initialClicked={userVote || null}
               proposalId={id}
             />
           </div>
 
           {/* Right: comment · bookmark · share */}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             {/* Comment toggle */}
             <button
               type="button"
@@ -309,7 +572,7 @@ function ProposalCard({
               className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors ${
                 showComments
                   ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                  : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
               }`}
             >
               <FaCommentAlt className="text-[0.72rem]" />
@@ -322,8 +585,8 @@ function ProposalCard({
               onClick={() => setBookmarked((v) => !v)}
               className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
                 bookmarked
-                  ? "bg-[rgba(255,255,255,0.14)] text-[var(--blue)]"
-                  : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+                  ? "bg-[rgba(255,255,255,0.12)] text-[var(--blue)]"
+                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
               }`}
               title={bookmarked ? "Remove bookmark" : "Bookmark"}
             >
@@ -336,8 +599,8 @@ function ProposalCard({
               onClick={handleShare}
               className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
                 copied
-                  ? "bg-[rgba(255,255,255,0.14)] text-green-400"
-                  : "bg-[rgba(255,255,255,0.06)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.12)]"
+                  ? "bg-[rgba(255,255,255,0.12)] text-green-400"
+                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
               }`}
               title={copied ? "Link copied!" : "Share"}
             >

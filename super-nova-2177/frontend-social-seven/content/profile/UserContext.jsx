@@ -2,12 +2,14 @@
 
 import { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import supabase, { isSupabaseConfigured } from "@/supabaseClient";
+import { API_BASE_URL } from "@/utils/apiBase";
 
 const UserContext = createContext();
 
 const GUEST_STORAGE_KEY = "supernova_social_six_guest";
 const CUSTOM_STORAGE_PREFIX = "supernova_social_six_custom::";
-const DEFAULT_AVATAR = "/default-avatar.png";
+const PASSWORD_SESSION_KEY = "supernova_password_session";
+const DEFAULT_AVATAR = "/supernova.png";
 
 function calculateInitials(name) {
   if (!name || !name.trim()) return "";
@@ -46,9 +48,10 @@ function removeStorage(key) {
   }
 }
 
-function getCustomStorageKey(authUser) {
-  if (!authUser?.id) return GUEST_STORAGE_KEY;
-  return `${CUSTOM_STORAGE_PREFIX}${authUser.id}`;
+function getCustomStorageKey(authUser, passwordAuth) {
+  const identityId = authUser?.id || passwordAuth?.id;
+  if (!identityId) return GUEST_STORAGE_KEY;
+  return `${CUSTOM_STORAGE_PREFIX}${identityId}`;
 }
 
 function getProviderProfile(authUser) {
@@ -77,7 +80,34 @@ function getProviderProfile(authUser) {
   };
 }
 
+function getPasswordProfile(passwordAuth) {
+  if (!passwordAuth) return null;
+  return {
+    id: passwordAuth.id || passwordAuth.username || null,
+    email: passwordAuth.email || "",
+    name: passwordAuth.username || "",
+    avatar: passwordAuth.avatar || "",
+    provider: "password",
+  };
+}
+
 function mergeUserData(providerProfile, storedProfile = {}) {
+  if (!providerProfile.id) {
+    const species = storedProfile.species || "human";
+    return {
+      id: null,
+      email: "",
+      provider: "guest",
+      isAuthenticated: false,
+      species,
+      avatar: "",
+      providerAvatar: "",
+      name: "",
+      providerName: "",
+      initials: "SN",
+    };
+  }
+
   const effectiveName = storedProfile.customName || providerProfile.name || "";
   const effectiveAvatar = storedProfile.customAvatar || providerProfile.avatar || "";
   const species = storedProfile.species || "human";
@@ -98,14 +128,20 @@ function mergeUserData(providerProfile, storedProfile = {}) {
 
 export function UserProvider({ children }) {
   const [session, setSession] = useState(null);
+  const [passwordAuth, setPasswordAuth] = useState(null);
   const [storedProfile, setStoredProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const authUser = session?.user ?? null;
-  const providerProfile = useMemo(() => getProviderProfile(authUser), [authUser]);
+  const providerProfile = useMemo(
+    () => getPasswordProfile(!authUser ? passwordAuth : null) || getProviderProfile(authUser),
+    [authUser, passwordAuth]
+  );
 
   useEffect(() => {
-    const initialStored = readStorage(GUEST_STORAGE_KEY) || {};
+    const savedPasswordAuth = readStorage(PASSWORD_SESSION_KEY);
+    const initialStored = readStorage(getCustomStorageKey(null, savedPasswordAuth)) || readStorage(GUEST_STORAGE_KEY) || {};
+    if (savedPasswordAuth?.token) setPasswordAuth(savedPasswordAuth);
     setStoredProfile(initialStored);
 
     if (!isSupabaseConfigured || !supabase) {
@@ -119,7 +155,8 @@ export function UserProvider({ children }) {
       if (!mounted) return;
       const nextSession = data?.session ?? null;
       setSession(nextSession);
-      const key = getCustomStorageKey(nextSession?.user ?? null);
+      if (nextSession?.user) setPasswordAuth(null);
+      const key = getCustomStorageKey(nextSession?.user ?? null, nextSession?.user ? null : savedPasswordAuth);
       setStoredProfile(readStorage(key) || {});
       setAuthLoading(false);
     });
@@ -129,7 +166,8 @@ export function UserProvider({ children }) {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession ?? null);
-      const key = getCustomStorageKey(nextSession?.user ?? null);
+      if (nextSession?.user) setPasswordAuth(null);
+      const key = getCustomStorageKey(nextSession?.user ?? null, nextSession?.user ? null : savedPasswordAuth);
       setStoredProfile(readStorage(key) || {});
       setAuthLoading(false);
     });
@@ -145,33 +183,155 @@ export function UserProvider({ children }) {
     [providerProfile, storedProfile]
   );
 
+  useEffect(() => {
+    if (!providerProfile.id || providerProfile.provider === "guest") return undefined;
+
+    let cancelled = false;
+    const username =
+      userData.name ||
+      providerProfile.name ||
+      providerProfile.email?.split("@")[0] ||
+      `${providerProfile.provider}-${providerProfile.id.slice(0, 8)}`;
+
+    fetch(`${API_BASE_URL}/auth/social/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: providerProfile.provider,
+        provider_id: providerProfile.id,
+        email: providerProfile.email,
+        username,
+        avatar_url: userData.avatar || providerProfile.avatar || "",
+        species: userData.species || "human",
+      }),
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (cancelled || !payload?.username) return;
+      })
+      .catch(() => {
+        // Social auth remains usable even if the local backend is offline.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    providerProfile.avatar,
+    providerProfile.email,
+    providerProfile.id,
+    providerProfile.name,
+    providerProfile.provider,
+    userData.avatar,
+    userData.name,
+    userData.species,
+  ]);
+
   const persistProfile = useCallback((nextStored) => {
-    const key = getCustomStorageKey(authUser);
+    const key = getCustomStorageKey(authUser, passwordAuth);
     writeStorage(key, nextStored);
     setStoredProfile(nextStored);
-  }, [authUser]);
+  }, [authUser, passwordAuth]);
 
   const setUserData = useCallback((update) => {
-    setStoredProfile((prev) => {
-      const previous = prev || {};
-      const current = mergeUserData(providerProfile, previous);
-      const patch = typeof update === "function" ? update(current) : update;
-      const nextStored = {
-        species: patch?.species || current.species || "human",
-        customName: typeof patch?.name === "string" ? patch.name : previous.customName || "",
-        customAvatar: typeof patch?.avatar === "string" ? patch.avatar : previous.customAvatar || "",
-      };
-      const key = getCustomStorageKey(authUser);
-      writeStorage(key, nextStored);
-      return nextStored;
-    });
-  }, [authUser, providerProfile]);
+    const previous = storedProfile || {};
+    const current = mergeUserData(providerProfile, previous);
+    const patch = typeof update === "function" ? update(current) : update;
+    const nextStored = {
+      species: patch?.species || current.species || "human",
+      customName: typeof patch?.name === "string" ? patch.name : previous.customName || current.name || "",
+      customAvatar: typeof patch?.avatar === "string" ? patch.avatar : previous.customAvatar || current.avatar || "",
+    };
+    const key = getCustomStorageKey(authUser, passwordAuth);
+    writeStorage(key, nextStored);
+    setStoredProfile(nextStored);
+
+    const username = nextStored.customName || current.name || providerProfile.name || passwordAuth?.username || "";
+    const shouldSyncProfile =
+      Boolean(passwordAuth?.token) || Boolean(providerProfile.id && providerProfile.provider !== "guest");
+    if (username && shouldSyncProfile) {
+      fetch(`${API_BASE_URL}/profile/${encodeURIComponent(username)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          avatar_url: nextStored.customAvatar || "",
+          species: nextStored.species || "human",
+        }),
+      }).catch(() => {
+        // Local profile stays usable if backend sync is temporarily unavailable.
+      });
+    }
+
+    if (passwordAuth?.token) {
+      setPasswordAuth((prev) => {
+        if (!prev) return prev;
+        const nextAuth = {
+          ...prev,
+          avatar: nextStored.customAvatar || "",
+          species: nextStored.species || "human",
+        };
+        writeStorage(PASSWORD_SESSION_KEY, nextAuth);
+        return nextAuth;
+      });
+    }
+  }, [authUser, passwordAuth, providerProfile, storedProfile]);
 
   const resetCustomProfile = useCallback(() => {
-    const key = getCustomStorageKey(authUser);
+    const key = getCustomStorageKey(authUser, passwordAuth);
     removeStorage(key);
     setStoredProfile({});
-  }, [authUser]);
+  }, [authUser, passwordAuth]);
+
+  const applyPasswordSession = useCallback((payload) => {
+    const authPayload = {
+      token: payload.access_token,
+      id: payload.user?.id || payload.user?.username,
+      username: payload.user?.username || "",
+      email: payload.user?.email || "",
+      avatar: payload.user?.avatar_url || payload.user?.profile_pic || "",
+      species: payload.user?.species || "human",
+    };
+    writeStorage(PASSWORD_SESSION_KEY, authPayload);
+    setSession(null);
+    setPasswordAuth(authPayload);
+    const key = getCustomStorageKey(null, authPayload);
+    const savedProfile = readStorage(key) || {};
+    const savedAvatar = savedProfile.customAvatar && savedProfile.customAvatar !== "default.jpg"
+      ? savedProfile.customAvatar
+      : "";
+    setStoredProfile({
+      species: savedProfile.species || authPayload.species,
+      customName: savedProfile.customName || authPayload.username,
+      customAvatar: authPayload.avatar || savedAvatar,
+    });
+    return authPayload;
+  }, []);
+
+  const loginWithPassword = useCallback(async ({ username, password }) => {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.detail || "Unable to sign in.");
+    }
+    return applyPasswordSession(payload);
+  }, [applyPasswordSession]);
+
+  const registerWithPassword = useCallback(async ({ username, password, email, species }) => {
+    const response = await fetch(`${API_BASE_URL}/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, email, species }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.detail || "Unable to create account.");
+    }
+    return loginWithPassword({ username, password });
+  }, [loginWithPassword]);
 
   const loginWithProvider = useCallback(async (provider) => {
     if (!supabase || !isSupabaseConfigured) {
@@ -201,6 +361,8 @@ export function UserProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    removeStorage(PASSWORD_SESSION_KEY);
+    setPasswordAuth(null);
     if (!supabase || !isSupabaseConfigured) {
       setSession(null);
       setStoredProfile(readStorage(GUEST_STORAGE_KEY) || {});
@@ -221,9 +383,12 @@ export function UserProvider({ children }) {
         defaultAvatar: DEFAULT_AVATAR,
         authLoading,
         authConfigured: isSupabaseConfigured,
-        isAuthenticated: Boolean(session?.user),
+        isAuthenticated: Boolean(session?.user || passwordAuth?.token),
+        passwordAuth,
         authProvider: userData.provider,
         loginWithProvider,
+        loginWithPassword,
+        registerWithPassword,
         signOut,
         session,
         persistProfile,

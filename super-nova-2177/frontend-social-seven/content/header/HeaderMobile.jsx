@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   IoAdd,
   IoChatbubbleOutline,
@@ -9,6 +11,10 @@ import {
   IoPersonOutline,
 } from "react-icons/io5";
 import LiquidGlass from "../liquid glass/LiquidGlass";
+import { useUser } from "@/content/profile/UserContext";
+import { API_BASE_URL } from "@/utils/apiBase";
+
+const READ_PREFIX = "supernova_dm_seen::";
 
 export default function HeaderMobile({
   showSettings,
@@ -16,9 +22,59 @@ export default function HeaderMobile({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { userData, isAuthenticated } = useUser();
+  const [readMarkers, setReadMarkers] = useState({});
+  const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
+  const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
+
+  const conversationsQuery = useQuery({
+    queryKey: ["direct-conversations", currentUser],
+    enabled: Boolean(isAuthenticated && currentUser),
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`);
+      if (!response.ok) throw new Error("Failed to load conversations");
+      return response.json();
+    },
+    refetchInterval: 8000,
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refreshMarkers = () => {
+      const nextMarkers = {};
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(readKey)) {
+          nextMarkers[key.slice(readKey.length)] = localStorage.getItem(key) || "";
+        }
+      }
+      setReadMarkers(nextMarkers);
+    };
+    refreshMarkers();
+    window.addEventListener("storage", refreshMarkers);
+    window.addEventListener("supernova:dm-read", refreshMarkers);
+    return () => {
+      window.removeEventListener("storage", refreshMarkers);
+      window.removeEventListener("supernova:dm-read", refreshMarkers);
+    };
+  }, [readKey]);
+
+  const unreadCount = useMemo(() => {
+    return (conversationsQuery.data?.conversations || []).filter((conversation) => {
+      const message = conversation.last_message || {};
+      if (message.recipient?.toLowerCase() !== currentUser.toLowerCase()) return false;
+      const peerKey = conversation.peer?.toLowerCase();
+      return peerKey && (readMarkers[peerKey] || "") < (message.created_at || "");
+    }).length;
+  }, [conversationsQuery.data, currentUser, readMarkers]);
 
   const triggerComposer = () => {
+    if (!isAuthenticated) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
     if (typeof document === "undefined") return;
+    setShowSettings(false);
     const button = document.getElementById("global-create-post-btn");
     if (button) {
       // If we are already on the home feed, just click the hidden toggle button and scroll up
@@ -32,12 +88,12 @@ export default function HeaderMobile({
   };
 
   const items = [
-    { key: "home", label: "Home", icon: IoHome, onClick: () => router.push("/") },
+    { key: "home", label: "Home", icon: IoHome, onClick: () => { setShowSettings(false); router.push("/"); } },
     {
       key: "discover",
       label: "Discover",
       icon: IoCompassOutline,
-      onClick: () => router.push("/proposals"),
+      onClick: () => { setShowSettings(false); router.push("/proposals"); },
     },
     {
       key: "create",
@@ -50,7 +106,14 @@ export default function HeaderMobile({
       key: "messages",
       label: "Messages",
       icon: IoChatbubbleOutline,
-      onClick: () => router.push("/messages"),
+      onClick: () => {
+        if (!isAuthenticated) {
+          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+          return;
+        }
+        setShowSettings(false);
+        router.push("/messages");
+      },
     },
     {
       key: "profile",
@@ -71,10 +134,10 @@ export default function HeaderMobile({
   };
 
   return (
-    <div className="fixed bottom-3 left-1/2 z-[9000] shell-fixed -translate-x-1/2 md:bottom-4">
+    <div data-mobile-nav className="mobile-bottom-shell fixed inset-x-0 bottom-0 z-[9400] w-full">
       <div className="relative">
-        <LiquidGlass className="rounded-[1.75rem] px-2.5 py-2">
-          <div className="grid grid-cols-5 items-center gap-1 sm:gap-2">
+        <LiquidGlass className="mobile-bottom-nav rounded-[1.75rem] px-0 py-0">
+          <div className="mobile-nav-grid grid grid-cols-5 items-center gap-1">
             {items.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.key);
@@ -84,11 +147,13 @@ export default function HeaderMobile({
                   <button
                     key={item.key}
                     type="button"
+                    aria-label="Create post"
+                    onMouseDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
                       event.stopPropagation();
                       item.onClick();
                     }}
-                    className="mx-auto flex h-12 w-12 translate-y-0 items-center justify-center self-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] sm:h-14 sm:w-14 sm:translate-y-0"
+                    className="mobile-nav-primary mx-auto flex h-12 w-12 translate-y-0 items-center justify-center self-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
                   >
                     <Icon className="text-[1.55rem]" />
                   </button>
@@ -99,19 +164,29 @@ export default function HeaderMobile({
                 <button
                   key={item.key}
                   type="button"
+                  aria-label={item.label}
+                  onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.stopPropagation();
                     item.onClick();
                   }}
-                  className="flex min-h-[3.6rem] flex-col items-center justify-center gap-1 rounded-[1rem] px-1 py-2"
+                  className="mobile-nav-item relative flex min-h-[3.6rem] flex-col items-center justify-center gap-1 rounded-[1rem] px-1 py-2"
                 >
                   <Icon
-                    className={`text-[1.24rem] sm:text-[1.32rem] ${
+                    className={`text-[1.34rem] ${
                       active ? "text-[var(--pink)]" : "text-[var(--text-gray-light)]"
                     }`}
                   />
+                  {item.key === "messages" && unreadCount > 0 && (
+                    <span className="absolute right-[30%] top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--pink)] px-1 text-[0.56rem] font-bold text-white shadow-[var(--shadow-pink)]">
+                      {Math.min(unreadCount, 9)}
+                    </span>
+                  )}
+                  {active && (
+                    <span className="absolute bottom-1.5 h-1 w-1 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />
+                  )}
                   <span
-                    className={`text-center text-[0.64rem] sm:text-[0.7rem] ${
+                    className={`mobile-nav-label text-center text-[0.64rem] ${
                       active ? "font-semibold text-[var(--pink)]" : "text-[var(--text-gray-light)]"
                     }`}
                   >

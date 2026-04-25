@@ -1,7 +1,10 @@
 "use client";
+import { useEffect, useState } from "react";
 import Header from "@/content/header/Header";
 import HeaderMobile from "@/content/header/HeaderMobile";
 import Settings from "@/content/header/content/Settings";
+import AccountModal from "@/content/profile/AccountModal";
+import { useUser } from "@/content/profile/UserContext";
 
 export default function HeaderWrapper({
   setErrorMsg,
@@ -10,6 +13,24 @@ export default function HeaderWrapper({
   showSettings,
   setShowSettings,
 }) {
+  const [authIntent, setAuthIntent] = useState(null);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const { isAuthenticated } = useUser();
+
+  useEffect(() => {
+    const openAccount = (event) => {
+      setAuthIntent({
+        mode: event.detail?.mode === "login" ? "login" : "create",
+        nonce: Date.now(),
+      });
+      setErrorMsg([]);
+      setShowSettings(false);
+      setAccountModalOpen(true);
+    };
+    window.addEventListener("supernova:open-account", openAccount);
+    return () => window.removeEventListener("supernova:open-account", openAccount);
+  }, [setErrorMsg, setShowSettings]);
+
   return (
     <>
       <Header
@@ -21,9 +42,10 @@ export default function HeaderWrapper({
       />
       <span id="createPost"></span>
       {showSettings && (
-        <div className="pointer-events-none fixed bottom-[calc(5.6rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[9055] w-[min(calc(100vw-1rem),22rem)] -translate-x-1/2 px-2">
+        <div className="mobile-settings-sheet pointer-events-none fixed bottom-[calc(5.6rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[9200] w-[min(calc(100vw-1.25rem),21rem)] -translate-x-1/2 px-0">
           <div className="pointer-events-auto">
             <Settings
+              authIntent={authIntent}
               setNotify={setNotify}
               errorMsg={errorMsg}
               setErrorMsg={setErrorMsg}
@@ -38,6 +60,11 @@ export default function HeaderWrapper({
         setNotify={setNotify}
         errorMsg={errorMsg}
         setErrorMsg={setErrorMsg}
+      />
+      <AccountModal
+        open={accountModalOpen && !isAuthenticated}
+        initialMode={authIntent?.mode || "create"}
+        onClose={() => setAccountModalOpen(false)}
       />
     </>
   );

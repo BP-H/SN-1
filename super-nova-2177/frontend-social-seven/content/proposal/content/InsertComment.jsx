@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useUser } from "@/content/profile/UserContext";
-import { API_BASE_URL } from "@/utils/apiBase";
+import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 
 function InsertComment({
   proposalId,
@@ -9,15 +9,27 @@ function InsertComment({
   setErrorMsg = () => {},
   setLocalComments = () => {},
 }) {
-  const { userData, defaultAvatar } = useUser();
+  const { userData, defaultAvatar, isAuthenticated } = useUser();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isValidImage = (url) => {
-    return /\.(jpeg|jpg|png|webp|gif)$/i.test(url);
+  const getImageUrl = (url) => {
+    const value = String(url || "").trim();
+    if (!value || value === "default.jpg") return "";
+    if (value.startsWith("data:") || value.startsWith("blob:")) return value;
+    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    if (value.startsWith("/")) return absoluteApiUrl(value);
+    return value;
   };
 
   const handlePublish = async () => {
+    if (!isAuthenticated) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      }
+      return;
+    }
+
     const errors = [];
     if (!userData?.name) errors.push("User name is missing.");
     if (!proposalId) errors.push("Proposal ID is missing.");
@@ -29,10 +41,7 @@ function InsertComment({
     }
 
     // só aqui se faz o fetch
-    let avatar = defaultAvatar || userData.initials;
-    if (userData.avatar && isValidImage(userData.avatar)) {
-      avatar = userData.avatar;
-    }
+    const avatar = String(userData.avatar || "").trim();
 
     setLoading(true);
     try {
@@ -83,20 +92,21 @@ function InsertComment({
   };
 
   const [imgError, setImgError] = useState(false);
+  const avatarSrc = isAuthenticated ? getImageUrl(userData.avatar) || defaultAvatar : defaultAvatar;
 
   return (
     <div className="mb-3 flex w-full min-w-0 items-center gap-2">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--gray)] shadow-sm">
-        {userData.avatar && isValidImage(userData.avatar) && !imgError ? (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--gray)] shadow-sm">
+        {avatarSrc && !imgError ? (
           <img
-            src={userData.avatar}
+            src={avatarSrc}
             alt={userData.name}
-            className="object-cover w-10 h-10 rounded-full"
+            className="h-9 w-9 rounded-full object-cover"
             onError={() => setImgError(true)}
           />
         ) : (
           <span className="font-bold text-[var(--text-black)]">
-            {userData.initials}
+            {userData.initials || "SN"}
           </span>
         )}
       </div>
@@ -105,7 +115,7 @@ function InsertComment({
         placeholder="Insert Comment"
         value={comment}
         onChange={(e) => setComment(e.target.value)}
-        className="h-10 min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.05)] px-4 text-[0.88rem] text-[var(--text-black)] outline-none placeholder:text-[var(--text-gray-light)]"
+        className="h-10 min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.045)] px-4 text-[0.88rem] text-[var(--text-black)] outline-none placeholder:text-[var(--text-gray-light)]"
       />
       <button
         type="button"

@@ -6,6 +6,22 @@ import Error from "@/content/Error";
 import Notification from "@/content/Notification";
 import { API_BASE_URL } from "@/utils/apiBase";
 
+function formatRelativeTime(dateString) {
+  if (!dateString) return "now";
+  const raw = String(dateString);
+  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw}Z`);
+  if (Number.isNaN(date.getTime())) return "now";
+  const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffSec >= 10 && diffSec < 60) return `${diffSec}s`;
+  if (diffDays > 0) return `${diffDays}d`;
+  if (diffHours > 0) return `${diffHours}h`;
+  if (diffMin > 0) return `${diffMin}m`;
+  return "now";
+}
+
 export default function ProposalClient({ id }) {
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +58,7 @@ export default function ProposalClient({ id }) {
         id={proposal.id}
         userName={proposal.userName}
         userInitials={proposal.userInitials}
-        time={proposal.time}
+        time={formatRelativeTime(proposal.time)}
         title={proposal.title}
         text={proposal.text}
         logo={proposal.author_img}

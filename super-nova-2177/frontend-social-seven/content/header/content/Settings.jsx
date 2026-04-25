@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
-import LiquidGlass from "@/content/liquid glass/LiquidGlass";
 import Profile from "@/content/profile/Profile";
 
-export default function Settings({ errorMsg, setErrorMsg, setNotify, onClose }) {
+export default function Settings({ errorMsg, setErrorMsg, setNotify, onClose, authIntent }) {
   const settingsRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
+      if (event.target.closest("[data-mobile-nav]")) {
+        return;
+      }
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
         onClose?.();
       }
@@ -21,18 +23,26 @@ export default function Settings({ errorMsg, setErrorMsg, setNotify, onClose }) 
   return (
     <div
       ref={settingsRef}
-      className="w-full max-w-[21.5rem]"
+      className="mobile-settings-card w-full max-w-[21.5rem]"
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <LiquidGlass className="w-full rounded-[1.6rem] p-3">
+      <div className="profile-settings-glass-shell w-full">
+        <div className="profile-settings-glass-effect" />
+        <div className="profile-settings-glass-tint" />
+        <div className="profile-settings-glass-shine" />
         <div
           onClick={(event) => event.stopPropagation()}
-          className="overflow-hidden"
+          className="profile-settings-inner relative z-[2] w-full"
         >
-          <Profile errorMsg={errorMsg} setErrorMsg={setErrorMsg} setNotify={setNotify} />
+          <Profile
+            errorMsg={errorMsg}
+            setErrorMsg={setErrorMsg}
+            setNotify={setNotify}
+            authIntent={authIntent}
+          />
         </div>
-      </LiquidGlass>
+      </div>
     </div>
   );
 }

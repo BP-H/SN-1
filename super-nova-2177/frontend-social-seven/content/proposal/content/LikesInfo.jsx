@@ -21,8 +21,8 @@ function SpeciesVoteRow({ icon: Icon, label, likes, dislikes, internalPercent, a
   const hasVotes = likes + dislikes > 0;
 
   return (
-    <div className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-3 py-2.5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] text-[var(--text-black)]">
+    <div className="vote-info-row grid w-full grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-[1rem] px-3 py-2.5">
+      <span className="vote-info-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
         <Icon />
       </span>
       <div className="min-w-0">
@@ -33,7 +33,7 @@ function SpeciesVoteRow({ icon: Icon, label, likes, dislikes, internalPercent, a
           </span>
         </div>
       </div>
-      <div className="col-start-2 h-1.5 rounded-full bg-[rgba(255,255,255,0.08)]">
+      <div className="vote-info-track col-start-2 h-1.5 rounded-full">
         <div
           className="h-full rounded-full transition-all duration-300"
           style={{
@@ -92,14 +92,14 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
   const overallApproval = Math.round(counts.supportPercent || 0);
 
   return (
-    <LiquidGlass className={`w-full rounded-[1.2rem] p-3 ${className}`.trim()}>
-      <div className="flex w-full flex-col gap-2.5">
+    <LiquidGlass className={`vote-info-glass w-full rounded-[1.2rem] p-3 ${className}`.trim()}>
+      <div className="vote-info-content flex w-full flex-col gap-2.5">
         {error ? (
           <p className="text-[0.76rem] text-red-400">{error}</p>
         ) : (
           <>
             {/* Overall weighted approval header */}
-            <div className="flex items-center justify-between rounded-[0.8rem] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+            <div className="vote-info-header flex items-center justify-between rounded-[0.8rem] px-3 py-2">
               <span className="text-[0.76rem] font-semibold text-[var(--text-black)]">
                 Weighted Approval
               </span>
@@ -107,7 +107,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                 {overallApproval}%
               </span>
             </div>
-            <div className="mx-3 mb-1 h-1 rounded-full bg-[rgba(255,255,255,0.06)]">
+            <div className="vote-info-track mx-3 mb-1 h-1 rounded-full">
               <div
                 className="h-full rounded-full transition-all duration-300"
                 style={{

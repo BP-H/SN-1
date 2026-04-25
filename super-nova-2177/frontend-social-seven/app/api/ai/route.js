@@ -5,8 +5,10 @@ const MISSING_API_KEY_MESSAGE = "Missing OPENAI_API_KEY environment variable.";
 
 export async function POST(request) {
   try {
-    const { prompt } = await request.json();
-    const apiKey = process.env.OPENAI_API_KEY;
+    const { prompt, apiKey: requestApiKey } = await request.json();
+    const apiKey =
+      process.env.OPENAI_API_KEY ||
+      (typeof requestApiKey === "string" ? requestApiKey.trim() : "");
 
     if (!apiKey) {
       return NextResponse.json(
