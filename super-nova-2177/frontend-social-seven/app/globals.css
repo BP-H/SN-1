@@ -2159,9 +2159,7 @@ html[data-theme="light"] .comment-bubble {
   background: rgba(17, 24, 39, 0.045) !important;
 }
 
-html[data-theme="light"] .ai-cursor-core,
-html[data-theme="light"] .mobile-topbar .ai-cursor-dock,
-html[data-theme="light"] .ai-cursor-dock {
+html[data-theme="light"] .ai-cursor-core {
   background:
     radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.92) 0 8%, transparent 9%),
     radial-gradient(circle at 52% 48%, rgba(255, 79, 143, 0.95), rgba(139, 109, 255, 0.92) 58%, rgba(31, 42, 60, 0.92)) !important;
@@ -2171,6 +2169,16 @@ html[data-theme="light"] .ai-cursor-dock {
     0 0 0 1px rgba(255, 255, 255, 0.12),
     0 0 20px rgba(255, 79, 143, 0.24),
     0 12px 28px rgba(0, 0, 0, 0.24) !important;
+}
+
+html[data-theme="light"] .mobile-topbar .ai-cursor-dock,
+html[data-theme="light"] .ai-cursor-dock {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(17, 24, 39, 0.1) !important;
+  color: #293043 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 8px 20px rgba(25, 30, 48, 0.08) !important;
 }
 
 html[data-theme="light"] .ai-cursor-panel {

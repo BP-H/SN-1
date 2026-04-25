@@ -11,6 +11,8 @@ This file is the current safety map for the repo. It is intentionally documentat
 - Backend production DB env var: `DATABASE_URL`
 - SuperNova Core source: `backend/supernova_2177_ui_weighted/supernovacore.py`
 - Core gateway mount: backend exposes future core routes under `/core/...`
+- Root GitHub README: `../README.md`
+- Fork manifest: `universe.fork.json`
 
 ## Active Local Surfaces
 
@@ -52,5 +54,6 @@ Silent browser sync must not overwrite an existing account species. Explicit pro
 - Keep existing social endpoints stable: `/proposals`, `/votes`, `/comments`, `/profile`, `/messages`, `/follows`, `/auth/...`.
 - Keep feed reads bounded. `/proposals` supports `limit`, `offset`, `before_id`, and `author`; frontend seven should request small slices instead of loading the whole feed.
 - Add new core-backed frontend features through `API_BASE_URL + "/core/..."`.
+- Keep `universe.fork.json` documentation-only until deliberate fork tooling is added.
 - Railway should provide `DATABASE_URL`; the runtime wrapper preserves that and does not force local SQLite in production.
 - Vercel should set `NEXT_PUBLIC_API_URL` to the Railway backend URL without a trailing slash.

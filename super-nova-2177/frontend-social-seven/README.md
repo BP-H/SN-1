@@ -1,40 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Frontend Social Seven
 
-## Getting Started
+This is the active SuperNova 2177 social frontend. It is the production-facing Next.js app for the current social network surface: feed, proposals, comments, likes, profiles, messages, follows, uploads, desktop shell, mobile shell, and auth flows.
 
-First, run the development server:
+The backend source of truth is the FastAPI wrapper at `../backend/app.py`. SuperNova Core is reached through that wrapper under `/core/...`; frontend code should not import or duplicate `supernovacore.py` logic.
 
-```bash
+## Local Development
+
+From this folder:
+
+```powershell
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app runs on `http://localhost:3007`.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+From the repo app folder, the preferred local launcher is:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+cd super-nova-2177
+.\start_frontend_social_seven.ps1
+```
 
-## Environment variables
+## Environment Variables
 
-An optional `OPENAI_API_KEY` can be set to enable responses from the `/api/ai` route. When the variable is missing, the endpoint short-circuits and returns a message indicating that the API key is required instead of attempting to reach OpenAI.
+Required for backend connectivity:
 
-## Learn More
+```env
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+```
 
-To learn more about Next.js, take a look at the following resources:
+Optional for Supabase OAuth:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-key
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Set the same variables in Vercel. For production, `NEXT_PUBLIC_API_URL` should be the Railway backend URL with no trailing slash.
 
-## Deploy on Vercel
+See `SOCIAL_AUTH_SETUP.md` for Google, Facebook, and GitHub OAuth setup details.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API Rules
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Use `utils/apiBase.js` for backend URLs.
+- Existing social screens call stable routes like `/proposals`, `/comments`, `/votes`, `/profile`, `/messages`, `/follows`, and `/auth/...`.
+- New SuperNova Core features should use `coreApiUrl(path)`, which points to `NEXT_PUBLIC_API_URL + "/core/..."`.
+- Keep feed requests bounded with `limit`, `offset`, `before_id`, or `author`.
+
+## Build Checks
+
+Before pushing frontend changes:
+
+```powershell
+npm run build
+```
+
+## Contributor Notes
+
+- Keep mobile behavior stable; it is the known-good baseline.
+- Desktop improvements should reuse the same data contracts and auth state.
+- Do not allow local session profile images to overwrite uploaded backend avatars.
+- Preserve the species keys `human`, `ai`, and `company`.
+- Keep the open-source GitHub link aligned with `https://github.com/BP-H/SN-1`.
+
+## Optional AI Route
+
+An optional `OPENAI_API_KEY` can enable responses from the local `/api/ai` route. When it is missing, the endpoint returns a clear setup message instead of calling OpenAI.

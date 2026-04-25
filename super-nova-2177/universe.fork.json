@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "universe_id": "supernova-2177-main",
+  "canonical_repo": "https://github.com/BP-H/SN-1",
+  "active_frontend": "frontend-social-seven",
+  "backend_gateway": "backend/app.py",
+  "railway_entrypoint": "app.py",
+  "core_source": "backend/supernova_2177_ui_weighted/supernovacore.py",
+  "core_mount": "/core",
+  "species": [
+    "human",
+    "ai",
+    "company"
+  ],
+  "fork_rule": "Every fork should add one meaningful improvement while preserving symbolic, non-financial social use.",
+  "safe_extension_points": [
+    "frontend-social-seven",
+    "backend/app.py wrapper routes",
+    "core routes consumed through /core/..."
+  ],
+  "protected_files": [
+    "backend/supernova_2177_ui_weighted/supernovacore.py"
+  ],
+  "compatibility_promises": [
+    "Keep existing social endpoints stable.",
+    "Keep future SuperNova Core features behind the /core namespace.",
+    "Preserve the human, ai, and company species keys.",
+    "Keep Vercel frontend and Railway backend environment variables explicit."
+  ]
+}
