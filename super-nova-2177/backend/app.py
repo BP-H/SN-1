@@ -1903,6 +1903,9 @@ def read_current_user(
 def list_proposals(
     filter: str = Query("all"),
     search: Optional[str] = Query(None),
+    author: Optional[str] = Query(None),
+    limit: int = Query(80, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     """
@@ -1913,6 +1916,7 @@ def list_proposals(
     try:
         # --- ORM MODE ---
         if CRUD_MODELS_AVAILABLE:
+            from sqlalchemy import func, case
             query = db.query(Proposal)
 
             # SEARCH
@@ -1924,9 +1928,10 @@ def list_proposals(
                         Proposal.description.ilike(search_filter)
                     )
                 )
+            if author and author.strip():
+                query = query.filter(func.lower(Proposal.userName) == author.strip().lower())
 
             # FILTERS
-            from sqlalchemy import func, case
             filter = (filter or "all").lower()
             # Sorting/Filtering logic
             if filter == "latest":
@@ -1949,10 +1954,19 @@ def list_proposals(
                 vote_count = func.sum(case((ProposalVote.vote == "up", 1), else_=0)).label("upvote_count")
                 query = db.query(Proposal, vote_count)\
                           .outerjoin(ProposalVote, Proposal.id == ProposalVote.proposal_id)\
-                          .filter(Proposal.created_at >= since)\
-                          .group_by(Proposal.id)\
-                          .order_by(desc(vote_count))
-                proposals = [p for p, _ in query.all()]
+                          .filter(Proposal.created_at >= since)
+                if search and search.strip():
+                    search_filter = f"%{search.strip()}%"
+                    query = query.filter(
+                        or_(
+                            Proposal.title.ilike(search_filter),
+                            Proposal.description.ilike(search_filter)
+                        )
+                    )
+                if author and author.strip():
+                    query = query.filter(func.lower(Proposal.userName) == author.strip().lower())
+                query = query.group_by(Proposal.id).order_by(desc(vote_count))
+                proposals = [p for p, _ in query.offset(offset).limit(limit).all()]
             elif filter == "ai":
                 query = query.filter(Proposal.author_type == "ai").order_by(desc(Proposal.created_at))
             elif filter == "company":
@@ -1964,7 +1978,7 @@ def list_proposals(
                 query = query.order_by(desc(Proposal.id))
 
             if filter != "popular":
-                proposals = query.all()
+                proposals = query.offset(offset).limit(limit).all()
 
         # --- FALLBACK (RAW SQL) ---
         else:
@@ -1989,9 +2003,12 @@ def list_proposals(
             params = {}
             if search and search.strip():
                 where_clauses.append(
-                    "(title ILIKE :search OR description ILIKE :search OR userName ILIKE :search)"
+                    "(LOWER(title) LIKE LOWER(:search) OR LOWER(description) LIKE LOWER(:search) OR LOWER(userName) LIKE LOWER(:search))"
                 )
                 params["search"] = f"%{search}%"
+            if author and author.strip():
+                where_clauses.append("LOWER(userName) = LOWER(:author)")
+                params["author"] = author.strip()
 
             # FILTERS
             if filter_sql == "latest":
@@ -2042,6 +2059,9 @@ def list_proposals(
                     base_query += " WHERE " + " AND ".join(where_clauses)
                 if order_clause:
                     base_query += f" {order_clause}"
+            base_query += " LIMIT :limit OFFSET :offset"
+            params["limit"] = limit
+            params["offset"] = offset
             proposals = db.execute(text(base_query), params).fetchall()
 
         # --- SERIALIZATION ---

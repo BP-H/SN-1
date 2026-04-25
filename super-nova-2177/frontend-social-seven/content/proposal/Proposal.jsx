@@ -101,7 +101,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
       };
 
       const filterParam = filterMap[filter];
-      let url = `${API_BASE_URL}/proposals?filter=${filterParam}`;
+      let url = `${API_BASE_URL}/proposals?filter=${filterParam}&limit=80`;
       if (search.trim()) {
         url += `&search=${encodeURIComponent(search.trim())}`;
       }

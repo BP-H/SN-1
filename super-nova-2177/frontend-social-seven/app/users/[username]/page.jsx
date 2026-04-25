@@ -51,7 +51,9 @@ export default function UserPostsPage() {
     queryKey: ["user-posts", username],
     enabled: Boolean(username),
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest`);
+      const response = await fetch(
+        `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=100`
+      );
       if (!response.ok) throw new Error("Failed to load posts");
       return response.json();
     },

@@ -117,7 +117,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const { data: posts, isLoading } = useQuery({
     queryKey: ["home-feed", activeBE],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest`);
+      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=80`);
       if (!response.ok) throw new Error("Failed to fetch posts");
       return response.json();
     },
