@@ -4,13 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IoLockClosedOutline, IoPaperPlaneOutline, IoSearchOutline } from "react-icons/io5";
-import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
 function avatarUrl(value) {
-  if (!value) return "";
-  if (value === "default.jpg") return "";
-  return value.startsWith("/") ? absoluteApiUrl(value) : value;
+  return normalizeAvatarValue(value) ? avatarDisplayUrl(value) : "";
 }
 
 function initials(name = "SN") {
@@ -220,6 +219,7 @@ export default function MessagesPage() {
 
   const selectedUser = peers.find((peer) => peer.username === selectedPeer);
   const messages = threadQuery.data?.messages || [];
+  const selectedAvatar = avatarUrl(selectedUser?.avatar);
 
   const selectPeer = (username) => {
     if (!isAuthenticated) return;
@@ -361,8 +361,8 @@ export default function MessagesPage() {
             <>
               <div className="flex items-center justify-between gap-2 pb-3">
                 <Link href={`/users/${encodeURIComponent(selectedPeer)}`} className="flex min-w-0 items-center gap-2">
-                  {selectedUser?.avatar ? (
-                    <img src={avatarUrl(selectedUser.avatar)} alt="" className="h-9 w-9 rounded-full object-cover" />
+                  {selectedAvatar ? (
+                    <img src={selectedAvatar} alt="" className="h-9 w-9 rounded-full object-cover" />
                   ) : (
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bgGray text-[0.72rem] font-bold">
                       {initials(selectedPeer)}

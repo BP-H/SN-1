@@ -7,12 +7,11 @@ import { IoArrowBack, IoChatbubbleEllipsesOutline } from "react-icons/io5";
 import Error from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
-import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 function avatarUrl(value) {
-  if (!value) return "";
-  if (value === "default.jpg") return "";
-  return value.startsWith("/") ? absoluteApiUrl(value) : value;
+  return normalizeAvatarValue(value) ? avatarDisplayUrl(value) : "";
 }
 
 function formatRelativeTime(dateString) {

@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useUser } from "@/content/profile/UserContext";
-import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 function InsertComment({
   proposalId,
@@ -12,15 +13,6 @@ function InsertComment({
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const getImageUrl = (url) => {
-    const value = String(url || "").trim();
-    if (!value || value === "default.jpg") return "";
-    if (value.startsWith("data:") || value.startsWith("blob:")) return value;
-    if (value.startsWith("http://") || value.startsWith("https://")) return value;
-    if (value.startsWith("/")) return absoluteApiUrl(value);
-    return value;
-  };
 
   const handlePublish = async () => {
     if (!isAuthenticated) {
@@ -41,7 +33,7 @@ function InsertComment({
     }
 
     // só aqui se faz o fetch
-    const avatar = String(userData.avatar || "").trim();
+    const avatar = normalizeAvatarValue(userData.avatar || "");
 
     setLoading(true);
     try {
@@ -92,7 +84,7 @@ function InsertComment({
   };
 
   const [imgError, setImgError] = useState(false);
-  const avatarSrc = isAuthenticated ? getImageUrl(userData.avatar) || defaultAvatar : defaultAvatar;
+  const avatarSrc = isAuthenticated ? avatarDisplayUrl(userData.avatar, defaultAvatar) : defaultAvatar;
 
   return (
     <div className="mb-3 flex w-full min-w-0 items-center gap-2">

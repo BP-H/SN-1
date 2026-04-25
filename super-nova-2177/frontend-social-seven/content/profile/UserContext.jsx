@@ -3,13 +3,14 @@
 import { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import supabase, { isSupabaseConfigured } from "@/supabaseClient";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { FALLBACK_AVATAR, normalizeAvatarValue } from "@/utils/avatar";
 
 const UserContext = createContext();
 
 const GUEST_STORAGE_KEY = "supernova_social_six_guest";
 const CUSTOM_STORAGE_PREFIX = "supernova_social_six_custom::";
 const PASSWORD_SESSION_KEY = "supernova_password_session";
-const DEFAULT_AVATAR = "/supernova.png";
+const DEFAULT_AVATAR = FALLBACK_AVATAR;
 
 function calculateInitials(name) {
   if (!name || !name.trim()) return "";
@@ -75,7 +76,7 @@ function getProviderProfile(authUser) {
     id: authUser.id,
     email: authUser.email || metadata.email || "",
     name: metadata.full_name || metadata.name || authUser.email || "",
-    avatar: metadata.avatar_url || metadata.picture || "",
+    avatar: normalizeAvatarValue(metadata.avatar_url || metadata.picture || ""),
     provider,
   };
 }
@@ -86,7 +87,7 @@ function getPasswordProfile(passwordAuth) {
     id: passwordAuth.id || passwordAuth.username || null,
     email: passwordAuth.email || "",
     name: passwordAuth.username || "",
-    avatar: passwordAuth.avatar || "",
+    avatar: normalizeAvatarValue(passwordAuth.avatar || ""),
     provider: "password",
   };
 }
@@ -109,7 +110,9 @@ function mergeUserData(providerProfile, storedProfile = {}) {
   }
 
   const effectiveName = storedProfile.customName || providerProfile.name || "";
-  const effectiveAvatar = storedProfile.customAvatar || providerProfile.avatar || "";
+  const storedAvatar = normalizeAvatarValue(storedProfile.customAvatar || "");
+  const providerAvatar = normalizeAvatarValue(providerProfile.avatar || "");
+  const effectiveAvatar = storedAvatar || providerAvatar || "";
   const species = storedProfile.species || "human";
 
   return {
@@ -119,7 +122,7 @@ function mergeUserData(providerProfile, storedProfile = {}) {
     isAuthenticated: Boolean(providerProfile.id),
     species,
     avatar: effectiveAvatar,
-    providerAvatar: providerProfile.avatar || "",
+    providerAvatar,
     name: effectiveName,
     providerName: providerProfile.name || "",
     initials: calculateInitials(effectiveName || providerProfile.email || ""),
@@ -201,7 +204,7 @@ export function UserProvider({ children }) {
         provider_id: providerProfile.id,
         email: providerProfile.email,
         username,
-        avatar_url: userData.avatar || providerProfile.avatar || "",
+        avatar_url: normalizeAvatarValue(userData.avatar || providerProfile.avatar || ""),
         species: userData.species || "human",
       }),
     })
@@ -240,7 +243,9 @@ export function UserProvider({ children }) {
     const nextStored = {
       species: patch?.species || current.species || "human",
       customName: typeof patch?.name === "string" ? patch.name : previous.customName || current.name || "",
-      customAvatar: typeof patch?.avatar === "string" ? patch.avatar : previous.customAvatar || current.avatar || "",
+      customAvatar: typeof patch?.avatar === "string"
+        ? normalizeAvatarValue(patch.avatar)
+        : normalizeAvatarValue(previous.customAvatar || current.avatar || ""),
     };
     const key = getCustomStorageKey(authUser, passwordAuth);
     writeStorage(key, nextStored);
@@ -254,7 +259,7 @@ export function UserProvider({ children }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          avatar_url: nextStored.customAvatar || "",
+          avatar_url: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: nextStored.species || "human",
         }),
       }).catch(() => {
@@ -267,7 +272,7 @@ export function UserProvider({ children }) {
         if (!prev) return prev;
         const nextAuth = {
           ...prev,
-          avatar: nextStored.customAvatar || "",
+          avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: nextStored.species || "human",
         };
         writeStorage(PASSWORD_SESSION_KEY, nextAuth);
@@ -288,7 +293,7 @@ export function UserProvider({ children }) {
       id: payload.user?.id || payload.user?.username,
       username: payload.user?.username || "",
       email: payload.user?.email || "",
-      avatar: payload.user?.avatar_url || payload.user?.profile_pic || "",
+      avatar: normalizeAvatarValue(payload.user?.avatar_url || payload.user?.profile_pic || ""),
       species: payload.user?.species || "human",
     };
     writeStorage(PASSWORD_SESSION_KEY, authPayload);
@@ -296,13 +301,11 @@ export function UserProvider({ children }) {
     setPasswordAuth(authPayload);
     const key = getCustomStorageKey(null, authPayload);
     const savedProfile = readStorage(key) || {};
-    const savedAvatar = savedProfile.customAvatar && savedProfile.customAvatar !== "default.jpg"
-      ? savedProfile.customAvatar
-      : "";
+    const savedAvatar = normalizeAvatarValue(savedProfile.customAvatar || "");
     setStoredProfile({
       species: savedProfile.species || authPayload.species,
       customName: savedProfile.customName || authPayload.username,
-      customAvatar: authPayload.avatar || savedAvatar,
+      customAvatar: normalizeAvatarValue(authPayload.avatar || savedAvatar),
     });
     return authPayload;
   }, []);

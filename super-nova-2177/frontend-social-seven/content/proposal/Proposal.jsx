@@ -10,6 +10,7 @@ import {
 } from "react-icons/io5";
 import { SearchInputContext } from "@/app/layout";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 import CreatePost from "../create post/CreatePost";
 import InputFields from "../create post/InputFields";
@@ -51,11 +52,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
   const [search, setSearch] = useState("");
   const { inputRef } = useContext(SearchInputContext);
   const { userData, defaultAvatar, isAuthenticated } = useUser();
-  const userAvatar = isAuthenticated && userData?.avatar?.startsWith("/")
-    ? absoluteApiUrl(userData.avatar)
-    : isAuthenticated && userData?.avatar
-    ? userData.avatar
-    : defaultAvatar;
+  const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -132,6 +129,9 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                 <img
                   src={userAvatar}
                   alt="profile"
+                  onError={(event) => {
+                    event.currentTarget.src = defaultAvatar;
+                  }}
                   className="h-9 w-9 shrink-0 rounded-full object-cover"
                 />
               ) : (

@@ -9,7 +9,8 @@ import AssistantOrb from "../AssistantOrb";
 import NotificationsPanel from "./content/NotificationsPanel";
 import SupernovaMenu from "./content/SupernovaMenu";
 import { SearchInputContext } from "@/app/layout";
-import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
 export default function Header({
@@ -42,12 +43,7 @@ export default function Header({
   const activityCount = activitySignature && seenActivitySignature !== activitySignature
     ? activityItems.length
     : 0;
-  const avatar =
-    isAuthenticated && userData?.avatar?.startsWith("/")
-      ? absoluteApiUrl(userData.avatar)
-      : isAuthenticated && userData?.avatar
-      ? userData.avatar
-      : defaultAvatar;
+  const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const handleSearch = () => {
     if (pathname === "/proposals") {

@@ -21,6 +21,7 @@ import ErrorMessage from "../Error";
 import MediaInput from "./Media";
 import PdfPager from "../proposal/content/PdfPager";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 function InputFields({
   setDiscard,
@@ -58,11 +59,7 @@ function InputFields({
     mediaType === "file" &&
     Boolean(selectedFile) &&
     (selectedFile.type === "application/pdf" || /\.pdf$/i.test(selectedFile.name || ""));
-  const userAvatar = isAuthenticated && userData?.avatar?.startsWith("/")
-    ? absoluteApiUrl(userData.avatar)
-    : isAuthenticated && userData?.avatar
-    ? userData.avatar
-    : defaultAvatar;
+  const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -309,7 +306,7 @@ function InputFields({
       text,
       userName: userData.name,
       author_type: userData.species,
-      author_img: userData.avatar || "",
+      author_img: normalizeAvatarValue(userData.avatar || ""),
       date: new Date().toISOString(),
       images: mediaType === "image" ? selectedFiles : [],
       image: mediaType === "image" ? selectedFile : null,
@@ -563,6 +560,9 @@ function InputFields({
             <img
               src={userAvatar}
               alt="profile"
+              onError={(event) => {
+                event.currentTarget.src = defaultAvatar;
+              }}
               className="mr-1 h-9 w-9 shrink-0 rounded-full object-cover"
             />
           ) : (

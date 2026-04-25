@@ -14,6 +14,7 @@ import {
 import { BiSolidLike, BiSolidDislike } from "react-icons/bi";
 import { SearchInputContext } from "@/app/layout";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import CreatePost from "../create post/CreatePost";
@@ -69,11 +70,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const queryClient = useQueryClient();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
-  const userAvatar = isAuthenticated && userData?.avatar?.startsWith("/")
-    ? absoluteApiUrl(userData.avatar)
-    : isAuthenticated && userData?.avatar
-    ? userData.avatar
-    : defaultAvatar;
+  const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -307,6 +304,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 <img
                   src={userAvatar}
                   alt="profile"
+                  onError={(event) => {
+                    event.currentTarget.src = defaultAvatar;
+                  }}
                   className="h-9 w-9 shrink-0 rounded-full object-cover"
                 />
               ) : (

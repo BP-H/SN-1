@@ -1,12 +1,13 @@
 import datetime
 import hashlib
+import json
 import os
 import shutil
 import sys
 import uuid
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -207,7 +208,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
+uploads_dir = os.environ.get("UPLOADS_DIR") or os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
@@ -216,7 +217,9 @@ def _format_timestamp(value) -> str:
     if not value:
         return ""
     if isinstance(value, datetime.datetime):
-        return value.isoformat()
+        if value.tzinfo is None:
+            return value.replace(tzinfo=datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        return value.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     if isinstance(value, str):
         normalized = value.strip()
         if not normalized:
@@ -234,6 +237,20 @@ def _format_timestamp(value) -> str:
     return str(value)
 
 
+def _find_harmonizer_by_username(db: Session, username: Optional[str]):
+    clean_username = (username or "").strip()
+    if not clean_username or not CRUD_MODELS_AVAILABLE or Harmonizer is None:
+        return None
+    try:
+        return (
+            db.query(Harmonizer)
+            .filter(func.lower(Harmonizer.username) == clean_username.lower())
+            .first()
+        )
+    except Exception:
+        return None
+
+
 def _serialize_comment_record(db: Session, comment) -> Dict:
     author_obj = None
     if CRUD_MODELS_AVAILABLE and getattr(comment, "author_id", None):
@@ -244,6 +261,8 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
         or getattr(comment, "user", None)
         or "Anonymous"
     )
+    if author_obj is None:
+        author_obj = _find_harmonizer_by_username(db, user_name)
     user_img = (
         getattr(author_obj, "profile_pic", None)
         or getattr(comment, "user_img", None)
@@ -284,6 +303,58 @@ def _serialize_vote_record(db: Session, vote) -> tuple[Optional[Dict], Optional[
     if vote_field == "down":
         return None, payload
     return None, None
+
+
+def _uploads_url(value: str) -> str:
+    media = str(value or "").strip()
+    if not media:
+        return ""
+    if media.startswith(("http://", "https://", "data:", "blob:", "/uploads/")):
+        return media
+    return f"/uploads/{media}"
+
+
+def _image_urls_from_storage(value) -> List[str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        parsed = None
+    if isinstance(parsed, list):
+        return [_uploads_url(item) for item in parsed if str(item or "").strip()]
+    return [_uploads_url(raw)]
+
+
+def _normalize_media_layout(value: Optional[str]) -> str:
+    layout = str(value or "carousel").strip().lower()
+    return "grid" if layout == "grid" else "carousel"
+
+
+def _payload_dict(value) -> Dict:
+    if isinstance(value, dict):
+        return value
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value) if isinstance(value, str) else {}
+    except Exception:
+        parsed = {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _media_payload(image_value="", video_value="", link_value="", file_value="", payload_value=None) -> Dict:
+    images = _image_urls_from_storage(image_value)
+    payload = _payload_dict(payload_value)
+    return {
+        "image": images[0] if images else "",
+        "images": images,
+        "video": _uploads_url(video_value),
+        "link": link_value or "",
+        "file": _uploads_url(file_value),
+        "layout": _normalize_media_layout(payload.get("media_layout") or payload.get("mediaLayout")),
+    }
 
 
 def _compute_vote_totals(db: Session, proposal_id: int) -> Dict[str, int]:
@@ -375,11 +446,283 @@ class RegisterUserIn(BaseModel):
     bio: Optional[str] = ""
 
 
+class SocialAuthSyncIn(BaseModel):
+    provider: str = "oauth"
+    provider_id: str = ""
+    email: Optional[str] = None
+    username: Optional[str] = None
+    avatar_url: Optional[str] = None
+    species: Optional[str] = "human"
+
+
+class CredentialLoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class ProposalUpdateIn(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    author: Optional[str] = None
+
+
+class ProfileUpdateIn(BaseModel):
+    avatar_url: Optional[str] = None
+    species: Optional[str] = None
+    bio: Optional[str] = None
+
+
+class DirectMessageIn(BaseModel):
+    sender: str
+    recipient: str
+    body: str
+
+
+class FollowIn(BaseModel):
+    follower: str
+    target: str
+
+
 def _normalize_species(value: Optional[str]) -> str:
     species = (value or "human").strip().lower()
     if species not in {"human", "ai", "company"}:
         raise HTTPException(status_code=400, detail="Invalid species")
     return species
+
+
+def _public_user_payload(user, provider: str = "password") -> Dict[str, Any]:
+    avatar_value = getattr(user, "profile_pic", "") or getattr(user, "avatar_url", "") or ""
+    return {
+        "id": getattr(user, "id", None),
+        "username": getattr(user, "username", ""),
+        "email": getattr(user, "email", ""),
+        "provider": provider,
+        "species": getattr(user, "species", "human"),
+        "avatar_url": _social_avatar(avatar_value),
+        "bio": getattr(user, "bio", "") or "",
+        "harmony_score": str(getattr(user, "harmony_score", "0")),
+        "creative_spark": str(getattr(user, "creative_spark", "0")),
+    }
+
+
+MESSAGES_STORE_PATH = BACKEND_DIR / "messages_store.json"
+FOLLOWS_STORE_PATH = BACKEND_DIR / "follows_store.json"
+
+
+def _safe_user_key(value: str) -> str:
+    return (value or "").strip().lower()
+
+
+def _conversation_id(user_a: str, user_b: str) -> str:
+    return "::".join(sorted([_safe_user_key(user_a), _safe_user_key(user_b)]))
+
+
+def _read_messages_store() -> List[Dict[str, Any]]:
+    if not MESSAGES_STORE_PATH.exists():
+        return []
+    try:
+        raw = json.loads(MESSAGES_STORE_PATH.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            return raw.get("messages", []) if isinstance(raw.get("messages"), list) else []
+        return raw if isinstance(raw, list) else []
+    except Exception:
+        return []
+
+
+def _write_messages_store(messages: List[Dict[str, Any]]) -> None:
+    MESSAGES_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = MESSAGES_STORE_PATH.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps({"messages": messages}, ensure_ascii=True, indent=2), encoding="utf-8")
+    tmp_path.replace(MESSAGES_STORE_PATH)
+
+
+def _ensure_direct_messages_table(db: Session) -> None:
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS direct_messages (
+            id VARCHAR(64) PRIMARY KEY,
+            conversation_id VARCHAR(512) NOT NULL,
+            sender VARCHAR(255) NOT NULL,
+            recipient VARCHAR(255) NOT NULL,
+            body TEXT NOT NULL,
+            created_at VARCHAR(64) NOT NULL
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_direct_messages_conversation "
+        "ON direct_messages (conversation_id, created_at)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_direct_messages_sender "
+        "ON direct_messages (sender)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_direct_messages_recipient "
+        "ON direct_messages (recipient)"
+    ))
+    db.commit()
+
+
+def _message_payload(row: Any) -> Dict[str, Any]:
+    data = getattr(row, "_mapping", row)
+    return {
+        "id": data["id"],
+        "conversation_id": data["conversation_id"],
+        "sender": data["sender"],
+        "recipient": data["recipient"],
+        "body": data["body"],
+        "created_at": data["created_at"],
+    }
+
+
+def _read_follows_store() -> List[Dict[str, Any]]:
+    if not FOLLOWS_STORE_PATH.exists():
+        return []
+    try:
+        raw = json.loads(FOLLOWS_STORE_PATH.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            return raw.get("follows", []) if isinstance(raw.get("follows"), list) else []
+        return raw if isinstance(raw, list) else []
+    except Exception:
+        return []
+
+
+def _write_follows_store(follows: List[Dict[str, Any]]) -> None:
+    FOLLOWS_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = FOLLOWS_STORE_PATH.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps({"follows": follows}, ensure_ascii=True, indent=2), encoding="utf-8")
+    tmp_path.replace(FOLLOWS_STORE_PATH)
+
+
+def _follow_counts(username: str) -> Dict[str, int]:
+    key = _safe_user_key(username)
+    if not key:
+        return {"followers": 0, "following": 0}
+    follows = _read_follows_store()
+    return {
+        "followers": len({item.get("follower_key") for item in follows if item.get("target_key") == key}),
+        "following": len({item.get("target_key") for item in follows if item.get("follower_key") == key}),
+    }
+
+
+def _social_avatar(value: Optional[str]) -> str:
+    if not value or value == "default.jpg":
+        return ""
+    if value.startswith("http://") or value.startswith("https://") or value.startswith("/"):
+        return value
+    return f"/uploads/{value}"
+
+
+def _sync_user_avatar_references(
+    db: Session,
+    username: str,
+    avatar_url: str,
+    user_id: Optional[int] = None,
+) -> None:
+    clean_username = (username or "").strip()
+    if not clean_username and not user_id:
+        return
+
+    avatar_value = (avatar_url or "").strip()
+
+    if CRUD_MODELS_AVAILABLE and Proposal is not None:
+        try:
+            filters = []
+            if clean_username and hasattr(Proposal, "userName"):
+                filters.append(func.lower(Proposal.userName) == clean_username.lower())
+            if user_id and hasattr(Proposal, "author_id"):
+                filters.append(Proposal.author_id == user_id)
+            if filters and hasattr(Proposal, "author_img"):
+                db.query(Proposal).filter(or_(*filters)).update(
+                    {"author_img": avatar_value},
+                    synchronize_session=False,
+                )
+        except Exception:
+            pass
+
+    try:
+        if clean_username:
+            db.execute(
+                text("UPDATE proposals SET author_img = :avatar WHERE lower(userName) = lower(:username)"),
+                {"avatar": avatar_value, "username": clean_username},
+            )
+    except Exception:
+        pass
+
+    try:
+        if clean_username:
+            db.execute(
+                text("UPDATE comments SET user_img = :avatar WHERE lower(user) = lower(:username)"),
+                {"avatar": avatar_value, "username": clean_username},
+            )
+    except Exception:
+        pass
+
+
+def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
+    users: Dict[str, Dict[str, Any]] = {}
+
+    def add_user(username: str, species: str = "human", avatar: str = "", post_id: Optional[int] = None):
+        name = (username or "").strip()
+        if not name:
+            return
+        key = name.lower()
+        current = users.get(key, {
+            "username": name,
+            "initials": name[:2].upper(),
+            "species": species or "human",
+            "avatar": _social_avatar(avatar),
+            "post_count": 0,
+            "latest_post_id": post_id or 0,
+        })
+        current["post_count"] = int(current.get("post_count", 0)) + (1 if post_id else 0)
+        current["latest_post_id"] = max(int(current.get("latest_post_id", 0)), int(post_id or 0))
+        if not current.get("avatar") and avatar:
+            current["avatar"] = _social_avatar(avatar)
+        if species and current.get("species") == "human":
+            current["species"] = species
+        users[key] = current
+
+    try:
+        if Harmonizer is not None:
+            for user in db.query(Harmonizer).limit(limit).all():
+                add_user(
+                    getattr(user, "username", ""),
+                    getattr(user, "species", "human"),
+                    getattr(user, "profile_pic", "") or getattr(user, "avatar_url", ""),
+                    None,
+                )
+    except Exception:
+        pass
+
+    try:
+        if Proposal is not None:
+            rows = db.query(Proposal).order_by(desc(Proposal.id)).limit(240).all()
+            for row in rows:
+                add_user(
+                    getattr(row, "userName", None) or getattr(row, "author", "") or "Unknown",
+                    getattr(row, "author_type", "human"),
+                    getattr(row, "author_img", ""),
+                    getattr(row, "id", 0),
+                )
+    except Exception:
+        try:
+            rows = db.execute(text("SELECT id, userName, author_type, author_img FROM proposals ORDER BY id DESC LIMIT 240")).fetchall()
+            for row in rows:
+                mapping = getattr(row, "_mapping", {})
+                add_user(
+                    getattr(row, "userName", None) or mapping.get("userName", ""),
+                    getattr(row, "author_type", None) or mapping.get("author_type", "human"),
+                    getattr(row, "author_img", None) or mapping.get("author_img", ""),
+                    getattr(row, "id", None) or mapping.get("id", 0),
+                )
+        except Exception:
+            pass
+
+    return sorted(
+        users.values(),
+        key=lambda item: (int(item.get("latest_post_id", 0)), int(item.get("post_count", 0))),
+        reverse=True,
+    )[:limit]
 
 
 def _build_status_payload(db: Session) -> Dict:
@@ -489,6 +832,85 @@ def _build_network_payload(db: Session, limit: int = 100) -> Dict:
         },
     }
 
+
+def _collect_author_nodes(db: Session, author_type: str, limit: int = 5) -> List[Dict]:
+    nodes: List[Dict] = []
+    try:
+        if CRUD_MODELS_AVAILABLE:
+            count_expr = func.count(Proposal.id)
+            rows = (
+                db.query(Proposal.userName, count_expr.label("posts"))
+                .filter(Proposal.author_type == author_type)
+                .group_by(Proposal.userName)
+                .order_by(desc(count_expr))
+                .limit(limit)
+                .all()
+            )
+            for name, posts in rows:
+                clean_name = (name or "").strip()
+                if clean_name:
+                    nodes.append({"name": clean_name, "posts": int(posts or 0), "type": author_type})
+        else:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT userName, COUNT(*) AS posts
+                    FROM proposals
+                    WHERE author_type = :author_type
+                    GROUP BY userName
+                    ORDER BY posts DESC
+                    LIMIT :limit
+                    """
+                ),
+                {"author_type": author_type, "limit": limit},
+            ).fetchall()
+            for row in rows:
+                clean_name = str(getattr(row, "userName", "") or row[0] or "").strip()
+                if clean_name:
+                    nodes.append({"name": clean_name, "posts": int(getattr(row, "posts", 0) or row[1] or 0), "type": author_type})
+    except Exception:
+        nodes = []
+    return nodes
+
+
+def _build_supernova_menu_payload(db: Session, username: Optional[str] = None) -> Dict:
+    status_payload = _build_status_payload(db)
+    network_payload = _build_network_payload(db, limit=60)
+
+    orgs = _collect_author_nodes(db, "company", limit=4)
+    agents = _collect_author_nodes(db, "ai", limit=4)
+
+    if not orgs:
+        orgs = [
+            {"name": "superNova 2177 Inc.", "posts": 0, "type": "company"},
+            {"name": "AccessAI protocol node", "posts": 0, "type": "company"},
+        ]
+    if not agents:
+        agents = [
+            {"name": "Weighted Vote Agent", "posts": 0, "type": "ai"},
+            {"name": "Network Resonance Agent", "posts": 0, "type": "ai"},
+            {"name": "Remix Governance Agent", "posts": 0, "type": "ai"},
+        ]
+
+    return {
+        "profile": {
+            "username": username or "SuperNova harmonizer",
+            "status": "online",
+            "species_model": "AI x Humans x ORG",
+        },
+        "status": status_payload,
+        "network": network_payload.get("metrics", {}),
+        "orgs": orgs,
+        "agents": agents,
+        "capabilities": [
+            {"key": "weighted_voting", "label": "Tri-species weighted voting", "available": True},
+            {"key": "karma_system", "label": "Harmony and karma signals", "available": SUPER_NOVA_AVAILABLE},
+            {"key": "network_analysis", "label": "Network resonance map", "available": True},
+            {"key": "governance", "label": "Governance decisions and runs", "available": SUPER_NOVA_AVAILABLE},
+            {"key": "remix_protocol", "label": "Fork/remix protocol hooks", "available": SUPER_NOVA_AVAILABLE},
+        ],
+    }
+
 # --- Universe Info Endpoint ---
 @app.get("/universe/info", tags=["System"])
 def universe_info():
@@ -574,6 +996,11 @@ def get_network_analysis(limit: int = Query(100, ge=1, le=500), db: Session = De
     return _build_network_payload(db, limit=limit)
 
 
+@app.get("/supernova-menu", tags=["System"])
+def get_supernova_menu(username: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    return _build_supernova_menu_payload(db, username=username)
+
+
 @app.post("/users/register", tags=["Harmonizers"])
 def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
     if Harmonizer is None:
@@ -588,7 +1015,9 @@ def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=409, detail="Username already exists")
 
-    email = (payload.email or f"{username.lower()}@local.supernova").strip().lower()
+    email = (payload.email or "").strip().lower()
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="A valid email is required")
     email_owner = db.query(Harmonizer).filter(func.lower(Harmonizer.email) == email).first()
     if email_owner:
         raise HTTPException(status_code=409, detail="Email already exists")
@@ -626,6 +1055,143 @@ def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
         "creative_spark": str(getattr(user, "creative_spark", "1000000.0")),
         "network_centrality": float(getattr(user, "network_centrality", 0.0)),
         "bio": getattr(user, "bio", ""),
+    }
+
+
+@app.post("/auth/login", tags=["Auth"])
+def credential_login(payload: CredentialLoginIn, db: Session = Depends(get_db)):
+    if Harmonizer is None:
+        raise HTTPException(status_code=503, detail="User system unavailable")
+
+    username = payload.username.strip()
+    password = payload.password
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    hashed_password = getattr(user, "hashed_password", "") or ""
+    verified = False
+    if auth_utils and hasattr(auth_utils, "verify_password"):
+        try:
+            verified = auth_utils.verify_password(password, hashed_password)
+        except Exception:
+            verified = False
+    if not verified:
+        verified = hashlib.sha256(password.encode()).hexdigest() == hashed_password
+
+    if not verified:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    if not getattr(user, "is_active", True):
+        raise HTTPException(status_code=400, detail="Inactive user")
+
+    token = uuid.uuid4().hex
+    if auth_utils and hasattr(auth_utils, "create_access_token"):
+        try:
+            token = auth_utils.create_access_token({"sub": user.username})
+        except Exception:
+            token = uuid.uuid4().hex
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": _public_user_payload(user, provider="password"),
+    }
+
+
+@app.post("/auth/social/sync", tags=["Auth"])
+def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
+    provider = (payload.provider or "oauth").strip().lower()
+    provider_id = (payload.provider_id or "").strip()
+    email = (payload.email or "").strip().lower()
+    username = (
+        (payload.username or "").strip()
+        or (email.split("@", 1)[0] if email else "")
+        or f"{provider}-{provider_id[:8] or uuid.uuid4().hex[:8]}"
+    )
+    avatar_url = (payload.avatar_url or "").strip()
+    try:
+        species = _normalize_species(payload.species)
+    except HTTPException:
+        species = "human"
+
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+    if not email:
+        email = f"{provider_id or uuid.uuid4().hex}@{provider}.oauth.supernova"
+
+    if Harmonizer is None:
+        return {
+            "id": None,
+            "username": username,
+            "email": email,
+            "provider": provider,
+            "species": species,
+            "avatar_url": _social_avatar(avatar_url),
+            "backend": "fallback",
+        }
+
+    existing = db.query(Harmonizer).filter(func.lower(Harmonizer.email) == email).first()
+    if not existing:
+        existing = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
+
+    if existing:
+        if avatar_url:
+            existing.profile_pic = avatar_url
+            _sync_user_avatar_references(db, existing.username, avatar_url, getattr(existing, "id", None))
+        existing.species = species or getattr(existing, "species", "human")
+        existing.is_active = True
+        existing.consent_given = True
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return {
+            "id": existing.id,
+            "username": existing.username,
+            "email": existing.email,
+            "provider": provider,
+            "species": existing.species,
+            "avatar_url": _social_avatar(getattr(existing, "profile_pic", "") or avatar_url),
+            "backend": "supernovacore",
+        }
+
+    candidate = username
+    suffix = 2
+    while db.query(Harmonizer).filter(func.lower(Harmonizer.username) == candidate.lower()).first():
+        candidate = f"{username}-{suffix}"
+        suffix += 1
+
+    raw_secret = f"{provider}:{provider_id or email}:{candidate}"
+    hashed_password = hashlib.sha256(raw_secret.encode()).hexdigest()
+    if auth_utils and hasattr(auth_utils, "pwd_context"):
+        try:
+            hashed_password = auth_utils.pwd_context.hash(raw_secret)
+        except Exception:
+            hashed_password = hashlib.sha256(raw_secret.encode()).hexdigest()
+
+    user = Harmonizer(
+        username=candidate,
+        email=email,
+        hashed_password=hashed_password,
+        species=species,
+        bio=f"Signed in with {provider}.",
+        profile_pic=avatar_url or "default.jpg",
+        is_active=True,
+        consent_given=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "provider": provider,
+        "species": user.species,
+        "avatar_url": _social_avatar(getattr(user, "profile_pic", "")),
+        "backend": "supernovacore",
     }
 
 #
@@ -687,25 +1253,54 @@ def debug_search(search: str = Query(...), db: Session = Depends(get_db)):
 #
 @app.get("/profile/{username}", summary="Get user profile")
 def profile(username: str, db: Session = Depends(get_db)):
-    if SUPER_NOVA_AVAILABLE:
-        try:
-            user = db.query(Harmonizer).filter(Harmonizer.username == username).first()
+    try:
+        if Harmonizer is not None:
+            user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
             if user:
+                avatar_value = getattr(user, "profile_pic", "") or getattr(user, "avatar_url", "") or ""
+                follow_counts = _follow_counts(user.username)
                 return {
                     "username": user.username,
-                    "avatar_url": user.avatar_url or "",
+                    "avatar_url": _social_avatar(avatar_value),
                     "bio": user.bio or "Explorer of superNova_2177.",
-                    "followers": getattr(user, 'followers_count', 2315),
-                    "following": getattr(user, 'following_count', 1523),
+                    "followers": follow_counts["followers"],
+                    "following": follow_counts["following"],
                     "status": "online",
                     "karma": float(getattr(user, 'karma_score', 0)),
                     "harmony_score": float(getattr(user, 'harmony_score', 0)),
                     "creative_spark": float(getattr(user, 'creative_spark', 0)),
                     "species": getattr(user, 'species', 'human')
                 }
-        except Exception as e:
-            print(f"Error fetching SuperNova profile: {e}")
-    
+    except Exception as e:
+        print(f"Error fetching SuperNova profile: {e}")
+
+    try:
+        if Proposal is not None:
+            latest = (
+                db.query(Proposal)
+                .filter(func.lower(Proposal.userName) == username.lower())
+                .order_by(desc(Proposal.id))
+                .first()
+            )
+            post_count = db.query(Proposal).filter(func.lower(Proposal.userName) == username.lower()).count()
+            if latest:
+                follow_counts = _follow_counts(username)
+                return {
+                    "username": username,
+                    "avatar_url": _social_avatar(getattr(latest, "author_img", "")),
+                    "bio": "Explorer of superNova_2177.",
+                    "followers": follow_counts["followers"],
+                    "following": follow_counts["following"],
+                    "status": "online",
+                    "karma": 0,
+                    "harmony_score": 0,
+                    "creative_spark": 0,
+                    "species": getattr(latest, "author_type", "human"),
+                    "post_count": post_count,
+                }
+    except Exception as e:
+        print(f"Error fetching fallback profile from proposals: {e}")
+
     # Fallback
     return {
         "username": username,
@@ -715,6 +1310,275 @@ def profile(username: str, db: Session = Depends(get_db)):
         "following": 1523,
         "status": "online"
     }
+
+
+@app.patch("/profile/{username}", summary="Update a user profile")
+def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depends(get_db)):
+    if Harmonizer is None:
+        raise HTTPException(status_code=503, detail="User system unavailable")
+
+    clean_username = username.strip()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Username is required")
+
+    user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.avatar_url is not None:
+        avatar_url = payload.avatar_url.strip()
+        user.profile_pic = avatar_url or "default.jpg"
+        _sync_user_avatar_references(db, user.username, user.profile_pic, getattr(user, "id", None))
+
+    if payload.species is not None:
+        user.species = _normalize_species(payload.species)
+
+    if payload.bio is not None:
+        user.bio = payload.bio.strip()[:500]
+
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return _public_user_payload(user, provider="password")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
+
+
+@app.get("/social-users", summary="List users available for social messaging")
+def social_users(
+    username: Optional[str] = Query(None),
+    limit: int = Query(36, ge=1, le=80),
+    db: Session = Depends(get_db),
+):
+    users = _collect_social_users(db, limit=limit)
+    current = _safe_user_key(username or "")
+    if current and all(_safe_user_key(item["username"]) != current for item in users):
+        users.insert(0, {
+            "username": username,
+            "initials": (username or "SN")[:2].upper(),
+            "species": "human",
+            "avatar": "",
+            "post_count": 0,
+            "latest_post_id": 0,
+        })
+    return users
+
+
+@app.get("/follows", summary="List follow relationships for a user")
+def get_follows(user: str = Query(...)):
+    current = _safe_user_key(user)
+    if not current:
+        raise HTTPException(status_code=400, detail="user is required")
+    follows = _read_follows_store()
+    following = [
+        {"username": item.get("target", ""), "created_at": item.get("created_at", "")}
+        for item in follows
+        if item.get("follower_key") == current
+    ]
+    followers = [
+        {"username": item.get("follower", ""), "created_at": item.get("created_at", "")}
+        for item in follows
+        if item.get("target_key") == current
+    ]
+    return {"user": user, "following": following, "followers": followers}
+
+
+@app.get("/follows/status", summary="Check if one user follows another")
+def follow_status(follower: str = Query(...), target: str = Query(...)):
+    follower_key = _safe_user_key(follower)
+    target_key = _safe_user_key(target)
+    if not follower_key or not target_key:
+        raise HTTPException(status_code=400, detail="follower and target are required")
+    follows = _read_follows_store()
+    return {
+        "follower": follower,
+        "target": target,
+        "following": any(
+            item.get("follower_key") == follower_key and item.get("target_key") == target_key
+            for item in follows
+        ),
+    }
+
+
+@app.post("/follows", summary="Follow a user")
+def follow_user(payload: FollowIn):
+    follower = payload.follower.strip()
+    target = payload.target.strip()
+    follower_key = _safe_user_key(follower)
+    target_key = _safe_user_key(target)
+    if not follower_key or not target_key:
+        raise HTTPException(status_code=400, detail="follower and target are required")
+    if follower_key == target_key:
+        raise HTTPException(status_code=400, detail="Choose another user to follow")
+
+    follows = _read_follows_store()
+    existing = next(
+        (
+            item for item in follows
+            if item.get("follower_key") == follower_key and item.get("target_key") == target_key
+        ),
+        None,
+    )
+    if existing:
+        return {"following": True, "follower": follower, "target": target}
+
+    follows.append({
+        "id": uuid.uuid4().hex,
+        "follower": follower,
+        "follower_key": follower_key,
+        "target": target,
+        "target_key": target_key,
+        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+    })
+    _write_follows_store(follows[-5000:])
+    return {"following": True, "follower": follower, "target": target}
+
+
+@app.delete("/follows", summary="Unfollow a user")
+def unfollow_user(follower: str = Query(...), target: str = Query(...)):
+    follower_key = _safe_user_key(follower)
+    target_key = _safe_user_key(target)
+    if not follower_key or not target_key:
+        raise HTTPException(status_code=400, detail="follower and target are required")
+    follows = _read_follows_store()
+    next_follows = [
+        item for item in follows
+        if not (item.get("follower_key") == follower_key and item.get("target_key") == target_key)
+    ]
+    _write_follows_store(next_follows)
+    return {"following": False, "follower": follower, "target": target}
+
+
+@app.get("/messages", summary="Get direct messages or conversation summaries")
+def get_messages(
+    user: str = Query(...),
+    peer: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    current = _safe_user_key(user)
+    if not current:
+        raise HTTPException(status_code=400, detail="user is required")
+
+    try:
+        _ensure_direct_messages_table(db)
+        if peer:
+            cid = _conversation_id(user, peer)
+            rows = db.execute(
+                text(
+                    "SELECT id, conversation_id, sender, recipient, body, created_at "
+                    "FROM direct_messages WHERE conversation_id = :cid ORDER BY created_at ASC"
+                ),
+                {"cid": cid},
+            ).fetchall()
+            return {"peer": peer, "messages": [_message_payload(row) for row in rows]}
+
+        rows = db.execute(
+            text(
+                "SELECT id, conversation_id, sender, recipient, body, created_at "
+                "FROM direct_messages "
+                "WHERE lower(sender) = :current OR lower(recipient) = :current "
+                "ORDER BY created_at DESC LIMIT 1000"
+            ),
+            {"current": current},
+        ).fetchall()
+        conversations: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            message = _message_payload(row)
+            sender = _safe_user_key(message.get("sender", ""))
+            recipient = _safe_user_key(message.get("recipient", ""))
+            peer_name = message.get("sender") if recipient == current else message.get("recipient")
+            key = _safe_user_key(peer_name)
+            if not key or key in conversations:
+                continue
+            conversations[key] = {
+                "peer": peer_name,
+                "last_message": message,
+                "updated_at": message.get("created_at", ""),
+            }
+
+        return {
+            "conversations": sorted(
+                conversations.values(),
+                key=lambda item: item.get("updated_at", ""),
+                reverse=True,
+            )
+        }
+    except Exception:
+        db.rollback()
+
+    messages = _read_messages_store()
+    if peer:
+        cid = _conversation_id(user, peer)
+        thread = [message for message in messages if message.get("conversation_id") == cid]
+        return {"peer": peer, "messages": sorted(thread, key=lambda item: item.get("created_at", ""))}
+
+    conversations: Dict[str, Dict[str, Any]] = {}
+    for message in messages:
+        sender = _safe_user_key(message.get("sender", ""))
+        recipient = _safe_user_key(message.get("recipient", ""))
+        if current not in {sender, recipient}:
+            continue
+        peer_name = message.get("sender") if recipient == current else message.get("recipient")
+        key = _safe_user_key(peer_name)
+        conversations[key] = {
+            "peer": peer_name,
+            "last_message": message,
+            "updated_at": message.get("created_at", ""),
+        }
+
+    return {
+        "conversations": sorted(
+            conversations.values(),
+            key=lambda item: item.get("updated_at", ""),
+            reverse=True,
+        )
+    }
+
+
+@app.post("/messages", summary="Send a direct message")
+def send_message(payload: DirectMessageIn, db: Session = Depends(get_db)):
+    sender = payload.sender.strip()
+    recipient = payload.recipient.strip()
+    body = payload.body.strip()
+    if not sender:
+        raise HTTPException(status_code=400, detail="sender is required")
+    if not recipient:
+        raise HTTPException(status_code=400, detail="recipient is required")
+    if _safe_user_key(sender) == _safe_user_key(recipient):
+        raise HTTPException(status_code=400, detail="Choose another user to message")
+    if not body:
+        raise HTTPException(status_code=400, detail="Write a message first")
+
+    messages = _read_messages_store()
+    message = {
+        "id": uuid.uuid4().hex,
+        "conversation_id": _conversation_id(sender, recipient),
+        "sender": sender,
+        "recipient": recipient,
+        "body": body,
+        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+    }
+    try:
+        _ensure_direct_messages_table(db)
+        db.execute(
+            text(
+                "INSERT INTO direct_messages "
+                "(id, conversation_id, sender, recipient, body, created_at) "
+                "VALUES (:id, :conversation_id, :sender, :recipient, :body, :created_at)"
+            ),
+            message,
+        )
+        db.commit()
+        return message
+    except Exception:
+        db.rollback()
+
+    messages.append(message)
+    _write_messages_store(messages[-1000:])
+    return message
+
 
 @app.post("/proposals", response_model=ProposalSchema, summary="Create a new proposal")
 async def create_proposal(
@@ -726,7 +1590,10 @@ async def create_proposal(
     date: Optional[str] = Form(None),
     video: str = Form(""),
     link: str = Form(""),
+    media_layout: str = Form("carousel"),
     image: Optional[UploadFile] = File(None),
+    images: Optional[List[UploadFile]] = File(None),
+    video_file: Optional[UploadFile] = File(None),
     file: Optional[UploadFile] = File(None),
     voting_deadline: Optional[datetime.datetime] = Form(None),
     db: Session = Depends(get_db)
@@ -736,15 +1603,40 @@ async def create_proposal(
     
     os.makedirs(uploads_dir, exist_ok=True)
     image_filename = None
+    image_filenames = []
+    video_value = video or ""
     file_filename = None
+    safe_media_layout = _normalize_media_layout(media_layout)
 
     # --- Process uploads ---
+    image_uploads = []
     if image:
-        ext = os.path.splitext(image.filename)[1]
-        image_filename = f"{uuid.uuid4().hex}{ext}"
-        image_path = os.path.join(uploads_dir, image_filename)
+        image_uploads.append(image)
+    if images:
+        image_uploads.extend([item for item in images if item])
+    for image_upload in image_uploads:
+        if image_upload.content_type and not image_upload.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Uploaded image files must be images")
+        ext = os.path.splitext(image_upload.filename)[1]
+        next_filename = f"{uuid.uuid4().hex}{ext}"
+        image_path = os.path.join(uploads_dir, next_filename)
         with open(image_path, "wb") as f:
-            f.write(await image.read())
+            f.write(await image_upload.read())
+        image_filenames.append(next_filename)
+    if len(image_filenames) == 1:
+        image_filename = image_filenames[0]
+    elif len(image_filenames) > 1:
+        image_filename = json.dumps(image_filenames)
+
+    if video_file:
+        if video_file.content_type and not video_file.content_type.startswith("video/"):
+            raise HTTPException(status_code=400, detail="Uploaded video file must be a video")
+        ext = os.path.splitext(video_file.filename)[1]
+        video_filename = f"{uuid.uuid4().hex}{ext}"
+        video_path = os.path.join(uploads_dir, video_filename)
+        with open(video_path, "wb") as f:
+            f.write(await video_file.read())
+        video_value = video_filename
     
     if file:
         ext = os.path.splitext(file.filename)[1]
@@ -758,7 +1650,7 @@ async def create_proposal(
         normalized_date = date.replace("Z", "+00:00")
         created_at = dt.fromisoformat(normalized_date)
     else:
-        created_at = dt.now()
+        created_at = dt.utcnow()
     if not voting_deadline:
         voting_deadline = dt.utcnow() + timedelta(days=7)
 
@@ -787,9 +1679,10 @@ async def create_proposal(
                 author_type=author_type,
                 author_img=author_img,
                 image=image_filename,
-                video=video,
+                video=video_value,
                 link=link,
                 file=file_filename,
+                payload={"media_layout": safe_media_layout},
                 created_at=created_at,
                 voting_deadline=created_at + datetime.timedelta(days=7)
             )
@@ -818,7 +1711,7 @@ async def create_proposal(
                     "author_img": author_img,
                     "created_at": created_at,
                     "voting_deadline": voting_deadline,
-                    "image": image_filename, "video": video, "link": link, "file": file_filename
+                    "image": image_filename, "video": video_value, "link": link, "file": file_filename
                 }
             )
             row = result.fetchone()
@@ -834,9 +1727,10 @@ async def create_proposal(
             db_proposal.author_type = author_type
             db_proposal.author_img = author_img
             db_proposal.image = image_filename
-            db_proposal.video = video
+            db_proposal.video = video_value
             db_proposal.link = link
             db_proposal.file = file_filename
+            db_proposal.payload = {"media_layout": safe_media_layout}
             db_proposal.created_at = created_at
             db_proposal.voting_deadline = voting_deadline
             user_name = final_user
@@ -853,12 +1747,13 @@ async def create_proposal(
             likes=[],
             dislikes=[],
             comments=[],
-            media={
-                "image": f"/uploads/{db_proposal.image}" if db_proposal.image else "",
-                "video": db_proposal.video or "",
-                "link": db_proposal.link or "",
-                "file": f"/uploads/{db_proposal.file}" if db_proposal.file else ""
-            }
+            media=_media_payload(
+                db_proposal.image,
+                db_proposal.video,
+                db_proposal.link,
+                db_proposal.file,
+                getattr(db_proposal, "payload", None),
+            )
         )
     except Exception as e:
         db.rollback()
@@ -868,11 +1763,12 @@ async def create_proposal(
 def serialize_harmonizer(h):
     if not h:
         return None
+    avatar_value = getattr(h, "profile_pic", "") or getattr(h, "avatar_url", "") or ""
     # Only select safe fields for serialization
     return {
         "id": getattr(h, "id", None),
         "username": getattr(h, "username", None),
-        "avatar_url": getattr(h, "avatar_url", "") if h else "",
+        "avatar_url": _social_avatar(avatar_value),
         "species": getattr(h, "species", None),
         "karma_score": float(getattr(h, "karma_score", 0)) if hasattr(h, "karma_score") else 0,
         "harmony_score": float(getattr(h, "harmony_score", 0)) if hasattr(h, "harmony_score") else 0,
@@ -1078,9 +1974,12 @@ def list_proposals(
                         user_name = prop.author
                     else:
                         user_name = "Unknown"
+                if author_obj is None:
+                    author_obj = _find_harmonizer_by_username(db, user_name)
                 user_initials = (user_name[:2].upper() if user_name else "UN")
             else:
                 user_name = getattr(prop, "userName", None) or getattr(prop, "author", None) or "Unknown"
+                author_obj = _find_harmonizer_by_username(db, user_name)
                 user_initials = (user_name[:2].upper() if user_name else "UN")
 
             # Votes and Comments
@@ -1120,24 +2019,29 @@ def list_proposals(
                 for c in comments:
                     comments_list.append(_serialize_comment_record(db, c))
 
+            author_img = getattr(prop, "author_img", "")
+            if author_obj is not None:
+                author_img = getattr(author_obj, "profile_pic", None) or author_img
+
             proposals_list.append({
                 "id": prop.id,
                 "title": getattr(prop, "title", ""),
                 "userName": str(user_name),
                 "userInitials": user_initials,
                 "text": getattr(prop, "description", "") if SUPER_NOVA_AVAILABLE else getattr(prop, "body", None) or getattr(prop, "description", ""),
-                "author_img": getattr(prop, "author_img", ""),
+                "author_img": _social_avatar(author_img),
                 "time": _format_timestamp(getattr(prop, "created_at", None) or getattr(prop, "date", "")),
                 "author_type": getattr(prop, "author_type", "human"),
                 "likes": likes,
                 "dislikes": dislikes,
                 "comments": comments_list,
-                "media": {
-                    "image": f"/uploads/{getattr(prop, 'image', '')}" if getattr(prop, "image", None) else "",
-                    "video": getattr(prop, "video", ""),
-                    "link": getattr(prop, "link", ""),
-                    "file": f"/uploads/{getattr(prop, 'file', '')}" if getattr(prop, "file", None) else ""
-                }
+                "media": _media_payload(
+                    getattr(prop, "image", ""),
+                    getattr(prop, "video", ""),
+                    getattr(prop, "link", ""),
+                    getattr(prop, "file", ""),
+                    getattr(prop, "payload", None),
+                )
             })
 
         return proposals_list
@@ -1434,6 +2338,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 user_name = row.author
             else:
                 user_name = "Unknown"
+        if author_obj is None:
+            author_obj = _find_harmonizer_by_username(db, user_name)
         user_initials = (user_name[:2].upper() if user_name else "UN")
 
         votes = db.query(ProposalVote).filter(ProposalVote.proposal_id == pid).all()
@@ -1450,24 +2356,23 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
         comments = db.query(Comment).filter(Comment.proposal_id == pid).all()
         comments_list = [_serialize_comment_record(db, c) for c in comments]
 
+        author_img = row.author_img
+        if author_obj is not None:
+            author_img = getattr(author_obj, "profile_pic", None) or author_img
+
         return ProposalSchema(
             id=row.id,
             title=row.title,
             text=row.description,
             userName=str(user_name),
             userInitials=user_initials,
-            author_img=row.author_img,
+            author_img=_social_avatar(author_img),
             time=_format_timestamp(row.created_at),
             author_type=row.author_type,
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,
-            media={
-                "image": f"/uploads/{row.image}" if row.image else "",
-                "video": row.video,
-                "link": row.link,
-                "file": f"/uploads/{row.file}" if row.file else ""
-            }
+            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None))
         )
     else:
         result = db.execute(
@@ -1492,9 +2397,13 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             {"pid": pid}
         )
         comments = comments_result.fetchall()
-        comments_list = [{"proposal_id": c.proposal_id, "user": c.user, "user_img": c.user_img, "species": "human", "comment": c.comment} for c in comments]
+        comments_list = [_serialize_comment_record(db, c) for c in comments]
 
         user_name = getattr(row, "userName", None) or getattr(row, "author", None) or "Unknown"
+        author_obj = _find_harmonizer_by_username(db, user_name)
+        author_img = getattr(row, "author_img", "")
+        if author_obj is not None:
+            author_img = getattr(author_obj, "profile_pic", None) or author_img
         user_initials = (user_name[:2].upper() if user_name else "UN")
         return ProposalSchema(
             id=row.id,
@@ -1502,30 +2411,57 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             text=getattr(row, "body", None) or getattr(row, "description", ""),
             userName=str(user_name),
             userInitials=user_initials,
-            author_img=getattr(row, "author_img", ""),
+            author_img=_social_avatar(author_img),
             time=_format_timestamp(getattr(row, "date", "") or getattr(row, "created_at", "")),
             author_type=getattr(row, "author_type", ""),
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,
-            media={
-                "image": f"/uploads/{getattr(row, 'image', '')}" if getattr(row, "image", None) else "",
-                "video": getattr(row, "video", ""),
-                "link": getattr(row, "link", ""),
-                "file": f"/uploads/{getattr(row, 'file', '')}" if getattr(row, "file", None) else ""
-            }
+            media=_media_payload(
+                getattr(row, "image", ""),
+                getattr(row, "video", ""),
+                getattr(row, "link", ""),
+                getattr(row, "file", ""),
+                getattr(row, "payload", None),
+            )
         )
 
 # --- Upload endpoints ---
 @app.post("/upload-image")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(
+    file: UploadFile = File(...),
+    username: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
     os.makedirs(uploads_dir, exist_ok=True)
+    if file.content_type and not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be an image")
+
+    clean_username = (username or "").strip()
+    user = None
+    if clean_username and Harmonizer is not None:
+        user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found for profile photo update")
+
     ext = os.path.splitext(file.filename)[1]
     unique_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(uploads_dir, unique_name)
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
+
+    avatar_url = f"/uploads/{unique_name}"
+    if user is not None:
+        try:
+            user.profile_pic = avatar_url
+            _sync_user_avatar_references(db, user.username, avatar_url, getattr(user, "id", None))
+            db.add(user)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Profile photo saved but profile sync failed: {str(exc)}")
+
+    return {"filename": unique_name, "url": avatar_url, "content_type": file.content_type}
 
 @app.post("/upload-file")
 async def upload_file(file: UploadFile = File(...)):
@@ -1538,20 +2474,81 @@ async def upload_file(file: UploadFile = File(...)):
     return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
 
 # --- Delete endpoints ---
-@app.delete("/proposals/{pid}")
-def delete_proposal(pid: int, db: Session = Depends(get_db)):
+@app.patch("/proposals/{pid}", response_model=ProposalSchema)
+def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(get_db)):
+    author = (payload.author or "").strip()
+    next_body = (payload.body or "").strip()
+    next_title = (payload.title or "").strip() or (next_body[:70] if next_body else "")
+    if not next_body and not next_title:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
     try:
         if CRUD_MODELS_AVAILABLE:
+            row = db.query(Proposal).filter(Proposal.id == pid).first()
+            if not row:
+                raise HTTPException(status_code=404, detail="Proposal not found")
+            owner = getattr(row, "userName", "") or getattr(row, "author", "")
+            if author and owner and owner.lower() != author.lower():
+                raise HTTPException(status_code=403, detail="Only the author can edit this post")
+            if next_title:
+                row.title = next_title
+            if next_body:
+                row.description = next_body
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+        else:
+            current = db.execute(text("SELECT * FROM proposals WHERE id = :pid"), {"pid": pid}).fetchone()
+            if not current:
+                raise HTTPException(status_code=404, detail="Proposal not found")
+            owner = getattr(current, "userName", None) or getattr(current, "author", "")
+            if author and owner and str(owner).lower() != author.lower():
+                raise HTTPException(status_code=403, detail="Only the author can edit this post")
+            db.execute(
+                text("UPDATE proposals SET title = :title, description = :description WHERE id = :pid"),
+                {"title": next_title or getattr(current, "title", ""), "description": next_body or getattr(current, "description", ""), "pid": pid},
+            )
+            db.commit()
+            row = db.execute(text("SELECT * FROM proposals WHERE id = :pid"), {"pid": pid}).fetchone()
+
+        return get_proposal(pid, db)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update proposal: {str(e)}")
+
+
+@app.delete("/proposals/{pid}")
+def delete_proposal(pid: int, author: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    try:
+        if CRUD_MODELS_AVAILABLE:
+            row = db.query(Proposal).filter(Proposal.id == pid).first()
+            if not row:
+                raise HTTPException(status_code=404, detail="Proposal not found")
+            owner = getattr(row, "userName", "") or getattr(row, "author", "")
+            if author and owner and owner.lower() != author.strip().lower():
+                raise HTTPException(status_code=403, detail="Only the author can delete this post")
             db.query(Comment).filter(Comment.proposal_id == pid).delete()
             db.query(ProposalVote).filter(ProposalVote.proposal_id == pid).delete()
             db.query(Proposal).filter(Proposal.id == pid).delete()
         else:
+            row = db.execute(text("SELECT * FROM proposals WHERE id = :pid"), {"pid": pid}).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Proposal not found")
+            owner = getattr(row, "userName", None) or getattr(row, "author", "")
+            if author and owner and str(owner).lower() != author.strip().lower():
+                raise HTTPException(status_code=403, detail="Only the author can delete this post")
             db.execute(text("DELETE FROM comments WHERE proposal_id = :pid"), {"pid": pid})
             db.execute(text("DELETE FROM proposal_votes WHERE proposal_id = :pid"), {"pid": pid})
             db.execute(text("DELETE FROM proposals WHERE id = :pid"), {"pid": pid})
         
         db.commit()
         return {"ok": True, "deleted_id": pid}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete proposal: {str(e)}")

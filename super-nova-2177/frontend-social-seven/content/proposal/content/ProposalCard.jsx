@@ -25,6 +25,7 @@ import DisplayComments from "./DisplayComments";
 import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 function ProposalCard({
   id,
@@ -62,14 +63,14 @@ function ProposalCard({
   const queryClient = useQueryClient();
   const router = useRouter();
   const isOwner = Boolean(userName && userData?.name && userName.toLowerCase() === userData.name.toLowerCase());
-  const displayLogo = isOwner && userData?.avatar ? userData.avatar : localLogo;
+  const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
+  const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
 
   const getFullImageUrl = (url) => {
-    if (!url) return null;
-    if (url === "default.jpg") return null;
-    if (url === "/default-avatar.png" || url.endsWith("/default-avatar.png")) return null;
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    return absoluteApiUrl(url);
+    const value = normalizeAvatarValue(url);
+    if (!value) return null;
+    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    return absoluteApiUrl(value);
   };
 
   const getYouTubeId = (url) => {
@@ -306,9 +307,9 @@ function ProposalCard({
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <Link href={userHref} className="flex min-w-0 items-center gap-3">
           <div className="shrink-0">
-            {displayLogo && getFullImageUrl(displayLogo) ? (
+            {displayAvatar ? (
               <img
-                src={getFullImageUrl(displayLogo)}
+                src={displayAvatar}
                 alt="user avatar"
                 onError={(event) => {
                   event.currentTarget.src = defaultAvatar;

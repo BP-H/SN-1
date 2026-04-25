@@ -19,7 +19,8 @@ import {
 } from "react-icons/io5";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "./UserContext";
-import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 const SPECIES = [
   { key: "human", label: "Human", icon: <FaUser />, color: "bg-[#e8457a]" },
@@ -32,13 +33,6 @@ const PROVIDERS = [
   { key: "facebook", label: "Facebook", icon: <FaFacebookF />, color: "#4267B2" },
   { key: "github", label: "GitHub", icon: <FaGithub />, color: "#d4d1e1" },
 ];
-
-function avatarDisplayUrl(value, fallback = "/supernova.png") {
-  const src = value && value !== "default.jpg" ? value : fallback;
-  if (!src) return "";
-  if (src.startsWith("/uploads/")) return absoluteApiUrl(src);
-  return src;
-}
 
 function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = null }) {
   const {
@@ -195,6 +189,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (currentName) {
+        formData.append("username", currentName);
+      }
       const response = await fetch(`${API_BASE_URL}/upload-image`, {
         method: "POST",
         body: formData,
@@ -202,16 +199,17 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       if (!response.ok) throw new Error("Failed to upload avatar.");
       const data = await response.json();
       if (!data?.url) throw new Error("Avatar upload did not return an image URL.");
-      setAvatarUrl(data.url);
+      const nextAvatar = normalizeAvatarValue(data.url);
+      setAvatarUrl(nextAvatar);
       setUserData({
         name: currentName,
         species: selectedSpecies || "human",
-        avatar: data.url,
+        avatar: nextAvatar,
       });
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("supernova:profile-avatar-updated", {
-            detail: { username: currentName, avatar: data.url },
+            detail: { username: currentName, avatar: nextAvatar },
           })
         );
       }
@@ -269,6 +267,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
           <img
             src={avatarPreview}
             alt="Avatar"
+            onError={(event) => {
+              event.currentTarget.src = defaultAvatar;
+            }}
             className="h-14 w-14 rounded-full border border-[var(--horizontal-line)] object-cover"
           />
           {isAuthenticated && (

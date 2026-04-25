@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { normalizeAvatarValue } from "@/utils/avatar";
 import {
   IoChatbubbleEllipsesOutline,
   IoClose,
@@ -455,7 +456,7 @@ export default function AssistantOrb() {
         body: JSON.stringify({
           proposal_id: Number(target.id),
           user: userData.name,
-          user_img: userData.avatar || "",
+          user_img: normalizeAvatarValue(userData.avatar || ""),
           species: userData.species || "human",
           comment: value,
         }),
@@ -470,7 +471,7 @@ export default function AssistantOrb() {
       const newComment = payload?.comments?.[0] || {
         proposal_id: Number(target.id),
         user: userData.name,
-        user_img: userData.avatar || "",
+        user_img: normalizeAvatarValue(userData.avatar || ""),
         species: userData.species || "human",
         comment: value,
       };

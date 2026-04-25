@@ -15,7 +15,8 @@ import {
   IoSettingsOutline,
   IoSparklesOutline,
 } from "react-icons/io5";
-import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
 function uniqueNodes(items = []) {
@@ -31,12 +32,7 @@ function uniqueNodes(items = []) {
 export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const router = useRouter();
   const { userData, defaultAvatar, isAuthenticated } = useUser();
-  const avatar =
-    isAuthenticated && userData?.avatar?.startsWith("/")
-      ? absoluteApiUrl(userData.avatar)
-      : isAuthenticated && userData?.avatar
-      ? userData.avatar
-      : defaultAvatar;
+  const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const { data, isLoading } = useQuery({
     queryKey: ["supernova-menu", userData?.name],

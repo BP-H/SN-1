@@ -2,7 +2,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { FaUser, FaBriefcase } from "react-icons/fa";
 import { BsFillCpuFill } from "react-icons/bs";
-import { absoluteApiUrl } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 const SPECIES_CONFIG = {
   human: { icon: FaUser, bg: "bg-[#e8457a]", shadow: "shadow-[0_0_8px_rgba(232,69,122,0.3)]" },
@@ -21,19 +21,10 @@ function DisplayComments({ comment, name, image, userSpecie }) {
     return (firstInitial + lastInitial).toUpperCase();
   };
 
-  const getImageUrl = (url) => {
-    const value = String(url || "").trim();
-    if (!value || value === "default.jpg") return "";
-    if (value.startsWith("data:") || value.startsWith("blob:")) return value;
-    if (value.startsWith("http://") || value.startsWith("https://")) return value;
-    if (value.startsWith("/")) return absoluteApiUrl(value);
-    return value;
-  };
-
   const initials = getInitials(name);
   const conf = SPECIES_CONFIG[userSpecie] || SPECIES_CONFIG.human;
   const Icon = conf.icon;
-  const imageUrl = getImageUrl(image);
+  const imageUrl = normalizeAvatarValue(image) ? avatarDisplayUrl(image) : "";
   const profileHref = name ? `/users/${encodeURIComponent(name)}` : "/profile";
 
   return (
