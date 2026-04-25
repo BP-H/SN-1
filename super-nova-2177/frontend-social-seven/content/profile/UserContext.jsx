@@ -308,12 +308,25 @@ export function UserProvider({ children }) {
   }, []);
 
   const loginWithPassword = useCallback(async ({ username, password }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    let response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
-    const payload = await response.json().catch(() => ({}));
+    let payload = await response.json().catch(() => ({}));
+
+    if (response.status === 404) {
+      const formData = new URLSearchParams();
+      formData.set("username", username);
+      formData.set("password", password);
+      response = await fetch(`${API_BASE_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      });
+      payload = await response.json().catch(() => ({}));
+    }
+
     if (!response.ok) {
       throw new Error(payload?.detail || "Unable to sign in.");
     }
