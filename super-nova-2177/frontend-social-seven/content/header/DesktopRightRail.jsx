@@ -153,7 +153,7 @@ function nodePosition(node, index, count, cluster, isImmersive = false) {
 function applyClusterForces(positionedNodes, edges, isImmersive = false) {
   const points = positionedNodes.map((node) => ({ ...node }));
   const byId = new Map(points.map((node) => [node.id, node]));
-  const iterations = isImmersive ? 38 : 26;
+  const iterations = isImmersive ? 28 : 20;
 
   for (let iteration = 0; iteration < iterations; iteration += 1) {
     edges.forEach((edge) => {
@@ -161,7 +161,7 @@ function applyClusterForces(positionedNodes, edges, isImmersive = false) {
       const target = byId.get(edge.target);
       if (!source || !target) return;
       const strength = clamp(Number(edge.strength || 0), 1, 80);
-      const desiredDistance = clamp((isImmersive ? 82 : 94) - strength * (isImmersive ? 1.85 : 1.42), isImmersive ? 18 : 30, isImmersive ? 84 : 96);
+      const desiredDistance = clamp((isImmersive ? 116 : 102) - strength * (isImmersive ? 2.15 : 1.48), isImmersive ? 20 : 28, isImmersive ? 122 : 104);
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
@@ -183,7 +183,7 @@ function applyClusterForces(positionedNodes, edges, isImmersive = false) {
         const dx = right.x - left.x;
         const dy = right.y - left.y;
         const distance = Math.max(1, Math.hypot(dx, dy));
-        const minDistance = (isImmersive ? 15 : 22) + (left.radius || 6) + (right.radius || 6);
+        const minDistance = (isImmersive ? 18 : 22) + (left.radius || 5) + (right.radius || 5);
         if (distance >= minDistance) continue;
         const push = (minDistance - distance) * 0.018;
         const moveX = (dx / distance) * push;
@@ -241,13 +241,13 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       const cluster = clusters.get(node.id);
       const position = nodePosition(node, index, nodes.length, cluster, isImmersive);
       const score = Number(node.activity_score || 0);
-      const baseRadius = isImmersive ? 2.8 : 4.6;
-      const maxRadius = isImmersive ? 7.4 : 11.4;
+      const baseRadius = isImmersive ? 2.05 : 3.6;
+      const maxRadius = isImmersive ? 5.8 : 8.8;
       return {
         ...node,
         ...position,
         clusterCenter: cluster?.center,
-        radius: Math.max(baseRadius, Math.min(maxRadius, baseRadius + Math.sqrt(score + 1) * (isImmersive ? 0.64 : 1.04))),
+        radius: Math.max(baseRadius, Math.min(maxRadius, baseRadius + Math.sqrt(score + 1) * (isImmersive ? 0.44 : 0.78))),
       };
     });
     const positioned = applyClusterForces(seeded, edges, isImmersive);
@@ -298,6 +298,15 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       .map((edge) => ({ ...edge, sourceNode: visualNodeById.get(edge.source), targetNode: visualNodeById.get(edge.target) }))
       .filter((edge) => edge.sourceNode && edge.targetNode);
   }, [layout.edges, visualNodeById]);
+
+  const ambientAnchors = useMemo(() => {
+    const limit = isImmersive ? 32 : 12;
+    return layout.nodes.slice(0, limit).map((node) => ({
+      x: node.x,
+      y: node.y,
+      intensity: clamp((node.radius || 4) / (isImmersive ? 4.8 : 7.2), 0.55, 1.45),
+    }));
+  }, [isImmersive, layout.nodes]);
 
   const selectedNode = visualNodes.find((node) => node.id === selectedNodeId);
   const selectedEdge = visualEdges.find((edge) => edge.id === selectedEdgeId);
@@ -371,7 +380,9 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       <div className="desktop-constellation-stage" aria-label="Live social constellation">
         <AmbientConstellationCanvas
           className="desktop-constellation-ambient"
-          density={isImmersive ? 58 : 30}
+          density={isImmersive ? 44 : 24}
+          anchors={ambientAnchors}
+          frameMs={isImmersive ? 48 : 62}
         />
         <div className="desktop-constellation-controls" aria-label="Constellation controls">
           <button type="button" onClick={() => updateScale(view.scale + 0.12)} title="Zoom in" aria-label="Zoom in">
@@ -418,8 +429,8 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
               {visualEdges.map((edge) => {
                 const active = selectedEdgeId === edge.id;
                 const width = isImmersive
-                  ? Math.max(0.22, Math.min(1.35, 0.26 + Number(edge.strength || 0) / 48))
-                  : Math.max(0.4, Math.min(2.1, 0.48 + Number(edge.strength || 0) / 25));
+                  ? Math.max(0.16, Math.min(0.94, 0.18 + Number(edge.strength || 0) / 72))
+                  : Math.max(0.32, Math.min(1.55, 0.38 + Number(edge.strength || 0) / 35));
                 return (
                   <g key={edge.id}>
                     <line
@@ -452,7 +463,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
               {visualNodes.map((node, index) => {
                 const selected = selectedNodeId === node.id;
                 const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
-                const showLabel = !isImmersive || selected || current || node.radius >= 6.8;
+                const showLabel = !isImmersive || selected || current || node.radius >= 5.4;
                 return (
                   <g
                     key={node.id}
@@ -474,8 +485,8 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
                     }}
                   >
                     <g className="desktop-node-float">
-                      <circle className="desktop-node-aura" r={node.radius + 8} />
-                      <circle className="desktop-node-ring" r={node.radius + 3} />
+                      <circle className="desktop-node-aura" r={node.radius + (isImmersive ? 5 : 7)} />
+                      <circle className="desktop-node-ring" r={node.radius + (isImmersive ? 2 : 3)} />
                       <circle className="desktop-node-core" r={node.radius} filter="url(#constellation-glow)" />
                       {showLabel && (
                         <text className="desktop-node-label" textAnchor="middle" dy="0.32em">

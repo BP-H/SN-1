@@ -6,8 +6,19 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-export default function AmbientConstellationCanvas({ className = "", density = 40 }) {
+export default function AmbientConstellationCanvas({
+  className = "",
+  density = 40,
+  anchors = [],
+  frameMs = 42,
+  maxDpr = 1.5,
+}) {
   const canvasRef = useRef(null);
+  const anchorsRef = useRef([]);
+
+  useEffect(() => {
+    anchorsRef.current = anchors;
+  }, [anchors]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -16,7 +27,7 @@ export default function AmbientConstellationCanvas({ className = "", density = 4
     if (!ctx) return undefined;
 
     const parent = canvas.parentElement;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(maxDpr, window.devicePixelRatio || 1);
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     let width = 1;
     let height = 1;
@@ -37,15 +48,15 @@ export default function AmbientConstellationCanvas({ className = "", density = 4
     if (parent) observer?.observe(parent);
     window.addEventListener("resize", resize);
 
-    const orbCount = clamp(Number(density) || 40, 20, 72);
+    const orbCount = clamp(Number(density) || 40, 16, 64);
     const orbs = Array.from({ length: orbCount }, (_, index) => {
       const angle = (index / orbCount) * Math.PI * 2;
       return {
         rx: 48 + Math.random() * 210,
         ry: 34 + Math.random() * 150,
         phase: angle + Math.random() * Math.PI,
-        speed: 0.0012 + Math.random() * 0.0028,
-        radius: 0.9 + Math.random() * 2.7,
+        speed: 0.001 + Math.random() * 0.0021,
+        radius: 0.7 + Math.random() * 2.3,
         z: Math.random() * 2 - 1,
         hue: 200 + Math.random() * 88 + (index % 4 === 0 ? 126 : 0),
       };
@@ -73,7 +84,13 @@ export default function AmbientConstellationCanvas({ className = "", density = 4
     };
 
     let raf = 0;
-    const tick = () => {
+    let lastPaint = 0;
+    const tick = (time = 0) => {
+      if (time - lastPaint < frameMs) {
+        raf = window.requestAnimationFrame(tick);
+        return;
+      }
+      lastPaint = time;
       drawBackground();
       const points = [];
       orbs.forEach((orb) => {
@@ -105,14 +122,42 @@ export default function AmbientConstellationCanvas({ className = "", density = 4
             nearest = target;
           }
         });
-        if (!nearest || nearestDistance > 180) return;
-        ctx.strokeStyle = `rgba(154, 196, 255, ${clamp(0.2 - nearestDistance / 900, 0.02, 0.18)})`;
-        ctx.lineWidth = 0.55;
+        if (!nearest || nearestDistance > 140) return;
+        ctx.strokeStyle = `rgba(154, 196, 255, ${clamp(0.16 - nearestDistance / 820, 0.015, 0.14)})`;
+        ctx.lineWidth = 0.42;
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
         ctx.lineTo(nearest.x, nearest.y);
         ctx.stroke();
       });
+
+      const anchors = anchorsRef.current || [];
+      if (anchors.length) {
+        const projectedAnchors = anchors.slice(0, 36).map((anchor) => ({
+          x: (Number(anchor.x || 0) / 280) * width,
+          y: (Number(anchor.y || 0) / 210) * height,
+          intensity: clamp(Number(anchor.intensity || 1), 0.45, 1.65),
+        }));
+        points.forEach((point, index) => {
+          if (index % 2 !== 0) return;
+          let nearest = null;
+          let nearestDistance = Infinity;
+          projectedAnchors.forEach((anchor) => {
+            const distance = Math.hypot(point.x - anchor.x, point.y - anchor.y);
+            if (distance < nearestDistance) {
+              nearestDistance = distance;
+              nearest = anchor;
+            }
+          });
+          if (!nearest || nearestDistance > 118) return;
+          ctx.strokeStyle = `rgba(255, 99, 181, ${clamp(0.18 - nearestDistance / 780, 0.018, 0.14) * nearest.intensity})`;
+          ctx.lineWidth = 0.34 + nearest.intensity * 0.16;
+          ctx.beginPath();
+          ctx.moveTo(point.x, point.y);
+          ctx.lineTo(nearest.x, nearest.y);
+          ctx.stroke();
+        });
+      }
 
       raf = window.requestAnimationFrame(tick);
     };
@@ -123,7 +168,7 @@ export default function AmbientConstellationCanvas({ className = "", density = 4
       window.removeEventListener("resize", resize);
       observer?.disconnect();
     };
-  }, [density]);
+  }, [density, frameMs, maxDpr]);
 
   return <canvas ref={canvasRef} className={className} aria-hidden="true" />;
 }

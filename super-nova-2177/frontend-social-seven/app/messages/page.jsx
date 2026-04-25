@@ -22,6 +22,10 @@ function compactName(name = "") {
   return name;
 }
 
+function peerKey(value = "") {
+  return value.trim().toLowerCase();
+}
+
 function translateUrl(text = "") {
   return `https://translate.google.com/?sl=auto&tl=en&op=translate&text=${encodeURIComponent(text)}`;
 }
@@ -40,13 +44,13 @@ export default function MessagesPage() {
   const [readMarkers, setReadMarkers] = useState({});
   const [composerFocused, setComposerFocused] = useState(false);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
-  const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
+  const readKey = `${READ_PREFIX}${peerKey(currentUser)}::`;
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
     const readPeerFromUrl = () => {
-      const nextPeer = new URLSearchParams(window.location.search).get("to") || "";
+      const nextPeer = new URLSearchParams(window.location.search).get("to")?.trim() || "";
       if (!nextPeer) return;
       setSearch("");
       setRequestedPeer(nextPeer);
@@ -115,22 +119,22 @@ export default function MessagesPage() {
   const peers = useMemo(() => {
     const conversationPeers = new Map(
       (conversationsQuery.data?.conversations || []).map((conversation) => [
-        conversation.peer?.toLowerCase(),
+        peerKey(conversation.peer),
         conversation,
       ])
     );
     const merged = new Map();
     (usersQuery.data || [])
-      .filter((user) => user.username && user.username.toLowerCase() !== currentUser.toLowerCase())
-      .forEach((user) => merged.set(user.username.toLowerCase(), {
+      .filter((user) => user.username && peerKey(user.username) !== peerKey(currentUser))
+      .forEach((user) => merged.set(peerKey(user.username), {
         ...user,
-        conversation: conversationPeers.get(user.username.toLowerCase()),
+        conversation: conversationPeers.get(peerKey(user.username)),
       }));
 
     (conversationsQuery.data?.conversations || []).forEach((conversation) => {
       const username = conversation.peer || "";
-      const key = username.toLowerCase();
-      if (!username || key === currentUser.toLowerCase() || merged.has(key)) return;
+      const key = peerKey(username);
+      if (!username || key === peerKey(currentUser) || merged.has(key)) return;
       merged.set(key, {
         username,
         initials: initials(username),
@@ -142,8 +146,8 @@ export default function MessagesPage() {
     });
 
     const requestedUsername = requestedPeer.trim();
-    const requestedKey = requestedUsername.toLowerCase();
-    if (requestedUsername && requestedKey !== currentUser.toLowerCase() && !merged.has(requestedKey)) {
+    const requestedKey = peerKey(requestedUsername);
+    if (requestedUsername && requestedKey !== peerKey(currentUser) && !merged.has(requestedKey)) {
       merged.set(requestedKey, {
         username: requestedUsername,
         initials: initials(requestedUsername),
@@ -159,7 +163,7 @@ export default function MessagesPage() {
         const rightTime = right.conversation?.updated_at || "";
         return rightTime.localeCompare(leftTime);
       })
-      .filter((user) => user.username.toLowerCase().includes(search.trim().toLowerCase()));
+      .filter((user) => peerKey(user.username).includes(peerKey(search)));
   }, [conversationsQuery.data, currentUser, requestedPeer, search, usersQuery.data]);
 
   const unreadPeerKeys = useMemo(() => {
@@ -167,27 +171,26 @@ export default function MessagesPage() {
       (conversationsQuery.data?.conversations || [])
         .filter((conversation) => {
           const message = conversation.last_message || {};
-          if (message.recipient?.toLowerCase() !== currentUser.toLowerCase()) return false;
-          const peerKey = conversation.peer?.toLowerCase();
-          return peerKey && (readMarkers[peerKey] || "") < (message.created_at || "");
+          if (peerKey(message.recipient) !== peerKey(currentUser)) return false;
+          const conversationPeerKey = peerKey(conversation.peer);
+          return conversationPeerKey && (readMarkers[conversationPeerKey] || "") < (message.created_at || "");
         })
-        .map((conversation) => conversation.peer.toLowerCase())
+        .map((conversation) => peerKey(conversation.peer))
     );
   }, [conversationsQuery.data, currentUser, readMarkers]);
 
   useEffect(() => {
     if (requestedPeer) {
-      const requested = peers.find((peer) => peer.username.toLowerCase() === requestedPeer.toLowerCase());
+      const requested = peers.find((peer) => peerKey(peer.username) === peerKey(requestedPeer));
       if (requested) {
         setSelectedPeer(requested.username);
         setRequestedPeer("");
-        if (typeof window !== "undefined" && window.location.search) {
-          window.history.replaceState(null, "", "/messages");
-        }
         return;
       }
+      return;
     }
-    if (peers.length > 0 && (!selectedPeer || !peers.some((peer) => peer.username === selectedPeer))) {
+    const selectedKey = peerKey(selectedPeer);
+    if (peers.length > 0 && (!selectedKey || !peers.some((peer) => peerKey(peer.username) === selectedKey))) {
       setSelectedPeer(peers[0].username);
     }
   }, [peers, requestedPeer, selectedPeer]);
@@ -287,7 +290,7 @@ export default function MessagesPage() {
       });
       queryClient.setQueryData(["direct-conversations", currentUser], (oldData) => {
         const conversations = oldData?.conversations || [];
-        const peerKey = selectedPeer.toLowerCase();
+        const selectedPeerKey = peerKey(selectedPeer);
         return {
           conversations: [
             {
@@ -295,7 +298,7 @@ export default function MessagesPage() {
               last_message: message,
               updated_at: message.created_at,
             },
-            ...conversations.filter((conversation) => conversation.peer?.toLowerCase() !== peerKey),
+            ...conversations.filter((conversation) => peerKey(conversation.peer) !== selectedPeerKey),
           ],
         };
       });
@@ -326,10 +329,10 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!selectedPeer || messages.length === 0 || typeof window === "undefined") return;
     const lastMessage = messages[messages.length - 1];
-    const peerKey = selectedPeer.toLowerCase();
+    const selectedPeerKey = peerKey(selectedPeer);
     const lastSeen = lastMessage?.created_at || new Date().toISOString();
-    localStorage.setItem(`${readKey}${peerKey}`, lastSeen);
-    setReadMarkers((markers) => ({ ...markers, [peerKey]: lastSeen }));
+    localStorage.setItem(`${readKey}${selectedPeerKey}`, lastSeen);
+    setReadMarkers((markers) => ({ ...markers, [selectedPeerKey]: lastSeen }));
     window.dispatchEvent(new Event("supernova:dm-read"));
   }, [messages, readKey, selectedPeer]);
 
@@ -383,8 +386,8 @@ export default function MessagesPage() {
               : peers.map((peer) => {
                   const active = peer.username === selectedPeer;
                   const image = avatarUrl(peer.avatar);
-                  const peerKey = peer.username.toLowerCase();
-                  const unread = unreadPeerKeys.has(peerKey);
+                  const currentPeerKey = peerKey(peer.username);
+                  const unread = unreadPeerKeys.has(currentPeerKey);
                   return (
                     <div
                       key={peer.username}
@@ -480,7 +483,7 @@ export default function MessagesPage() {
                   </div>
                 ) : (
                   messages.map((message) => {
-                    const own = message.sender?.toLowerCase() === currentUser.toLowerCase();
+                    const own = peerKey(message.sender) === peerKey(currentUser);
                     return (
                       <div key={message.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
                         <div
