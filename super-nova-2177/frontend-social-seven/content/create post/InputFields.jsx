@@ -155,6 +155,19 @@ function InputFields({
     setSelectedFiles([]);
   };
 
+  const ensureNamedFile = (file, originalFile, index = 0) => {
+    if (file instanceof File && file.name) return file;
+    const originalName = originalFile?.name || "";
+    const originalExt = originalName.includes(".") ? originalName.slice(originalName.lastIndexOf(".")) : "";
+    const fallbackExt =
+      originalExt ||
+      (file?.type === "image/png" ? ".png" : file?.type === "image/webp" ? ".webp" : ".jpg");
+    return new File([file], originalName || `image-${index + 1}${fallbackExt}`, {
+      type: file?.type || originalFile?.type || "image/jpeg",
+      lastModified: originalFile?.lastModified || Date.now(),
+    });
+  };
+
   const handleFileChange = async (event, type) => {
     if (!isAuthenticated) {
       requireAccount("Sign in before attaching media.");
@@ -175,7 +188,10 @@ function InputFields({
       try {
         const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
         const compressedFiles = await Promise.all(
-          imageFiles.map((file) => imageCompression(file, options).catch(() => file))
+          imageFiles.map(async (file, index) => {
+            const compressed = await imageCompression(file, options).catch(() => file);
+            return ensureNamedFile(compressed, file, index);
+          })
         );
         setSelectedFiles(compressedFiles);
         setSelectedFile(compressedFiles[0]);
@@ -243,14 +259,16 @@ function InputFields({
       }
 
       if (newPost.images?.length) {
-        newPost.images.forEach((imageFile) => formData.append("images", imageFile));
+        newPost.images.forEach((imageFile, index) => {
+          formData.append("images", imageFile, imageFile.name || `image-${index + 1}.jpg`);
+        });
         formData.append("media_layout", newPost.media_layout || "carousel");
       } else if (newPost.image) {
-        formData.append("image", newPost.image);
+        formData.append("image", newPost.image, newPost.image.name || "image.jpg");
         formData.append("media_layout", newPost.media_layout || "carousel");
       }
-      if (newPost.file) formData.append("file", newPost.file);
-      if (newPost.video) formData.append("video_file", newPost.video);
+      if (newPost.file) formData.append("file", newPost.file, newPost.file.name || "attachment");
+      if (newPost.video) formData.append("video_file", newPost.video, newPost.video.name || "video.mp4");
       if (newPost.link) formData.append("link", newPost.link);
 
       const response = await fetch(`${API_BASE_URL}/proposals`, {

@@ -185,6 +185,53 @@ app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 if SUPER_NOVA_CORE_APP is not None:
     app.mount("/core", SUPER_NOVA_CORE_APP, name="supernova_core")
 
+IMAGE_UPLOAD_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".bmp", ".heic", ".heif"}
+VIDEO_UPLOAD_EXTENSIONS = {".mp4", ".webm", ".mov", ".m4v", ".ogg", ".ogv"}
+CONTENT_TYPE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/avif": ".avif",
+    "image/bmp": ".bmp",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+    "video/ogg": ".ogv",
+}
+GENERIC_UPLOAD_TYPES = {"", "application/octet-stream", "binary/octet-stream"}
+
+
+def _safe_upload_extension(upload: UploadFile, fallback: str = "") -> str:
+    raw_ext = os.path.splitext(upload.filename or "")[1].lower()
+    if raw_ext and 1 < len(raw_ext) <= 12 and raw_ext[1:].replace("-", "").isalnum():
+        return raw_ext
+    return CONTENT_TYPE_EXTENSIONS.get((upload.content_type or "").lower(), fallback)
+
+
+def _upload_matches(upload: UploadFile, prefix: str, allowed_extensions: set[str]) -> bool:
+    content_type = (upload.content_type or "").lower()
+    if content_type.startswith(prefix):
+        return True
+    return content_type in GENERIC_UPLOAD_TYPES and _safe_upload_extension(upload) in allowed_extensions
+
+
+def _save_upload_file(upload: UploadFile, allowed_extensions: Optional[set[str]] = None, fallback_ext: str = "") -> str:
+    ext = _safe_upload_extension(upload, fallback_ext)
+    if allowed_extensions is not None and ext not in allowed_extensions:
+        ext = fallback_ext if fallback_ext in allowed_extensions else ""
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    file_path = os.path.join(uploads_dir, unique_name)
+    try:
+        upload.file.seek(0)
+    except Exception:
+        pass
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(upload.file, f, length=1024 * 1024)
+    return unique_name
+
 
 def _format_timestamp(value) -> str:
     if not value:
@@ -1892,10 +1939,11 @@ def social_users(
 @app.get("/social-graph", summary="Desktop social constellation graph")
 def social_graph(
     username: Optional[str] = Query(None),
-    limit: int = Query(14, ge=4, le=24),
+    limit: int = Query(14, ge=4, le=96),
     db: Session = Depends(get_db),
 ):
     current_key = _safe_user_key(username or "")
+    graph_scan_limit = min(max(limit * 4, 80), 320)
     nodes: Dict[str, Dict[str, Any]] = {}
     edges: Dict[str, Dict[str, Any]] = {}
 
@@ -1975,10 +2023,11 @@ def social_graph(
     try:
         proposals = []
         if Proposal is not None:
-            proposals = db.query(Proposal).order_by(desc(Proposal.id)).limit(80).all()
+            proposals = db.query(Proposal).order_by(desc(Proposal.id)).limit(graph_scan_limit).all()
         else:
             proposals = db.execute(
-                text("SELECT id, userName, author_type, author_img FROM proposals ORDER BY id DESC LIMIT 80")
+                text("SELECT id, userName, author_type, author_img FROM proposals ORDER BY id DESC LIMIT :limit"),
+                {"limit": graph_scan_limit},
             ).fetchall()
 
         for proposal in proposals:
@@ -1997,7 +2046,7 @@ def social_graph(
             except Exception:
                 comments = []
             comments_by_id = {}
-            for comment in comments[:80]:
+            for comment in comments[:120]:
                 payload = _serialize_comment_record(db, comment)
                 comments_by_id[str(payload.get("id"))] = payload
                 if payload.get("deleted"):
@@ -2019,7 +2068,7 @@ def social_graph(
             except Exception:
                 votes = []
             vote_entries = []
-            for vote in votes[:80]:
+            for vote in votes[:120]:
                 like_entry, dislike_entry = _serialize_vote_record(db, vote)
                 entry = like_entry or dislike_entry
                 if not entry:
@@ -2028,15 +2077,16 @@ def social_graph(
                 ensure_node(voter, entry.get("type", "human"), "", 2)
                 add_edge(voter, author, 2, "votes")
                 vote_entries.append((voter, bool(like_entry)))
-            for index, (left_user, left_choice) in enumerate(vote_entries[:16]):
-                for right_user, right_choice in vote_entries[index + 1:16]:
+            for index, (left_user, left_choice) in enumerate(vote_entries[:24]):
+                for right_user, right_choice in vote_entries[index + 1:24]:
                     add_edge(left_user, right_user, 3 if left_choice == right_choice else 2, "votes")
     except Exception:
         pass
 
     try:
         rows = db.execute(
-            text("SELECT sender, recipient FROM direct_messages ORDER BY created_at DESC LIMIT 160")
+            text("SELECT sender, recipient FROM direct_messages ORDER BY created_at DESC LIMIT :limit"),
+            {"limit": min(max(limit * 4, 160), 360)},
         ).fetchall()
         for row in rows:
             data = getattr(row, "_mapping", row)
@@ -2325,13 +2375,9 @@ async def create_proposal(
     if images:
         image_uploads.extend([item for item in images if item])
     for image_upload in image_uploads:
-        if image_upload.content_type and not image_upload.content_type.startswith("image/"):
+        if not _upload_matches(image_upload, "image/", IMAGE_UPLOAD_EXTENSIONS):
             raise HTTPException(status_code=400, detail="Uploaded image files must be images")
-        ext = os.path.splitext(image_upload.filename)[1]
-        next_filename = f"{uuid.uuid4().hex}{ext}"
-        image_path = os.path.join(uploads_dir, next_filename)
-        with open(image_path, "wb") as f:
-            f.write(await image_upload.read())
+        next_filename = _save_upload_file(image_upload, IMAGE_UPLOAD_EXTENSIONS, ".jpg")
         image_filenames.append(next_filename)
     if len(image_filenames) == 1:
         image_filename = image_filenames[0]
@@ -2339,21 +2385,13 @@ async def create_proposal(
         image_filename = json.dumps(image_filenames)
 
     if video_file:
-        if video_file.content_type and not video_file.content_type.startswith("video/"):
+        if not _upload_matches(video_file, "video/", VIDEO_UPLOAD_EXTENSIONS):
             raise HTTPException(status_code=400, detail="Uploaded video file must be a video")
-        ext = os.path.splitext(video_file.filename)[1]
-        video_filename = f"{uuid.uuid4().hex}{ext}"
-        video_path = os.path.join(uploads_dir, video_filename)
-        with open(video_path, "wb") as f:
-            f.write(await video_file.read())
+        video_filename = _save_upload_file(video_file, VIDEO_UPLOAD_EXTENSIONS, ".mp4")
         video_value = video_filename
     
     if file:
-        ext = os.path.splitext(file.filename)[1]
-        file_filename = f"{uuid.uuid4().hex}{ext}"
-        file_path = os.path.join(uploads_dir, file_filename)
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
+        file_filename = _save_upload_file(file)
 
     from datetime import datetime as dt
     if date:
@@ -3635,14 +3673,10 @@ async def upload_image(
     db: Session = Depends(get_db),
 ):
     os.makedirs(uploads_dir, exist_ok=True)
-    if file.content_type and not file.content_type.startswith("image/"):
+    if not _upload_matches(file, "image/", IMAGE_UPLOAD_EXTENSIONS):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image")
 
-    ext = os.path.splitext(file.filename)[1]
-    unique_name = f"{uuid.uuid4().hex}{ext}"
-    file_path = os.path.join(uploads_dir, unique_name)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg")
 
     avatar_url = f"/uploads/{unique_name}"
     clean_username = (username or "").strip()
@@ -3686,11 +3720,7 @@ async def upload_image(
 @app.post("/upload-file")
 async def upload_file(file: UploadFile = File(...)):
     os.makedirs(uploads_dir, exist_ok=True)
-    ext = os.path.splitext(file.filename)[1]
-    unique_name = f"{uuid.uuid4().hex}{ext}"
-    file_path = os.path.join(uploads_dir, unique_name)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    unique_name = _save_upload_file(file)
     return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
 
 # --- Delete endpoints ---

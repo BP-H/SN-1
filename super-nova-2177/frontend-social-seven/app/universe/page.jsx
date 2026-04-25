@@ -25,7 +25,7 @@ export default function UniversePage() {
   const graphQuery = useQuery({
     queryKey: ["universe-social-graph", currentUser],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "24" });
+      const params = new URLSearchParams({ limit: "72" });
       if (currentUser) params.set("username", currentUser);
       const response = await fetch(`${API_BASE_URL}/social-graph?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to load universe");
