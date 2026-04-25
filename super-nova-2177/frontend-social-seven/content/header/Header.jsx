@@ -106,8 +106,14 @@ export default function Header({
   useEffect(() => {
     let lastY = window.scrollY;
     let ticking = false;
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
 
     const handleScroll = () => {
+      if (desktopQuery.matches) {
+        setHeaderHidden(false);
+        lastY = window.scrollY;
+        return;
+      }
       if (ticking) return;
       ticking = true;
       window.requestAnimationFrame(() => {
@@ -123,8 +129,25 @@ export default function Header({
       });
     };
 
+    const keepDesktopHeaderVisible = () => {
+      if (desktopQuery.matches) setHeaderHidden(false);
+    };
+
+    keepDesktopHeaderVisible();
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    if (desktopQuery.addEventListener) {
+      desktopQuery.addEventListener("change", keepDesktopHeaderVisible);
+    } else {
+      desktopQuery.addListener(keepDesktopHeaderVisible);
+    }
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (desktopQuery.removeEventListener) {
+        desktopQuery.removeEventListener("change", keepDesktopHeaderVisible);
+      } else {
+        desktopQuery.removeListener(keepDesktopHeaderVisible);
+      }
+    };
   }, [showMenu]);
 
   return (

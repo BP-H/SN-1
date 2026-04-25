@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   IoAdd,
   IoBusinessOutline,
+  IoExpandOutline,
   IoFlashOutline,
   IoPeopleOutline,
   IoPulseOutline,
@@ -145,7 +146,7 @@ function reasonSummary(reasons = {}) {
     .join(" / ");
 }
 
-function SocialConstellation({ graph, currentUser }) {
+export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const nodes = graph?.nodes || [];
   const edges = graph?.edges || [];
   const [selectedNodeId, setSelectedNodeId] = useState("");
@@ -233,7 +234,7 @@ function SocialConstellation({ graph, currentUser }) {
   const resetView = () => setView({ x: 0, y: 0, scale: 1 });
 
   return (
-    <div className="desktop-constellation">
+    <div className={`desktop-constellation desktop-constellation-${variant}`}>
       <div className="desktop-constellation-stage" aria-label="Live social constellation">
         <div className="desktop-constellation-controls" aria-label="Constellation controls">
           <button type="button" onClick={() => updateScale(view.scale + 0.12)} title="Zoom in" aria-label="Zoom in">
@@ -449,6 +450,14 @@ export default function DesktopRightRail() {
               Human, AI, and ORG resonance
             </span>
           </span>
+          <Link
+            href="/universe"
+            className="desktop-panel-action ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+            aria-label="Open universe map"
+            title="Open universe map"
+          >
+            <IoExpandOutline />
+          </Link>
         </div>
 
         {graphQuery.isLoading ? (

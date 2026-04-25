@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { normalizeAvatarValue } from "@/utils/avatar";
 import {
   IoChatbubbleEllipsesOutline,
   IoClose,
   IoClipboardOutline,
   IoKeyOutline,
+  IoPlanetOutline,
   IoShareSocialOutline,
   IoSparklesOutline,
 } from "react-icons/io5";
@@ -48,6 +50,7 @@ function buildPrompt(action, target) {
 }
 
 export default function AssistantOrb() {
+  const router = useRouter();
   const { userData, isAuthenticated } = useUser();
   const dockRef = useRef(null);
   const orbRef = useRef(null);
@@ -334,6 +337,17 @@ export default function AssistantOrb() {
   };
 
   const runAction = async (action) => {
+    if (action === "universe") {
+      setMenuOpen(false);
+      setSettingsOpen(false);
+      setCommentOpen(false);
+      setReply("");
+      setGhostVisible(false);
+      dockRef.current?.classList.remove("ai-cursor-dock-hidden");
+      router.push("/universe");
+      return;
+    }
+
     if (action === "key") {
       setSettingsOpen((value) => !value);
       setCommentOpen(false);
@@ -492,13 +506,14 @@ export default function AssistantOrb() {
   };
 
   const actions = [
-    { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -46, dy: -68, size: "primary", tone: "blue" },
-    { action: "like", label: "Support", icon: BiSolidLike, dx: 46, dy: -68, size: "primary", tone: "pink" },
+    { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -48, dy: -74, size: "primary", tone: "blue" },
+    { action: "like", label: "Support", icon: BiSolidLike, dx: 48, dy: -74, size: "primary", tone: "pink" },
     { action: "comment", label: "Comment", icon: IoClipboardOutline, dx: -78, dy: -4 },
     { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 78, dy: -4 },
     { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -48, dy: 60 },
     { action: "share", label: "Share", icon: IoShareSocialOutline, dx: 48, dy: 60 },
-    { action: "key", label: "AI key", icon: IoKeyOutline, dx: 0, dy: 78 },
+    { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: 0, dy: 84 },
+    { action: "key", label: "AI key", icon: IoKeyOutline, dx: 0, dy: 126 },
   ];
   const dockHidden = dragging || ghostVisible || menuOpen || settingsOpen || commentOpen || Boolean(reply);
   const floatingPanelStyle =

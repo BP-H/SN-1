@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Header from "@/content/header/Header";
 import HeaderMobile from "@/content/header/HeaderMobile";
 import DesktopNav from "@/content/header/DesktopNav";
@@ -15,9 +16,11 @@ export default function HeaderWrapper({
   showSettings,
   setShowSettings,
 }) {
+  const pathname = usePathname();
   const [authIntent, setAuthIntent] = useState(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const { authLoading, isAuthenticated, needsProfileSetup } = useUser();
+  const universeMode = pathname?.startsWith("/universe");
 
   useEffect(() => {
     const openAccount = (event) => {
@@ -77,8 +80,8 @@ export default function HeaderWrapper({
         errorMsg={errorMsg}
         setErrorMsg={setErrorMsg}
       />
-      <DesktopNav showSettings={showSettings} setShowSettings={setShowSettings} />
-      <DesktopRightRail />
+      {!universeMode && <DesktopNav showSettings={showSettings} setShowSettings={setShowSettings} />}
+      {!universeMode && <DesktopRightRail />}
       <AccountModal
         open={accountModalOpen && !isAuthenticated}
         initialMode={authIntent?.mode || "create"}
