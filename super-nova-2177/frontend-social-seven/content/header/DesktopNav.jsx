@@ -8,6 +8,7 @@ import {
   IoChatbubbleOutline,
   IoCompassOutline,
   IoHome,
+  IoMenu,
   IoPersonOutline,
   IoSettingsOutline,
 } from "react-icons/io5";
@@ -22,13 +23,14 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
   const pathname = usePathname();
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const [readMarkers, setReadMarkers] = useState({});
+  const [isDesktopViewport, setIsDesktopViewport] = useState(null);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
   const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const conversationsQuery = useQuery({
     queryKey: ["desktop-direct-conversations", currentUser],
-    enabled: Boolean(isAuthenticated && currentUser),
+    enabled: Boolean(isDesktopViewport === true && isAuthenticated && currentUser),
     queryFn: async () => {
       const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`);
       if (!response.ok) throw new Error("Failed to load conversations");
@@ -36,6 +38,19 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
     },
     refetchInterval: 12000,
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const updateViewport = () => setIsDesktopViewport(mediaQuery.matches);
+    updateViewport();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", updateViewport);
+      return () => mediaQuery.removeEventListener("change", updateViewport);
+    }
+    mediaQuery.addListener(updateViewport);
+    return () => mediaQuery.removeListener(updateViewport);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -87,7 +102,12 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
     router.push("/");
   };
 
+  const openSupernovaMenu = () => {
+    window.dispatchEvent(new Event("supernova:open-menu"));
+  };
+
   const navItems = [
+    { key: "menu", label: "Menu", icon: IoMenu, action: openSupernovaMenu },
     { key: "home", label: "Home", icon: IoHome, action: () => router.push("/") },
     { key: "discover", label: "Discover", icon: IoCompassOutline, action: () => router.push("/proposals") },
     {

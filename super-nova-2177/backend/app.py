@@ -662,6 +662,23 @@ def _social_avatar(value: Optional[str]) -> str:
     return f"/uploads/{value}"
 
 
+def _is_default_avatar(value: Optional[str]) -> bool:
+    avatar = (value or "").strip()
+    if not avatar:
+        return True
+    lower = avatar.lower()
+    return (
+        lower in {"default.jpg", "default-avatar.png", "/default-avatar.png", "/supernova.png"}
+        or lower.endswith("/default-avatar.png")
+        or lower.endswith("/supernova.png")
+    )
+
+
+def _is_uploaded_avatar(value: Optional[str]) -> bool:
+    avatar = _social_avatar((value or "").strip()).lower()
+    return avatar.startswith("/uploads/") or "/uploads/" in avatar
+
+
 def _sync_user_avatar_references(
     db: Session,
     username: str,
@@ -1215,7 +1232,12 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
 
     if existing:
         avatar_to_sync = ""
-        if avatar_url:
+        existing_avatar = getattr(existing, "profile_pic", "") or getattr(existing, "avatar_url", "") or ""
+        should_update_avatar = bool(avatar_url) and (
+            _is_default_avatar(existing_avatar)
+            or (_is_uploaded_avatar(avatar_url) and not _is_uploaded_avatar(existing_avatar))
+        )
+        if should_update_avatar:
             existing.profile_pic = avatar_url
             avatar_to_sync = avatar_url
         if not getattr(existing, "species", None):
@@ -1410,8 +1432,11 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
     avatar_to_sync = ""
     if payload.avatar_url is not None:
         avatar_url = payload.avatar_url.strip()
-        user.profile_pic = avatar_url or "default.jpg"
-        avatar_to_sync = user.profile_pic
+        if avatar_url:
+            user.profile_pic = avatar_url
+            avatar_to_sync = avatar_url
+        elif _is_default_avatar(getattr(user, "profile_pic", "")):
+            user.profile_pic = "default.jpg"
 
     if payload.species is not None:
         user.species = _normalize_species(payload.species)

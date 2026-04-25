@@ -20,6 +20,16 @@ export function normalizeAvatarValue(value = "") {
   return raw;
 }
 
+export function isUploadedAvatarValue(value = "") {
+  const raw = normalizeAvatarValue(value);
+  if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return false;
+  try {
+    return new URL(raw, "https://supernova.local").pathname.startsWith("/uploads/");
+  } catch {
+    return raw.startsWith("/uploads/") || raw.startsWith("uploads/") || raw.includes("/uploads/");
+  }
+}
+
 export function avatarDisplayUrl(value = "", fallback = FALLBACK_AVATAR) {
   const raw = normalizeAvatarValue(value);
   if (!raw) return fallback;

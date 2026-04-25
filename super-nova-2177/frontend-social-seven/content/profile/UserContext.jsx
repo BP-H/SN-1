@@ -3,7 +3,7 @@
 import { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import supabase, { isSupabaseConfigured } from "@/supabaseClient";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { FALLBACK_AVATAR, normalizeAvatarValue } from "@/utils/avatar";
+import { FALLBACK_AVATAR, isUploadedAvatarValue, normalizeAvatarValue } from "@/utils/avatar";
 
 const UserContext = createContext();
 
@@ -203,12 +203,13 @@ export function UserProvider({ children }) {
       providerProfile.email?.split("@")[0] ||
       `${providerProfile.provider}-${providerProfile.id.slice(0, 8)}`;
 
+    const storedAvatar = normalizeAvatarValue(storedProfile?.customAvatar || "");
     const syncPayload = {
       provider: providerProfile.provider,
       provider_id: providerProfile.id,
       email: providerProfile.email,
       username,
-      avatar_url: normalizeAvatarValue(userData.avatar || providerProfile.avatar || ""),
+      avatar_url: normalizeAvatarValue(storedAvatar || providerProfile.avatar || userData.avatar || ""),
     };
     const explicitSpecies = normalizeSpecies(storedProfile?.species) || normalizeSpecies(providerProfile.species);
     if (explicitSpecies) {
@@ -224,12 +225,20 @@ export function UserProvider({ children }) {
       .then((payload) => {
         if (cancelled || !payload?.username) return;
         const responseSpecies = normalizeSpecies(payload.species);
-        if (!normalizeSpecies(storedProfile?.species) && responseSpecies) {
+        const responseAvatar = normalizeAvatarValue(payload.avatar_url || "");
+        const localAvatar = normalizeAvatarValue(storedProfile?.customAvatar || "");
+        const shouldAdoptSpecies = !normalizeSpecies(storedProfile?.species) && responseSpecies;
+        const shouldAdoptAvatar = responseAvatar && (
+          !localAvatar ||
+          (isUploadedAvatarValue(responseAvatar) && !isUploadedAvatarValue(localAvatar))
+        );
+        if (shouldAdoptSpecies || shouldAdoptAvatar) {
           const key = getCustomStorageKey(authUser, passwordAuth);
           const nextStored = {
             ...(storedProfile || {}),
-            species: responseSpecies,
           };
+          if (shouldAdoptSpecies) nextStored.species = responseSpecies;
+          if (shouldAdoptAvatar) nextStored.customAvatar = responseAvatar;
           writeStorage(key, nextStored);
           setStoredProfile(nextStored);
         }

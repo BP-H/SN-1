@@ -78,6 +78,16 @@ export default function Header({
     setSeenActivitySignature(localStorage.getItem("supernova_seen_activity_signature") || "");
   }, []);
 
+  useEffect(() => {
+    const openSupernovaMenu = () => {
+      setShowNotifications(false);
+      setShowMenu(true);
+      setHeaderHidden(false);
+    };
+    window.addEventListener("supernova:open-menu", openSupernovaMenu);
+    return () => window.removeEventListener("supernova:open-menu", openSupernovaMenu);
+  }, []);
+
   const markNotificationsSeen = () => {
     if (!activitySignature || typeof window === "undefined") return;
     localStorage.setItem("supernova_seen_activity_signature", activitySignature);
@@ -127,8 +137,9 @@ export default function Header({
                 setShowMenu(true);
                 setHeaderHidden(false);
               }}
-              className="mobile-profile-menu-button relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+              className="mobile-profile-menu-button relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
               aria-label="Open SuperNova menu"
+              title="Open SuperNova menu"
             >
               <img
                 src={avatar}
@@ -136,9 +147,9 @@ export default function Header({
                 onError={(event) => {
                   event.currentTarget.src = defaultAvatar;
                 }}
-                className="h-10 w-10 rounded-full object-cover ring-1 ring-white/15"
+                className="h-11 w-11 rounded-full object-cover ring-1 ring-white/15"
               />
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#10151d] text-[0.58rem] text-white ring-1 ring-white/10">
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--pink)] text-[0.78rem] text-white shadow-[var(--shadow-pink)] ring-1 ring-white/20">
                 <IoMenu />
               </span>
             </button>
