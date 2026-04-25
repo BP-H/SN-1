@@ -46,6 +46,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     loginWithPassword,
     registerWithPassword,
     signOut,
+    passwordAuth,
   } = useUser();
 
   const [selectedSpecies, setSelectedSpecies] = useState(userData.species || "human");
@@ -93,6 +94,8 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
   }, [isAuthenticated, userData.provider]);
 
   const currentName = userData.name || "";
+  const accountUsername = passwordAuth?.username || currentName;
+  const accountId = passwordAuth?.id || userData.id || "";
   const avatarPreview = isAuthenticated
     ? avatarDisplayUrl(avatarUrl || userData.avatar, defaultAvatar)
     : defaultAvatar;
@@ -189,8 +192,11 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     try {
       const formData = new FormData();
       formData.append("file", file);
-      if (currentName) {
-        formData.append("username", currentName);
+      if (accountUsername) {
+        formData.append("username", accountUsername);
+      }
+      if (accountId) {
+        formData.append("user_id", String(accountId));
       }
       const response = await fetch(`${API_BASE_URL}/upload-image`, {
         method: "POST",
@@ -200,16 +206,32 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       const data = await response.json();
       if (!data?.url) throw new Error("Avatar upload did not return an image URL.");
       const nextAvatar = normalizeAvatarValue(data.url);
+
+      if (!data.profile_synced && accountUsername) {
+        const syncResponse = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(accountUsername)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            avatar_url: nextAvatar,
+            species: selectedSpecies || "human",
+          }),
+        });
+        if (!syncResponse.ok) {
+          const syncPayload = await syncResponse.json().catch(() => ({}));
+          throw new Error(syncPayload?.detail || "Profile photo uploaded, but account sync failed.");
+        }
+      }
+
       setAvatarUrl(nextAvatar);
       setUserData({
-        name: currentName,
+        name: currentName || accountUsername,
         species: selectedSpecies || "human",
         avatar: nextAvatar,
       });
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("supernova:profile-avatar-updated", {
-            detail: { username: currentName, avatar: nextAvatar },
+            detail: { username: accountUsername || currentName, avatar: nextAvatar },
           })
         );
       }

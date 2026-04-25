@@ -251,7 +251,7 @@ export function UserProvider({ children }) {
     writeStorage(key, nextStored);
     setStoredProfile(nextStored);
 
-    const username = nextStored.customName || current.name || providerProfile.name || passwordAuth?.username || "";
+    const username = passwordAuth?.username || nextStored.customName || current.name || providerProfile.name || "";
     const shouldSyncProfile =
       Boolean(passwordAuth?.token) || Boolean(providerProfile.id && providerProfile.provider !== "guest");
     if (username && shouldSyncProfile) {

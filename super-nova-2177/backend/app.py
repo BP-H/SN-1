@@ -2532,6 +2532,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
 async def upload_image(
     file: UploadFile = File(...),
     username: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     os.makedirs(uploads_dir, exist_ok=True)
@@ -2546,12 +2547,19 @@ async def upload_image(
 
     avatar_url = f"/uploads/{unique_name}"
     clean_username = (username or "").strip()
+    clean_user_id = (user_id or "").strip()
     profile_synced = False
     sync_error = ""
     user = None
-    if clean_username and Harmonizer is not None:
+    if Harmonizer is not None:
         try:
-            user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
+            if clean_user_id:
+                try:
+                    user = db.query(Harmonizer).filter(Harmonizer.id == int(clean_user_id)).first()
+                except (TypeError, ValueError):
+                    user = None
+            if user is None and clean_username:
+                user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
         except Exception as exc:
             db.rollback()
             sync_error = str(exc)
