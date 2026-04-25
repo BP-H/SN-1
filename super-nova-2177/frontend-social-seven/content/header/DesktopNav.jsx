@@ -130,21 +130,6 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
 
   return (
     <aside className="desktop-shell-nav">
-      <button
-        type="button"
-        onClick={() => router.push("/")}
-        className="desktop-brand-button"
-        aria-label="Go home"
-      >
-        <span className="desktop-brand-mark">SN</span>
-        <span className="min-w-0">
-          <span className="block truncate text-[0.95rem] font-black">SuperNova</span>
-          <span className="block truncate text-[0.62rem] uppercase tracking-[0.22em] text-[var(--text-gray-light)]">
-            AI x Humans x ORG
-          </span>
-        </span>
-      </button>
-
       <button type="button" onClick={triggerComposer} className="desktop-compose-button">
         <IoAdd className="text-[1.25rem]" />
         <span>Create post</span>

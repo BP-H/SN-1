@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
+  IoArrowUndoOutline,
   IoChatbubbleOutline,
   IoCheckmark,
   IoClose,
@@ -25,6 +26,9 @@ function DisplayComments({
   canEdit = false,
   onDelete = () => {},
   onEdit = async () => {},
+  onReply = () => {},
+  replyingToName = "",
+  depth = 0,
   deleting = false,
   setErrorMsg = () => {},
   setNotify = () => {},
@@ -201,6 +205,18 @@ function DisplayComments({
                 <IoCreateOutline /> Edit
               </button>
             )}
+            {commentId && name && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onReply({ id: commentId, user: name, comment });
+                }}
+                className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+              >
+                <IoArrowUndoOutline /> Reply
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"
@@ -241,7 +257,10 @@ function DisplayComments({
 
   return (
     <>
-    <div className="comment-row flex w-full min-w-0 items-start gap-2">
+    <div
+      className="comment-row flex w-full min-w-0 items-start gap-2"
+      style={depth ? { marginLeft: `${Math.min(depth, 2) * 0.85}rem`, width: `calc(100% - ${Math.min(depth, 2) * 0.85}rem)` } : undefined}
+    >
       <Link href={profileHref} className="shrink-0" aria-label={`${name || "User"} profile`}>
         {imageUrl && !imageFailed ? (
           <img
@@ -311,7 +330,14 @@ function DisplayComments({
             </div>
           </div>
         ) : (
-          <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)] [overflow-wrap:anywhere]">{comment}</p>
+          <>
+            {replyingToName && (
+              <p className="text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
+                Replying to {replyingToName}
+              </p>
+            )}
+            <p className="break-words text-[0.86rem] leading-6 text-[var(--transparent-black)] [overflow-wrap:anywhere]">{comment}</p>
+          </>
         )}
       </div>
     </div>

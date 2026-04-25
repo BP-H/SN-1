@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { IoEllipse } from "react-icons/io5";
 import LiquidGlass from "@/content/liquid glass/LiquidGlass";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { useUser } from "@/content/profile/UserContext";
 
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";
@@ -22,10 +23,14 @@ function formatRelativeTime(dateString) {
 }
 
 export default function NotificationsPanel({ onSelect = () => {} }) {
+  const { userData, isAuthenticated } = useUser();
   const { data } = useQuery({
-    queryKey: ["header-notifications"],
+    queryKey: ["header-notifications", isAuthenticated, userData?.name || ""],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=3`);
+      const endpoint = isAuthenticated && userData?.name
+        ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=3`
+        : `${API_BASE_URL}/proposals?filter=latest&limit=3`;
+      const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch activity");
       return response.json();
     },
@@ -33,8 +38,10 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
   });
 
   const items = (data || []).slice(0, 3).map((post) => ({
-    id: post.id,
-    title: post.title || "New proposal",
+    id: post.id || post.comment_id || post.proposal_id,
+    href: `/proposals/${encodeURIComponent(post.proposal_id || post.id)}`,
+    label: post.type === "comment_reply" ? `${post.actor || "Someone"} replied` : "New community post",
+    title: post.type === "comment_reply" ? post.body || "Reply to your comment" : post.title || "New proposal",
     time: formatRelativeTime(post.time),
   }));
 
@@ -58,13 +65,13 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
           items.map((item) => (
             <Link
               key={item.id}
-              href={`/proposals/${encodeURIComponent(item.id)}`}
+              href={item.href}
               onClick={onSelect}
               className="block rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-4 py-3 hover:bg-[rgba(255,255,255,0.075)]"
             >
               <div className="mb-1 flex items-center gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
                 <IoEllipse className="text-[0.55rem] text-[var(--pink)]" />
-                <span>New community post</span>
+                <span>{item.label}</span>
                 <span>·</span>
                 <span>{item.time}</span>
               </div>

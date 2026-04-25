@@ -250,12 +250,28 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
     return {
         "id": getattr(comment, "id", None),
         "proposal_id": getattr(comment, "proposal_id", None),
+        "parent_comment_id": getattr(comment, "parent_comment_id", None),
         "user": user_name,
         "user_img": "" if user_img == "default.jpg" else user_img,
         "species": species,
         "comment": content,
         "created_at": _format_timestamp(getattr(comment, "created_at", None)),
     }
+
+
+def _ensure_comment_thread_columns(db: Session) -> None:
+    try:
+        if str(DB_ENGINE_URL or "").startswith("sqlite"):
+            columns = db.execute(text("PRAGMA table_info(comments)")).fetchall()
+            column_names = {getattr(column, "_mapping", column)["name"] for column in columns}
+            if "parent_comment_id" not in column_names:
+                db.execute(text("ALTER TABLE comments ADD COLUMN parent_comment_id INTEGER"))
+                db.commit()
+        else:
+            db.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER"))
+            db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _serialize_vote_record(db: Session, vote) -> tuple[Optional[Dict], Optional[Dict]]:
@@ -523,6 +539,7 @@ class CommentIn(BaseModel):
     user_img: str = ""
     species: Optional[str] = "human"
     comment: str
+    parent_comment_id: Optional[int] = None
 
 
 class CommentUpdateIn(BaseModel):
@@ -545,6 +562,26 @@ class SocialAuthSyncIn(BaseModel):
     username: Optional[str] = None
     avatar_url: Optional[str] = None
     species: Optional[str] = None
+
+
+def _find_social_user(db: Session, provider: str, provider_id: str, email: str):
+    if Harmonizer is None:
+        return None
+
+    clean_email = (email or "").strip().lower()
+    clean_provider = (provider or "oauth").strip().lower()
+    clean_provider_id = (provider_id or "").strip()
+
+    if clean_email:
+        user = db.query(Harmonizer).filter(func.lower(Harmonizer.email) == clean_email).first()
+        if user:
+            return user
+
+    if clean_provider_id:
+        fallback_email = f"{clean_provider_id}@{clean_provider}.oauth.supernova"
+        return db.query(Harmonizer).filter(func.lower(Harmonizer.email) == fallback_email.lower()).first()
+
+    return None
 
 
 class CredentialLoginIn(BaseModel):
@@ -1343,6 +1380,22 @@ def credential_login(payload: CredentialLoginIn, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/auth/social/profile", tags=["Auth"])
+def get_social_auth_profile(
+    provider: Optional[str] = Query("oauth"),
+    provider_id: Optional[str] = Query(""),
+    email: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    user = _find_social_user(db, provider or "oauth", provider_id or "", email or "")
+    if not user:
+        return {"exists": False}
+    return {
+        "exists": True,
+        **_public_user_payload(user, provider=(provider or "oauth").strip().lower()),
+    }
+
+
 @app.post("/auth/social/sync", tags=["Auth"])
 def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
     provider = (payload.provider or "oauth").strip().lower()
@@ -1377,7 +1430,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
             "backend": "fallback",
         }
 
-    existing = db.query(Harmonizer).filter(func.lower(Harmonizer.email) == email).first()
+    existing = _find_social_user(db, provider, provider_id, email)
     if not existing:
         existing = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
 
@@ -2574,9 +2627,131 @@ def decide(pid: int, threshold: float = 0.6, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to save decision: {str(e)}")
 
+
+@app.get("/notifications")
+def list_notifications(
+    user: Optional[str] = Query(None),
+    limit: int = Query(12, ge=1, le=30),
+    db: Session = Depends(get_db),
+):
+    clean_user = (user or "").strip()
+    items: List[Dict[str, Any]] = []
+    _ensure_comment_thread_columns(db)
+
+    def add_recent_posts() -> None:
+        remaining = max(0, limit - len(items))
+        if remaining <= 0:
+            return
+        try:
+            if Proposal is not None:
+                for proposal in db.query(Proposal).order_by(desc(Proposal.id)).limit(remaining).all():
+                    proposal_id = getattr(proposal, "id", None)
+                    items.append({
+                        "id": f"post-{proposal_id}",
+                        "type": "post",
+                        "proposal_id": proposal_id,
+                        "title": getattr(proposal, "title", None) or "New proposal",
+                        "actor": getattr(proposal, "userName", None) or "SuperNova",
+                        "time": _format_timestamp(getattr(proposal, "created_at", None)),
+                    })
+                return
+        except Exception:
+            pass
+        try:
+            rows = db.execute(
+                text("SELECT id, title, userName, created_at FROM proposals ORDER BY id DESC LIMIT :limit"),
+                {"limit": remaining},
+            ).fetchall()
+            for row in rows:
+                data = getattr(row, "_mapping", row)
+                items.append({
+                    "id": f"post-{data['id']}",
+                    "type": "post",
+                    "proposal_id": data["id"],
+                    "title": data["title"] or "New proposal",
+                    "actor": data["userName"] or "SuperNova",
+                    "time": _format_timestamp(data["created_at"]),
+                })
+        except Exception:
+            pass
+
+    if clean_user:
+        try:
+            if CRUD_MODELS_AVAILABLE:
+                owned_comment_rows = (
+                    db.query(Comment.id)
+                    .join(Harmonizer, Comment.author_id == Harmonizer.id)
+                    .filter(func.lower(Harmonizer.username) == clean_user.lower())
+                    .limit(500)
+                    .all()
+                )
+                owned_comment_ids = [row[0] for row in owned_comment_rows if row[0]]
+                if owned_comment_ids:
+                    replies = (
+                        db.query(Comment)
+                        .filter(Comment.parent_comment_id.in_(owned_comment_ids))
+                        .order_by(desc(Comment.created_at))
+                        .limit(limit)
+                        .all()
+                    )
+                    for reply in replies:
+                        payload = _serialize_comment_record(db, reply)
+                        if _safe_user_key(payload.get("user", "")) == _safe_user_key(clean_user):
+                            continue
+                        proposal_title = "Reply to your comment"
+                        if Proposal is not None and payload.get("proposal_id"):
+                            proposal = db.query(Proposal).filter(Proposal.id == payload["proposal_id"]).first()
+                            proposal_title = getattr(proposal, "title", None) or proposal_title
+                        items.append({
+                            "id": f"comment-reply-{payload.get('id')}",
+                            "type": "comment_reply",
+                            "proposal_id": payload.get("proposal_id"),
+                            "comment_id": payload.get("id"),
+                            "parent_comment_id": payload.get("parent_comment_id"),
+                            "title": proposal_title,
+                            "actor": payload.get("user") or "Someone",
+                            "body": payload.get("comment") or "",
+                            "time": payload.get("created_at") or "",
+                        })
+            else:
+                rows = db.execute(
+                    text("""
+                        SELECT r.id, r.proposal_id, r.parent_comment_id, r.user, r.comment, r.created_at,
+                               p.title AS proposal_title
+                        FROM comments r
+                        JOIN comments parent ON r.parent_comment_id = parent.id
+                        LEFT JOIN proposals p ON p.id = r.proposal_id
+                        WHERE lower(parent.user) = lower(:user)
+                          AND lower(COALESCE(r.user, '')) != lower(:user)
+                        ORDER BY r.created_at DESC
+                        LIMIT :limit
+                    """),
+                    {"user": clean_user, "limit": limit},
+                ).fetchall()
+                for row in rows:
+                    data = getattr(row, "_mapping", row)
+                    items.append({
+                        "id": f"comment-reply-{data['id']}",
+                        "type": "comment_reply",
+                        "proposal_id": data["proposal_id"],
+                        "comment_id": data["id"],
+                        "parent_comment_id": data["parent_comment_id"],
+                        "title": data["proposal_title"] or "Reply to your comment",
+                        "actor": data["user"] or "Someone",
+                        "body": data["comment"] or "",
+                        "time": _format_timestamp(data["created_at"]),
+                    })
+        except Exception:
+            db.rollback()
+
+    add_recent_posts()
+    return items[:limit]
+
+
 # --- Comment endpoint ---
 @app.get("/comments")
 def list_comments(proposal_id: int, db: Session = Depends(get_db)):
+    _ensure_comment_thread_columns(db)
     if CRUD_MODELS_AVAILABLE:
         comments = db.query(Comment).filter(Comment.proposal_id == proposal_id).all()
         return [_serialize_comment_record(db, comment) for comment in comments]
@@ -2592,6 +2767,7 @@ def list_comments(proposal_id: int, db: Session = Depends(get_db)):
 def add_comment(c: CommentIn, db: Session = Depends(get_db)):
     import datetime
     try:
+        _ensure_comment_thread_columns(db)
         # --- 1. Obter ou criar Harmonizer ---
         author_obj = db.query(Harmonizer).filter(Harmonizer.username == c.user).first() if CRUD_MODELS_AVAILABLE else None
         if CRUD_MODELS_AVAILABLE and not author_obj:
@@ -2648,7 +2824,7 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
                     content=c.comment,
                     author_id=author_obj.id,
                     vibenode_id=vibenode_id,
-                    parent_comment_id=None,
+                    parent_comment_id=c.parent_comment_id,
                     created_at=datetime.datetime.utcnow()
                 )
                 db.add(comment)
@@ -2664,14 +2840,15 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
                 "user": c.user or "Anonymous",
                 "user_img": user_img_value,
                 "comment": c.comment,
+                "parent_comment_id": c.parent_comment_id,
                 "created_at": created_at,
             }
             inserted_id = None
             try:
                 inserted = db.execute(
                     text(
-                        "INSERT INTO comments (proposal_id, user, user_img, comment) "
-                        "VALUES (:pid, :user, :user_img, :comment) RETURNING id"
+                        "INSERT INTO comments (proposal_id, user, user_img, comment, parent_comment_id, created_at) "
+                        "VALUES (:pid, :user, :user_img, :comment, :parent_comment_id, :created_at) RETURNING id"
                     ),
                     insert_payload,
                 ).fetchone()
@@ -2698,6 +2875,7 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
                 "user_img": user_img_value,
                 "species": c.species or "human",
                 "comment": c.comment,
+                "parent_comment_id": c.parent_comment_id,
                 "created_at": _format_timestamp(created_at),
             }]
 

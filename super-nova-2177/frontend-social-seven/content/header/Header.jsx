@@ -31,16 +31,19 @@ export default function Header({
   const router = useRouter();
   const headerRef = useRef(null);
   const { data: activity } = useQuery({
-    queryKey: ["header-notification-count"],
+    queryKey: ["header-notification-count", isAuthenticated, userData?.name || ""],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=3`);
+      const endpoint = isAuthenticated && userData?.name
+        ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=3`
+        : `${API_BASE_URL}/proposals?filter=latest&limit=3`;
+      const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch notification count");
       return response.json();
     },
     staleTime: 30_000,
   });
   const activityItems = useMemo(() => (activity || []).slice(0, 3), [activity]);
-  const activitySignature = activityItems.map((item) => item.id).join(":");
+  const activitySignature = activityItems.map((item) => item.id || item.comment_id || item.proposal_id).join(":");
   const activityCount = activitySignature && seenActivitySignature !== activitySignature
     ? activityItems.length
     : 0;

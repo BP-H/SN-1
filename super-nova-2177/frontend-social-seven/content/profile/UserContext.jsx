@@ -141,6 +141,7 @@ export function UserProvider({ children }) {
   const [passwordAuth, setPasswordAuth] = useState(null);
   const [storedProfile, setStoredProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [socialProfileLookup, setSocialProfileLookup] = useState({ key: "", status: "idle" });
 
   const authUser = session?.user ?? null;
   const providerProfile = useMemo(
@@ -192,15 +193,85 @@ export function UserProvider({ children }) {
     () => mergeUserData(providerProfile, storedProfile || {}),
     [providerProfile, storedProfile]
   );
+  const socialProfileKey = useMemo(() => {
+    if (!providerProfile.id || providerProfile.provider === "guest" || providerProfile.provider === "password") {
+      return "";
+    }
+    return `${providerProfile.provider}:${providerProfile.id}:${providerProfile.email || ""}`;
+  }, [providerProfile.email, providerProfile.id, providerProfile.provider]);
+  const hasStoredSocialProfile = Boolean(
+    socialProfileKey && storedProfile?.customName && normalizeSpecies(storedProfile?.species)
+  );
+
+  useEffect(() => {
+    if (!socialProfileKey || hasStoredSocialProfile) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSocialProfileLookup({ key: socialProfileKey, status: "checking" });
+
+    const params = new URLSearchParams({
+      provider: providerProfile.provider,
+      provider_id: providerProfile.id,
+    });
+    if (providerProfile.email) {
+      params.set("email", providerProfile.email);
+    }
+
+    fetch(`${API_BASE_URL}/auth/social/profile?${params.toString()}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        if (payload?.exists && payload?.username && normalizeSpecies(payload?.species)) {
+          const nextStored = {
+            ...(storedProfile || {}),
+            customName: payload.username,
+            species: normalizeSpecies(payload.species),
+            customAvatar: normalizeAvatarValue(payload.avatar_url || storedProfile?.customAvatar || providerProfile.avatar || ""),
+          };
+          const key = getCustomStorageKey(authUser, passwordAuth);
+          writeStorage(key, nextStored);
+          setStoredProfile(nextStored);
+          setSocialProfileLookup({ key: socialProfileKey, status: "loaded" });
+          return;
+        }
+        setSocialProfileLookup({ key: socialProfileKey, status: "checked" });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSocialProfileLookup({ key: socialProfileKey, status: "checked" });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authUser,
+    hasStoredSocialProfile,
+    passwordAuth,
+    providerProfile.avatar,
+    providerProfile.email,
+    providerProfile.id,
+    providerProfile.provider,
+    socialProfileKey,
+    storedProfile,
+  ]);
+
   const needsProfileSetup = useMemo(() => {
     if (!providerProfile.id || providerProfile.provider === "guest" || providerProfile.provider === "password") {
       return false;
     }
-    return !storedProfile?.customName || !normalizeSpecies(storedProfile?.species);
-  }, [providerProfile.id, providerProfile.provider, storedProfile?.customName, storedProfile?.species]);
+    if (hasStoredSocialProfile) {
+      return false;
+    }
+    return socialProfileLookup.key === socialProfileKey && socialProfileLookup.status === "checked";
+  }, [hasStoredSocialProfile, providerProfile.id, providerProfile.provider, socialProfileKey, socialProfileLookup]);
 
   useEffect(() => {
     if (!providerProfile.id || providerProfile.provider === "guest") return undefined;
+    if (socialProfileKey && !hasStoredSocialProfile) return undefined;
     if (needsProfileSetup) return undefined;
 
     let cancelled = false;
@@ -271,6 +342,8 @@ export function UserProvider({ children }) {
     authUser,
     passwordAuth,
     needsProfileSetup,
+    socialProfileKey,
+    hasStoredSocialProfile,
   ]);
 
   const persistProfile = useCallback((nextStored) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FaFileAlt, FaLink } from "react-icons/fa";
@@ -59,6 +59,7 @@ function ProposalCard({
   const [followingAuthor, setFollowingAuthor] = useState(false);
   const [localLogo, setLocalLogo] = useState(logo || "");
   const [deletingCommentId, setDeletingCommentId] = useState(null);
+  const [replyTarget, setReplyTarget] = useState(null);
 
   const { userData, defaultAvatar } = useUser();
   const queryClient = useQueryClient();
@@ -83,6 +84,40 @@ function ProposalCard({
     if (hours < 24) return `Ends in ${Math.max(1, hours)}h`;
     return `Ends in ${Math.ceil(hours / 24)}d`;
   })();
+  const commentsById = useMemo(() => {
+    const map = new Map();
+    localComments.forEach((comment) => {
+      if (comment?.id != null) {
+        map.set(String(comment.id), comment);
+      }
+    });
+    return map;
+  }, [localComments]);
+  const threadedComments = useMemo(() => {
+    const roots = [];
+    const children = new Map();
+    localComments.forEach((comment, index) => {
+      const item = { comment, index };
+      const parentId = comment?.parent_comment_id;
+      const parentKey = parentId == null ? "" : String(parentId);
+      if (parentKey && commentsById.has(parentKey)) {
+        const list = children.get(parentKey) || [];
+        list.push(item);
+        children.set(parentKey, list);
+      } else {
+        roots.push(item);
+      }
+    });
+
+    const ordered = [];
+    const visit = (item, depth = 0) => {
+      ordered.push({ ...item, depth });
+      const key = item.comment?.id == null ? "" : String(item.comment.id);
+      (children.get(key) || []).forEach((child) => visit(child, Math.min(depth + 1, 2)));
+    };
+    roots.forEach((item) => visit(item, 0));
+    return ordered;
+  }, [commentsById, localComments]);
 
   const getFullImageUrl = (url) => {
     const value = normalizeAvatarValue(url);
@@ -234,6 +269,9 @@ function ProposalCard({
       setLocalComments((prevComments) =>
         prevComments.filter((comment) => String(comment.id || "") !== String(commentId))
       );
+      if (String(replyTarget?.id || "") === String(commentId)) {
+        setReplyTarget(null);
+      }
       setNotify?.(["Comment deleted."]);
       refreshFeeds();
     } catch (error) {
@@ -715,11 +753,14 @@ function ProposalCard({
                 setNotify={setNotify}
                 proposalId={id}
                 setLocalComments={setLocalComments}
+                parentComment={replyTarget}
+                onCancelReply={() => setReplyTarget(null)}
               />
             </div>
             <div className="comments-thread-list flex min-w-0 flex-col gap-2">
-              {localComments.map((comment, index) => {
+              {threadedComments.map(({ comment, index, depth }) => {
                 const commentId = comment.id ?? "";
+                const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
                 const isCommentAuthor = Boolean(
                   comment.user &&
                     userData?.name &&
@@ -738,6 +779,12 @@ function ProposalCard({
                     deleting={String(deletingCommentId || "") === String(commentId)}
                     onDelete={() => handleDeleteComment(commentId)}
                     onEdit={handleEditComment}
+                    onReply={(target) => {
+                      setReplyTarget(target);
+                      setShowComments(true);
+                    }}
+                    replyingToName={parent?.user || ""}
+                    depth={depth}
                     setErrorMsg={setErrorMsg}
                     setNotify={setNotify}
                   />
