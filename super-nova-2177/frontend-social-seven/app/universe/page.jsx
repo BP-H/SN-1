@@ -10,6 +10,7 @@ import {
 import { API_BASE_URL } from "@/utils/apiBase";
 import { useUser } from "@/content/profile/UserContext";
 import { SocialConstellation } from "@/content/header/DesktopRightRail";
+import AmbientConstellationCanvas from "@/content/universe/AmbientConstellationCanvas";
 
 function compactNumber(value) {
   const number = Number(value || 0);
@@ -62,6 +63,7 @@ export default function UniversePage() {
 
         <div className="universe-grid">
           <div className="universe-graph-card">
+            <AmbientConstellationCanvas className="universe-canvas" density={48} />
             {graphQuery.isLoading ? (
               <div className="universe-loading">
                 <span className="loading-spinner-glyph h-14 w-14" role="img" aria-label="Loading" />

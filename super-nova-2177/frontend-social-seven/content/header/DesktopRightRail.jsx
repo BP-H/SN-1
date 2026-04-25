@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -149,19 +150,25 @@ function reasonSummary(reasons = {}) {
 export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const nodes = graph?.nodes || [];
   const edges = graph?.edges || [];
+  const isImmersive = variant === "immersive";
+  const router = useRouter();
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState("");
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
+  const [motionFrame, setMotionFrame] = useState(0);
   const dragRef = useRef(null);
+  const dragMovedRef = useRef(false);
 
   const layout = useMemo(() => {
     const seeded = nodes.map((node, index) => {
       const position = nodePosition(node, index, nodes.length);
       const score = Number(node.activity_score || 0);
+      const baseRadius = isImmersive ? 4.2 : 5.8;
+      const maxRadius = isImmersive ? 10.5 : 14.5;
       return {
         ...node,
         ...position,
-        radius: Math.max(7, Math.min(17, 7 + Math.sqrt(score + 1) * 1.9)),
+        radius: Math.max(baseRadius, Math.min(maxRadius, baseRadius + Math.sqrt(score + 1) * (isImmersive ? 1.15 : 1.55))),
       };
     });
     const positioned = applyClusterForces(seeded, edges);
@@ -170,7 +177,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       .map((edge) => ({ ...edge, sourceNode: byId.get(edge.source), targetNode: byId.get(edge.target) }))
       .filter((edge) => edge.sourceNode && edge.targetNode);
     return { nodes: positioned, edges: renderedEdges };
-  }, [edges, nodes]);
+  }, [edges, isImmersive, nodes]);
 
   useEffect(() => {
     if (!selectedNodeId && layout.nodes.length) {
@@ -179,8 +186,44 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
     }
   }, [layout.nodes, selectedNodeId]);
 
-  const selectedNode = layout.nodes.find((node) => node.id === selectedNodeId);
-  const selectedEdge = layout.edges.find((edge) => edge.id === selectedEdgeId);
+  useEffect(() => {
+    if (!isImmersive || typeof window === "undefined") return undefined;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reducedMotion) return undefined;
+    let raf = 0;
+    let lastFrame = 0;
+    const tick = (time) => {
+      if (time - lastFrame > 90) {
+        setMotionFrame(time / 1000);
+        lastFrame = time;
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [isImmersive]);
+
+  const visualNodes = useMemo(() => {
+    if (!isImmersive) {
+      return layout.nodes.map((node) => ({ ...node, visualX: node.x, visualY: node.y }));
+    }
+    return layout.nodes.map((node, index) => {
+      const depth = Number(node.depth || 0.8);
+      const driftX = Math.sin(motionFrame * 0.26 + index * 1.47) * (1.7 + depth * 1.4);
+      const driftY = Math.cos(motionFrame * 0.22 + index * 1.13) * (1.2 + depth * 1.2);
+      return { ...node, visualX: node.x + driftX, visualY: node.y + driftY };
+    });
+  }, [isImmersive, layout.nodes, motionFrame]);
+
+  const visualNodeById = useMemo(() => new Map(visualNodes.map((node) => [node.id, node])), [visualNodes]);
+  const visualEdges = useMemo(() => {
+    return layout.edges
+      .map((edge) => ({ ...edge, sourceNode: visualNodeById.get(edge.source), targetNode: visualNodeById.get(edge.target) }))
+      .filter((edge) => edge.sourceNode && edge.targetNode);
+  }, [layout.edges, visualNodeById]);
+
+  const selectedNode = visualNodes.find((node) => node.id === selectedNodeId);
+  const selectedEdge = visualEdges.find((edge) => edge.id === selectedEdgeId);
   const selectedSource = selectedEdge?.sourceNode;
   const selectedTarget = selectedEdge?.targetNode;
   const speciesCounts = useMemo(() => {
@@ -207,21 +250,34 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       startY: event.clientY,
       viewX: view.x,
       viewY: view.y,
+      moved: false,
     };
+    dragMovedRef.current = false;
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
   const handlePointerMove = (event) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const nextX = clamp(drag.viewX + (event.clientX - drag.startX) / view.scale, -42, 42);
-    const nextY = clamp(drag.viewY + (event.clientY - drag.startY) / view.scale, -34, 34);
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (Math.hypot(deltaX, deltaY) > 3) {
+      drag.moved = true;
+      dragMovedRef.current = true;
+    }
+    const nextX = clamp(drag.viewX + deltaX / view.scale, -42, 42);
+    const nextY = clamp(drag.viewY + deltaY / view.scale, -34, 34);
     setView((current) => ({ ...current, x: nextX, y: nextY }));
   };
 
   const handlePointerUp = (event) => {
-    if (dragRef.current?.pointerId === event.pointerId) {
+    const drag = dragRef.current;
+    if (drag?.pointerId === event.pointerId) {
+      dragMovedRef.current = Boolean(drag.moved);
       dragRef.current = null;
+      window.setTimeout?.(() => {
+        dragMovedRef.current = false;
+      }, 0);
     }
   };
 
@@ -278,24 +334,26 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
               <circle className="desktop-constellation-depth" cx="140" cy="104" r="76" />
               <circle className="desktop-constellation-depth desktop-constellation-depth-wide" cx="140" cy="104" r="108" />
 
-              {layout.edges.map((edge) => {
+              {visualEdges.map((edge) => {
                 const active = selectedEdgeId === edge.id;
-                const width = Math.max(0.7, Math.min(4.2, 0.75 + Number(edge.strength || 0) / 11));
+                const width = isImmersive
+                  ? Math.max(0.35, Math.min(2.05, 0.38 + Number(edge.strength || 0) / 30))
+                  : Math.max(0.58, Math.min(3.1, 0.65 + Number(edge.strength || 0) / 17));
                 return (
                   <g key={edge.id}>
                     <line
-                      x1={edge.sourceNode.x}
-                      y1={edge.sourceNode.y}
-                      x2={edge.targetNode.x}
-                      y2={edge.targetNode.y}
+                      x1={edge.sourceNode.visualX}
+                      y1={edge.sourceNode.visualY}
+                      x2={edge.targetNode.visualX}
+                      y2={edge.targetNode.visualY}
                       className={`desktop-constellation-edge ${active ? "is-active" : ""}`}
                       strokeWidth={width}
                     />
                     <line
-                      x1={edge.sourceNode.x}
-                      y1={edge.sourceNode.y}
-                      x2={edge.targetNode.x}
-                      y2={edge.targetNode.y}
+                      x1={edge.sourceNode.visualX}
+                      y1={edge.sourceNode.visualY}
+                      x2={edge.targetNode.visualX}
+                      y2={edge.targetNode.visualY}
                       className="desktop-constellation-edge-hit"
                       onMouseEnter={() => {
                         setSelectedEdgeId(edge.id);
@@ -310,7 +368,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
                 );
               })}
 
-              {layout.nodes.map((node, index) => {
+              {visualNodes.map((node, index) => {
                 const selected = selectedNodeId === node.id;
                 const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
                 return (
@@ -318,14 +376,19 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
                     key={node.id}
                     className={`desktop-constellation-node desktop-node-${node.species || "human"} ${selected ? "is-selected" : ""} ${current ? "is-current" : ""}`}
                     style={{ "--float-delay": `${(index % 6) * -0.45}s`, "--node-depth": node.depth }}
-                    transform={`translate(${node.x} ${node.y})`}
+                    transform={`translate(${node.visualX} ${node.visualY})`}
                     onMouseEnter={() => {
                       setSelectedNodeId(node.id);
                       setSelectedEdgeId("");
                     }}
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (dragMovedRef.current) return;
                       setSelectedNodeId(node.id);
                       setSelectedEdgeId("");
+                      if (isImmersive && node.username) {
+                        router.push(`/users/${encodeURIComponent(node.username)}`);
+                      }
                     }}
                   >
                     <g className="desktop-node-float">

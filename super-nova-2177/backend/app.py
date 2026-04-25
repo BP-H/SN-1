@@ -277,6 +277,47 @@ def _ensure_comment_thread_columns(db: Session) -> None:
         db.rollback()
 
 
+def _is_deleted_comment_record(comment) -> bool:
+    content = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
+    return str(content or "").strip() == DELETED_COMMENT_TEXT
+
+
+def _prune_empty_deleted_comment_ancestors(db: Session, parent_comment_id: Optional[int]) -> List[int]:
+    pruned: List[int] = []
+    current_parent_id = parent_comment_id
+    while current_parent_id:
+        if CRUD_MODELS_AVAILABLE:
+            parent = db.query(Comment).filter(Comment.id == current_parent_id).first()
+            if not parent or not _is_deleted_comment_record(parent):
+                break
+            child_count = db.query(Comment).filter(Comment.parent_comment_id == current_parent_id).count()
+            if child_count:
+                break
+            next_parent_id = getattr(parent, "parent_comment_id", None)
+            db.delete(parent)
+            pruned.append(current_parent_id)
+            current_parent_id = next_parent_id
+            continue
+
+        row = db.execute(
+            text("SELECT * FROM comments WHERE id = :comment_id"),
+            {"comment_id": current_parent_id},
+        ).fetchone()
+        if not row or not _is_deleted_comment_record(row):
+            break
+        child_count = db.execute(
+            text("SELECT COUNT(*) FROM comments WHERE parent_comment_id = :comment_id"),
+            {"comment_id": current_parent_id},
+        ).scalar() or 0
+        if child_count:
+            break
+        next_parent_id = getattr(row, "parent_comment_id", None)
+        db.execute(text("DELETE FROM comments WHERE id = :comment_id"), {"comment_id": current_parent_id})
+        pruned.append(current_parent_id)
+        current_parent_id = next_parent_id
+    return pruned
+
+
 def _serialize_vote_record(db: Session, vote) -> tuple[Optional[Dict], Optional[Dict]]:
     voter_name = getattr(vote, "voter", None) or getattr(vote, "username", None)
     voter_type = getattr(vote, "voter_type", None) or getattr(vote, "species", None) or "human"
@@ -778,33 +819,41 @@ def _is_uploaded_avatar(value: Optional[str]) -> bool:
     return avatar.startswith("/uploads/") or "/uploads/" in avatar
 
 
+def _run_profile_sync(operation) -> None:
+    sync_db = SessionLocal()
+    try:
+        operation(sync_db)
+        sync_db.commit()
+    except Exception:
+        sync_db.rollback()
+    finally:
+        sync_db.close()
+
+
 def _sync_user_avatar_references(
     db: Session,
     username: str,
     avatar_url: str,
     user_id: Optional[int] = None,
+    aliases: Optional[List[str]] = None,
 ) -> None:
-    clean_username = (username or "").strip()
-    if not clean_username and not user_id:
+    clean_names: List[str] = []
+    for value in [username, *(aliases or [])]:
+        clean = (value or "").strip()
+        key = _safe_user_key(clean)
+        if clean and key not in {_safe_user_key(name) for name in clean_names}:
+            clean_names.append(clean)
+
+    if not clean_names and not user_id:
         return
 
     avatar_value = (avatar_url or "").strip()
 
-    def run_avatar_sync(operation) -> None:
-        sync_db = SessionLocal()
-        try:
-            operation(sync_db)
-            sync_db.commit()
-        except Exception:
-            sync_db.rollback()
-        finally:
-            sync_db.close()
-
     if CRUD_MODELS_AVAILABLE and Proposal is not None:
         def sync_proposal_model(sync_db: Session) -> None:
             filters = []
-            if clean_username and hasattr(Proposal, "userName"):
-                filters.append(func.lower(Proposal.userName) == clean_username.lower())
+            if clean_names and hasattr(Proposal, "userName"):
+                filters.append(func.lower(Proposal.userName).in_([name.lower() for name in clean_names]))
             if user_id and hasattr(Proposal, "author_id"):
                 filters.append(Proposal.author_id == user_id)
             if filters and hasattr(Proposal, "author_img"):
@@ -812,25 +861,34 @@ def _sync_user_avatar_references(
                     {"author_img": avatar_value},
                     synchronize_session=False,
                 )
-        run_avatar_sync(sync_proposal_model)
+        _run_profile_sync(sync_proposal_model)
 
-    if clean_username:
-        def sync_proposals_table(sync_db: Session) -> None:
-            sync_db.execute(
-                text("UPDATE proposals SET author_img = :avatar WHERE lower(userName) = lower(:username)"),
-                {"avatar": avatar_value, "username": clean_username},
-            )
-        run_avatar_sync(sync_proposals_table)
+    for clean_username in clean_names:
+        _run_profile_sync(lambda sync_db, name=clean_username: sync_db.execute(
+            text("UPDATE proposals SET author_img = :avatar WHERE lower(userName) = lower(:username)"),
+            {"avatar": avatar_value, "username": name},
+        ))
+        _run_profile_sync(lambda sync_db, name=clean_username: sync_db.execute(
+            text("UPDATE comments SET user_img = :avatar WHERE lower(user) = lower(:username)"),
+            {"avatar": avatar_value, "username": name},
+        ))
 
-        def sync_comments_table(sync_db: Session) -> None:
-            sync_db.execute(
-                text("UPDATE comments SET user_img = :avatar WHERE lower(user) = lower(:username)"),
-                {"avatar": avatar_value, "username": clean_username},
-            )
-        run_avatar_sync(sync_comments_table)
+    if user_id:
+        _run_profile_sync(lambda sync_db: sync_db.execute(
+            text("UPDATE proposals SET author_img = :avatar WHERE author_id = :user_id"),
+            {"avatar": avatar_value, "user_id": user_id},
+        ))
+        _run_profile_sync(lambda sync_db: sync_db.execute(
+            text("UPDATE comments SET user_img = :avatar WHERE author_id = :user_id"),
+            {"avatar": avatar_value, "user_id": user_id},
+        ))
 
 
-def _sync_username_references(old_username: str, new_username: str) -> None:
+def _sync_username_references(
+    old_username: str,
+    new_username: str,
+    user_id: Optional[int] = None,
+) -> None:
     old_name = (old_username or "").strip()
     new_name = (new_username or "").strip()
     old_key = _safe_user_key(old_name)
@@ -840,25 +898,44 @@ def _sync_username_references(old_username: str, new_username: str) -> None:
 
     new_initials = (new_name[:2].upper() if new_name else "SN")
 
-    def run_username_sync(operation) -> None:
-        sync_db = SessionLocal()
-        try:
-            operation(sync_db)
-            sync_db.commit()
-        except Exception:
-            sync_db.rollback()
-        finally:
-            sync_db.close()
+    if CRUD_MODELS_AVAILABLE and Proposal is not None:
+        def sync_proposal_model(sync_db: Session) -> None:
+            filters = []
+            if hasattr(Proposal, "userName"):
+                filters.append(func.lower(Proposal.userName) == old_name.lower())
+            if user_id and hasattr(Proposal, "author_id"):
+                filters.append(Proposal.author_id == user_id)
+            if filters:
+                sync_db.query(Proposal).filter(or_(*filters)).update(
+                    {"userName": new_name, "userInitials": new_initials},
+                    synchronize_session=False,
+                )
+        _run_profile_sync(sync_proposal_model)
 
-    def sync_tables(sync_db: Session) -> None:
-        sync_db.execute(
-            text("UPDATE proposals SET userName = :new_name, userInitials = :initials WHERE lower(userName) = lower(:old_name)"),
-            {"new_name": new_name, "initials": new_initials, "old_name": old_name},
-        )
-        sync_db.execute(
-            text("UPDATE comments SET user = :new_name WHERE lower(user) = lower(:old_name)"),
+    _run_profile_sync(lambda sync_db: sync_db.execute(
+        text("UPDATE proposals SET userName = :new_name, userInitials = :initials WHERE lower(userName) = lower(:old_name)"),
+        {"new_name": new_name, "initials": new_initials, "old_name": old_name},
+    ))
+    if user_id:
+        _run_profile_sync(lambda sync_db: sync_db.execute(
+            text("UPDATE proposals SET userName = :new_name, userInitials = :initials WHERE author_id = :user_id"),
+            {"new_name": new_name, "initials": new_initials, "user_id": user_id},
+        ))
+    _run_profile_sync(lambda sync_db: sync_db.execute(
+        text("UPDATE comments SET user = :new_name WHERE lower(user) = lower(:old_name)"),
+        {"new_name": new_name, "old_name": old_name},
+    ))
+    for column_name in ("voter", "username"):
+        _run_profile_sync(lambda sync_db, column=column_name: sync_db.execute(
+            text(f"UPDATE proposal_votes SET {column} = :new_name WHERE lower({column}) = lower(:old_name)"),
             {"new_name": new_name, "old_name": old_name},
-        )
+        ))
+    _run_profile_sync(lambda sync_db: sync_db.execute(
+        text("UPDATE system_votes SET username = :new_name WHERE lower(username) = lower(:old_name)"),
+        {"new_name": new_name, "old_name": old_name},
+    ))
+
+    def sync_direct_messages(sync_db: Session) -> None:
         try:
             rows = sync_db.execute(
                 text(
@@ -889,7 +966,7 @@ def _sync_username_references(old_username: str, new_username: str) -> None:
         except Exception:
             pass
 
-    run_username_sync(sync_tables)
+    _run_profile_sync(sync_direct_messages)
 
     follows = _read_follows_store()
     follows_changed = False
@@ -920,6 +997,91 @@ def _sync_username_references(old_username: str, new_username: str) -> None:
             messages_changed = True
     if messages_changed:
         _write_messages_store(messages)
+
+
+def _sync_species_references(
+    username: str,
+    species: str,
+    user_id: Optional[int] = None,
+    aliases: Optional[List[str]] = None,
+) -> None:
+    clean_species = _normalize_species(species)
+    clean_names: List[str] = []
+    for value in [username, *(aliases or [])]:
+        clean = (value or "").strip()
+        key = _safe_user_key(clean)
+        if clean and key not in {_safe_user_key(name) for name in clean_names}:
+            clean_names.append(clean)
+    if not clean_names and not user_id:
+        return
+
+    if CRUD_MODELS_AVAILABLE and Proposal is not None:
+        def sync_proposal_species(sync_db: Session) -> None:
+            filters = []
+            if clean_names and hasattr(Proposal, "userName"):
+                filters.append(func.lower(Proposal.userName).in_([name.lower() for name in clean_names]))
+            if user_id and hasattr(Proposal, "author_id"):
+                filters.append(Proposal.author_id == user_id)
+            if filters and hasattr(Proposal, "author_type"):
+                sync_db.query(Proposal).filter(or_(*filters)).update(
+                    {"author_type": clean_species},
+                    synchronize_session=False,
+                )
+        _run_profile_sync(sync_proposal_species)
+
+    for clean_username in clean_names:
+        _run_profile_sync(lambda sync_db, name=clean_username: sync_db.execute(
+            text("UPDATE proposals SET author_type = :species WHERE lower(userName) = lower(:username)"),
+            {"species": clean_species, "username": name},
+        ))
+        _run_profile_sync(lambda sync_db, name=clean_username: sync_db.execute(
+            text("UPDATE comments SET species = :species WHERE lower(user) = lower(:username)"),
+            {"species": clean_species, "username": name},
+        ))
+        _run_profile_sync(lambda sync_db, name=clean_username: sync_db.execute(
+            text("UPDATE system_votes SET voter_type = :species WHERE lower(username) = lower(:username)"),
+            {"species": clean_species, "username": name},
+        ))
+
+    if user_id:
+        _run_profile_sync(lambda sync_db: sync_db.execute(
+            text("UPDATE proposals SET author_type = :species WHERE author_id = :user_id"),
+            {"species": clean_species, "user_id": user_id},
+        ))
+
+    now = datetime.datetime.utcnow()
+    if CRUD_MODELS_AVAILABLE and Proposal is not None and ProposalVote is not None:
+        def sync_active_vote_species(sync_db: Session) -> None:
+            if not user_id or not hasattr(ProposalVote, "harmonizer_id"):
+                return
+            active_proposals = sync_db.query(Proposal.id).filter(
+                or_(Proposal.voting_deadline.is_(None), Proposal.voting_deadline > now)
+            )
+            sync_db.query(ProposalVote).filter(
+                ProposalVote.harmonizer_id == user_id,
+                ProposalVote.proposal_id.in_(active_proposals),
+            ).update({"voter_type": clean_species}, synchronize_session=False)
+        _run_profile_sync(sync_active_vote_species)
+
+    if user_id:
+        _run_profile_sync(lambda sync_db: sync_db.execute(
+            text(
+                "UPDATE proposal_votes SET voter_type = :species "
+                "WHERE harmonizer_id = :user_id "
+                "AND proposal_id IN (SELECT id FROM proposals WHERE voting_deadline IS NULL OR voting_deadline > :now)"
+            ),
+            {"species": clean_species, "user_id": user_id, "now": now},
+        ))
+    for column_name in ("voter", "username"):
+        for clean_username in clean_names:
+            _run_profile_sync(lambda sync_db, column=column_name, name=clean_username: sync_db.execute(
+                text(
+                    f"UPDATE proposal_votes SET voter_type = :species "
+                    f"WHERE lower({column}) = lower(:username) "
+                    "AND proposal_id IN (SELECT id FROM proposals WHERE voting_deadline IS NULL OR voting_deadline > :now)"
+                ),
+                {"species": clean_species, "username": name, "now": now},
+            ))
 
 
 def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
@@ -1663,8 +1825,12 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
         elif _is_default_avatar(getattr(user, "profile_pic", "")):
             user.profile_pic = "default.jpg"
 
+    old_species = getattr(user, "species", "human") or "human"
+    species_changed = False
     if payload.species is not None:
-        user.species = _normalize_species(payload.species)
+        next_species = _normalize_species(payload.species)
+        species_changed = next_species != old_species
+        user.species = next_species
 
     if payload.bio is not None:
         user.bio = payload.bio.strip()[:500]
@@ -1673,10 +1839,30 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
         db.add(user)
         db.commit()
         db.refresh(user)
+        user_id = getattr(user, "id", None)
+        username_changed = _safe_user_key(old_username) != _safe_user_key(next_username)
         if _safe_user_key(old_username) != _safe_user_key(next_username):
-            _sync_username_references(old_username, next_username)
-        if avatar_to_sync:
-            _sync_user_avatar_references(db, user.username, avatar_to_sync, getattr(user, "id", None))
+            _sync_username_references(old_username, next_username, user_id)
+        avatar_value = avatar_to_sync
+        if not avatar_value and username_changed:
+            current_avatar = getattr(user, "profile_pic", "") or ""
+            if current_avatar and not _is_default_avatar(current_avatar):
+                avatar_value = current_avatar
+        if avatar_value:
+            _sync_user_avatar_references(
+                db,
+                user.username,
+                avatar_value,
+                user_id,
+                aliases=[old_username, next_username],
+            )
+        if species_changed or username_changed:
+            _sync_species_references(
+                user.username,
+                getattr(user, "species", "human") or "human",
+                user_id,
+                aliases=[old_username, next_username],
+            )
         return _public_user_payload(user, provider="password")
     except Exception as e:
         db.rollback()
@@ -3185,9 +3371,11 @@ def delete_comment(
                     "comment": _serialize_comment_record(db, comment),
                 }
 
+            parent_comment_id = getattr(comment, "parent_comment_id", None)
             db.query(Comment).filter(Comment.id == comment_id).delete()
+            pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
             db.commit()
-            return {"ok": True, "deleted": comment_id, "tombstone": False}
+            return {"ok": True, "deleted": comment_id, "tombstone": False, "pruned_comment_ids": pruned_comment_ids}
 
         row = db.execute(
             text("SELECT * FROM comments WHERE id = :comment_id"),
@@ -3242,9 +3430,11 @@ def delete_comment(
                 "comment": _serialize_comment_record(db, updated),
             }
 
+        parent_comment_id = getattr(row, "parent_comment_id", None)
         db.execute(text("DELETE FROM comments WHERE id = :comment_id"), {"comment_id": comment_id})
+        pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
         db.commit()
-        return {"ok": True, "deleted": comment_id, "tombstone": False}
+        return {"ok": True, "deleted": comment_id, "tombstone": False, "pruned_comment_ids": pruned_comment_ids}
     except HTTPException:
         db.rollback()
         raise

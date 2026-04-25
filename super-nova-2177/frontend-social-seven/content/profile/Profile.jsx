@@ -195,6 +195,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
 
     setSaveBusy(true);
     try {
+      const previousUsername = currentName || accountUsername || profileName || "";
       let uploadFile = file;
       try {
         uploadFile = await imageCompression(file, {
@@ -231,19 +232,24 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       });
       const savedAvatar = normalizeAvatarValue(payload.avatar_url || nextAvatar);
       const savedUsername = payload.username || profileName || currentName || accountUsername;
+      const savedSpecies = payload.species || selectedSpecies || "human";
 
       setAvatarUrl(savedAvatar);
       setProfileName(savedUsername);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("supernova:profile-avatar-updated", {
-            detail: { username: savedUsername, avatar: savedAvatar },
+            detail: { previousUsername, username: savedUsername, avatar: savedAvatar, species: savedSpecies },
           })
         );
       }
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["public-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["desktop-social-users"] });
+      queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
+      queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
       setNotify(["Profile photo updated."]);
     } catch (error) {
       setErrorMsg([error.message || "Avatar upload failed."]);
@@ -267,6 +273,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     setIdentityBusy(true);
     setErrorMsg([]);
     try {
+      const previousUsername = currentName || accountUsername || profileName || "";
       const payload = await saveUserProfile({
         username: nextName,
         species: selectedSpecies || "human",
@@ -281,7 +288,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("supernova:profile-avatar-updated", {
-            detail: { username: savedName, avatar: savedAvatar },
+            detail: { previousUsername, username: savedName, avatar: savedAvatar, species: savedSpecies },
           })
         );
       }
@@ -290,6 +297,8 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
       queryClient.invalidateQueries({ queryKey: ["public-profile"] });
       queryClient.invalidateQueries({ queryKey: ["desktop-social-users"] });
+      queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
+      queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
       setNotify(["Profile updated."]);
     } catch (error) {
       setErrorMsg([error.message || "Profile update failed."]);

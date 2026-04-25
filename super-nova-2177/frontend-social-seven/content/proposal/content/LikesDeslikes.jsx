@@ -52,6 +52,25 @@ function LikesDeslikes({
     if (postCard) postCard.dataset.proposalUserVote = clicked || "";
   }, [clicked]);
 
+  useEffect(() => {
+    const handleProfileUpdate = (event) => {
+      const detail = event.detail || {};
+      if (!detail.username) return;
+      const aliases = [detail.previousUsername, detail.oldUsername]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      if (!aliases.length) return;
+      const renameVote = (vote) =>
+        aliases.includes(String(vote?.voter || "").toLowerCase())
+          ? { ...vote, voter: detail.username }
+          : vote;
+      setLikesList((items) => items.map(renameVote));
+      setDislikesList((items) => items.map(renameVote));
+    };
+    window.addEventListener("supernova:profile-avatar-updated", handleProfileUpdate);
+    return () => window.removeEventListener("supernova:profile-avatar-updated", handleProfileUpdate);
+  }, []);
+
   const weighted = useMemo(() => {
     return buildWeightedVoteSummary(likesList, dislikesList);
   }, [likesList, dislikesList]);

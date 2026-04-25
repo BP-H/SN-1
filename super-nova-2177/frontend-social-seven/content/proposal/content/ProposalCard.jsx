@@ -60,11 +60,13 @@ function ProposalCard({
   const [localLogo, setLocalLogo] = useState(logo || "");
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
+  const [localUserName, setLocalUserName] = useState(userName || "");
 
   const { userData, defaultAvatar } = useUser();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const isOwner = Boolean(userName && userData?.name && userName.toLowerCase() === userData.name.toLowerCase());
+  const authorName = localUserName || userName || "";
+  const isOwner = Boolean(authorName && userData?.name && authorName.toLowerCase() === userData.name.toLowerCase());
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
   const governance = media?.governance || null;
@@ -162,6 +164,8 @@ function ProposalCard({
     queryClient.invalidateQueries({ queryKey: ["home-feed"] });
     queryClient.invalidateQueries({ queryKey: ["proposals"] });
     queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+    queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
+    queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
   };
 
   const handleSaveEdit = async () => {
@@ -219,9 +223,9 @@ function ProposalCard({
       window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
       return;
     }
-    if (!userName || isOwner) return;
+    if (!authorName || isOwner) return;
     setMenuOpen(false);
-    router.push(`/messages?to=${encodeURIComponent(userName)}`);
+    router.push(`/messages?to=${encodeURIComponent(authorName)}`);
   };
 
   const handleToggleFollow = async () => {
@@ -229,25 +233,25 @@ function ProposalCard({
       window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
       return;
     }
-    if (!userName || isOwner || followBusy) return;
+    if (!authorName || isOwner || followBusy) return;
     setFollowBusy(true);
     try {
       const response = await fetch(
         followingAuthor
-          ? `${API_BASE_URL}/follows?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(userName)}`
+          ? `${API_BASE_URL}/follows?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(authorName)}`
           : `${API_BASE_URL}/follows`,
         {
           method: followingAuthor ? "DELETE" : "POST",
           headers: followingAuthor ? undefined : { "Content-Type": "application/json" },
           body: followingAuthor
             ? undefined
-            : JSON.stringify({ follower: userData.name, target: userName }),
+            : JSON.stringify({ follower: userData.name, target: authorName }),
         }
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
       setFollowingAuthor(Boolean(payload.following));
-      setNotify?.([payload.following ? `Following ${userName}.` : `Unfollowed ${userName}.`]);
+      setNotify?.([payload.following ? `Following ${authorName}.` : `Unfollowed ${authorName}.`]);
     } catch (error) {
       setErrorMsg?.([error.message || "Follow action failed."]);
     } finally {
@@ -267,14 +271,19 @@ function ProposalCard({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to delete comment.");
       setLocalComments((prevComments) => {
+        const prunedIds = new Set((payload?.pruned_comment_ids || []).map((item) => String(item)));
         if (payload?.tombstone && payload?.comment) {
-          return prevComments.map((comment) =>
-            String(comment.id || "") === String(commentId)
-              ? { ...comment, ...payload.comment }
-              : comment
-          );
+          return prevComments
+            .filter((comment) => !prunedIds.has(String(comment.id || "")))
+            .map((comment) =>
+              String(comment.id || "") === String(commentId)
+                ? { ...comment, ...payload.comment }
+                : comment
+            );
         }
-        return prevComments.filter((comment) => String(comment.id || "") !== String(commentId));
+        return prevComments.filter(
+          (comment) => String(comment.id || "") !== String(commentId) && !prunedIds.has(String(comment.id || ""))
+        );
       });
       if (String(replyTarget?.id || "") === String(commentId)) {
         setReplyTarget(null);
@@ -323,7 +332,7 @@ function ProposalCard({
   const isPdfFile = /\.pdf(?:$|\?)/i.test(displayFile || "");
   const mediaLayout = media.layout === "grid" ? "grid" : "carousel";
   const detailHref = id !== undefined && id !== null && id !== "" ? `/proposals/${encodeURIComponent(id)}` : "/proposals";
-  const userHref = userName ? `/users/${encodeURIComponent(userName)}` : "/profile";
+  const userHref = authorName ? `/users/${encodeURIComponent(authorName)}` : "/profile";
   const userVote = likes.some((v) => v.voter === userData?.name)
     ? "like"
     : dislikes.some((v) => v.voter === userData?.name)
@@ -368,10 +377,10 @@ function ProposalCard({
   }, [id, logo]);
 
   useEffect(() => {
-    if (!menuOpen || isOwner || !userData?.name || !userName) return undefined;
+    if (!menuOpen || isOwner || !userData?.name || !authorName) return undefined;
     let cancelled = false;
     fetch(
-      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(userName)}`
+      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(authorName)}`
     )
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
@@ -381,25 +390,38 @@ function ProposalCard({
     return () => {
       cancelled = true;
     };
-  }, [isOwner, menuOpen, userData?.name, userName]);
+  }, [authorName, isOwner, menuOpen, userData?.name]);
+
+  useEffect(() => {
+    setLocalUserName(userName || "");
+  }, [id, userName]);
 
   useEffect(() => {
     const handleAvatarUpdate = (event) => {
       const detail = event.detail || {};
-      if (!detail.username || !userName) return;
-      if (String(detail.username).toLowerCase() !== String(userName).toLowerCase()) return;
+      if (!detail.username || !authorName) return;
+      const aliases = [detail.username, detail.previousUsername, detail.oldUsername]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      if (!aliases.includes(String(authorName).toLowerCase())) return;
+      setLocalUserName(detail.username || authorName);
       setLocalLogo(detail.avatar || "");
       setLocalComments((prevComments) =>
-        prevComments.map((comment) =>
-          String(comment.user || "").toLowerCase() === String(userName).toLowerCase()
-            ? { ...comment, user_img: detail.avatar || "" }
-            : comment
-        )
+        prevComments.map((comment) => {
+          const commentUser = String(comment.user || "");
+          if (commentUser === "[deleted]" || !aliases.includes(commentUser.toLowerCase())) return comment;
+          return {
+            ...comment,
+            user: detail.username || comment.user,
+            user_img: detail.avatar || comment.user_img || "",
+            species: detail.species || comment.species,
+          };
+        })
       );
     };
     window.addEventListener("supernova:profile-avatar-updated", handleAvatarUpdate);
     return () => window.removeEventListener("supernova:profile-avatar-updated", handleAvatarUpdate);
-  }, [userName]);
+  }, [authorName]);
 
   if (deleted) return null;
 
@@ -408,7 +430,7 @@ function ProposalCard({
       data-proposal-card
       data-proposal-id={id}
       data-proposal-title={(title || localText || "").slice(0, 180)}
-      data-proposal-author={userName || ""}
+      data-proposal-author={authorName || ""}
       data-proposal-text={(localText || title || "").slice(0, 360)}
       data-proposal-user-vote={userVote}
       className={`mobile-post-card bgWhiteTrue social-panel-compact relative mx-auto flex w-full flex-col gap-4 rounded-[1.75rem] p-5 text-[var(--text-black)] shadow-sm ${
@@ -437,7 +459,7 @@ function ProposalCard({
             )}
           </div>
           <div className="min-w-0 truncate text-[0.9rem]">
-            <span className="font-semibold text-[var(--text-black)]">{userName}</span>
+            <span className="font-semibold text-[var(--text-black)]">{authorName}</span>
             <span className="mx-2 text-[var(--text-gray-light)]">•</span>
             <span className="text-[var(--text-gray-light)]">{time}</span>
           </div>

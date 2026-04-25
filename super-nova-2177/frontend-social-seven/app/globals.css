@@ -1893,8 +1893,11 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 .universe-shell {
   position: relative;
   z-index: 1;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 0.75rem;
 }
 
@@ -1943,8 +1946,11 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 
 .universe-grid {
   display: grid;
+  flex: 1;
   gap: 0.85rem;
+  grid-template-rows: minmax(0, 1fr);
   margin-top: 0.85rem;
+  min-height: 0;
 }
 
 .universe-graph-card,
@@ -1962,9 +1968,22 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .universe-graph-card {
-  min-height: min(64dvh, 42rem);
+  position: relative;
+  display: flex;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
   padding: 0.6rem;
+}
+
+.universe-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  height: 100%;
+  width: 100%;
+  opacity: 0.86;
+  pointer-events: none;
 }
 
 .universe-loading {
@@ -1975,7 +1994,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .universe-stats-card {
-  display: grid;
+  display: none;
   gap: 0.65rem;
   padding: 1rem;
   color: var(--text-gray-light);
@@ -2023,13 +2042,19 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 
 .universe-page .desktop-constellation {
   display: grid;
+  position: relative;
+  z-index: 1;
   gap: 0.75rem;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  min-height: 0;
   height: 100%;
+  width: 100%;
 }
 
 .universe-page .desktop-constellation-stage {
   position: relative;
-  min-height: clamp(23rem, 58dvh, 42rem);
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
   border-radius: 1.05rem;
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -2077,7 +2102,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   display: block;
   width: 100%;
   height: 100%;
-  min-height: inherit;
+  min-height: 0;
   color: #8ee9ff;
   user-select: none;
 }
@@ -2139,7 +2164,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   cursor: pointer;
   stroke: transparent;
   stroke-linecap: round;
-  stroke-width: 13;
+  stroke-width: 10;
 }
 
 .universe-page .desktop-constellation-node {
@@ -2168,7 +2193,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 
 .universe-page .desktop-node-aura {
   fill: currentColor;
-  opacity: 0.15;
+  opacity: 0.11;
   animation: constellationPulse 4.2s ease-in-out infinite;
   animation-delay: var(--float-delay, 0s);
 }
@@ -2189,12 +2214,12 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 .universe-page .desktop-node-core {
   fill: currentColor;
   stroke: rgba(255, 255, 255, 0.34);
-  stroke-width: 0.65;
+  stroke-width: 0.5;
 }
 
 .universe-page .desktop-node-label {
   fill: rgba(255, 255, 255, 0.96);
-  font-size: 0.46rem;
+  font-size: 0.38rem;
   font-weight: 950;
   pointer-events: none;
 }
@@ -2300,7 +2325,12 @@ html[data-theme="light"] .universe-page .desktop-node-label {
 
   .universe-grid {
     grid-template-columns: minmax(0, 1fr) 16rem;
+    grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
+  }
+
+  .universe-stats-card {
+    display: grid;
   }
 }
 
