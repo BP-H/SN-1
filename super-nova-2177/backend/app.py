@@ -626,38 +626,44 @@ def _sync_user_avatar_references(
 
     avatar_value = (avatar_url or "").strip()
 
-    if CRUD_MODELS_AVAILABLE and Proposal is not None:
+    def run_avatar_sync(operation) -> None:
+        sync_db = SessionLocal()
         try:
+            operation(sync_db)
+            sync_db.commit()
+        except Exception:
+            sync_db.rollback()
+        finally:
+            sync_db.close()
+
+    if CRUD_MODELS_AVAILABLE and Proposal is not None:
+        def sync_proposal_model(sync_db: Session) -> None:
             filters = []
             if clean_username and hasattr(Proposal, "userName"):
                 filters.append(func.lower(Proposal.userName) == clean_username.lower())
             if user_id and hasattr(Proposal, "author_id"):
                 filters.append(Proposal.author_id == user_id)
             if filters and hasattr(Proposal, "author_img"):
-                db.query(Proposal).filter(or_(*filters)).update(
+                sync_db.query(Proposal).filter(or_(*filters)).update(
                     {"author_img": avatar_value},
                     synchronize_session=False,
                 )
-        except Exception:
-            pass
+        run_avatar_sync(sync_proposal_model)
 
-    try:
-        if clean_username:
-            db.execute(
+    if clean_username:
+        def sync_proposals_table(sync_db: Session) -> None:
+            sync_db.execute(
                 text("UPDATE proposals SET author_img = :avatar WHERE lower(userName) = lower(:username)"),
                 {"avatar": avatar_value, "username": clean_username},
             )
-    except Exception:
-        pass
+        run_avatar_sync(sync_proposals_table)
 
-    try:
-        if clean_username:
-            db.execute(
+        def sync_comments_table(sync_db: Session) -> None:
+            sync_db.execute(
                 text("UPDATE comments SET user_img = :avatar WHERE lower(user) = lower(:username)"),
                 {"avatar": avatar_value, "username": clean_username},
             )
-    except Exception:
-        pass
+        run_avatar_sync(sync_comments_table)
 
 
 def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
@@ -1140,15 +1146,18 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         existing = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
 
     if existing:
+        avatar_to_sync = ""
         if avatar_url:
             existing.profile_pic = avatar_url
-            _sync_user_avatar_references(db, existing.username, avatar_url, getattr(existing, "id", None))
+            avatar_to_sync = avatar_url
         existing.species = species or getattr(existing, "species", "human")
         existing.is_active = True
         existing.consent_given = True
         db.add(existing)
         db.commit()
         db.refresh(existing)
+        if avatar_to_sync:
+            _sync_user_avatar_references(db, existing.username, avatar_to_sync, getattr(existing, "id", None))
         return {
             "id": existing.id,
             "username": existing.username,
@@ -1327,10 +1336,11 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    avatar_to_sync = ""
     if payload.avatar_url is not None:
         avatar_url = payload.avatar_url.strip()
         user.profile_pic = avatar_url or "default.jpg"
-        _sync_user_avatar_references(db, user.username, user.profile_pic, getattr(user, "id", None))
+        avatar_to_sync = user.profile_pic
 
     if payload.species is not None:
         user.species = _normalize_species(payload.species)
@@ -1342,6 +1352,8 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
         db.add(user)
         db.commit()
         db.refresh(user)
+        if avatar_to_sync:
+            _sync_user_avatar_references(db, user.username, avatar_to_sync, getattr(user, "id", None))
         return _public_user_payload(user, provider="password")
     except Exception as e:
         db.rollback()
@@ -2567,9 +2579,10 @@ async def upload_image(
     if user is not None:
         try:
             user.profile_pic = avatar_url
-            _sync_user_avatar_references(db, user.username, avatar_url, getattr(user, "id", None))
             db.add(user)
             db.commit()
+            db.refresh(user)
+            _sync_user_avatar_references(db, user.username, avatar_url, getattr(user, "id", None))
             profile_synced = True
         except Exception as exc:
             db.rollback()
