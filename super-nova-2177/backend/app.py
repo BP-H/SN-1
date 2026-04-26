@@ -1850,6 +1850,7 @@ def supernova_well_known():
             "organization_manifest": f"{PUBLIC_BASE_URL}/protocol/supernova.organization.schema.json",
             "execution_intent": f"{PUBLIC_BASE_URL}/protocol/supernova.execution-intent.schema.json",
             "three_species_vote": f"{PUBLIC_BASE_URL}/protocol/supernova.three-species-vote.schema.json",
+            "portable_profile": f"{PUBLIC_BASE_URL}/protocol/supernova.portable-profile.schema.json",
         },
         "public_data_policy": {
             "public_exports_only": True,

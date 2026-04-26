@@ -9,6 +9,7 @@ They do not add execution, federation writes, database migrations, webhooks, or 
 - `supernova.organization.schema.json`: future company/community domain manifest.
 - `supernova.three-species-vote.schema.json`: portable result shape for human, AI, and company vote outcomes.
 - `supernova.execution-intent.schema.json`: manual preview object for decisions that may later be reviewed and executed by a verified organization.
+- `supernova.portable-profile.schema.json`: public-only profile export shape for identity portability.
 
 ## Current Safety Position
 

@@ -47,12 +47,14 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(schemas["organization_manifest"].endswith("/protocol/supernova.organization.schema.json"))
         self.assertTrue(schemas["execution_intent"].endswith("/protocol/supernova.execution-intent.schema.json"))
         self.assertTrue(schemas["three_species_vote"].endswith("/protocol/supernova.three-species-vote.schema.json"))
+        self.assertTrue(schemas["portable_profile"].endswith("/protocol/supernova.portable-profile.schema.json"))
 
     def test_protocol_schema_files_are_public_static_json(self):
         for path, schema_name in {
             "/protocol/supernova.organization.schema.json": "supernova.organization_manifest.v1",
             "/protocol/supernova.execution-intent.schema.json": "supernova.execution_intent.v1",
             "/protocol/supernova.three-species-vote.schema.json": "supernova.three_species_vote.v1",
+            "/protocol/supernova.portable-profile.schema.json": "supernova.portable_profile.v1",
         }.items():
             response = client.get(path)
             self.assertEqual(response.status_code, 200)
