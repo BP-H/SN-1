@@ -4,7 +4,9 @@ import { CiSearch } from "react-icons/ci";
 function Input({ setSearch, search, inputRef }) {
   useEffect(() => {
     const focusInput = () => {
-      inputRef?.current?.focus();
+      inputRef?.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      inputRef?.current?.focus({ preventScroll: true });
+      inputRef?.current?.setSelectionRange?.(inputRef.current.value.length, inputRef.current.value.length);
     };
 
     const pendingFocus =

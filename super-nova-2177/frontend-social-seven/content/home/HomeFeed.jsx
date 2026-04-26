@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,7 +12,6 @@ import {
   IoStarOutline,
 } from "react-icons/io5";
 import { BiSolidLike, BiSolidDislike } from "react-icons/bi";
-import { SearchInputContext } from "@/app/layout";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
@@ -63,6 +62,30 @@ function normalizeAuthorName(name = "") {
   return String(name || "").trim().toLowerCase();
 }
 
+function postAgeHours(timeValue) {
+  if (!timeValue) return 0;
+  const raw = String(timeValue);
+  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw}Z`);
+  if (Number.isNaN(date.getTime())) return 0;
+  return Math.max(0, (Date.now() - date.getTime()) / 36e5);
+}
+
+function homeRankScore(post, priorityAuthors) {
+  const authorKey = normalizeAuthorName(post?.userName);
+  const followedOrSelf = priorityAuthors.has(authorKey);
+  const likes = Array.isArray(post?.likes) ? post.likes.length : 0;
+  const dislikes = Array.isArray(post?.dislikes) ? post.dislikes.length : 0;
+  const comments = Array.isArray(post?.comments) ? post.comments.length : 0;
+  const totalVotes = likes + dislikes;
+  const ageHours = postAgeHours(post?.time);
+  const freshness = 1 / (1 + ageHours / 18);
+  const engagement = Math.log1p(totalVotes * 1.5 + comments * 2.6) * 8;
+  const supportBalance = totalVotes ? ((likes - dislikes) / totalVotes) * 8 : 0;
+  const followBoost = followedOrSelf ? 18 * Math.sqrt(freshness) : 0;
+
+  return freshness * 46 + engagement + supportBalance + followBoost;
+}
+
 function formatCountdown(deadlineString, nowMs) {
   const deadline = new Date(deadlineString);
   if (Number.isNaN(deadline.getTime())) return "Set deadline";
@@ -92,7 +115,6 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   }, []);
   const [showSystemVoteInfo, setShowSystemVoteInfo] = useState(false);
   const [systemVoteClicked, setSystemVoteClicked] = useState(null);
-  const { inputRef } = useContext(SearchInputContext);
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
@@ -101,7 +123,6 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (sessionStorage.getItem(HOME_SCROLL_TOP_KEY) !== "1") return;
     sessionStorage.removeItem(HOME_SCROLL_TOP_KEY);
     window.dispatchEvent(new Event("supernova:show-header"));
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
@@ -174,14 +195,13 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   }, [followsData, userData?.name]);
 
   const orderedPosts = useMemo(() => {
-    if (!priorityAuthors.size) return posts;
     return posts
       .map((post, index) => ({
         post,
         index,
-        priority: priorityAuthors.has(normalizeAuthorName(post?.userName)) ? 0 : 1,
+        score: homeRankScore(post, priorityAuthors),
       }))
-      .sort((a, b) => a.priority - b.priority || a.index - b.index)
+      .sort((a, b) => b.score - a.score || a.index - b.index)
       .map((entry) => entry.post);
   }, [posts, priorityAuthors]);
 
@@ -395,7 +415,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
         {systemVoteModal}
 
         {/* ── Create Post ── */}
-        <section ref={inputRef} className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
+        <section className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
           {discard ? (
             <div className="flex items-center gap-2.5">
               {userAvatar ? (

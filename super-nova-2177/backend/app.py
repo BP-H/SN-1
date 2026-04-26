@@ -1231,8 +1231,10 @@ def _sync_species_references(
             ))
 
 
-def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
+def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = None) -> List[Dict[str, Any]]:
     users: Dict[str, Dict[str, Any]] = {}
+    search_term = (search or "").strip()
+    search_filter = f"%{search_term}%" if search_term else ""
 
     def add_user(username: str, species: str = "human", avatar: str = "", post_id: Optional[int] = None):
         name = (username or "").strip()
@@ -1257,7 +1259,10 @@ def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
 
     try:
         if Harmonizer is not None:
-            for user in db.query(Harmonizer).limit(limit).all():
+            harmonizer_query = db.query(Harmonizer)
+            if search_filter:
+                harmonizer_query = harmonizer_query.filter(Harmonizer.username.ilike(search_filter))
+            for user in harmonizer_query.limit(limit).all():
                 add_user(
                     getattr(user, "username", ""),
                     getattr(user, "species", "human"),
@@ -1269,7 +1274,10 @@ def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
 
     try:
         if Proposal is not None:
-            rows = db.query(Proposal).order_by(desc(Proposal.id)).limit(240).all()
+            proposal_query = db.query(Proposal)
+            if search_filter:
+                proposal_query = proposal_query.filter(Proposal.userName.ilike(search_filter))
+            rows = proposal_query.order_by(desc(Proposal.id)).limit(240).all()
             for row in rows:
                 add_user(
                     getattr(row, "userName", None) or getattr(row, "author", "") or "Unknown",
@@ -1279,7 +1287,13 @@ def _collect_social_users(db: Session, limit: int = 36) -> List[Dict[str, Any]]:
                 )
     except Exception:
         try:
-            rows = db.execute(text("SELECT id, userName, author_type, author_img FROM proposals ORDER BY id DESC LIMIT 240")).fetchall()
+            params: Dict[str, Any] = {}
+            query_text = "SELECT id, userName, author_type, author_img FROM proposals"
+            if search_filter:
+                query_text += " WHERE LOWER(userName) LIKE LOWER(:search)"
+                params["search"] = search_filter
+            query_text += " ORDER BY id DESC LIMIT 240"
+            rows = db.execute(text(query_text), params).fetchall()
             for row in rows:
                 mapping = getattr(row, "_mapping", {})
                 add_user(
@@ -2011,10 +2025,11 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
 @app.get("/social-users", summary="List users available for social messaging")
 def social_users(
     username: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
     limit: int = Query(36, ge=1, le=80),
     db: Session = Depends(get_db),
 ):
-    users = _collect_social_users(db, limit=limit)
+    users = _collect_social_users(db, limit=limit, search=search)
     current = _safe_user_key(username or "")
     if current and all(_safe_user_key(item["username"]) != current for item in users):
         users.insert(0, {
@@ -2710,7 +2725,7 @@ def list_proposals(
     """
     List proposals, supporting filters:
     - all, latest, oldest, topLikes, fewestLikes, popular, ai, company, human
-    - search: string search on title/description
+    - search: string search on title/description/username
     """
     try:
         # --- ORM MODE ---
@@ -2724,7 +2739,8 @@ def list_proposals(
                 query = query.filter(
                     or_(
                         Proposal.title.ilike(search_filter),
-                        Proposal.description.ilike(search_filter)
+                        Proposal.description.ilike(search_filter),
+                        Proposal.userName.ilike(search_filter)
                     )
                 )
             if author and author.strip():
@@ -2761,7 +2777,8 @@ def list_proposals(
                     query = query.filter(
                         or_(
                             Proposal.title.ilike(search_filter),
-                            Proposal.description.ilike(search_filter)
+                            Proposal.description.ilike(search_filter),
+                            Proposal.userName.ilike(search_filter)
                         )
                     )
                 if author and author.strip():

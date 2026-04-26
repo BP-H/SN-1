@@ -1,10 +1,12 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   IoDocumentTextOutline,
   IoImageOutline,
+  IoPeopleOutline,
   IoSend,
   IoVideocamOutline,
 } from "react-icons/io5";
@@ -55,6 +57,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
   const { inputRef } = useContext(SearchInputContext);
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
+  const searchTerm = search.trim();
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -131,6 +134,19 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
   });
   const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
 
+  const { data: peopleData = [] } = useQuery({
+    queryKey: ["discovery-people-search", searchTerm],
+    enabled: searchTerm.length >= 2,
+    queryFn: async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/social-users?search=${encodeURIComponent(searchTerm)}&limit=8`
+      );
+      if (!response.ok) throw new Error("Failed to search people");
+      return response.json();
+    },
+    staleTime: 30_000,
+  });
+
   return (
     <div className="social-shell px-0">
       <div className="flex min-w-0 flex-col gap-2.5">
@@ -138,7 +154,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
 
         <CreatePost discard={discard} setDiscard={setDiscard} />
 
-        <section ref={inputRef} className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
+        <section className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
           {discard ? (
             <div className="flex items-center gap-2.5">
               {userAvatar ? (
@@ -221,6 +237,41 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
             />
           )}
         </section>
+
+        {searchTerm.length >= 2 && peopleData.length > 0 && (
+          <section className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
+            <div className="mb-2 flex items-center gap-2 px-1 text-[0.72rem] font-bold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+              <IoPeopleOutline className="text-[var(--pink)]" />
+              People
+            </div>
+            <div className="hide-scrollbar flex gap-2 overflow-x-auto pb-1">
+              {peopleData.map((person) => {
+                const image = avatarDisplayUrl(person.avatar, "");
+                return (
+                  <Link
+                    key={person.username}
+                    href={`/users/${encodeURIComponent(person.username)}`}
+                    className="flex min-w-[8.25rem] max-w-[8.25rem] shrink-0 items-center gap-2 rounded-full bg-white/[0.045] px-2 py-2 hover:bg-white/[0.08]"
+                  >
+                    {image ? (
+                      <img src={image} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bgGray text-[0.68rem] font-bold">
+                        {(person.username || "SN").slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-[0.76rem] font-semibold">{person.username}</span>
+                      <span className="block truncate text-[0.64rem] text-[var(--text-gray-light)]">
+                        {person.species || "human"} · {person.post_count || 0} posts
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <div className="flex min-w-0 flex-col gap-2.5 pb-24">
           {isLoading ? (
