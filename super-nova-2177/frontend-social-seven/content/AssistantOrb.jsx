@@ -4,13 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { normalizeAvatarValue } from "@/utils/avatar";
+import { FaCommentAlt, FaShare } from "react-icons/fa";
 import {
   IoChatbubbleEllipsesOutline,
   IoClose,
-  IoClipboardOutline,
   IoKeyOutline,
   IoPlanetOutline,
-  IoShareSocialOutline,
   IoSparklesOutline,
 } from "react-icons/io5";
 import { RiVoiceAiFill } from "react-icons/ri";
@@ -538,10 +537,10 @@ export default function AssistantOrb() {
   const actions = [
     { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -56, dy: -88, size: "primary", tone: "blue" },
     { action: "like", label: "Support", icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
-    { action: "comment", label: "Comment", icon: IoClipboardOutline, dx: -100, dy: -28 },
+    { action: "comment", label: "Comment", icon: FaCommentAlt, dx: -100, dy: -28 },
     { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 100, dy: -28 },
     { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
-    { action: "share", label: "Share", icon: IoShareSocialOutline, dx: 90, dy: 48 },
+    { action: "share", label: "Share", icon: FaShare, dx: 90, dy: 48 },
     { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
     { action: "key", label: "AI key", icon: IoKeyOutline, dx: 34, dy: 96 },
   ];

@@ -16,7 +16,10 @@ import {
   IoPersonAddOutline,
   IoPersonRemoveOutline,
   IoChatbubbleOutline,
+  IoFlashOutline,
+  IoHandLeftOutline,
   IoShieldCheckmarkOutline,
+  IoTimeOutline,
   IoTrashOutline,
 } from "react-icons/io5";
 import LikesDeslikes from "./LikesDeslikes";
@@ -29,20 +32,20 @@ import LinkifiedText, { hasLink } from "@/utils/linkify";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
-  if (!deadlineValue) return safeFallbackDays > 0 ? `Window ${safeFallbackDays}d` : "Voting window";
+  if (!deadlineValue) return safeFallbackDays > 0 ? `${safeFallbackDays}d window` : "Window";
   const deadline = new Date(deadlineValue);
   if (Number.isNaN(deadline.getTime())) {
-    return safeFallbackDays > 0 ? `Window ${safeFallbackDays}d` : "Voting window";
+    return safeFallbackDays > 0 ? `${safeFallbackDays}d window` : "Window";
   }
   const remaining = deadline.getTime() - nowMs;
-  if (remaining <= 0) return "Voting ended";
+  if (remaining <= 0) return "Ended";
   const totalMinutes = Math.ceil(remaining / 60000);
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
-  if (days > 0) return `Ends in ${days}d ${hours}h`;
-  if (hours > 0) return `Ends in ${hours}h ${minutes}m`;
-  return `Ends in ${Math.max(1, minutes)}m`;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${Math.max(1, minutes)}m`;
 }
 
 function ProposalCard({
@@ -95,7 +98,10 @@ function ProposalCard({
   const decisionThreshold = Number(governance?.approval_threshold ?? governance?.threshold ?? 0);
   const decisionThresholdLabel = decisionThreshold > 0 ? `${Math.round(decisionThreshold * 100)}%` : "";
   const decisionExecutionMode = String(governance?.execution_mode || governance?.execution || "manual").toLowerCase();
-  const decisionExecutionLabel = decisionExecutionMode === "automatic" || decisionExecutionMode === "auto" ? "Automatic execution" : "Manual execution";
+  const isAutomaticExecution = decisionExecutionMode === "automatic" || decisionExecutionMode === "auto";
+  const DecisionExecutionIcon = isAutomaticExecution ? IoFlashOutline : IoHandLeftOutline;
+  const decisionExecutionLabel = isAutomaticExecution ? "Auto" : "Manual";
+  const decisionExecutionTitle = isAutomaticExecution ? "Automatic execution" : "Manual execution";
   const decisionDeadlineLabel = isDecisionProposal
     ? formatDecisionCountdown(governance?.voting_deadline, governance?.voting_days, nowMs)
     : "";
@@ -661,11 +667,19 @@ function ProposalCard({
                 Decision{decisionThresholdLabel ? ` ${decisionThresholdLabel}` : ""}
               </span>
               {decisionDeadlineLabel && (
-                <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1"
+                  title="Voting countdown"
+                >
+                  <IoTimeOutline className="text-[0.78rem] text-[var(--pink)]" />
                   {decisionDeadlineLabel}
                 </span>
               )}
-              <span className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-2.5 py-1"
+                title={decisionExecutionTitle}
+              >
+                <DecisionExecutionIcon className="text-[0.78rem] text-[var(--pink)]" />
                 {decisionExecutionLabel}
               </span>
             </div>

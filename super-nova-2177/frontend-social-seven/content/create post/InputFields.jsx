@@ -9,6 +9,7 @@ import {
   IoChevronBack,
   IoChevronForward,
   IoClose,
+  IoCreateOutline,
   IoDocumentTextOutline,
   IoGridOutline,
   IoImageOutline,
@@ -689,7 +690,7 @@ function InputFields({
             {isDecisionMode ? (
               <IoBarChartOutline className="text-[1.08rem]" />
             ) : (
-              <IoDocumentTextOutline className="text-[1.05rem]" />
+              <IoCreateOutline className="text-[1.08rem]" />
             )}
           </button>
           <button
