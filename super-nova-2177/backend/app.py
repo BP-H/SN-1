@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote, urlparse
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -105,6 +105,15 @@ def _parse_allowed_origins() -> Dict[str, Any]:
 
 
 CORS_CONFIG = _parse_allowed_origins()
+PUBLIC_FEDERATION_CACHE_HEADERS = {"Cache-Control": "public, max-age=300"}
+NO_STORE_PREFIXES = (
+    "/auth",
+    "/messages",
+    "/follows",
+    "/api/ai",
+    "/users/me",
+    "/upload-image",
+)
 
 if SUPER_NOVA_AVAILABLE:
     SessionLocal = _runtime['session_local']
@@ -291,6 +300,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def cache_control_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if "cache-control" in response.headers:
+        return response
+    path = request.url.path
+    if request.method not in {"GET", "HEAD"} or any(path.startswith(prefix) for prefix in NO_STORE_PREFIXES):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 uploads_dir = os.environ.get("UPLOADS_DIR") or os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
@@ -2258,7 +2279,7 @@ def webfinger(resource: str = Query(...), db: Session = Depends(get_db)):
     aliases = [identity["local_profile_url"]]
     if identity.get("domain_url"):
         aliases.append(identity["domain_url"])
-    return {
+    payload = {
         "subject": f"acct:{identity['username']}@{urlparse(PUBLIC_BASE_URL).netloc or '2177.tech'}",
         "aliases": aliases,
         "links": [
@@ -2278,6 +2299,11 @@ def webfinger(resource: str = Query(...), db: Session = Depends(get_db)):
             },
         ],
     }
+    return JSONResponse(
+        payload,
+        media_type="application/jrd+json",
+        headers=PUBLIC_FEDERATION_CACHE_HEADERS,
+    )
 
 
 @app.get("/actors/{username}", summary="Read-only ActivityStreams actor profile")
@@ -2311,7 +2337,11 @@ def actor_profile(username: str, db: Session = Depends(get_db)):
         actor["icon"] = {"type": "Image", "url": identity["avatar_url"]}
     if identity.get("domain_url"):
         actor["alsoKnownAs"] = [identity["domain_url"]]
-    return JSONResponse(actor, media_type="application/activity+json")
+    return JSONResponse(
+        actor,
+        media_type="application/activity+json",
+        headers=PUBLIC_FEDERATION_CACHE_HEADERS,
+    )
 
 
 @app.get("/actors/{username}/outbox", summary="Read-only public proposal outbox")
@@ -2358,6 +2388,7 @@ def actor_outbox(
             "orderedItems": items,
         },
         media_type="application/activity+json",
+        headers=PUBLIC_FEDERATION_CACHE_HEADERS,
     )
 
 
@@ -2380,14 +2411,14 @@ def portable_profile(
         offset=0,
         db=db,
     )
-    return {
+    return JSONResponse({
         "schema": "supernova.portable_profile.v1",
         "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
         "identity": identity,
         "profile": profile(identity["username"], db),
         "public_posts": public_posts,
         "limits": {"public_posts": limit},
-    }
+    }, headers=PUBLIC_FEDERATION_CACHE_HEADERS)
 
 
 @app.patch("/profile/{username}", summary="Update a user profile")
