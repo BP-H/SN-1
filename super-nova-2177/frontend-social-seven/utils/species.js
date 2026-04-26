@@ -50,10 +50,14 @@ function hexToRgba(hex, alpha) {
 export function speciesAvatarStyle(value = "", glow = "soft") {
   const color = speciesAccentColor(value);
   const strong = glow === "strong";
+  const ambientGlow = strong ? 0.16 : 0.12;
   return {
     borderColor: hexToRgba(color, 0.96),
     borderWidth: strong ? "2.75px" : "1.75px",
-    boxShadow: `0 0 0 1px ${hexToRgba(color, 0.18)}, 0 0 ${strong ? 18 : 14}px ${hexToRgba(
+    boxShadow: `0 0 0 1px ${hexToRgba(color, 0.16)}, 0 0 0 2px ${hexToRgba(
+      color,
+      ambientGlow
+    )}, 0 0 ${strong ? 18 : 14}px ${hexToRgba(
       color,
       strong ? 0.34 : 0.22
     )}`,
