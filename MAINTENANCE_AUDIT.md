@@ -63,3 +63,5 @@ These should stay ignored where possible. If already tracked, remove only in a s
 4. Run backend federation tests, FE7 lint/build, and `scripts/smoke_protocol.py https://2177.tech`.
 5. Keep public federation read-only and manual-preview-only.
 6. Do not introduce automatic execution, company webhooks, ActivityPub inbox writes, Webmention fetching, or real domain verification fetching during cleanup.
+
+For a read-only starting point, run `python scripts/list_cleanup_candidates.py`. It prints tracked cleanup candidates and never deletes files.
