@@ -25,7 +25,7 @@ export default function HeaderWrapper({
   useEffect(() => {
     const openAccount = (event) => {
       setAuthIntent({
-        mode: event.detail?.mode === "login" ? "login" : "create",
+        mode: event.detail?.mode === "create" ? "create" : "login",
         nonce: Date.now(),
       });
       setErrorMsg([]);
@@ -38,7 +38,7 @@ export default function HeaderWrapper({
 
   useEffect(() => {
     if (!showSettings || authLoading || isAuthenticated) return;
-    setAuthIntent({ mode: "create", nonce: Date.now() });
+    setAuthIntent({ mode: "login", nonce: Date.now() });
     setShowSettings(false);
     setAccountModalOpen(true);
   }, [authLoading, isAuthenticated, setShowSettings, showSettings]);
@@ -84,7 +84,7 @@ export default function HeaderWrapper({
       {!universeMode && <DesktopRightRail />}
       <AccountModal
         open={accountModalOpen && !isAuthenticated}
-        initialMode={authIntent?.mode || "create"}
+        initialMode={authIntent?.mode || "login"}
         onClose={() => setAccountModalOpen(false)}
       />
       <ProfileSetupModal open={needsProfileSetup} />

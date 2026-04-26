@@ -108,17 +108,21 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     : defaultAvatar;
   const avatarStyle = speciesAvatarStyle(selectedSpecies || userData.species || "human");
   const openAuth = (mode) => {
+    const nextMode = mode === "create" ? "create" : "login";
     if (!isAuthenticated && typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("supernova:open-account", {
-          detail: { mode: mode === "login" ? "login" : "create" },
+          detail: { mode: nextMode },
         })
       );
       return;
     }
-    setPasswordMode(mode);
+    setPasswordMode(nextMode);
     setAuthOpen(true);
   };
+  const alternatePasswordMode = passwordMode === "create" ? "login" : "create";
+  const passwordSwitchPrompt = passwordMode === "create" ? "Already have an account?" : "New to SuperNova?";
+  const passwordSwitchLabel = passwordMode === "create" ? "Sign in" : "Create account";
 
   async function handleProviderLogin(provider) {
     setErrorMsg([]);
@@ -182,7 +186,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
   async function handleAvatarSelect(event) {
     if (!isAuthenticated) {
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       }
       event.target.value = "";
       return;
@@ -266,7 +270,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
   async function handleIdentitySave(event) {
     event?.stopPropagation?.();
     if (!isAuthenticated) {
-      openAuth("create");
+      openAuth("login");
       return;
     }
     const nextName = profileName.trim();
@@ -339,12 +343,12 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       role={isAuthenticated ? undefined : "button"}
       tabIndex={isAuthenticated ? undefined : 0}
       onClick={() => {
-        if (!isAuthenticated) openAuth("create");
+        if (!isAuthenticated) openAuth("login");
       }}
       onKeyDown={(event) => {
         if (!isAuthenticated && (event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
-          openAuth("create");
+          openAuth("login");
         }
       }}
     >
@@ -389,7 +393,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
           </p>
           {!isAuthenticated && (
             <p className="mt-1 text-[0.68rem] font-semibold text-[var(--pink)]">
-              Tap or click to sign up or sign in.
+              Tap to sign in or create an account.
             </p>
           )}
         </div>
@@ -409,7 +413,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              openAuth("create");
+              openAuth("login");
             }}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
             aria-label="Sign in"
@@ -497,7 +501,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-[1rem] font-black">SuperNova account</p>
-                <p className="auth-muted mt-0.5 text-[0.7rem]">Sign in or create your synced identity.</p>
+                <p className="auth-muted mt-0.5 text-[0.7rem]">
+                  {passwordMode === "create" ? "Choose your username and species." : "Sign in to sync across devices."}
+                </p>
               </div>
               <button
                 type="button"
@@ -507,21 +513,6 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
               >
                 <IoClose />
               </button>
-            </div>
-
-            <div className="auth-segment mb-3 grid grid-cols-2 rounded-full p-1 text-[0.74rem] font-bold">
-              {["login", "create"].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPasswordMode(mode)}
-                  className={`rounded-full px-3 py-2 ${
-                    passwordMode === mode ? "bg-[var(--pink)] text-white" : "auth-muted"
-                  }`}
-                >
-                  {mode === "create" ? "Sign up" : "Sign in"}
-                </button>
-              ))}
             </div>
 
             <div className="grid gap-2">
@@ -590,7 +581,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                       type="button"
                       onClick={() => setSelectedSpecies(item.key)}
                       className={`flex h-10 items-center justify-center gap-1.5 rounded-full text-[0.72rem] font-semibold ${
-                        selected ? `${item.color} text-white` : "auth-pill-inactive"
+                        selected ? `${speciesAccentBgClass(item.key)} text-white` : "auth-pill-inactive"
                       }`}
                     >
                       {item.icon}
@@ -609,6 +600,17 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
               {passwordMode === "create" ? <IoMailOutline /> : <IoShieldCheckmarkOutline />}
               {authBusy === passwordMode ? "Working..." : passwordMode === "create" ? "Create account" : "Sign in"}
             </button>
+            <p className="auth-muted mt-3 text-center text-[0.72rem] font-semibold">
+              {passwordSwitchPrompt}{" "}
+              <button
+                type="button"
+                onClick={() => setPasswordMode(alternatePasswordMode)}
+                className="font-black text-[var(--pink)]"
+                disabled={Boolean(authBusy)}
+              >
+                {passwordSwitchLabel}
+              </button>
+            </p>
             {!authConfigured && (
               <p className="auth-muted mt-2 text-center text-[0.66rem] leading-4">
                 Google, Facebook, and GitHub need Supabase env vars and provider redirect URLs. Password accounts still work through the backend.

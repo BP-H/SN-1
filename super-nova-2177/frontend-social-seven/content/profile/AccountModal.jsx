@@ -26,7 +26,7 @@ const PROVIDERS = [
   { key: "github", label: "GitHub", icon: <FaGithub />, color: "#d4d1e1" },
 ];
 
-export default function AccountModal({ open, initialMode = "create", onClose = () => {} }) {
+export default function AccountModal({ open, initialMode = "login", onClose = () => {} }) {
   const {
     authConfigured,
     defaultAvatar,
@@ -60,6 +60,9 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
 
   if (!mounted || !open) return null;
   const avatarStyle = speciesAvatarStyle(species || "human");
+  const alternateMode = mode === "create" ? "login" : "create";
+  const switchPrompt = mode === "create" ? "Already have an account?" : "New to SuperNova?";
+  const switchLabel = mode === "create" ? "Sign in" : "Create account";
 
   const submit = async (event) => {
     event.preventDefault();
@@ -133,7 +136,7 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
             <div className="min-w-0">
               <p className="truncate text-[1rem] font-black">SuperNova account</p>
               <p className="auth-muted mt-0.5 text-[0.7rem]">
-                {mode === "create" ? "Create your synced identity." : "Sign into your synced identity."}
+                {mode === "create" ? "Choose your username and species." : "Sign in to sync across devices."}
               </p>
             </div>
           </div>
@@ -145,19 +148,6 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
           >
             <IoClose />
           </button>
-        </div>
-
-        <div className="auth-segment mb-3 grid grid-cols-2 rounded-full p-1 text-[0.74rem] font-bold">
-          {["create", "login"].map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setMode(item)}
-              className={`rounded-full px-3 py-2 ${mode === item ? "bg-[var(--pink)] text-white" : "auth-muted"}`}
-            >
-              {item === "create" ? "Sign up" : "Sign in"}
-            </button>
-          ))}
         </div>
 
         <div className="grid gap-2">
@@ -241,6 +231,20 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
           {mode === "create" ? <IoMailOutline /> : <IoShieldCheckmarkOutline />}
           {busy === mode ? "Working..." : mode === "create" ? "Create account" : "Sign in"}
         </button>
+        <p className="auth-muted mt-3 text-center text-[0.72rem] font-semibold">
+          {switchPrompt}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setMode(alternateMode);
+            }}
+            className="font-black text-[var(--pink)]"
+            disabled={Boolean(busy)}
+          >
+            {switchLabel}
+          </button>
+        </p>
         {!authConfigured && (
           <p className="auth-muted mt-2 text-center text-[0.66rem] leading-4">
             Google, Facebook, and GitHub need Supabase env vars and provider redirect URLs. Password accounts still work through the backend.
