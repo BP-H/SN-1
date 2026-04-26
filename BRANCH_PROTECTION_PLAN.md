@@ -2,6 +2,8 @@
 
 This plan describes how SuperNova can move from manual guardrails to stronger GitHub branch protection without surprising contributors or breaking the live app.
 
+Current rollout state is tracked in `BRANCH_PROTECTION_ROLLOUT_STATUS.md`.
+
 ## Phase 1: Manual Checks
 
 Current posture:
