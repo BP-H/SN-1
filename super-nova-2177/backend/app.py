@@ -2211,16 +2211,16 @@ def _domain_did(domain_url: str) -> str:
 def _profile_identity_payload(db: Session, username: str) -> Dict[str, Any]:
     profile_payload = profile(username, db)
     clean_username = (profile_payload.get("username") or username or "").strip()
-    domain_url = (profile_payload.get("domain_url") or "").strip()
+    claimed_domain_url = (profile_payload.get("domain_url") or "").strip()
     domain_as_profile = bool(profile_payload.get("domain_as_profile", False))
     local_profile_url = _public_profile_url(clean_username)
-    canonical_url = domain_url if domain_url and domain_as_profile else local_profile_url
+    canonical_url = claimed_domain_url if claimed_domain_url and domain_as_profile else local_profile_url
     verification_template = {}
-    if domain_url:
+    if claimed_domain_url:
         verification_template = {
             "supernova_profile": local_profile_url,
             "owner": clean_username,
-            "canonical_domain": domain_url,
+            "claimed_domain": claimed_domain_url,
         }
     return {
         "username": clean_username,
@@ -2230,10 +2230,18 @@ def _profile_identity_payload(db: Session, username: str) -> Dict[str, Any]:
         "avatar_url": profile_payload.get("avatar_url", ""),
         "local_profile_url": local_profile_url,
         "canonical_url": canonical_url,
-        "domain_url": domain_url,
+        "canonical_url_source": "claimed_domain" if claimed_domain_url and domain_as_profile else "supernova",
+        "canonical_url_verified": False,
+        "domain_url": claimed_domain_url,
+        "claimed_domain": claimed_domain_url,
+        "claimed_domain_url": claimed_domain_url,
         "domain_as_profile": domain_as_profile,
         "domain_verified": False,
-        "did": _domain_did(domain_url),
+        "verified_domain": "",
+        "verified_domain_url": "",
+        "verified_at": None,
+        "verification_method": None,
+        "did": _domain_did(claimed_domain_url),
         "actor_url": _public_actor_url(clean_username),
         "portable_export_url": f"{PUBLIC_BASE_URL}/u/{clean_username}/export.json",
         "verification_file": "/.well-known/supernova.json",
@@ -2291,9 +2299,11 @@ def actor_profile(username: str, db: Session = Depends(get_db)):
         "supernova": {
             "species": identity["species"],
             "local_profile_url": identity["local_profile_url"],
+            "claimed_domain": identity["claimed_domain"],
             "domain_url": identity["domain_url"],
             "domain_as_profile": identity["domain_as_profile"],
             "domain_verified": identity["domain_verified"],
+            "verified_domain": identity["verified_domain"],
             "did": identity["did"],
         },
     }

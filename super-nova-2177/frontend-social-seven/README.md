@@ -48,6 +48,8 @@ Read-only open-network endpoints exposed by the backend gateway:
 - `/actors/{username}/outbox`
 - `/u/{username}/export.json`
 
+Domain profile fields are public claims unless `domain_verified` is true. Do not show a verified-domain badge from `domain_url` or `claimed_domain` alone.
+
 See `SOCIAL_AUTH_SETUP.md` for Google, Facebook, and GitHub OAuth setup details.
 
 ## API Rules
