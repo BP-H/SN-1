@@ -1763,6 +1763,79 @@ html[data-theme="light"] .composer-governance-button.active {
   box-shadow: var(--shadow-pink) !important;
 }
 
+.social-shell button,
+.universe-page button,
+.desktop-shell-nav button,
+.desktop-right-rail button,
+.post-action-bar button,
+.composer-icon-button,
+.composer-governance-button,
+.desktop-detail-link,
+.universe-icon-button {
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .social-shell button:not(:disabled):hover,
+  .universe-page button:not(:disabled):hover,
+  .desktop-shell-nav button:not(:disabled):hover,
+  .desktop-right-rail button:not(:disabled):hover,
+  .post-action-bar button:not(:disabled):hover,
+  .composer-icon-button:not(:disabled):hover,
+  .composer-governance-button:not(:disabled):hover,
+  .desktop-detail-link:hover,
+  .universe-icon-button:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.social-shell button:not(:disabled):active,
+.universe-page button:not(:disabled):active,
+.desktop-shell-nav button:not(:disabled):active,
+.desktop-right-rail button:not(:disabled):active,
+.post-action-bar button:not(:disabled):active,
+.composer-icon-button:not(:disabled):active,
+.composer-governance-button:not(:disabled):active,
+.universe-icon-button:not(:disabled):active {
+  transform: translateY(0) scale(0.985);
+}
+
+.linkified-url {
+  color: var(--neon-blue);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.linkified-url:hover {
+  color: var(--pink);
+}
+
+.message-bubble-own .linkified-url {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.message-share-banner {
+  border: 1px solid rgba(255, 79, 143, 0.24);
+  background: rgba(255, 79, 143, 0.1);
+  color: var(--text-gray-light);
+}
+
+html[data-theme="light"] .message-share-banner {
+  border-color: rgba(255, 79, 143, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  color: #4b5568;
+  box-shadow: 0 8px 20px rgba(25, 30, 48, 0.08);
+}
+
 .mobile-topbar .ai-cursor-dock {
   position: relative;
   z-index: 40;
@@ -2151,7 +2224,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 .universe-page .desktop-constellation-orbit {
   transform-box: view-box;
   transform-origin: 50% 50%;
-  animation: constellationSlowOrbit 28s ease-in-out infinite alternate;
+  animation: constellationSlowOrbit 22s ease-in-out infinite alternate;
 }
 
 .universe-page .desktop-constellation-depth {
@@ -2204,7 +2277,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 .universe-page .desktop-node-float {
   transform-box: fill-box;
   transform-origin: center;
-  animation: constellationNodeFloat 5.8s ease-in-out infinite;
+  animation: constellationNodeFloat 4.7s ease-in-out infinite;
   animation-delay: var(--float-delay, 0s);
 }
 
@@ -2491,14 +2564,49 @@ html[data-theme="light"] .post-action-bar {
   }
 
   .desktop-compose-button {
+    position: relative;
+    overflow: hidden;
     justify-content: center;
     gap: 0.5rem;
-    background: linear-gradient(180deg, rgba(255, 79, 143, 0.95), rgba(255, 79, 143, 0.75));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background:
+      radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.26), transparent 28%),
+      linear-gradient(135deg, #ff4f8f, #d94fbc 46%, #7b8cff);
     color: white;
     font-size: 0.86rem;
     font-weight: 900;
     padding: 0.8rem 0.9rem;
-    box-shadow: var(--shadow-pink);
+    box-shadow:
+      0 16px 34px rgba(255, 79, 143, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+
+  .desktop-compose-button::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 0 30%, rgba(255, 255, 255, 0.28) 45%, transparent 62%);
+    opacity: 0;
+    transform: translateX(-45%);
+    transition: opacity 160ms ease, transform 260ms ease;
+  }
+
+  .desktop-compose-button:hover {
+    box-shadow:
+      0 18px 40px rgba(255, 79, 143, 0.34),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  }
+
+  .desktop-compose-button:hover::before {
+    opacity: 1;
+    transform: translateX(45%);
+  }
+
+  .desktop-compose-button svg,
+  .desktop-compose-button span {
+    position: relative;
+    z-index: 1;
   }
 
   .desktop-nav-list {
@@ -2607,7 +2715,10 @@ html[data-theme="light"] .post-action-bar {
   }
 
   html[data-theme="light"] .desktop-compose-button {
-    box-shadow: 0 12px 28px rgba(255, 79, 143, 0.16);
+    border-color: rgba(255, 255, 255, 0.72);
+    box-shadow:
+      0 14px 32px rgba(255, 79, 143, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.58);
   }
 
   html[data-theme="light"] .desktop-nav-item {
@@ -2907,7 +3018,7 @@ html[data-theme="light"] .post-action-bar {
   .desktop-constellation-orbit {
     transform-box: view-box;
     transform-origin: 50% 50%;
-    animation: constellationSlowOrbit 28s ease-in-out infinite alternate;
+    animation: constellationSlowOrbit 22s ease-in-out infinite alternate;
   }
 
   .desktop-constellation-depth {
@@ -2949,7 +3060,7 @@ html[data-theme="light"] .post-action-bar {
   .desktop-node-float {
     transform-box: fill-box;
     transform-origin: center;
-    animation: constellationNodeFloat 5.8s ease-in-out infinite;
+    animation: constellationNodeFloat 4.7s ease-in-out infinite;
     animation-delay: var(--float-delay, 0s);
   }
 

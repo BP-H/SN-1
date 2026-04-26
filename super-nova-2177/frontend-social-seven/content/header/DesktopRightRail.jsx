@@ -272,7 +272,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
     let raf = 0;
     let lastFrame = 0;
     const tick = (time) => {
-      if (time - lastFrame > (isImmersive ? 92 : 140)) {
+      if (time - lastFrame > (isImmersive ? 72 : 82)) {
         setMotionFrame(time / 1000);
         lastFrame = time;
       }
@@ -285,9 +285,9 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const visualNodes = useMemo(() => {
     return layout.nodes.map((node, index) => {
       const depth = Number(node.depth || 0.8);
-      const amplitude = isImmersive ? 1.85 : 0.7;
-      const driftX = Math.sin(motionFrame * 0.26 + index * 1.47) * (amplitude + depth * (isImmersive ? 1.2 : 0.45));
-      const driftY = Math.cos(motionFrame * 0.22 + index * 1.13) * (amplitude * 0.72 + depth * (isImmersive ? 0.9 : 0.32));
+      const amplitude = isImmersive ? 2.05 : 1.45;
+      const driftX = Math.sin(motionFrame * 0.32 + index * 1.47) * (amplitude + depth * (isImmersive ? 1.25 : 0.85));
+      const driftY = Math.cos(motionFrame * 0.28 + index * 1.13) * (amplitude * 0.72 + depth * (isImmersive ? 0.9 : 0.6));
       return { ...node, visualX: node.x + driftX, visualY: node.y + driftY };
     });
   }, [isImmersive, layout.nodes, motionFrame]);
@@ -380,9 +380,9 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       <div className="desktop-constellation-stage" aria-label="Live social constellation">
         <AmbientConstellationCanvas
           className="desktop-constellation-ambient"
-          density={isImmersive ? 44 : 24}
+          density={isImmersive ? 44 : 34}
           anchors={ambientAnchors}
-          frameMs={isImmersive ? 48 : 62}
+          frameMs={isImmersive ? 42 : 48}
         />
         <div className="desktop-constellation-controls" aria-label="Constellation controls">
           <button type="button" onClick={() => updateScale(view.scale + 0.12)} title="Zoom in" aria-label="Zoom in">

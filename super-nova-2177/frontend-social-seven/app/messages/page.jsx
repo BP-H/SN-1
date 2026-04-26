@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IoLockClosedOutline, IoPaperPlaneOutline, IoSearchOutline } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import LinkifiedText from "@/utils/linkify";
 import { useUser } from "@/content/profile/UserContext";
 
 function avatarUrl(value) {
@@ -31,6 +32,7 @@ function translateUrl(text = "") {
 }
 
 const READ_PREFIX = "supernova_dm_seen::";
+const SHARE_DRAFT_KEY = "supernova_dm_share_draft";
 
 export default function MessagesPage() {
   const { userData, defaultAvatar, isAuthenticated } = useUser();
@@ -42,7 +44,9 @@ export default function MessagesPage() {
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const [readMarkers, setReadMarkers] = useState({});
+  const [pendingShare, setPendingShare] = useState(null);
   const [composerFocused, setComposerFocused] = useState(false);
+  const shareDraftLoadedRef = useRef(false);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
   const readKey = `${READ_PREFIX}${peerKey(currentUser)}::`;
 
@@ -82,6 +86,27 @@ export default function MessagesPage() {
       window.removeEventListener("supernova:location-change", readPeerFromUrl);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || shareDraftLoadedRef.current || typeof window === "undefined") return;
+    shareDraftLoadedRef.current = true;
+    try {
+      const raw = sessionStorage.getItem(SHARE_DRAFT_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(SHARE_DRAFT_KEY);
+      const payload = JSON.parse(raw);
+      const text = String(payload?.text || "").trim();
+      if (!text) return;
+      setPendingShare({ title: payload?.title || "Shared post", url: payload?.url || "" });
+      setDraft((current) => (current.trim() ? current : text));
+    } catch {
+      try {
+        sessionStorage.removeItem(SHARE_DRAFT_KEY);
+      } catch {
+        // Storage may be blocked; ignore and leave messaging usable.
+      }
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -279,6 +304,7 @@ export default function MessagesPage() {
     },
     onSuccess: (message) => {
       setDraft("");
+      setPendingShare(null);
       queryClient.setQueryData(["direct-thread", currentUser, selectedPeer], (oldData) => {
         const existing = oldData?.messages || [];
         if (existing.some((item) => item.id === message.id)) return oldData;
@@ -493,7 +519,9 @@ export default function MessagesPage() {
                               : "bg-white/[0.065] text-[var(--transparent-black)]"
                           }`}
                         >
-                          <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                          <p className="whitespace-pre-wrap break-words">
+                            <LinkifiedText text={message.body} />
+                          </p>
                           <a
                             href={translateUrl(message.body)}
                             target="_blank"
@@ -538,6 +566,11 @@ export default function MessagesPage() {
                   <IoPaperPlaneOutline />
                 </button>
               </form>
+              {pendingShare && (
+                <div className="message-share-banner mt-2 rounded-[0.95rem] px-3 py-2 text-[0.74rem] leading-5">
+                  Sharing a post here. Choose a person, then send when ready.
+                </div>
+              )}
 
               {sendMutation.isError && (
                 <p className="mt-2 text-[0.74rem] text-[var(--pink)]">{sendMutation.error.message}</p>

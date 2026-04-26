@@ -27,6 +27,7 @@ import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import LinkifiedText, { hasLink } from "@/utils/linkify";
 
 function ProposalCard({
   id,
@@ -161,6 +162,30 @@ function ProposalCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* clipboard unavailable */ }
+  };
+
+  const handleMessageShare = () => {
+    if (!userData?.name) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    const url = `${window.location.origin}/proposals/${id || ""}`;
+    const shareText = title ? `Check out: ${title}` : "Check out this proposal";
+    try {
+      sessionStorage.setItem(
+        "supernova_dm_share_draft",
+        JSON.stringify({
+          proposalId: id,
+          title: shareText,
+          url,
+          text: `${shareText}\n${url}`,
+        })
+      );
+    } catch {
+      // If storage is unavailable, the messages page still opens normally.
+    }
+    setNotify?.(["Choose someone in messages to share this post."]);
+    router.push("/messages");
   };
 
   const refreshFeeds = () => {
@@ -566,14 +591,23 @@ function ProposalCard({
             </div>
           ) : localText && (
             <div className="flex min-w-0 flex-col gap-1">
-              <Link href={detailHref} className="block min-w-0">
+              {hasLink(localText) ? (
                 <p
                   className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
                   style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
                 >
-                  {localText}
+                  <LinkifiedText text={localText} />
                 </p>
-              </Link>
+              ) : (
+                <Link href={detailHref} className="block min-w-0">
+                  <p
+                    className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
+                    style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
+                  >
+                    {localText}
+                  </p>
+                </Link>
+              )}
               {(localText.length > 220 || (localText.match(/\n/g) || []).length >= 4) && (
                 <button
                   type="button"
@@ -760,6 +794,15 @@ function ProposalCard({
               title={copied ? "Link copied!" : "Share"}
             >
               <IoIosShare className="text-[0.95rem]" />
+            </button>
+            <button
+              type="button"
+              onClick={handleMessageShare}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-gray-light)] transition-colors hover:bg-[rgba(255,255,255,0.07)]"
+              title="Share in messages"
+              aria-label="Share in messages"
+            >
+              <IoChatbubbleOutline className="text-[0.92rem]" />
             </button>
           </div>
         </div>

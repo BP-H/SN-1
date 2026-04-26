@@ -15,6 +15,7 @@ import {
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import LinkifiedText from "@/utils/linkify";
 import { useUser } from "@/content/profile/UserContext";
 
 function DisplayComments({
@@ -353,7 +354,9 @@ function DisplayComments({
             )}
             <p className={`break-words text-[0.86rem] leading-6 [overflow-wrap:anywhere] ${
               isDeleted ? "italic text-[var(--text-gray-light)]" : "text-[var(--transparent-black)]"
-            }`}>{comment}</p>
+            }`}>
+              <LinkifiedText text={comment} />
+            </p>
           </>
         )}
       </div>

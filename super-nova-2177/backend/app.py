@@ -2039,9 +2039,12 @@ def social_graph(
 
             try:
                 comments = (
-                    db.query(Comment).filter(Comment.proposal_id == proposal_id).all()
+                    db.query(Comment).filter(Comment.proposal_id == proposal_id).limit(120).all()
                     if CRUD_MODELS_AVAILABLE
-                    else db.execute(text("SELECT * FROM comments WHERE proposal_id = :pid"), {"pid": proposal_id}).fetchall()
+                    else db.execute(
+                        text("SELECT * FROM comments WHERE proposal_id = :pid LIMIT 120"),
+                        {"pid": proposal_id},
+                    ).fetchall()
                 )
             except Exception:
                 comments = []
@@ -2061,9 +2064,12 @@ def social_graph(
 
             try:
                 votes = (
-                    db.query(ProposalVote).filter(ProposalVote.proposal_id == proposal_id).all()
+                    db.query(ProposalVote).filter(ProposalVote.proposal_id == proposal_id).limit(120).all()
                     if CRUD_MODELS_AVAILABLE
-                    else db.execute(text("SELECT * FROM proposal_votes WHERE proposal_id = :pid"), {"pid": proposal_id}).fetchall()
+                    else db.execute(
+                        text("SELECT * FROM proposal_votes WHERE proposal_id = :pid LIMIT 120"),
+                        {"pid": proposal_id},
+                    ).fetchall()
                 )
             except Exception:
                 votes = []

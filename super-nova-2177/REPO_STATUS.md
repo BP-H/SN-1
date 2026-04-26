@@ -38,6 +38,13 @@ These folders may contain useful experiments, references, or older frontend vari
 - `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
 - Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately.
 
+## Legacy Classification Rules
+
+- Do not move active deployment paths while Railway/Vercel are live: `app.py`, `backend/app.py`, and `frontend-social-seven`.
+- Treat files with names like `* copy.jsx`, backup pages, bundled demos, and old Vite/Next experiments as reference material unless a task explicitly promotes them.
+- Treat `*.db`, `*.log`, `uploads/`, `.next/`, and local JSON fallback stores as local state, not source. They are ignored and should not be used to judge production history.
+- If a legacy experiment contains a visual or logic idea worth keeping, port the smallest stable piece into the active frontend/backend instead of changing deployment roots.
+
 ## Species Contract
 
 SuperNova has exactly three species keys in the social wrapper and frontend seven:
@@ -53,6 +60,8 @@ Silent browser sync must not overwrite an existing account species. Explicit pro
 - Do not edit `supernovacore.py` for wrapper or frontend connectivity fixes unless a task explicitly asks for core changes.
 - Keep existing social endpoints stable: `/proposals`, `/votes`, `/comments`, `/profile`, `/messages`, `/follows`, `/auth/...`.
 - Keep feed reads bounded. `/proposals` supports `limit`, `offset`, `before_id`, and `author`; frontend seven should request small slices instead of loading the whole feed.
+- Keep graph reads bounded. `/social-graph` should sample recent proposals, comments, votes, messages, and follows rather than scanning whole tables.
+- Link rendering belongs in frontend presentation helpers; backend should keep storing plain text unless a dedicated rich-text contract is added.
 - Add new core-backed frontend features through `API_BASE_URL + "/core/..."`.
 - Keep `universe.fork.json` documentation-only until deliberate fork tooling is added.
 - Railway should provide `DATABASE_URL`; the runtime wrapper preserves that and does not force local SQLite in production.
