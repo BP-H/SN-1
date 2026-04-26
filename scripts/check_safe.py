@@ -22,7 +22,7 @@ CORE_DIFF_PATHS = (
 )
 
 
-def run(label: str, command: list[str], cwd: Path = ROOT) -> int:
+def run(label: str, command: list[str], cwd: Path = ROOT) -> bool:
     print(f"\n== {label} ==")
     print(" ".join(command))
     completed = subprocess.run(command, cwd=str(cwd))
@@ -30,7 +30,7 @@ def run(label: str, command: list[str], cwd: Path = ROOT) -> int:
         print(f"PASS: {label}")
     else:
         print(f"FAIL: {label} ({completed.returncode})")
-    return int(completed.returncode)
+    return completed.returncode != 0
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -48,24 +48,27 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     failures = 0
 
-    failures += run(
+    if run(
         "backend federation safety tests",
         [sys.executable, "-m", "unittest", "backend.tests.test_public_federation_safety"],
         cwd=BACKEND_DIR,
-    )
+    ):
+        failures += 1
 
     if not args.skip_live:
-        failures += run(
+        if run(
             "public protocol smoke",
             [sys.executable, str(SMOKE_SCRIPT), args.base_url],
             cwd=ROOT,
-        )
+        ):
+            failures += 1
 
-    failures += run(
+    if run(
         "supernovacore.py zero diff",
-        ["git", "-c", "safe.directory=D:/synk/FE4-main", "diff", "--", *CORE_DIFF_PATHS],
+        ["git", "-c", f"safe.directory={ROOT.as_posix()}", "diff", "--exit-code", "HEAD", "--", *CORE_DIFF_PATHS],
         cwd=ROOT,
-    )
+    ):
+        failures += 1
 
     if failures:
         print(f"\nSafe checks failed: {failures}")
