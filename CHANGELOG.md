@@ -20,3 +20,4 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added protected-path CODEOWNERS and a read-only cleanup candidate snapshot.
 - Added branch protection rollout status to keep enforcement staged and non-surprising.
 - Recorded CODEOWNERS validation outcome and safe-check baseline snapshot.
+- Removed generated combined repo snapshot after branch-tested cleanup.

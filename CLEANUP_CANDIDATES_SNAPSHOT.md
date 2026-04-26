@@ -8,16 +8,19 @@ python scripts/list_cleanup_candidates.py
 
 This is a read-only inventory. It is not approval to delete anything from `master`. Any cleanup should happen on a separate branch, one candidate class at a time, with backend safety tests, FE7 lint/build, public protocol smoke, and protected-core zero diff.
 
+## Completed Cleanup
+
+- `super-nova-2177/backend/supernova_2177_ui_weighted/combined_repo.md` was removed in PR #9.
+- It was a generated combined repository snapshot only.
+- Reference search found no runtime imports or deployment references.
+- Full checks passed before merge.
+
 ## Backup-Looking Tracked Files
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/pages/profile.backup.before_fix.py`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/pages/profile.backup.before_string_fix.py`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/pages/profile.backup.py`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/ui.backup.py`
-
-## Combined Repo Snapshots
-
-- `super-nova-2177/backend/supernova_2177_ui_weighted/combined_repo.md`
 
 ## Legacy Or Experimental Frontend Trees
 
