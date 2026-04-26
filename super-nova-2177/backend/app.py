@@ -2622,6 +2622,26 @@ def portable_profile(
         "identity": identity,
         "profile": profile(identity["username"], db),
         "public_posts": public_posts,
+        "governance": {
+            "species_model": "three_species_equal_vote",
+            "human_supervision_required": True,
+            "execution_current_mode": "manual_preview_only",
+            "automatic_execution": False,
+        },
+        "privacy": {
+            "public_export_only": True,
+            "excluded_fields": [
+                "email",
+                "password_hash",
+                "access_token",
+                "refresh_token",
+                "direct_messages",
+                "private_message_metadata",
+                "secrets",
+                "admin_state",
+                "debug_state",
+            ],
+        },
         "limits": {"public_posts": limit},
     }, headers=PUBLIC_FEDERATION_CACHE_HEADERS)
 

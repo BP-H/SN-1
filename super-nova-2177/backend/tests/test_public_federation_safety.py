@@ -158,6 +158,123 @@ class PublicFederationSafetyTests(unittest.TestCase):
             "debug_state",
         }.issubset(excluded))
 
+    def test_proposal_governance_payload_stays_manual_and_non_executing(self):
+        payload = backend_app._proposal_governance_payload({
+            "governance_kind": "decision",
+            "decision_level": "important",
+            "voting_days": 7,
+            "automatic_execution": True,
+            "webhook": "https://example.com/hook",
+            "external_action": "deploy",
+        })
+
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload["kind"], "decision")
+        self.assertEqual(payload["execution_mode"], "manual")
+        self.assertEqual(payload["execution_status"], "pending_vote")
+        self.assertEqual(payload["voting_days"], 7)
+
+        forbidden_keys = {
+            "automatic_execution",
+            "webhook",
+            "webhooks",
+            "external_action",
+            "allowed_actions",
+            "execution_intent",
+        }
+        self.assertTrue(forbidden_keys.isdisjoint(payload.keys()))
+
+        non_decision = backend_app._proposal_governance_payload({"governance_kind": "discussion"})
+        self.assertIsNone(non_decision)
+
+    def test_actual_portable_profile_export_declares_public_only_privacy(self):
+        identity = {
+            "username": "alice",
+            "display_name": "alice",
+            "species": "human",
+            "bio": "",
+            "avatar_url": "",
+            "local_profile_url": "https://2177.tech/users/alice",
+            "canonical_url": "https://2177.tech/users/alice",
+            "canonical_url_source": "supernova",
+            "canonical_url_verified": False,
+            "domain_url": "",
+            "claimed_domain": "",
+            "claimed_domain_url": "",
+            "domain_as_profile": False,
+            "domain_verified": False,
+            "verified_domain": "",
+            "verified_domain_url": "",
+            "verified_at": None,
+            "verification_method": None,
+            "did": "",
+            "actor_url": "https://2177.tech/actors/alice",
+            "portable_export_url": "https://2177.tech/u/alice/export.json",
+            "verification_file": "/.well-known/supernova.json",
+            "verification_template": {},
+        }
+        profile_payload = {
+            "username": "alice",
+            "display_name": "alice",
+            "species": "human",
+            "bio": "",
+            "avatar_url": "",
+            "domain_url": "",
+            "domain_as_profile": False,
+        }
+        public_posts = [{
+            "id": "proposal-1",
+            "url": "https://2177.tech/proposals/1",
+            "created_at": "2026-04-26T00:00:00Z",
+        }]
+
+        with patch.object(backend_app, "_profile_exists", return_value=True), patch.object(
+            backend_app, "_profile_identity_payload", return_value=identity
+        ), patch.object(backend_app, "profile", return_value=profile_payload), patch.object(
+            backend_app, "list_proposals", return_value=public_posts
+        ):
+            response = client.get("/u/alice/export.json")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["schema"], "supernova.portable_profile.v1")
+        self.assertEqual(payload["identity"], identity)
+        self.assertEqual(payload["profile"], profile_payload)
+        self.assertEqual(payload["public_posts"], public_posts)
+
+        governance = payload["governance"]
+        self.assertEqual(governance["species_model"], "three_species_equal_vote")
+        self.assertEqual(governance["execution_current_mode"], "manual_preview_only")
+        self.assertFalse(governance["automatic_execution"])
+        self.assertTrue(governance["human_supervision_required"])
+
+        privacy = payload["privacy"]
+        self.assertTrue(privacy["public_export_only"])
+        excluded = set(privacy["excluded_fields"])
+        forbidden_keys = {
+            "email",
+            "password_hash",
+            "access_token",
+            "refresh_token",
+            "direct_messages",
+            "private_message_metadata",
+            "secrets",
+            "admin_state",
+            "debug_state",
+        }
+        self.assertTrue(forbidden_keys.issubset(excluded))
+
+        def walk_keys(value):
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    yield key
+                    yield from walk_keys(child)
+            elif isinstance(value, list):
+                for child in value:
+                    yield from walk_keys(child)
+
+        self.assertTrue(forbidden_keys.isdisjoint(set(walk_keys(payload))))
+
     def test_domain_verification_preview_does_not_verify_or_mutate(self):
         response = client.get("/domain-verification/preview?domain=example.com&username=alice")
         self.assertEqual(response.status_code, 200)
