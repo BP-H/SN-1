@@ -23,6 +23,14 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] Domain preview remains preview-only.
 - [ ] v1 schemas remain manual-preview-only.
 
+## Dependency Review
+
+- [ ] No unreviewed major dependency updates are included.
+- [ ] Dependabot PRs passed FE7 lint/build or were deferred when frontend dependencies changed.
+- [ ] Dependabot PRs passed backend federation/safety tests or were deferred when backend dependencies changed.
+- [ ] GitHub Actions updates passed the relevant workflow before release.
+- [ ] Framework/runtime major updates have a rollback plan.
+
 ## Documentation Review
 
 - [ ] `CHANGELOG.md` is updated.

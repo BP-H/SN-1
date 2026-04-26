@@ -14,3 +14,4 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added backend safety tests for read-only federation, absent dangerous POST routes, manual governance, public-only exports, system-vote non-execution, and species preservation.
 - Added print-only cleanup candidate inventory tooling and maintenance audit guidance.
 - Added conservative dependency monitoring, manual safe-check workflow, protocol guarantee matrix, and release checklist.
+- Added dependency update policy and branch protection rollout plan.
