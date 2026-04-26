@@ -1,5 +1,7 @@
+import base64
 import datetime
 import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -56,6 +58,14 @@ SUPER_NOVA_ERROR = _runtime.get('error')
 SUPER_NOVA_CORE_APP = _runtime.get('core_app')
 SUPER_NOVA_CORE_ROUTES = _runtime.get('core_routes') or []
 DELETED_COMMENT_TEXT = "[deleted]"
+LEGACY_SHA256_LENGTH = 64
+PBKDF2_HASH_PREFIX = "pbkdf2_sha256"
+PBKDF2_ITERATIONS = int(os.environ.get("PASSWORD_PBKDF2_ITERATIONS", "260000"))
+SYSTEM_VOTE_QUESTION = os.environ.get(
+    "SYSTEM_VOTE_QUESTION",
+    "Should SuperNova prioritize AI rights as the next major research focus?",
+)
+SYSTEM_VOTE_DEADLINE = os.environ.get("SYSTEM_VOTE_DEADLINE", "2026-04-27T18:00:00-07:00")
 
 if SUPER_NOVA_AVAILABLE:
     SessionLocal = _runtime['session_local']
@@ -137,6 +147,70 @@ else:
 CRUD_MODELS_AVAILABLE = all(
     model is not None for model in (Proposal, ProposalVote, Comment, Harmonizer, VibeNode)
 )
+
+
+def _is_legacy_sha256_hash(value: str) -> bool:
+    candidate = (value or "").strip().lower()
+    return len(candidate) == LEGACY_SHA256_LENGTH and all(char in "0123456789abcdef" for char in candidate)
+
+
+def _b64encode_bytes(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _b64decode_bytes(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}".encode("ascii"))
+
+
+def _hash_password_pbkdf2(password: str) -> str:
+    salt = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS)
+    return f"{PBKDF2_HASH_PREFIX}${PBKDF2_ITERATIONS}${_b64encode_bytes(salt)}${_b64encode_bytes(digest)}"
+
+
+def _verify_password_pbkdf2(password: str, hashed_password: str) -> bool:
+    try:
+        prefix, iterations, salt, digest = (hashed_password or "").split("$", 3)
+        if prefix != PBKDF2_HASH_PREFIX:
+            return False
+        iteration_count = int(iterations)
+        expected = _b64decode_bytes(digest)
+        actual = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            _b64decode_bytes(salt),
+            iteration_count,
+        )
+        return hmac.compare_digest(actual, expected)
+    except Exception:
+        return False
+
+
+def _hash_password_strict(password: str) -> str:
+    """Create new password hashes without falling back to unsalted SHA-256."""
+    if auth_utils and hasattr(auth_utils, "pwd_context"):
+        try:
+            return auth_utils.pwd_context.hash(password)
+        except Exception:
+            pass
+    return _hash_password_pbkdf2(password)
+
+
+def _verify_password_with_legacy_upgrade(password: str, hashed_password: str) -> tuple[bool, bool]:
+    stored_hash = (hashed_password or "").strip()
+    if not stored_hash:
+        return False, False
+    if stored_hash.startswith(f"{PBKDF2_HASH_PREFIX}$"):
+        return _verify_password_pbkdf2(password, stored_hash), False
+    if _is_legacy_sha256_hash(stored_hash):
+        return hashlib.sha256(password.encode()).hexdigest() == stored_hash.lower(), True
+    if not auth_utils or not hasattr(auth_utils, "pwd_context"):
+        return False, False
+    try:
+        return bool(auth_utils.pwd_context.verify(password, stored_hash)), False
+    except Exception:
+        return False, False
 WORKFLOW_MODELS_AVAILABLE = all(
     model is not None for model in (Decision, Run)
 )
@@ -567,7 +641,8 @@ def _serialize_system_vote_rows(rows, username: Optional[str] = None) -> Dict:
             if requester and _safe_user_key(voter) == requester:
                 user_vote = "dislike"
     return {
-        "question": "Should SuperNova prioritize the next major research focus?",
+        "question": SYSTEM_VOTE_QUESTION,
+        "deadline": SYSTEM_VOTE_DEADLINE,
         "likes": likes,
         "dislikes": dislikes,
         "user_vote": user_vote,
@@ -1516,12 +1591,7 @@ def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
     if not payload.password:
         raise HTTPException(status_code=400, detail="Password is required")
 
-    hashed_password = hashlib.sha256(payload.password.encode()).hexdigest()
-    if auth_utils and hasattr(auth_utils, "pwd_context"):
-        try:
-            hashed_password = auth_utils.pwd_context.hash(payload.password)
-        except Exception:
-            hashed_password = hashlib.sha256(payload.password.encode()).hexdigest()
+    hashed_password = _hash_password_strict(payload.password)
 
     user = Harmonizer(
         username=username,
@@ -1564,19 +1634,21 @@ def credential_login(payload: CredentialLoginIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     hashed_password = getattr(user, "hashed_password", "") or ""
-    verified = False
-    if auth_utils and hasattr(auth_utils, "verify_password"):
-        try:
-            verified = auth_utils.verify_password(password, hashed_password)
-        except Exception:
-            verified = False
-    if not verified:
-        verified = hashlib.sha256(password.encode()).hexdigest() == hashed_password
+    verified, legacy_sha = _verify_password_with_legacy_upgrade(password, hashed_password)
 
     if not verified:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     if not getattr(user, "is_active", True):
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    if legacy_sha:
+        try:
+            user.hashed_password = _hash_password_strict(password)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        except HTTPException:
+            db.rollback()
 
     token = uuid.uuid4().hex
     if auth_utils and hasattr(auth_utils, "create_access_token"):
@@ -1682,12 +1754,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         suffix += 1
 
     raw_secret = f"{provider}:{provider_id or email}:{candidate}"
-    hashed_password = hashlib.sha256(raw_secret.encode()).hexdigest()
-    if auth_utils and hasattr(auth_utils, "pwd_context"):
-        try:
-            hashed_password = auth_utils.pwd_context.hash(raw_secret)
-        except Exception:
-            hashed_password = hashlib.sha256(raw_secret.encode()).hexdigest()
+    hashed_password = _hash_password_strict(raw_secret)
 
     user = Harmonizer(
         username=candidate,
@@ -2891,6 +2958,14 @@ def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to load system vote: {str(exc)}")
+
+
+@app.get("/system-vote/config")
+def get_system_vote_config():
+    return {
+        "question": SYSTEM_VOTE_QUESTION,
+        "deadline": SYSTEM_VOTE_DEADLINE,
+    }
 
 
 @app.post("/system-vote")

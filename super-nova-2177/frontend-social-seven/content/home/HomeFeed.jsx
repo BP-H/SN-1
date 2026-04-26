@@ -51,8 +51,7 @@ function getSliderColor(ratio) {
   return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
 }
 
-// Change the system-vote question and deadline here when you want a new top vote.
-// Keep the deadline as a real ISO date/time so the countdown can update live.
+// Backend can override these via /system-vote so live deployments avoid stale UI.
 const SYSTEM_VOTE_CONFIG = {
   question: "Should SuperNova prioritize AI rights as the next major research focus?",
   deadline: "2026-04-27T18:00:00-07:00",
@@ -151,20 +150,22 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     keepPreviousData: true,
   });
 
-  /* Dedicated yes/no system vote; configure question/deadline in SYSTEM_VOTE_CONFIG above. */
+  /* Dedicated yes/no system vote; backend config wins, local constant is only a safe fallback. */
   const systemVote = useMemo(() => {
     const likes = systemVoteData?.likes || [];
     const dislikes = systemVoteData?.dislikes || [];
     const weighted = buildWeightedVoteSummary(likes, dislikes);
     const userVote = systemVoteData?.user_vote || null;
+    const question = systemVoteData?.question || SYSTEM_VOTE_CONFIG.question;
+    const deadline = systemVoteData?.deadline || SYSTEM_VOTE_CONFIG.deadline;
 
     return {
-      question: SYSTEM_VOTE_CONFIG.question,
+      question,
       yesRatio: Math.round(weighted.supportPercent || 0),
       weighted,
       likes,
       dislikes,
-      endsIn: formatCountdown(SYSTEM_VOTE_CONFIG.deadline, systemNow),
+      endsIn: formatCountdown(deadline, systemNow),
       userVote,
     };
   }, [systemNow, systemVoteData]);

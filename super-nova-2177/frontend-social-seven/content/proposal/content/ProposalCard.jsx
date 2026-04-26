@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FaFileAlt, FaLink } from "react-icons/fa";
-import { FaCommentAlt } from "react-icons/fa";
+import { FaCommentAlt, FaFileAlt, FaLink, FaShare } from "react-icons/fa";
 import { IoMdBookmark } from "react-icons/io";
-import { IoIosShare } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
@@ -53,6 +51,7 @@ function ProposalCard({
   const [videoOpen, setVideoOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -63,6 +62,7 @@ function ProposalCard({
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
   const [localUserName, setLocalUserName] = useState(userName || "");
+  const shareMenuRef = useRef(null);
 
   const { userData, defaultAvatar } = useUser();
   const queryClient = useQueryClient();
@@ -151,20 +151,39 @@ function ProposalCard({
     }
   };
 
-  const handleShare = async () => {
+  useEffect(() => {
+    if (!shareMenuOpen) return undefined;
+    const closeShareMenu = (event) => {
+      if (!shareMenuRef.current?.contains(event.target)) {
+        setShareMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeShareMenu);
+    return () => document.removeEventListener("pointerdown", closeShareMenu);
+  }, [shareMenuOpen]);
+
+  const handleShareLink = async () => {
     const url = `${window.location.origin}/proposals/${id || ""}`;
     const shareText = title ? `Check out: ${title}` : "Check out this proposal";
     if (navigator.share) {
-      try { await navigator.share({ title: shareText, url }); return; } catch { /* cancelled */ }
+      try {
+        await navigator.share({ title: shareText, url });
+        setShareMenuOpen(false);
+        return;
+      } catch {
+        // User cancelled or the native share sheet failed; copy as fallback.
+      }
     }
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* clipboard unavailable */ }
+    setShareMenuOpen(false);
   };
 
   const handleMessageShare = () => {
+    setShareMenuOpen(false);
     if (!userData?.name) {
       window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
       return;
@@ -783,27 +802,48 @@ function ProposalCard({
             </button>
 
             {/* Share */}
-            <button
-              type="button"
-              onClick={handleShare}
-              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-                copied
-                  ? "bg-[rgba(255,255,255,0.12)] text-green-400"
-                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
-              }`}
-              title={copied ? "Link copied!" : "Share"}
-            >
-              <IoIosShare className="text-[0.95rem]" />
-            </button>
-            <button
-              type="button"
-              onClick={handleMessageShare}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-gray-light)] transition-colors hover:bg-[rgba(255,255,255,0.07)]"
-              title="Share in messages"
-              aria-label="Share in messages"
-            >
-              <IoChatbubbleOutline className="text-[0.92rem]" />
-            </button>
+            <div ref={shareMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShareMenuOpen((value) => !value)}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                  copied || shareMenuOpen
+                    ? "bg-[rgba(255,255,255,0.12)] text-[var(--pink)]"
+                    : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
+                }`}
+                title={copied ? "Link copied!" : "Share"}
+                aria-label="Share"
+                aria-haspopup="menu"
+                aria-expanded={shareMenuOpen}
+              >
+                <FaShare className="text-[0.78rem]" />
+              </button>
+              {shareMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute bottom-10 right-0 z-30 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-1.5 text-[0.78rem] font-semibold text-[var(--text-black)] shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleMessageShare}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-2.5 py-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.08)]"
+                  >
+                    <IoChatbubbleOutline className="text-[0.95rem] text-[var(--pink)]" />
+                    Message
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleShareLink}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-2.5 py-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.08)]"
+                  >
+                    <FaLink className="text-[0.78rem] text-[var(--pink)]" />
+                    {copied ? "Copied" : "Share link"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

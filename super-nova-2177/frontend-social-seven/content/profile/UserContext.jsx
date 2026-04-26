@@ -55,6 +55,46 @@ function removeStorage(key) {
   }
 }
 
+function readSessionStorage(key) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionStorage(key, value) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore unavailable storage.
+  }
+}
+
+function removeSessionStorage(key) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Ignore unavailable storage.
+  }
+}
+
+function readPasswordSession() {
+  const sessionAuth = readSessionStorage(PASSWORD_SESSION_KEY);
+  if (sessionAuth?.token) return sessionAuth;
+  const legacyAuth = readStorage(PASSWORD_SESSION_KEY);
+  if (legacyAuth?.token) {
+    writeSessionStorage(PASSWORD_SESSION_KEY, legacyAuth);
+    removeStorage(PASSWORD_SESSION_KEY);
+    return legacyAuth;
+  }
+  return null;
+}
+
 function getCustomStorageKey(authUser, passwordAuth) {
   const identityId = authUser?.id || passwordAuth?.id;
   if (!identityId) return GUEST_STORAGE_KEY;
@@ -150,7 +190,7 @@ export function UserProvider({ children }) {
   );
 
   useEffect(() => {
-    const savedPasswordAuth = readStorage(PASSWORD_SESSION_KEY);
+    const savedPasswordAuth = readPasswordSession();
     const initialStored = readStorage(getCustomStorageKey(null, savedPasswordAuth)) || readStorage(GUEST_STORAGE_KEY) || {};
     if (savedPasswordAuth?.token) setPasswordAuth(savedPasswordAuth);
     setStoredProfile(initialStored);
@@ -394,7 +434,7 @@ export function UserProvider({ children }) {
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizeSpecies(nextStored.species) || "human",
         };
-        writeStorage(PASSWORD_SESSION_KEY, nextAuth);
+        writeSessionStorage(PASSWORD_SESSION_KEY, nextAuth);
         return nextAuth;
       });
     }
@@ -480,7 +520,7 @@ export function UserProvider({ children }) {
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizeSpecies(nextStored.species) || "human",
         };
-        writeStorage(PASSWORD_SESSION_KEY, nextAuth);
+        writeSessionStorage(PASSWORD_SESSION_KEY, nextAuth);
         return nextAuth;
       });
     }
@@ -503,7 +543,7 @@ export function UserProvider({ children }) {
       avatar: normalizeAvatarValue(payload.user?.avatar_url || payload.user?.profile_pic || ""),
       species: normalizeSpecies(payload.user?.species) || "human",
     };
-    writeStorage(PASSWORD_SESSION_KEY, authPayload);
+    writeSessionStorage(PASSWORD_SESSION_KEY, authPayload);
     setSession(null);
     setPasswordAuth(authPayload);
     const key = getCustomStorageKey(null, authPayload);
@@ -585,6 +625,7 @@ export function UserProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    removeSessionStorage(PASSWORD_SESSION_KEY);
     removeStorage(PASSWORD_SESSION_KEY);
     setPasswordAuth(null);
     if (!supabase || !isSupabaseConfigured) {
