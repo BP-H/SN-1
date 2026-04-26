@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useActiveBE } from "@/content/ActiveBEContext";
 import Notification from "@/content/Notification";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import HomeFeed from "./HomeFeed";
 
 export default function HomeWrapper() {
@@ -13,7 +13,7 @@ export default function HomeWrapper() {
 
   return (
     <>
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
       <HomeFeed
         setErrorMsg={setErrorMsg}

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import Loading from "@/app/Loading";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import { API_BASE_URL } from "@/utils/apiBase";
 
@@ -51,7 +51,7 @@ export default function ProposalClient({ id }) {
 
   return (
     <div className="social-shell px-0">
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
       <ProposalCard
         isDetailPage

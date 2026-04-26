@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { IoBookmarkOutline, IoRefreshOutline } from "react-icons/io5";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
@@ -92,7 +92,7 @@ export default function BookmarksPage() {
 
   return (
     <main className="social-shell mx-auto flex min-h-screen w-full max-w-[44rem] flex-col gap-4 px-3 pb-28 pt-4 text-[var(--text-black)] md:px-5">
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
 
       <section className="mobile-feed-panel social-panel rounded-[1.25rem] px-5 py-4">

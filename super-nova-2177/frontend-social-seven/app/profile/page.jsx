@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import Profile from "@/content/profile/Profile";
 
@@ -11,7 +11,7 @@ export default function ProfilePage() {
 
   return (
     <div className="social-shell px-3 pb-6">
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
 
       <div className="mb-4">

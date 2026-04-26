@@ -2,7 +2,7 @@
 import Proposal from "@/content/proposal/Proposal";
 import { useActiveBE } from "@/content/ActiveBEContext";
 import Notification from "@/content/Notification";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import { useState } from "react";
 
 export default function ProposalWrapper() {
@@ -12,7 +12,7 @@ export default function ProposalWrapper() {
 
   return (
     <>
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
       <Proposal
         setErrorMsg={setErrorMsg}

@@ -4,7 +4,7 @@ import HeaderWrapper from "@/content/header/HeaderWrapper";
 import { ActiveBEProvider } from "@/content/ActiveBEContext";
 import { UserProvider } from "@/content/profile/UserContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import { useState, useRef, useCallback, createContext, useEffect } from "react";
 
@@ -44,7 +44,7 @@ export default function RootLayout({ children }) {
     <html lang="en" data-scroll-behavior="smooth">
       <body className="antialiased social-six-font">
         <QueryClientProvider client={queryClient}>
-          {errorMsg.length > 0 && <Error messages={errorMsg} />}
+          {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
           {notify.length > 0 && <Notification messages={notify} />}
           <SearchInputContext.Provider value={{ inputRef, focusSearchInput }}>
             <UserProvider>

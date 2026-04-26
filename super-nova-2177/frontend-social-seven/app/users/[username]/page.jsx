@@ -13,7 +13,7 @@ import {
   IoPersonAddOutline,
   IoPersonRemoveOutline,
 } from "react-icons/io5";
-import Error from "@/content/Error";
+import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL } from "@/utils/apiBase";
@@ -250,7 +250,7 @@ export default function UserPostsPage() {
 
   return (
     <div className="social-shell px-0 pb-6">
-      {errorMsg.length > 0 && <Error messages={errorMsg} />}
+      {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
 
       <section className="mobile-feed-panel social-panel rounded-[1rem] px-4 py-4">

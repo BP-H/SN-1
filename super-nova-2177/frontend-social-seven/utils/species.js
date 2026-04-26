@@ -31,10 +31,10 @@ export function speciesAvatarStyle(value = "", glow = "soft") {
   const strong = glow === "strong";
   return {
     borderColor: hexToRgba(color, 0.96),
-    borderWidth: strong ? "4px" : "3px",
-    boxShadow: `0 0 0 1px ${hexToRgba(color, 0.2)}, 0 0 ${strong ? 22 : 16}px ${hexToRgba(
+    borderWidth: strong ? "3px" : "2px",
+    boxShadow: `0 0 0 1px ${hexToRgba(color, 0.18)}, 0 0 ${strong ? 18 : 14}px ${hexToRgba(
       color,
-      strong ? 0.38 : 0.24
+      strong ? 0.34 : 0.22
     )}`,
   };
 }
