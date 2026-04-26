@@ -18,6 +18,7 @@ Current read-only federation surfaces:
 - `GET /actors/{username}/outbox`
 - `GET /u/{username}/export.json`
 - `GET /api/users/{username}/portable-profile`
+- `GET /domain-verification/preview`
 
 Related protocol guardrails:
 

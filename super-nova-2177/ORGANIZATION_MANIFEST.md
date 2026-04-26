@@ -50,6 +50,8 @@ Domain ownership should be proven before SuperNova marks a domain as verified. F
 
 A claimed domain is not a verified domain. UI and API payloads should keep these states separate.
 
+The backend may expose `GET /domain-verification/preview?domain=example.com&username=alice` to show the exact HTTPS file and DNS TXT instructions. That preview endpoint must not fetch the domain, query DNS, write the database, or mark anything verified.
+
 ## Company Integration Direction
 
 The safe integration path is:

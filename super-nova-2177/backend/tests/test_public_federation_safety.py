@@ -48,6 +48,7 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(schemas["execution_intent"].endswith("/protocol/supernova.execution-intent.schema.json"))
         self.assertTrue(schemas["three_species_vote"].endswith("/protocol/supernova.three-species-vote.schema.json"))
         self.assertTrue(schemas["portable_profile"].endswith("/protocol/supernova.portable-profile.schema.json"))
+        self.assertIn("/domain-verification/preview", payload["endpoints"]["domain_verification_preview"])
 
     def test_protocol_schema_files_are_public_static_json(self):
         for path, schema_name in {
@@ -77,6 +78,21 @@ class PublicFederationSafetyTests(unittest.TestCase):
             "admin_state",
             "debug_state",
         }.issubset(excluded))
+
+    def test_domain_verification_preview_does_not_verify_or_mutate(self):
+        response = client.get("/domain-verification/preview?domain=example.com&username=alice")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload["status"], "preview_only")
+        self.assertTrue(payload["does_not_verify_yet"])
+        self.assertEqual(payload["domain"], "example.com")
+        self.assertEqual(payload["methods"]["https_well_known"]["url"], "https://example.com/.well-known/supernova")
+        self.assertEqual(payload["methods"]["dns_txt"]["name"], "_supernova.example.com")
+        self.assertFalse(payload["safety"]["external_fetch"])
+        self.assertFalse(payload["safety"]["dns_lookup"])
+        self.assertFalse(payload["safety"]["database_write"])
+        self.assertFalse(payload["safety"]["marks_domain_verified"])
 
     def test_write_federation_and_execution_routes_are_not_registered(self):
         blocked_posts = {

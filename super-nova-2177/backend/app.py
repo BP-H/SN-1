@@ -1776,6 +1776,29 @@ def _cors_diagnostics() -> Dict[str, Any]:
     }
 
 
+def _normalize_preview_domain(domain: str) -> str:
+    candidate = (domain or "").strip().lower()
+    if not candidate:
+        raise HTTPException(status_code=400, detail="Domain is required")
+    parsed = urlparse(candidate if "://" in candidate else f"https://{candidate}")
+    host = (parsed.netloc or parsed.path or "").split("/")[0].split(":")[0].strip(".")
+    if (
+        not host
+        or host in {"localhost", "127.0.0.1", "::1"}
+        or "." not in host
+        or any(char.isspace() for char in host)
+    ):
+        raise HTTPException(status_code=400, detail="Use a public domain such as example.com")
+    return host
+
+
+def _normalize_preview_username(username: str) -> str:
+    clean_username = (username or "").strip()
+    if not clean_username or any(char.isspace() for char in clean_username):
+        raise HTTPException(status_code=400, detail="Username is required")
+    return clean_username[:80]
+
+
 @app.get("/.well-known/supernova", summary="Describe this SuperNova instance")
 @app.get("/.well-known/supernova.json", summary="Describe this SuperNova instance")
 def supernova_well_known():
@@ -1799,6 +1822,7 @@ def supernova_well_known():
             "actor": f"{PUBLIC_BASE_URL}/actors/{{username}}",
             "outbox": f"{PUBLIC_BASE_URL}/actors/{{username}}/outbox",
             "portable_profile": f"{PUBLIC_BASE_URL}/u/{{username}}/export.json",
+            "domain_verification_preview": f"{PUBLIC_BASE_URL}/domain-verification/preview?domain={{domain}}&username={{username}}",
         },
         "identity": {
             "local_handle": "username",
@@ -1868,6 +1892,55 @@ def supernova_well_known():
         },
     }
     return JSONResponse(payload, headers=PUBLIC_FEDERATION_CACHE_HEADERS)
+
+
+@app.get("/domain-verification/preview", summary="Preview domain verification instructions")
+def domain_verification_preview(domain: str = Query(...), username: str = Query(...)):
+    host = _normalize_preview_domain(domain)
+    clean_username = _normalize_preview_username(username)
+    profile_url = f"{PUBLIC_BASE_URL}/users/{clean_username}"
+    actor_url = f"{PUBLIC_BASE_URL}/actors/{clean_username}"
+    well_known_url = f"https://{host}/.well-known/supernova"
+    return JSONResponse(
+        {
+            "schema": "supernova.domain_verification_preview.v1",
+            "status": "preview_only",
+            "does_not_verify_yet": True,
+            "domain": host,
+            "username": clean_username,
+            "methods": {
+                "https_well_known": {
+                    "url": well_known_url,
+                    "expected_example": {
+                        "schema": "supernova.organization_manifest.v1",
+                        "manifest_type": "organization",
+                        "organization": {
+                            "domain": host,
+                            "canonical_actor": actor_url,
+                            "supernova_profile": profile_url,
+                        },
+                        "execution": {
+                            "current_mode": "manual_only",
+                            "automatic_execution": False,
+                            "webhooks_enabled": False,
+                            "allowed_actions": [],
+                        },
+                    },
+                },
+                "dns_txt": {
+                    "name": f"_supernova.{host}",
+                    "value": f"supernova-profile={profile_url}",
+                },
+            },
+            "safety": {
+                "external_fetch": False,
+                "dns_lookup": False,
+                "database_write": False,
+                "marks_domain_verified": False,
+            },
+        },
+        headers=PUBLIC_FEDERATION_CACHE_HEADERS,
+    )
 
 
 @app.get("/health", summary="Check API health")
