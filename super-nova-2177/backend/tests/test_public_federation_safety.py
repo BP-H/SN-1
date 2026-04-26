@@ -63,6 +63,12 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(schemas["examples"].endswith("/protocol/examples/"))
         self.assertIn("/domain-verification/preview", payload["endpoints"]["domain_verification_preview"])
 
+        examples = payload["protocol_examples"]
+        self.assertTrue(examples["organization_manifest"].endswith("/protocol/examples/example-organization-manifest.json"))
+        self.assertTrue(examples["execution_intent"].endswith("/protocol/examples/example-execution-intent.json"))
+        self.assertTrue(examples["three_species_vote"].endswith("/protocol/examples/example-three-species-vote.json"))
+        self.assertTrue(examples["portable_profile"].endswith("/protocol/examples/example-portable-profile.json"))
+
         version_policy = payload["schema_version_policy"]
         self.assertEqual(version_policy["current_version"], "v1")
         self.assertEqual(version_policy["v1_execution_posture"], "manual_preview_only")
@@ -81,12 +87,21 @@ class PublicFederationSafetyTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertEqual(payload["properties"]["schema"]["const"], schema_name)
+            if path.endswith("supernova.organization.schema.json"):
+                equal_weight = payload["properties"]["governance"]["properties"]["equal_species_weight"]
+                self.assertTrue(equal_weight["const"])
 
     def test_backend_protocol_mirror_exists_for_backend_only_deploys(self):
         backend_protocol_dir = BACKEND_DIR / "protocol"
         self.assertTrue(backend_protocol_dir.exists())
         self.assertTrue(all((backend_protocol_dir / name).exists() for name in PROTOCOL_FILENAMES))
         self.assertTrue(all((backend_protocol_dir / "examples" / name).exists() for name in PROTOCOL_EXAMPLE_FILENAMES))
+        for name in PROTOCOL_FILENAMES:
+            self.assertEqual((ROOT / "protocol" / name).read_bytes(), (backend_protocol_dir / name).read_bytes())
+        for name in PROTOCOL_EXAMPLE_FILENAMES:
+            root_example = ROOT / "protocol" / "examples" / name
+            backend_example = backend_protocol_dir / "examples" / name
+            self.assertEqual(root_example.read_bytes(), backend_example.read_bytes())
 
     def test_protocol_examples_are_public_and_keep_v1_manual_only(self):
         for path, schema_name in {

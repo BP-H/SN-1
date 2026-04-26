@@ -1878,6 +1878,12 @@ def supernova_well_known():
             "portable_profile": f"{PUBLIC_BASE_URL}/protocol/supernova.portable-profile.schema.json",
             "examples": f"{PUBLIC_BASE_URL}/protocol/examples/",
         },
+        "protocol_examples": {
+            "organization_manifest": f"{PUBLIC_BASE_URL}/protocol/examples/example-organization-manifest.json",
+            "execution_intent": f"{PUBLIC_BASE_URL}/protocol/examples/example-execution-intent.json",
+            "three_species_vote": f"{PUBLIC_BASE_URL}/protocol/examples/example-three-species-vote.json",
+            "portable_profile": f"{PUBLIC_BASE_URL}/protocol/examples/example-portable-profile.json",
+        },
         "schema_version_policy": {
             "current_version": "v1",
             "v1_execution_posture": "manual_preview_only",

@@ -64,7 +64,8 @@
           "maxItems": 3
         },
         "equal_species_weight": {
-          "type": "boolean"
+          "type": "boolean",
+          "const": true
         },
         "company_ratification_required": {
           "type": "boolean",
