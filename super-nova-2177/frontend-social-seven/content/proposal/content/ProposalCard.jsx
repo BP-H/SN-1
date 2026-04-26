@@ -30,6 +30,28 @@ import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { hasLink } from "@/utils/linkify";
 
+const BOOKMARK_STORAGE_KEY = "supernova_fe7_bookmarks";
+
+function readBookmarkIds() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(BOOKMARK_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeBookmarkIds(ids) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify(Array.from(new Set(ids.map(String)))));
+  } catch {
+    // Local bookmark state is optional.
+  }
+}
+
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
   if (!deadlineValue) return safeFallbackDays > 0 ? `${safeFallbackDays}d window` : "Window";
@@ -111,6 +133,25 @@ function ProposalCard({
     const timer = window.setInterval(() => setNowMs(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, [governance?.voting_deadline, isDecisionProposal]);
+
+  useEffect(() => {
+    if (id === undefined || id === null || id === "") return;
+    setBookmarked(readBookmarkIds().includes(String(id)));
+  }, [id]);
+
+  const handleToggleBookmark = () => {
+    if (id === undefined || id === null || id === "") return;
+    const postId = String(id);
+    const savedBookmarks = readBookmarkIds();
+    const isSaved = savedBookmarks.includes(postId);
+    const nextBookmarks = isSaved
+      ? savedBookmarks.filter((savedId) => savedId !== postId)
+      : [...savedBookmarks, postId];
+    writeBookmarkIds(nextBookmarks);
+    setBookmarked(!isSaved);
+    setMenuOpen(false);
+  };
+
   const commentsById = useMemo(() => {
     const map = new Map();
     localComments.forEach((comment) => {
@@ -549,6 +590,15 @@ function ProposalCard({
           </button>
           {menuOpen && (
             <div className="proposal-options-menu absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl">
+              <button
+                type="button"
+                onClick={handleToggleBookmark}
+                className={`flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] ${
+                  bookmarked ? "text-[var(--blue)]" : ""
+                }`}
+              >
+                <IoMdBookmark /> {bookmarked ? "Saved" : "Save"}
+              </button>
               {isOwner ? (
                 <>
                   <button
@@ -816,20 +866,6 @@ function ProposalCard({
               <span className="text-[0.75rem] font-medium">{localComments.length}</span>
             </button>
 
-            {/* Bookmark */}
-            <button
-              type="button"
-              onClick={() => setBookmarked((v) => !v)}
-              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-                bookmarked
-                  ? "bg-[rgba(255,255,255,0.12)] text-[var(--blue)]"
-                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
-              }`}
-              title={bookmarked ? "Remove bookmark" : "Bookmark"}
-            >
-              <IoMdBookmark className="text-[0.9rem]" />
-            </button>
-
             {/* Share */}
             <div ref={shareMenuRef} className="relative">
               <button
@@ -859,7 +895,7 @@ function ProposalCard({
                     className="flex w-full items-center gap-2 rounded-[0.7rem] px-2.5 py-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.08)]"
                   >
                     <IoChatbubbleOutline className="text-[0.95rem] text-[var(--pink)]" />
-                    Message
+                    Send in DM
                   </button>
                   <button
                     type="button"

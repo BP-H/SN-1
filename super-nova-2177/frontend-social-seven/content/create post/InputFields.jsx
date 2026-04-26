@@ -9,7 +9,6 @@ import {
   IoChevronBack,
   IoChevronForward,
   IoClose,
-  IoCreateOutline,
   IoDocumentTextOutline,
   IoGridOutline,
   IoImageOutline,
@@ -684,14 +683,10 @@ function InputFields({
               isDecisionMode ? "active" : ""
             }`}
             aria-pressed={isDecisionMode}
-            aria-label={isDecisionMode ? "Switch to normal post" : "Mark as decision proposal"}
-            title={isDecisionMode ? "Vote settings on" : "Normal post"}
+            aria-label={isDecisionMode ? "Decision poll enabled" : "Enable decision poll"}
+            title={isDecisionMode ? "Decision poll enabled" : "Decision poll"}
           >
-            {isDecisionMode ? (
-              <IoBarChartOutline className="text-[1.08rem]" />
-            ) : (
-              <IoCreateOutline className="text-[1.08rem]" />
-            )}
+            <IoBarChartOutline className="text-[1.08rem]" />
           </button>
           <button
             type="button"
