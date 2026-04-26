@@ -64,4 +64,4 @@ These should stay ignored where possible. If already tracked, remove only in a s
 5. Keep public federation read-only and manual-preview-only.
 6. Do not introduce automatic execution, company webhooks, ActivityPub inbox writes, Webmention fetching, or real domain verification fetching during cleanup.
 
-For a read-only starting point, run `python scripts/list_cleanup_candidates.py`. It prints tracked cleanup candidates and never deletes files.
+For a read-only starting point, run `python scripts/list_cleanup_candidates.py`. It prints tracked cleanup candidates and never deletes files. The latest captured inventory is `CLEANUP_CANDIDATES_SNAPSHOT.md`.

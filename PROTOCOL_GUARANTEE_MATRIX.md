@@ -16,6 +16,7 @@ This matrix maps SuperNova v1 promises to the places that document, test, or smo
 | Value sharing is non-financial and non-custodial | `super-nova-2177/VALUE_SHARING.md` | Domain-preview value-sharing assertions | Domain-preview value-sharing smoke checks | Active |
 | Existing account species is not silently overwritten | `README.md` Species Contract | `test_social_sync_preserves_existing_account_species` | Not smoke-checked | Active |
 | AI participation is visible and auditable | `GOVERNANCE_CONTRACTS.md` and `super-nova-2177/AI_RIGHTS_RESEARCH.md` | Planned | Planned | Documented |
+| AI explanation/simulation is preview-only and non-executing | `AI_EXPLANATION_SIMULATION_V1_PLAN.md` | Planned before implementation | Planned before implementation | Documented |
 
 ## Change Rule
 

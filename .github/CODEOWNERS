@@ -1,0 +1,33 @@
+# SuperNova protected-path ownership.
+# The owner handle is the repository owner from https://github.com/BP-H/SN-1.
+
+# Protected core sources
+/super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py @BP-H
+/super-nova-2177/frontend-vite-basic/supernovacore.py @BP-H
+
+# Active backend and compatibility entrypoints
+/super-nova-2177/backend/app.py @BP-H
+/super-nova-2177/app.py @BP-H
+/app.py @BP-H
+
+# Safety checks and governance tests
+/scripts/check_safe.py @BP-H
+/scripts/smoke_protocol.py @BP-H
+/scripts/list_cleanup_candidates.py @BP-H
+/super-nova-2177/backend/tests/test_public_federation_safety.py @BP-H
+
+# Protocol contracts and examples
+/super-nova-2177/protocol/ @BP-H
+/super-nova-2177/backend/protocol/ @BP-H
+
+# Governance, safety, and release contracts
+/GOVERNANCE_CONTRACTS.md @BP-H
+/PROTOCOL_GUARANTEE_MATRIX.md @BP-H
+/VERIFIED_DOMAIN_V1_PLAN.md @BP-H
+/SIGNED_EXPORT_V1_PLAN.md @BP-H
+/AI_EXPLANATION_SIMULATION_V1_PLAN.md @BP-H
+/DEPENDENCY_UPDATE_POLICY.md @BP-H
+/BRANCH_PROTECTION_PLAN.md @BP-H
+/RELEASE_CHECKLIST.md @BP-H
+/DEPLOYMENT_SMOKE_CHECK.md @BP-H
+/MAINTENANCE_AUDIT.md @BP-H

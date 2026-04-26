@@ -17,3 +17,4 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added dependency update policy and branch protection rollout plan.
 - Tightened Dependabot to leave semver-major upgrades for manual migration branches.
 - Added AI explanation and simulation v1 plan as preview-only, non-executing guidance.
+- Added protected-path CODEOWNERS and a read-only cleanup candidate snapshot.
