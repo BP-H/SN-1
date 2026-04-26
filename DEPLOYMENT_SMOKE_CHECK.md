@@ -19,7 +19,15 @@ For local pre-push verification, run:
 python scripts/check_safe.py
 ```
 
-This runs the backend federation safety tests, the public protocol smoke script, and a `supernovacore.py` zero-diff check that fails on protected-core diffs. Use `--skip-live` when offline.
+This runs the backend federation safety tests, the public protocol smoke script, and a `supernovacore.py` zero-diff check that fails on protected-core diffs. Use `--skip-live` or `--local-only` when offline.
+
+Run FE7 checks directly when frontend files change:
+
+```bash
+cd super-nova-2177/frontend-social-seven
+npm run lint
+npm run build
+```
 
 ## Public Protocol
 

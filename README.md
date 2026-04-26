@@ -53,6 +53,14 @@ Run safe local verification before protocol or backend pushes:
 python scripts/check_safe.py
 ```
 
+Use `python scripts/check_safe.py --local-only` when offline. Run FE7 checks directly before frontend-sensitive pushes:
+
+```powershell
+cd super-nova-2177\frontend-social-seven
+npm run lint
+npm run build
+```
+
 ## Species Contract
 
 The active social system recognizes exactly three species keys:

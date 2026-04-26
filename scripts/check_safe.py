@@ -41,6 +41,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Skip the public protocol smoke check when offline or avoiding network calls",
     )
+    parser.add_argument(
+        "--local-only",
+        action="store_true",
+        help="Alias for --skip-live",
+    )
     return parser.parse_args(argv)
 
 
@@ -55,7 +60,7 @@ def main(argv: list[str]) -> int:
     ):
         failures += 1
 
-    if not args.skip_live:
+    if not (args.skip_live or args.local_only):
         if run(
             "public protocol smoke",
             [sys.executable, str(SMOKE_SCRIPT), args.base_url],
