@@ -274,8 +274,33 @@ CONTENT_TYPE_EXTENSIONS = {
     "video/webm": ".webm",
     "video/quicktime": ".mov",
     "video/ogg": ".ogv",
+    "application/pdf": ".pdf",
+    "application/json": ".json",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-powerpoint": ".ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "text/csv": ".csv",
+    "text/markdown": ".md",
+    "text/plain": ".txt",
 }
 GENERIC_UPLOAD_TYPES = {"", "application/octet-stream", "binary/octet-stream"}
+DOCUMENT_UPLOAD_EXTENSIONS = {
+    ".csv",
+    ".doc",
+    ".docx",
+    ".json",
+    ".md",
+    ".pdf",
+    ".ppt",
+    ".pptx",
+    ".rtf",
+    ".txt",
+    ".xls",
+    ".xlsx",
+}
 
 
 def _safe_upload_extension(upload: UploadFile, fallback: str = "") -> str:
@@ -2464,7 +2489,9 @@ async def create_proposal(
         video_value = video_filename
     
     if file:
-        file_filename = _save_upload_file(file)
+        if _safe_upload_extension(file) not in DOCUMENT_UPLOAD_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Uploaded file type is not supported")
+        file_filename = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS)
 
     from datetime import datetime as dt
     if date:
@@ -3801,7 +3828,9 @@ async def upload_image(
 @app.post("/upload-file")
 async def upload_file(file: UploadFile = File(...)):
     os.makedirs(uploads_dir, exist_ok=True)
-    unique_name = _save_upload_file(file)
+    if _safe_upload_extension(file) not in DOCUMENT_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Uploaded file type is not supported")
+    unique_name = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS)
     return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
 
 # --- Delete endpoints ---
@@ -3810,6 +3839,8 @@ def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(g
     author = (payload.author or "").strip()
     next_body = (payload.body or "").strip()
     next_title = (payload.title or "").strip() or (next_body[:70] if next_body else "")
+    if not author:
+        raise HTTPException(status_code=400, detail="author is required")
     if not next_body and not next_title:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
@@ -3819,7 +3850,7 @@ def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(g
             if not row:
                 raise HTTPException(status_code=404, detail="Proposal not found")
             owner = getattr(row, "userName", "") or getattr(row, "author", "")
-            if author and owner and owner.lower() != author.lower():
+            if not owner or owner.lower() != author.lower():
                 raise HTTPException(status_code=403, detail="Only the author can edit this post")
             if next_title:
                 row.title = next_title
@@ -3833,7 +3864,7 @@ def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(g
             if not current:
                 raise HTTPException(status_code=404, detail="Proposal not found")
             owner = getattr(current, "userName", None) or getattr(current, "author", "")
-            if author and owner and str(owner).lower() != author.lower():
+            if not owner or str(owner).lower() != author.lower():
                 raise HTTPException(status_code=403, detail="Only the author can edit this post")
             db.execute(
                 text("UPDATE proposals SET title = :title, description = :description WHERE id = :pid"),
@@ -3853,13 +3884,16 @@ def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(g
 
 @app.delete("/proposals/{pid}")
 def delete_proposal(pid: int, author: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    clean_author = (author or "").strip()
+    if not clean_author:
+        raise HTTPException(status_code=400, detail="author is required")
     try:
         if CRUD_MODELS_AVAILABLE:
             row = db.query(Proposal).filter(Proposal.id == pid).first()
             if not row:
                 raise HTTPException(status_code=404, detail="Proposal not found")
             owner = getattr(row, "userName", "") or getattr(row, "author", "")
-            if author and owner and owner.lower() != author.strip().lower():
+            if not owner or owner.lower() != clean_author.lower():
                 raise HTTPException(status_code=403, detail="Only the author can delete this post")
             db.query(Comment).filter(Comment.proposal_id == pid).delete()
             db.query(ProposalVote).filter(ProposalVote.proposal_id == pid).delete()
@@ -3869,7 +3903,7 @@ def delete_proposal(pid: int, author: Optional[str] = Query(None), db: Session =
             if not row:
                 raise HTTPException(status_code=404, detail="Proposal not found")
             owner = getattr(row, "userName", None) or getattr(row, "author", "")
-            if author and owner and str(owner).lower() != author.strip().lower():
+            if not owner or str(owner).lower() != clean_author.lower():
                 raise HTTPException(status_code=403, detail="Only the author can delete this post")
             db.execute(text("DELETE FROM comments WHERE proposal_id = :pid"), {"pid": pid})
             db.execute(text("DELETE FROM proposal_votes WHERE proposal_id = :pid"), {"pid": pid})
@@ -3890,6 +3924,8 @@ def delete_all_proposals(
     db: Session = Depends(get_db),
 ):
     """Delete all proposals. Requires 'x-confirm-delete: yes' header to prevent accidental calls."""
+    if os.environ.get("ENABLE_BULK_PROPOSAL_DELETE", "").strip().lower() != "true":
+        raise HTTPException(status_code=403, detail="Bulk proposal deletion is disabled")
     if x_confirm_delete != "yes":
         raise HTTPException(
             status_code=400,

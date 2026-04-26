@@ -121,6 +121,17 @@ function DisplayComments({
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!menuOpen || typeof window === "undefined") return undefined;
+    const closeOnScroll = () => setMenuOpen(false);
+    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("wheel", closeOnScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("wheel", closeOnScroll);
+    };
+  }, [menuOpen]);
+
   const requireAccount = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));

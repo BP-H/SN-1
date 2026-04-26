@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
+  IoBookmarkOutline,
   IoBriefcaseOutline,
   IoChevronForward,
   IoClose,
@@ -112,6 +113,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
           {[
             { label: "Home", icon: IoHomeOutline, action: () => go("/") },
             { label: "Discover protocol feed", icon: IoGitNetworkOutline, action: () => go("/proposals") },
+            { label: "Saved posts", icon: IoBookmarkOutline, action: () => go("/bookmarks") },
             {
               label: "Messages and replies",
               icon: IoPeopleOutline,

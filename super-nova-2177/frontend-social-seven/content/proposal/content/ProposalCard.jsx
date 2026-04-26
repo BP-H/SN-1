@@ -28,29 +28,8 @@ import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { hasLink } from "@/utils/linkify";
-
-const BOOKMARK_STORAGE_KEY = "supernova_fe7_bookmarks";
-
-function readBookmarkIds() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(BOOKMARK_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeBookmarkIds(ids) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify(Array.from(new Set(ids.map(String)))));
-  } catch {
-    // Local bookmark state is optional.
-  }
-}
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -107,6 +86,7 @@ function ProposalCard({
   const [localUserName, setLocalUserName] = useState(userName || "");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const shareMenuRef = useRef(null);
+  const optionsMenuRef = useRef(null);
 
   const { userData, defaultAvatar } = useUser();
   const queryClient = useQueryClient();
@@ -136,19 +116,20 @@ function ProposalCard({
 
   useEffect(() => {
     if (id === undefined || id === null || id === "") return;
-    setBookmarked(readBookmarkIds().includes(String(id)));
+    const syncBookmarkState = () => setBookmarked(isBookmarkedId(id));
+    syncBookmarkState();
+    window.addEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
+    window.addEventListener("storage", syncBookmarkState);
+    return () => {
+      window.removeEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
+      window.removeEventListener("storage", syncBookmarkState);
+    };
   }, [id]);
 
   const handleToggleBookmark = () => {
     if (id === undefined || id === null || id === "") return;
-    const postId = String(id);
-    const savedBookmarks = readBookmarkIds();
-    const isSaved = savedBookmarks.includes(postId);
-    const nextBookmarks = isSaved
-      ? savedBookmarks.filter((savedId) => savedId !== postId)
-      : [...savedBookmarks, postId];
-    writeBookmarkIds(nextBookmarks);
-    setBookmarked(!isSaved);
+    const isSaved = toggleBookmarkId(id);
+    setBookmarked(isSaved);
     setMenuOpen(false);
   };
 
@@ -220,9 +201,34 @@ function ProposalCard({
         setShareMenuOpen(false);
       }
     };
+    const closeOnScroll = () => setShareMenuOpen(false);
     document.addEventListener("pointerdown", closeShareMenu);
-    return () => document.removeEventListener("pointerdown", closeShareMenu);
+    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("wheel", closeOnScroll, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", closeShareMenu);
+      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("wheel", closeOnScroll);
+    };
   }, [shareMenuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const closeOptionsMenu = (event) => {
+      if (!optionsMenuRef.current?.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const closeOnScroll = () => setMenuOpen(false);
+    document.addEventListener("pointerdown", closeOptionsMenu);
+    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("wheel", closeOnScroll, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", closeOptionsMenu);
+      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("wheel", closeOnScroll);
+    };
+  }, [menuOpen]);
 
   const handleShareLink = async () => {
     const url = `${window.location.origin}/proposals/${id || ""}`;
@@ -575,7 +581,7 @@ function ProposalCard({
         </Link>
 
         {/* Species icon badge — replaces text label */}
-        <div className="relative">
+        <div ref={optionsMenuRef} className="relative">
           <button
             type="button"
             onClick={(event) => {
@@ -832,7 +838,7 @@ function ProposalCard({
           </a>
         )}
 
-        {/* ── Unified action bar: [voting] ··· [comment · bookmark · share] ── */}
+        {/* Unified action bar: voting, comments, and share */}
         <div
           className="post-action-bar mt-0.5 flex w-full items-center gap-2 rounded-[0.8rem] px-1.5 py-1.5"
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -850,7 +856,7 @@ function ProposalCard({
             />
           </div>
 
-          {/* Right: comment · bookmark · share */}
+          {/* Right: comment and share */}
           <div className="flex shrink-0 items-center gap-1.5">
             {/* Comment toggle */}
             <button
