@@ -14,13 +14,7 @@ This is a read-only inventory. It is not approval to delete anything from `maste
 - It was a generated combined repository snapshot only.
 - Reference search found no runtime imports or deployment references.
 - Full checks passed before merge.
-
-## Backup-Looking Tracked Files
-
-- `super-nova-2177/backend/supernova_2177_ui_weighted/pages/profile.backup.before_fix.py`
-- `super-nova-2177/backend/supernova_2177_ui_weighted/pages/profile.backup.before_string_fix.py`
-- `super-nova-2177/backend/supernova_2177_ui_weighted/pages/profile.backup.py`
-- `super-nova-2177/backend/supernova_2177_ui_weighted/ui.backup.py`
+- Four tracked backup Python files were removed in PR #10 after reference checks and full safety checks.
 
 ## Legacy Or Experimental Frontend Trees
 
