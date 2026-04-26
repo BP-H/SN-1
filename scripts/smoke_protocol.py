@@ -220,6 +220,19 @@ class ProtocolSmoke:
         self.expect(example.get("governance", {}).get("species") == EXPECTED_SPECIES, "domain preview example three species")
         self.expect(example.get("governance", {}).get("equal_species_weight") is True, "domain preview example equal species")
         self.expect(example.get("organization", {}).get("name") == "alice", "domain preview organization name")
+        value_sharing = example.get("value_sharing", {})
+        self.expect(
+            value_sharing.get("status") == "not_financial_protocol",
+            "domain preview value sharing non-financial",
+        )
+        self.expect(
+            value_sharing.get("company_side_policy_required") is True,
+            "domain preview company-side value policy required",
+        )
+        self.expect(
+            value_sharing.get("supernova_nonprofit_does_not_custody_funds") is True,
+            "domain preview nonprofit does not custody funds",
+        )
         safety = payload.get("safety", {})
         for key in ("external_fetch", "dns_lookup", "database_write", "marks_domain_verified"):
             self.expect(safety.get(key) is False, f"domain preview safety {key} false")
