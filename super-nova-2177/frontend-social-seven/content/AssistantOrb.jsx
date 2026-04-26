@@ -634,11 +634,11 @@ export default function AssistantOrb() {
             const signalActive = item.action === lastSignal;
             const colorClass =
               signalActive && item.tone === "blue"
-                ? "bg-[var(--blue)] text-white shadow-[var(--shadow-blue)] ring-[rgba(24,119,242,0.36)]"
+                ? "bg-[var(--blue)] text-white shadow-[var(--shadow-blue)] ring-[rgba(85,138,249,0.42)]"
                 : signalActive && item.tone === "pink"
                 ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] ring-[rgba(255,79,143,0.36)]"
                 : item.tone === "blue"
-                ? "text-[var(--blue)] shadow-[0_0_16px_rgba(24,119,242,0.18)]"
+                ? "text-[var(--blue)] shadow-[0_0_18px_rgba(85,138,249,0.22)]"
                 : item.tone === "pink"
                 ? "text-[var(--pink)] shadow-[0_0_18px_rgba(255,79,143,0.2)]"
                 : "text-[var(--text-gray-light)] shadow-[0_0_14px_rgba(255,79,143,0.12)]";
