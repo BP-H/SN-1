@@ -12,6 +12,10 @@ updates:
       - "github-actions"
     commit-message:
       prefix: "deps"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "npm"
     directory: "/super-nova-2177/frontend-social-seven"
@@ -25,6 +29,10 @@ updates:
       - "frontend-social-seven"
     commit-message:
       prefix: "deps"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "npm"
     directory: "/super-nova-2177"
@@ -38,6 +46,10 @@ updates:
       - "local-runner"
     commit-message:
       prefix: "deps"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "pip"
     directory: "/super-nova-2177/backend"
@@ -51,3 +63,7 @@ updates:
       - "backend"
     commit-message:
       prefix: "deps"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"

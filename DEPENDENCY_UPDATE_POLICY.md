@@ -23,6 +23,8 @@ Patch and minor updates may be merged after:
 
 Major updates require a separate review pass.
 
+Dependabot is configured to ignore semver-major updates on monitored active surfaces. Major upgrades should be opened intentionally by a maintainer on a focused migration branch, not by routine dependency automation.
+
 Treat these as higher risk:
 
 - Next.js, React, TypeScript, ESLint, Tailwind, or build-tool major updates.
