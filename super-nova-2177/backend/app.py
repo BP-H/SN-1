@@ -1948,6 +1948,11 @@ def domain_verification_preview(domain: str = Query(...), username: str = Query(
                             "webhooks_enabled": False,
                             "allowed_actions": [],
                         },
+                        "value_sharing": {
+                            "status": "not_financial_protocol",
+                            "company_side_policy_required": True,
+                            "supernova_nonprofit_does_not_custody_funds": True,
+                        },
                     },
                 },
                 "dns_txt": {

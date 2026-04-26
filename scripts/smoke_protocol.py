@@ -93,6 +93,10 @@ class ProtocolSmoke:
                         continue
                 body = exc.read().decode("utf-8", errors="replace")
                 return int(exc.code), body
+            except TimeoutError as exc:
+                raise RuntimeError(str(exc)) from exc
+            except OSError as exc:
+                raise RuntimeError(str(exc)) from exc
             except URLError as exc:
                 raise RuntimeError(str(exc.reason)) from exc
         raise RuntimeError(f"too many redirects for {method} {path}")
