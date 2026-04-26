@@ -227,6 +227,11 @@ export default function UserPostsPage() {
     }
   };
 
+  const handleOpenProfileDomain = () => {
+    if (!profileTargetUrl || typeof window === "undefined") return;
+    window.open(profileTargetUrl, "_blank", "noopener,noreferrer");
+  };
+
   const avatarNode = image ? (
     <img
       src={image}
@@ -250,13 +255,15 @@ export default function UserPostsPage() {
 
       <section className="mobile-feed-panel social-panel rounded-[1rem] px-4 py-4">
         <div className="flex items-start justify-between gap-3">
-          {profileTargetUrl ? (
-            <a href={profileTargetUrl} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Open profile domain">
-              {avatarNode}
-            </a>
-          ) : (
-            <div className="shrink-0">{avatarNode}</div>
-          )}
+          <button
+            type="button"
+            onClick={handleOpenProfileDomain}
+            disabled={!profileTargetUrl}
+            className={`shrink-0 rounded-full ${profileTargetUrl ? "cursor-pointer" : "cursor-default"}`}
+            title={profileTargetUrl ? "Open profile domain" : undefined}
+          >
+            {avatarNode}
+          </button>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[1.15rem] font-black">{profile.username || username}</h1>
             <p className="mt-1 text-[0.72rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">
@@ -341,10 +348,8 @@ export default function UserPostsPage() {
                 placeholder="yourdomain.com or https://yourdomain.com"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setDomainAsProfileDraft((value) => !value)}
-              className={`flex min-h-11 items-center justify-between gap-3 rounded-[0.9rem] px-3 py-2 text-left text-[0.78rem] font-semibold ${
+            <label
+              className={`flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-[0.9rem] px-3 py-2 text-left text-[0.78rem] font-semibold ${
                 domainAsProfileDraft
                   ? "bg-[rgba(255,79,149,0.16)] text-[var(--text-black)] shadow-[var(--shadow-pink)]"
                   : "bg-white/[0.055] text-[var(--text-gray-light)]"
@@ -356,6 +361,12 @@ export default function UserPostsPage() {
                 <IoGlobeOutline className="shrink-0 text-[var(--pink)]" />
                 <span className="min-w-0">Profile photo opens domain</span>
               </span>
+              <input
+                type="checkbox"
+                checked={domainAsProfileDraft}
+                onChange={(event) => setDomainAsProfileDraft(event.target.checked)}
+                className="sr-only"
+              />
               <span
                 className={`relative h-6 w-11 shrink-0 rounded-full border border-[var(--horizontal-line)] ${
                   domainAsProfileDraft ? "bg-[var(--pink)]" : "bg-black/15"
@@ -368,7 +379,7 @@ export default function UserPostsPage() {
                   }`}
                 />
               </span>
-            </button>
+            </label>
             <div className="flex justify-end gap-2">
               <button
                 type="button"

@@ -14,6 +14,7 @@ import {
   IoCreateOutline,
   IoEllipsisHorizontal,
   IoPersonAddOutline,
+  IoPersonCircleOutline,
   IoPersonRemoveOutline,
   IoChatbubbleOutline,
   IoFlashOutline,
@@ -591,7 +592,7 @@ function ProposalCard({
             </div>
           </a>
         ) : (
-          <Link href={userHref} scroll className="flex min-w-0 items-center gap-3">
+          <a href={userHref} className="flex min-w-0 items-center gap-3">
             <div className="shrink-0">
               <img
                 src={displayAvatar || defaultAvatar}
@@ -608,7 +609,7 @@ function ProposalCard({
               <span className="mx-2 text-[var(--text-gray-light)]">•</span>
               <span className="text-[var(--text-gray-light)]">{time}</span>
             </div>
-          </Link>
+          </a>
         )}
 
         {/* Species icon badge - replaces text label */}
@@ -627,6 +628,16 @@ function ProposalCard({
           </button>
           {menuOpen && (
             <div className="proposal-options-menu absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl">
+              {profileDomainHref && authorName && (
+                <Link
+                  href={userHref}
+                  scroll
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                >
+                  <IoPersonCircleOutline /> View profile
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={handleToggleBookmark}
