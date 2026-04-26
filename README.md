@@ -56,6 +56,12 @@ Run safe local verification before protocol or backend pushes:
 python scripts/check_safe.py
 ```
 
+Run the read-only social/backend smoke before dependency triage or cleanup that could affect the live app backend:
+
+```powershell
+python scripts/smoke_social_backend.py https://2177.tech
+```
+
 Use `python scripts/check_safe.py --local-only` when offline. Run FE7 checks directly before frontend-sensitive pushes:
 
 ```powershell
@@ -122,6 +128,7 @@ See also:
 - `AI_EXPLANATION_SIMULATION_V1_PLAN.md`
 - `CLEANUP_CANDIDATES_SNAPSHOT.md`
 - `SAFE_CHECK_RESULTS_SNAPSHOT.md`
+- `SOCIAL_BACKEND_SMOKE_CHECK.md`
 - `DEPLOYMENT_SMOKE_CHECK.md`
 - `MAINTENANCE_AUDIT.md`
 - `COMPANY_INTEGRATION_QUICKSTART.md`
