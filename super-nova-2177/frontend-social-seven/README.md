@@ -50,6 +50,8 @@ Read-only open-network endpoints exposed by the backend gateway:
 - `/actors/{username}/outbox`
 - `/u/{username}/export.json`
 
+Frontend seven rewrites these public federation/protocol paths to `NEXT_PUBLIC_API_URL`, so `2177.tech/.well-known/...` and `2177.tech/protocol/...` can resolve through the backend without duplicating backend logic in Next.js.
+
 Domain profile fields are public claims unless `domain_verified` is true. Do not show a verified-domain badge from `domain_url` or `claimed_domain` alone.
 
 See `SOCIAL_AUTH_SETUP.md` for Google, Facebook, and GitHub OAuth setup details.
