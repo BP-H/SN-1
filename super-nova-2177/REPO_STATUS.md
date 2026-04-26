@@ -66,4 +66,6 @@ Silent browser sync must not overwrite an existing account species. Explicit pro
 - Keep `universe.fork.json` documentation-only until deliberate fork tooling is added.
 - Railway should provide `DATABASE_URL`; the runtime wrapper preserves that and does not force local SQLite in production.
 - Vercel should set `NEXT_PUBLIC_API_URL` to the Railway backend URL without a trailing slash.
-- Production should set backend `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` to the exact Vercel/custom domains, for example `https://2177.tech,https://www.2177.tech`; if unset, the wrapper keeps wildcard CORS for compatibility and reports that in `/health`.
+- Public API CORS is intentionally open by default for federation-style, non-cookie access. Keep `allow_credentials=false`; protect identity with bearer tokens, domain verification, and future signatures rather than origin lock-in.
+- Only set `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` when deliberately running a private/allowlisted surface. `/health` and `/supernova-status` report the active federation/CORS mode.
+- Read-only federation surfaces are additive and safe to disable by routing if needed: `/.well-known/webfinger`, `/actors/{username}`, `/actors/{username}/outbox`, and `/u/{username}/export.json`.

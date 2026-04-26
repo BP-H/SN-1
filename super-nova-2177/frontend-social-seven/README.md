@@ -39,7 +39,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-key
 
 Set the same variables in Vercel. For production, `NEXT_PUBLIC_API_URL` should be the Railway backend URL with no trailing slash.
 
-On Railway, set `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` to the exact public frontend origins when ready, for example `https://2177.tech,https://www.2177.tech`. If unset, the backend keeps wildcard CORS for compatibility and reports the warning in `/health`.
+On Railway, the backend may keep wildcard CORS for public, non-cookie API/federation access. That is intentional for the open-network model as long as `allow_credentials=false` and writes are protected by tokens or future domain/signature verification. Use `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` only for a deliberately private/allowlisted surface. `/health` reports the active mode.
+
+Read-only open-network endpoints exposed by the backend gateway:
+
+- `/.well-known/webfinger?resource=acct:username@2177.tech`
+- `/actors/{username}`
+- `/actors/{username}/outbox`
+- `/u/{username}/export.json`
 
 See `SOCIAL_AUTH_SETUP.md` for Google, Facebook, and GitHub OAuth setup details.
 

@@ -10,10 +10,11 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import asc, desc, func, or_, text
@@ -67,6 +68,12 @@ SYSTEM_VOTE_QUESTION = os.environ.get(
     "Should SuperNova prioritize AI rights as the next major research focus?",
 )
 SYSTEM_VOTE_DEADLINE = os.environ.get("SYSTEM_VOTE_DEADLINE", "2026-04-27T18:00:00-07:00")
+PUBLIC_BASE_URL = (
+    os.environ.get("SUPERNOVA_PUBLIC_URL")
+    or os.environ.get("PUBLIC_BASE_URL")
+    or os.environ.get("NEXT_PUBLIC_SITE_URL")
+    or "https://2177.tech"
+).rstrip("/")
 
 
 def _parse_allowed_origins() -> Dict[str, Any]:
@@ -75,19 +82,25 @@ def _parse_allowed_origins() -> Dict[str, Any]:
     if not origins:
         return {
             "origins": ["*"],
-            "mode": "wildcard_default",
-            "warning": "CORS is wildcard because ALLOWED_ORIGINS/BACKEND_ALLOWED_ORIGINS is not set.",
+            "mode": "open_federation_default",
+            "public_api_cors_open": True,
+            "warning": "",
+            "note": "Public non-cookie API access is open by design; identity is protected by tokens and server-side checks.",
         }
     if "*" in origins:
         return {
             "origins": ["*"],
-            "mode": "wildcard_env",
-            "warning": "CORS is wildcard because the configured origin list contains *.",
+            "mode": "open_federation_env",
+            "public_api_cors_open": True,
+            "warning": "",
+            "note": "Wildcard CORS is explicitly configured for open federation; credentials remain disabled.",
         }
     return {
         "origins": origins,
         "mode": "allowlist",
+        "public_api_cors_open": False,
         "warning": "",
+        "note": "CORS is allowlisted by environment configuration. Use this only when intentionally running a private surface.",
     }
 
 
@@ -1718,8 +1731,12 @@ def _supernova_runtime_payload(include_routes: bool = True) -> Dict[str, Any]:
 def _cors_diagnostics() -> Dict[str, Any]:
     return {
         "cors_mode": CORS_CONFIG["mode"],
+        "open_federation_mode": CORS_CONFIG["public_api_cors_open"],
+        "cors_credentials": False,
         "allowed_origins_count": len(CORS_CONFIG["origins"]),
         "cors_warning": CORS_CONFIG["warning"],
+        "cors_note": CORS_CONFIG["note"],
+        "identity_model": "open public reads with token-checked writes; no cross-origin cookies",
     }
 
 
@@ -2137,6 +2154,229 @@ def profile(username: str, db: Session = Depends(get_db)):
         "followers": 2315,
         "following": 1523,
         "status": "online"
+    }
+
+
+def _public_profile_url(username: str) -> str:
+    return f"{PUBLIC_BASE_URL}/users/{username}"
+
+
+def _public_actor_url(username: str) -> str:
+    return f"{PUBLIC_BASE_URL}/actors/{username}"
+
+
+def _username_from_webfinger_resource(resource: str) -> str:
+    raw = unquote((resource or "").strip())
+    if raw.startswith("acct:"):
+        handle = raw[5:]
+        return handle.split("@", 1)[0].strip()
+    parsed = urlparse(raw)
+    parts = [part for part in parsed.path.split("/") if part]
+    for marker in ("users", "u", "actors"):
+        if marker in parts:
+            idx = parts.index(marker)
+            if idx + 1 < len(parts):
+                return parts[idx + 1].strip()
+    return raw.strip()
+
+
+def _profile_exists(db: Session, username: str) -> bool:
+    clean_username = (username or "").strip()
+    if not clean_username:
+        return False
+    try:
+        if Harmonizer is not None:
+            user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
+            if user:
+                return True
+        if Proposal is not None:
+            return bool(
+                db.query(Proposal)
+                .filter(func.lower(Proposal.userName) == clean_username.lower())
+                .first()
+            )
+    except Exception:
+        return False
+    return False
+
+
+def _domain_did(domain_url: str) -> str:
+    parsed = urlparse(domain_url or "")
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return ""
+    return f"did:web:{host}"
+
+
+def _profile_identity_payload(db: Session, username: str) -> Dict[str, Any]:
+    profile_payload = profile(username, db)
+    clean_username = (profile_payload.get("username") or username or "").strip()
+    domain_url = (profile_payload.get("domain_url") or "").strip()
+    domain_as_profile = bool(profile_payload.get("domain_as_profile", False))
+    local_profile_url = _public_profile_url(clean_username)
+    canonical_url = domain_url if domain_url and domain_as_profile else local_profile_url
+    verification_template = {}
+    if domain_url:
+        verification_template = {
+            "supernova_profile": local_profile_url,
+            "owner": clean_username,
+            "canonical_domain": domain_url,
+        }
+    return {
+        "username": clean_username,
+        "display_name": clean_username,
+        "species": profile_payload.get("species", "human"),
+        "bio": profile_payload.get("bio", ""),
+        "avatar_url": profile_payload.get("avatar_url", ""),
+        "local_profile_url": local_profile_url,
+        "canonical_url": canonical_url,
+        "domain_url": domain_url,
+        "domain_as_profile": domain_as_profile,
+        "domain_verified": False,
+        "did": _domain_did(domain_url),
+        "actor_url": _public_actor_url(clean_username),
+        "portable_export_url": f"{PUBLIC_BASE_URL}/u/{clean_username}/export.json",
+        "verification_file": "/.well-known/supernova.json",
+        "verification_template": verification_template,
+    }
+
+
+@app.get("/.well-known/webfinger", summary="Discover a public SuperNova profile")
+def webfinger(resource: str = Query(...), db: Session = Depends(get_db)):
+    username = _username_from_webfinger_resource(resource)
+    if not _profile_exists(db, username):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    identity = _profile_identity_payload(db, username)
+    aliases = [identity["local_profile_url"]]
+    if identity.get("domain_url"):
+        aliases.append(identity["domain_url"])
+    return {
+        "subject": f"acct:{identity['username']}@{urlparse(PUBLIC_BASE_URL).netloc or '2177.tech'}",
+        "aliases": aliases,
+        "links": [
+            {
+                "rel": "self",
+                "type": "application/activity+json",
+                "href": identity["actor_url"],
+            },
+            {
+                "rel": "http://webfinger.net/rel/profile-page",
+                "href": identity["local_profile_url"],
+            },
+            {
+                "rel": "https://supernova2177.org/rel/portable-profile",
+                "type": "application/json",
+                "href": identity["portable_export_url"],
+            },
+        ],
+    }
+
+
+@app.get("/actors/{username}", summary="Read-only ActivityStreams actor profile")
+def actor_profile(username: str, db: Session = Depends(get_db)):
+    if not _profile_exists(db, username):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    identity = _profile_identity_payload(db, username)
+    species = (identity.get("species") or "human").lower()
+    actor_type = "Organization" if species == "company" else "Service" if species == "ai" else "Person"
+    actor: Dict[str, Any] = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": identity["actor_url"],
+        "type": actor_type,
+        "preferredUsername": identity["username"],
+        "name": identity["display_name"],
+        "summary": identity.get("bio", ""),
+        "url": identity["canonical_url"],
+        "outbox": f"{identity['actor_url']}/outbox",
+        "supernova": {
+            "species": identity["species"],
+            "local_profile_url": identity["local_profile_url"],
+            "domain_url": identity["domain_url"],
+            "domain_as_profile": identity["domain_as_profile"],
+            "domain_verified": identity["domain_verified"],
+            "did": identity["did"],
+        },
+    }
+    if identity.get("avatar_url"):
+        actor["icon"] = {"type": "Image", "url": identity["avatar_url"]}
+    if identity.get("domain_url"):
+        actor["alsoKnownAs"] = [identity["domain_url"]]
+    return JSONResponse(actor, media_type="application/activity+json")
+
+
+@app.get("/actors/{username}/outbox", summary="Read-only public proposal outbox")
+def actor_outbox(
+    username: str,
+    limit: int = Query(40, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if not _profile_exists(db, username):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    identity = _profile_identity_payload(db, username)
+    proposals = list_proposals(
+        filter="latest",
+        search=None,
+        author=identity["username"],
+        before_id=None,
+        limit=limit,
+        offset=0,
+        db=db,
+    )
+    items = []
+    for item in proposals:
+        pid = item.get("id")
+        object_url = f"{PUBLIC_BASE_URL}/proposals/{pid}"
+        items.append({
+            "id": f"{object_url}#create",
+            "type": "Create",
+            "actor": identity["actor_url"],
+            "object": {
+                "id": object_url,
+                "type": "Note",
+                "attributedTo": identity["actor_url"],
+                "name": item.get("title", ""),
+                "content": item.get("text", ""),
+                "url": object_url,
+            },
+        })
+    return JSONResponse(
+        {
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "id": f"{identity['actor_url']}/outbox",
+            "type": "OrderedCollection",
+            "totalItems": len(items),
+            "orderedItems": items,
+        },
+        media_type="application/activity+json",
+    )
+
+
+@app.get("/api/users/{username}/portable-profile", summary="Export a public portable profile")
+@app.get("/u/{username}/export.json", summary="Export a public portable profile")
+def portable_profile(
+    username: str,
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    if not _profile_exists(db, username):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    identity = _profile_identity_payload(db, username)
+    public_posts = list_proposals(
+        filter="latest",
+        search=None,
+        author=identity["username"],
+        before_id=None,
+        limit=limit,
+        offset=0,
+        db=db,
+    )
+    return {
+        "schema": "supernova.portable_profile.v1",
+        "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "identity": identity,
+        "profile": profile(identity["username"], db),
+        "public_posts": public_posts,
+        "limits": {"public_posts": limit},
     }
 
 
