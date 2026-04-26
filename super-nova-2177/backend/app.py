@@ -10,6 +10,7 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -698,6 +699,8 @@ class ProposalSchema(BaseModel):
     author_img: str
     time: str
     author_type: Optional[str] = ""
+    profile_url: Optional[str] = ""
+    domain_as_profile: Optional[bool] = False
     likes: List[Dict] = []
     dislikes: List[Dict] = []
     comments: List[Dict] = []
@@ -791,6 +794,8 @@ class ProfileUpdateIn(BaseModel):
     avatar_url: Optional[str] = None
     species: Optional[str] = None
     bio: Optional[str] = None
+    domain_url: Optional[str] = None
+    domain_as_profile: Optional[bool] = None
 
 
 class DirectMessageIn(BaseModel):
@@ -852,6 +857,119 @@ def _safe_user_key(value: str) -> str:
 
 def _conversation_id(user_a: str, user_b: str) -> str:
     return "::".join(sorted([_safe_user_key(user_a), _safe_user_key(user_b)]))
+
+
+def _normalize_profile_url(value: Optional[str]) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    parsed = urlparse(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="Enter a valid http(s) domain or URL")
+    return raw[:500]
+
+
+def _ensure_profile_metadata_table(db: Session) -> None:
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS profile_metadata (
+            username_key VARCHAR(255) PRIMARY KEY,
+            username VARCHAR(255) NOT NULL,
+            domain_url TEXT DEFAULT '',
+            domain_as_profile BOOLEAN DEFAULT 0,
+            updated_at VARCHAR(64) NOT NULL
+        )
+    """))
+    db.commit()
+
+
+def _profile_metadata(db: Session, username: str) -> Dict[str, Any]:
+    key = _safe_user_key(username)
+    if not key:
+        return {"domain_url": "", "domain_as_profile": False}
+    try:
+        _ensure_profile_metadata_table(db)
+        row = db.execute(
+            text(
+                "SELECT domain_url, domain_as_profile FROM profile_metadata "
+                "WHERE username_key = :username_key"
+            ),
+            {"username_key": key},
+        ).fetchone()
+        if not row:
+            return {"domain_url": "", "domain_as_profile": False}
+        data = getattr(row, "_mapping", row)
+        return {
+            "domain_url": data["domain_url"] or "",
+            "domain_as_profile": bool(data["domain_as_profile"]),
+        }
+    except Exception:
+        db.rollback()
+        return {"domain_url": "", "domain_as_profile": False}
+
+
+def _upsert_profile_metadata(
+    db: Session,
+    username: str,
+    domain_url: Optional[str] = None,
+    domain_as_profile: Optional[bool] = None,
+) -> Dict[str, Any]:
+    key = _safe_user_key(username)
+    if not key:
+        return {"domain_url": "", "domain_as_profile": False}
+    current = _profile_metadata(db, username)
+    next_domain = current.get("domain_url", "")
+    if domain_url is not None:
+        next_domain = _normalize_profile_url(domain_url)
+    next_domain_as_profile = bool(
+        current.get("domain_as_profile", False) if domain_as_profile is None else domain_as_profile
+    )
+    if not next_domain:
+        next_domain_as_profile = False
+
+    _ensure_profile_metadata_table(db)
+    now = datetime.datetime.utcnow().isoformat() + "Z"
+    db.execute(
+        text(
+            "INSERT INTO profile_metadata "
+            "(username_key, username, domain_url, domain_as_profile, updated_at) "
+            "VALUES (:username_key, :username, :domain_url, :domain_as_profile, :updated_at) "
+            "ON CONFLICT(username_key) DO UPDATE SET "
+            "username = excluded.username, "
+            "domain_url = excluded.domain_url, "
+            "domain_as_profile = excluded.domain_as_profile, "
+            "updated_at = excluded.updated_at"
+        ),
+        {
+            "username_key": key,
+            "username": username,
+            "domain_url": next_domain,
+            "domain_as_profile": next_domain_as_profile,
+            "updated_at": now,
+        },
+    )
+    db.commit()
+    return {"domain_url": next_domain, "domain_as_profile": next_domain_as_profile}
+
+
+def _rename_profile_metadata(db: Session, old_username: str, next_username: str) -> None:
+    old_key = _safe_user_key(old_username)
+    next_key = _safe_user_key(next_username)
+    if not old_key or not next_key or old_key == next_key:
+        return
+    try:
+        _ensure_profile_metadata_table(db)
+        db.execute(
+            text(
+                "UPDATE profile_metadata SET username_key = :next_key, username = :next_username "
+                "WHERE username_key = :old_key"
+            ),
+            {"next_key": next_key, "next_username": next_username, "old_key": old_key},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _read_messages_store() -> List[Dict[str, Any]]:
@@ -1246,9 +1364,15 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
             "initials": name[:2].upper(),
             "species": species or "human",
             "avatar": _social_avatar(avatar),
+            "domain_url": "",
+            "domain_as_profile": False,
             "post_count": 0,
             "latest_post_id": post_id or 0,
         })
+        if not current.get("domain_url"):
+            metadata = _profile_metadata(db, name)
+            current["domain_url"] = metadata.get("domain_url", "")
+            current["domain_as_profile"] = bool(metadata.get("domain_as_profile", False))
         current["post_count"] = int(current.get("post_count", 0)) + (1 if post_id else 0)
         current["latest_post_id"] = max(int(current.get("latest_post_id", 0)), int(post_id or 0))
         if not current.get("avatar") and avatar:
@@ -1885,10 +2009,13 @@ def profile(username: str, db: Session = Depends(get_db)):
             if user:
                 avatar_value = getattr(user, "profile_pic", "") or getattr(user, "avatar_url", "") or ""
                 follow_counts = _follow_counts(user.username)
+                metadata = _profile_metadata(db, user.username)
                 return {
                     "username": user.username,
                     "avatar_url": _social_avatar(avatar_value),
-                    "bio": user.bio or "Explorer of superNova_2177.",
+                    "bio": user.bio or "",
+                    "domain_url": metadata.get("domain_url", ""),
+                    "domain_as_profile": bool(metadata.get("domain_as_profile", False)),
                     "followers": follow_counts["followers"],
                     "following": follow_counts["following"],
                     "status": "online",
@@ -1911,10 +2038,13 @@ def profile(username: str, db: Session = Depends(get_db)):
             post_count = db.query(Proposal).filter(func.lower(Proposal.userName) == username.lower()).count()
             if latest:
                 follow_counts = _follow_counts(username)
+                metadata = _profile_metadata(db, username)
                 return {
                     "username": username,
                     "avatar_url": _social_avatar(getattr(latest, "author_img", "")),
-                    "bio": "Explorer of superNova_2177.",
+                    "bio": "",
+                    "domain_url": metadata.get("domain_url", ""),
+                    "domain_as_profile": bool(metadata.get("domain_as_profile", False)),
                     "followers": follow_counts["followers"],
                     "following": follow_counts["following"],
                     "status": "online",
@@ -1931,7 +2061,9 @@ def profile(username: str, db: Session = Depends(get_db)):
     return {
         "username": username,
         "avatar_url": "",
-        "bio": "Explorer of superNova_2177.",
+        "bio": "",
+        "domain_url": "",
+        "domain_as_profile": False,
         "followers": 2315,
         "following": 1523,
         "status": "online"
@@ -1996,6 +2128,9 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
         username_changed = _safe_user_key(old_username) != _safe_user_key(next_username)
         if _safe_user_key(old_username) != _safe_user_key(next_username):
             _sync_username_references(old_username, next_username, user_id)
+            _rename_profile_metadata(db, old_username, next_username)
+        if payload.domain_url is not None or payload.domain_as_profile is not None:
+            _upsert_profile_metadata(db, next_username, payload.domain_url, payload.domain_as_profile)
         avatar_value = avatar_to_sync
         if not avatar_value and username_changed:
             current_avatar = getattr(user, "profile_pic", "") or ""
@@ -2016,7 +2151,9 @@ def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depend
                 user_id,
                 aliases=[old_username, next_username],
             )
-        return _public_user_payload(user, provider="password")
+        response_payload = _public_user_payload(user, provider="password")
+        response_payload.update(_profile_metadata(db, next_username))
+        return response_payload
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
@@ -2032,11 +2169,14 @@ def social_users(
     users = _collect_social_users(db, limit=limit, search=search)
     current = _safe_user_key(username or "")
     if current and all(_safe_user_key(item["username"]) != current for item in users):
+        metadata = _profile_metadata(db, username or "")
         users.insert(0, {
             "username": username,
             "initials": (username or "SN")[:2].upper(),
             "species": "human",
             "avatar": "",
+            "domain_url": metadata.get("domain_url", ""),
+            "domain_as_profile": bool(metadata.get("domain_as_profile", False)),
             "post_count": 0,
             "latest_post_id": 0,
         })
@@ -2637,6 +2777,7 @@ async def create_proposal(
             db_proposal.voting_deadline = voting_deadline
             user_name = final_user
 
+        author_metadata = _profile_metadata(db, user_name)
         return ProposalSchema(
             id=db_proposal.id,
             title=db_proposal.title,
@@ -2646,6 +2787,8 @@ async def create_proposal(
             author_img=db_proposal.author_img or "",
             time=_format_timestamp(db_proposal.created_at),
             author_type=db_proposal.author_type,
+            profile_url=author_metadata.get("domain_url", ""),
+            domain_as_profile=bool(author_metadata.get("domain_as_profile", False)),
             likes=[],
             dislikes=[],
             comments=[],
@@ -2889,6 +3032,7 @@ def list_proposals(
 
         # --- SERIALIZATION ---
         proposals_list = []
+        profile_metadata_cache: Dict[str, Dict[str, Any]] = {}
         for prop in proposals:
             if CRUD_MODELS_AVAILABLE:
                 user_name = ""
@@ -2955,6 +3099,10 @@ def list_proposals(
             author_img = getattr(prop, "author_img", "")
             if author_obj is not None:
                 author_img = getattr(author_obj, "profile_pic", None) or author_img
+            author_key = _safe_user_key(user_name)
+            if author_key not in profile_metadata_cache:
+                profile_metadata_cache[author_key] = _profile_metadata(db, user_name)
+            author_metadata = profile_metadata_cache.get(author_key, {})
 
             proposals_list.append({
                 "id": prop.id,
@@ -2965,6 +3113,8 @@ def list_proposals(
                 "author_img": _social_avatar(author_img),
                 "time": _format_timestamp(getattr(prop, "created_at", None) or getattr(prop, "date", "")),
                 "author_type": getattr(prop, "author_type", "human"),
+                "profile_url": author_metadata.get("domain_url", ""),
+                "domain_as_profile": bool(author_metadata.get("domain_as_profile", False)),
                 "likes": likes,
                 "dislikes": dislikes,
                 "comments": comments_list,
@@ -3717,6 +3867,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
         if author_obj is not None:
             author_img = getattr(author_obj, "profile_pic", None) or author_img
 
+        author_metadata = _profile_metadata(db, user_name)
         return ProposalSchema(
             id=row.id,
             title=row.title,
@@ -3726,6 +3877,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             author_img=_social_avatar(author_img),
             time=_format_timestamp(row.created_at),
             author_type=row.author_type,
+            profile_url=author_metadata.get("domain_url", ""),
+            domain_as_profile=bool(author_metadata.get("domain_as_profile", False)),
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,
@@ -3767,6 +3920,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
         if author_obj is not None:
             author_img = getattr(author_obj, "profile_pic", None) or author_img
         user_initials = (user_name[:2].upper() if user_name else "UN")
+        author_metadata = _profile_metadata(db, user_name)
         return ProposalSchema(
             id=row.id,
             title=row.title,
@@ -3776,6 +3930,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             author_img=_social_avatar(author_img),
             time=_format_timestamp(getattr(row, "date", "") or getattr(row, "created_at", "")),
             author_type=getattr(row, "author_type", ""),
+            profile_url=author_metadata.get("domain_url", ""),
+            domain_as_profile=bool(author_metadata.get("domain_as_profile", False)),
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,

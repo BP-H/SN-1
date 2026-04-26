@@ -147,6 +147,8 @@ export default function BookmarksPage() {
               comments={post.comments}
               likes={post.likes}
               dislikes={post.dislikes}
+              profileUrl={post.profile_url}
+              domainAsProfile={post.domain_as_profile}
               specie={post.author_type}
               setErrorMsg={setErrorMsg}
               setNotify={setNotify}

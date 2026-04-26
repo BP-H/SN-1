@@ -530,6 +530,8 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   comments={post.comments}
                   likes={post.likes}
                   dislikes={post.dislikes}
+                  profileUrl={post.profile_url}
+                  domainAsProfile={post.domain_as_profile}
                   setErrorMsg={setErrorMsg}
                   setNotify={setNotify}
                   specie={post.author_type}

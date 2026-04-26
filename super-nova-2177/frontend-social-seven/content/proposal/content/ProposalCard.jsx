@@ -29,7 +29,7 @@ import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
-import LinkifiedText, { hasLink } from "@/utils/linkify";
+import LinkifiedText, { hasLink, normalizeLinkHref } from "@/utils/linkify";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -60,6 +60,8 @@ function ProposalCard({
   likes = [],
   dislikes = [],
   comments = [],
+  profileUrl = "",
+  domainAsProfile = false,
   setErrorMsg,
   setNotify,
   isDetailPage = false,
@@ -452,6 +454,11 @@ function ProposalCard({
   const mediaLayout = media.layout === "grid" ? "grid" : "carousel";
   const detailHref = id !== undefined && id !== null && id !== "" ? `/proposals/${encodeURIComponent(id)}` : "/proposals";
   const userHref = authorName ? `/users/${encodeURIComponent(authorName)}` : "/profile";
+  const profileDomainHref = domainAsProfile && profileUrl ? normalizeLinkHref(profileUrl) : "";
+  const AuthorLink = profileDomainHref ? "a" : Link;
+  const authorLinkProps = profileDomainHref
+    ? { href: profileDomainHref, target: "_blank", rel: "noopener noreferrer", title: "Open profile domain" }
+    : { href: userHref };
   const userVote = likes.some((v) => v.voter === userData?.name)
     ? "like"
     : dislikes.some((v) => v.voter === userData?.name)
@@ -558,7 +565,7 @@ function ProposalCard({
     >
       {/* Header: avatar, name, time, options */}
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <Link href={userHref} className="flex min-w-0 items-center gap-3">
+        <AuthorLink {...authorLinkProps} className="flex min-w-0 items-center gap-3">
           <div className="shrink-0">
             {displayAvatar ? (
               <img
@@ -582,9 +589,9 @@ function ProposalCard({
             <span className="mx-2 text-[var(--text-gray-light)]">•</span>
             <span className="text-[var(--text-gray-light)]">{time}</span>
           </div>
-        </Link>
+        </AuthorLink>
 
-        {/* Species icon badge — replaces text label */}
+        {/* Species icon badge - replaces text label */}
         <div ref={optionsMenuRef} className="relative">
           <button
             type="button"
@@ -656,7 +663,7 @@ function ProposalCard({
         </div>
       </div>
 
-      {/* ── Post content (text + media) ── */}
+      {/* Post content (text + media) */}
       <div className="flex w-full min-w-0 flex-col gap-3">
         <div className="flex min-w-0 flex-col gap-3">
           {editing ? (
@@ -922,7 +929,7 @@ function ProposalCard({
           </div>
         </div>
 
-        {/* ── Comments section ── */}
+        {/* Comments section */}
         {(showComments || isDetailPage) && (
           <div className="comments-section flex min-w-0 flex-col gap-2 rounded-[15px] bg-[rgba(255,255,255,0.03)] p-2">
             <div className="flex min-w-0 items-center justify-between gap-3 px-1">
