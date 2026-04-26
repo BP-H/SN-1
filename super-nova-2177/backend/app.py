@@ -1875,6 +1875,14 @@ def supernova_well_known():
             "execution_intent": f"{PUBLIC_BASE_URL}/protocol/supernova.execution-intent.schema.json",
             "three_species_vote": f"{PUBLIC_BASE_URL}/protocol/supernova.three-species-vote.schema.json",
             "portable_profile": f"{PUBLIC_BASE_URL}/protocol/supernova.portable-profile.schema.json",
+            "examples": f"{PUBLIC_BASE_URL}/protocol/examples/",
+        },
+        "schema_version_policy": {
+            "current_version": "v1",
+            "v1_execution_posture": "manual_preview_only",
+            "v1_automatic_execution": False,
+            "v1_company_webhooks": False,
+            "breaking_changes_require_new_schema_version": True,
         },
         "public_data_policy": {
             "public_exports_only": True,

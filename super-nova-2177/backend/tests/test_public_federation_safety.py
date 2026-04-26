@@ -48,7 +48,15 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(schemas["execution_intent"].endswith("/protocol/supernova.execution-intent.schema.json"))
         self.assertTrue(schemas["three_species_vote"].endswith("/protocol/supernova.three-species-vote.schema.json"))
         self.assertTrue(schemas["portable_profile"].endswith("/protocol/supernova.portable-profile.schema.json"))
+        self.assertTrue(schemas["examples"].endswith("/protocol/examples/"))
         self.assertIn("/domain-verification/preview", payload["endpoints"]["domain_verification_preview"])
+
+        version_policy = payload["schema_version_policy"]
+        self.assertEqual(version_policy["current_version"], "v1")
+        self.assertEqual(version_policy["v1_execution_posture"], "manual_preview_only")
+        self.assertFalse(version_policy["v1_automatic_execution"])
+        self.assertFalse(version_policy["v1_company_webhooks"])
+        self.assertTrue(version_policy["breaking_changes_require_new_schema_version"])
 
     def test_protocol_schema_files_are_public_static_json(self):
         for path, schema_name in {
@@ -61,6 +69,39 @@ class PublicFederationSafetyTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertEqual(payload["properties"]["schema"]["const"], schema_name)
+
+    def test_protocol_examples_are_public_and_keep_v1_manual_only(self):
+        for path, schema_name in {
+            "/protocol/examples/example-organization-manifest.json": "supernova.organization_manifest.v1",
+            "/protocol/examples/example-execution-intent.json": "supernova.execution_intent.v1",
+            "/protocol/examples/example-three-species-vote.json": "supernova.three_species_vote.v1",
+            "/protocol/examples/example-portable-profile.json": "supernova.portable_profile.v1",
+        }.items():
+            response = client.get(path)
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["schema"], schema_name)
+
+        organization = client.get("/protocol/examples/example-organization-manifest.json").json()
+        self.assertFalse(organization["execution"]["automatic_execution"])
+        self.assertFalse(organization["execution"]["webhooks_enabled"])
+        self.assertEqual(organization["execution"]["allowed_actions"], [])
+
+        intent = client.get("/protocol/examples/example-execution-intent.json").json()
+        self.assertEqual(intent["execution_mode"], "manual_preview_only")
+        self.assertFalse(intent["automatic_execution"])
+        self.assertTrue(intent["requires_company_ratification"])
+        self.assertTrue(intent["requires_human_supervision"])
+
+        vote = client.get("/protocol/examples/example-three-species-vote.json").json()
+        self.assertEqual(vote["execution"]["execution_current_mode"], "manual_preview_only")
+        self.assertFalse(vote["execution"]["automatic_execution"])
+        self.assertTrue(vote["execution"]["company_ratification_required"])
+
+        profile = client.get("/protocol/examples/example-portable-profile.json").json()
+        self.assertFalse(profile["identity"]["domain_verified"])
+        self.assertTrue(profile["privacy"]["public_export_only"])
+        self.assertIn("direct_messages", profile["privacy"]["excluded_fields"])
 
     def test_public_manifest_keeps_private_export_fields_excluded(self):
         response = client.get("/.well-known/supernova")
