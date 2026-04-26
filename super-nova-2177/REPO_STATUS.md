@@ -66,3 +66,4 @@ Silent browser sync must not overwrite an existing account species. Explicit pro
 - Keep `universe.fork.json` documentation-only until deliberate fork tooling is added.
 - Railway should provide `DATABASE_URL`; the runtime wrapper preserves that and does not force local SQLite in production.
 - Vercel should set `NEXT_PUBLIC_API_URL` to the Railway backend URL without a trailing slash.
+- Production should set backend `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` to the exact Vercel/custom domains, for example `https://2177.tech,https://www.2177.tech`; if unset, the wrapper keeps wildcard CORS for compatibility and reports that in `/health`.

@@ -13,7 +13,9 @@ import {
   IoSettingsOutline,
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { usePageVisible } from "@/utils/pageVisibility";
 import { useUser } from "@/content/profile/UserContext";
 
 const READ_PREFIX = "supernova_dm_seen::";
@@ -26,18 +28,22 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
   const [readMarkers, setReadMarkers] = useState({});
   const [isDesktopViewport, setIsDesktopViewport] = useState(null);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
+  const pageVisible = usePageVisible();
   const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const conversationsQuery = useQuery({
     queryKey: ["desktop-direct-conversations", currentUser],
     enabled: Boolean(isDesktopViewport === true && isAuthenticated && currentUser),
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`);
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`, {
+        headers: authHeaders(),
+        signal,
+      });
       if (!response.ok) throw new Error("Failed to load conversations");
       return response.json();
     },
-    refetchInterval: 12000,
+    refetchInterval: pageVisible ? 12000 : false,
   });
 
   useEffect(() => {

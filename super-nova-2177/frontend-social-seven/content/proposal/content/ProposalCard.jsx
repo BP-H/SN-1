@@ -8,6 +8,7 @@ import { IoMdBookmark } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import {
   IoCheckmark,
   IoClose,
@@ -300,7 +301,7 @@ function ProposalCard({
     try {
       const response = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(id)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           title: editText.trim().replace(/\s+/g, " ").slice(0, 70),
           body: editText.trim(),
@@ -327,7 +328,7 @@ function ProposalCard({
     try {
       const response = await fetch(
         `${API_BASE_URL}/proposals/${encodeURIComponent(id)}?author=${encodeURIComponent(userData.name)}`,
-        { method: "DELETE" }
+        { method: "DELETE", headers: authHeaders() }
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to delete post.");
@@ -365,7 +366,7 @@ function ProposalCard({
           : `${API_BASE_URL}/follows`,
         {
           method: followingAuthor ? "DELETE" : "POST",
-          headers: followingAuthor ? undefined : { "Content-Type": "application/json" },
+          headers: followingAuthor ? authHeaders() : authHeaders({ "Content-Type": "application/json" }),
           body: followingAuthor
             ? undefined
             : JSON.stringify({ follower: userData.name, target: authorName }),
@@ -392,7 +393,7 @@ function ProposalCard({
     try {
       const response = await fetch(
         `${API_BASE_URL}/comments/${encodeURIComponent(commentId)}?user=${encodeURIComponent(userData.name)}`,
-        { method: "DELETE" }
+        { method: "DELETE", headers: authHeaders() }
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to delete comment.");
@@ -427,7 +428,7 @@ function ProposalCard({
     if (!commentId || !userData?.name) throw new Error("Sign in to edit this comment.");
     const response = await fetch(`${API_BASE_URL}/comments/${encodeURIComponent(commentId)}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         user: userData.name,
         comment: nextText,
@@ -507,7 +508,8 @@ function ProposalCard({
     if (!menuOpen || isOwner || !userData?.name || !authorName) return undefined;
     let cancelled = false;
     fetch(
-      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(authorName)}`
+      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(authorName)}`,
+      { headers: authHeaders() }
     )
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {

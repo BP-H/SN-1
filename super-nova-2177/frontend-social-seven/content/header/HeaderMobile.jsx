@@ -13,6 +13,8 @@ import {
 import LiquidGlass from "../liquid glass/LiquidGlass";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
+import { usePageVisible } from "@/utils/pageVisibility";
 
 const READ_PREFIX = "supernova_dm_seen::";
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
@@ -27,17 +29,21 @@ export default function HeaderMobile({
   const [readMarkers, setReadMarkers] = useState({});
   const [isDesktopViewport, setIsDesktopViewport] = useState(null);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
+  const pageVisible = usePageVisible();
   const readKey = `${READ_PREFIX}${currentUser.toLowerCase()}::`;
 
   const conversationsQuery = useQuery({
     queryKey: ["direct-conversations", currentUser],
     enabled: Boolean(isDesktopViewport === false && isAuthenticated && currentUser),
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`);
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`, {
+        headers: authHeaders(),
+        signal,
+      });
       if (!response.ok) throw new Error("Failed to load conversations");
       return response.json();
     },
-    refetchInterval: 8000,
+    refetchInterval: pageVisible ? 8000 : false,
   });
 
   useEffect(() => {

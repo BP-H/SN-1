@@ -15,6 +15,7 @@ import {
   IoTrashOutline,
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
@@ -77,7 +78,8 @@ function DisplayComments({
     if (!menuOpen || isSelf || !isAuthenticated || !userData?.name || !name) return undefined;
     let cancelled = false;
     fetch(
-      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(name)}`
+      `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(userData.name)}&target=${encodeURIComponent(name)}`,
+      { headers: authHeaders() }
     )
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
@@ -167,7 +169,7 @@ function DisplayComments({
           : `${API_BASE_URL}/follows`,
         {
           method: followingAuthor ? "DELETE" : "POST",
-          headers: followingAuthor ? undefined : { "Content-Type": "application/json" },
+          headers: followingAuthor ? authHeaders() : authHeaders({ "Content-Type": "application/json" }),
           body: followingAuthor ? undefined : JSON.stringify({ follower: userData.name, target: name }),
         }
       );

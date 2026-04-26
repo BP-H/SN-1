@@ -15,6 +15,7 @@ import {
 import { RiVoiceAiFill } from "react-icons/ri";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { useUser } from "@/content/profile/UserContext";
 
 const KEY_STORAGE = "supernova-ai-cursor-key";
@@ -495,7 +496,7 @@ export default function AssistantOrb() {
     try {
       const response = await fetch(`${API_BASE_URL}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           proposal_id: Number(target.id),
           user: userData.name,

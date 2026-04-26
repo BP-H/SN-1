@@ -68,6 +68,31 @@ SYSTEM_VOTE_QUESTION = os.environ.get(
 )
 SYSTEM_VOTE_DEADLINE = os.environ.get("SYSTEM_VOTE_DEADLINE", "2026-04-27T18:00:00-07:00")
 
+
+def _parse_allowed_origins() -> Dict[str, Any]:
+    raw = os.environ.get("ALLOWED_ORIGINS") or os.environ.get("BACKEND_ALLOWED_ORIGINS") or ""
+    origins = [item.strip() for item in raw.replace("\n", ",").split(",") if item.strip()]
+    if not origins:
+        return {
+            "origins": ["*"],
+            "mode": "wildcard_default",
+            "warning": "CORS is wildcard because ALLOWED_ORIGINS/BACKEND_ALLOWED_ORIGINS is not set.",
+        }
+    if "*" in origins:
+        return {
+            "origins": ["*"],
+            "mode": "wildcard_env",
+            "warning": "CORS is wildcard because the configured origin list contains *.",
+        }
+    return {
+        "origins": origins,
+        "mode": "allowlist",
+        "warning": "",
+    }
+
+
+CORS_CONFIG = _parse_allowed_origins()
+
 if SUPER_NOVA_AVAILABLE:
     SessionLocal = _runtime['session_local']
     get_db = _runtime['get_db']
@@ -248,7 +273,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_CONFIG["origins"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -845,6 +870,23 @@ def _public_user_payload(user, provider: str = "password") -> Dict[str, Any]:
         "harmony_score": str(getattr(user, "harmony_score", "0")),
         "creative_spark": str(getattr(user, "creative_spark", "0")),
     }
+
+
+def _create_optional_access_token(user) -> Optional[str]:
+    username = (getattr(user, "username", "") or "").strip()
+    if not username or not auth_utils or not hasattr(auth_utils, "create_access_token"):
+        return None
+    try:
+        return auth_utils.create_access_token({"sub": username})
+    except Exception:
+        return None
+
+
+def _auth_fields_for_user(user) -> Dict[str, str]:
+    token = _create_optional_access_token(user)
+    if not token:
+        return {}
+    return {"access_token": token, "token_type": "bearer"}
 
 
 MESSAGES_STORE_PATH = BACKEND_DIR / "messages_store.json"
@@ -1673,6 +1715,14 @@ def _supernova_runtime_payload(include_routes: bool = True) -> Dict[str, Any]:
     return payload
 
 
+def _cors_diagnostics() -> Dict[str, Any]:
+    return {
+        "cors_mode": CORS_CONFIG["mode"],
+        "allowed_origins_count": len(CORS_CONFIG["origins"]),
+        "cors_warning": CORS_CONFIG["warning"],
+    }
+
+
 @app.get("/health", summary="Check API health")
 def health(db: Session = Depends(get_db)):
     try:
@@ -1686,6 +1736,7 @@ def health(db: Session = Depends(get_db)):
         "ok": True,
         "database": db_status,
         "database_engine": DB_ENGINE_URL,
+        **_cors_diagnostics(),
         "supernova_integration": supernova_runtime["integration"],
         "supernova": supernova_runtime,
         "timestamp": datetime.datetime.now().isoformat()
@@ -1714,6 +1765,7 @@ def supernova_status():
         "supernova_connected": SUPER_NOVA_AVAILABLE,
         "supernova": supernova_runtime,
         "database_engine": DB_ENGINE_URL,
+        **_cors_diagnostics(),
         "features_available": {
             "weighted_voting": SUPER_NOVA_AVAILABLE,
             "karma_system": SUPER_NOVA_AVAILABLE,
@@ -1918,6 +1970,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
             "species": existing.species,
             "avatar_url": _social_avatar(getattr(existing, "profile_pic", "") or avatar_url),
             "backend": "supernovacore",
+            **_auth_fields_for_user(existing),
         }
 
     candidate = username
@@ -1950,6 +2003,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         "species": user.species,
         "avatar_url": _social_avatar(getattr(user, "profile_pic", "")),
         "backend": "supernovacore",
+        **_auth_fields_for_user(user),
     }
 
 #
@@ -2087,13 +2141,19 @@ def profile(username: str, db: Session = Depends(get_db)):
 
 
 @app.patch("/profile/{username}", summary="Update a user profile")
-def update_profile(username: str, payload: ProfileUpdateIn, db: Session = Depends(get_db)):
+def update_profile(
+    username: str,
+    payload: ProfileUpdateIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     if Harmonizer is None:
         raise HTTPException(status_code=503, detail="User system unavailable")
 
     clean_username = username.strip()
     if not clean_username:
         raise HTTPException(status_code=400, detail="Username is required")
+    _enforce_token_identity_match(authorization, db, clean_username)
 
     user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
     if not user:
@@ -2388,10 +2448,15 @@ def social_graph(
 
 
 @app.get("/follows", summary="List follow relationships for a user")
-def get_follows(user: str = Query(...)):
+def get_follows(
+    user: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     current = _safe_user_key(user)
     if not current:
         raise HTTPException(status_code=400, detail="user is required")
+    _enforce_token_identity_match(authorization, db, user)
     follows = _read_follows_store()
     following = [
         {"username": item.get("target", ""), "created_at": item.get("created_at", "")}
@@ -2407,11 +2472,17 @@ def get_follows(user: str = Query(...)):
 
 
 @app.get("/follows/status", summary="Check if one user follows another")
-def follow_status(follower: str = Query(...), target: str = Query(...)):
+def follow_status(
+    follower: str = Query(...),
+    target: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     follower_key = _safe_user_key(follower)
     target_key = _safe_user_key(target)
     if not follower_key or not target_key:
         raise HTTPException(status_code=400, detail="follower and target are required")
+    _enforce_token_identity_match(authorization, db, follower)
     follows = _read_follows_store()
     return {
         "follower": follower,
@@ -2424,7 +2495,11 @@ def follow_status(follower: str = Query(...), target: str = Query(...)):
 
 
 @app.post("/follows", summary="Follow a user")
-def follow_user(payload: FollowIn):
+def follow_user(
+    payload: FollowIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     follower = payload.follower.strip()
     target = payload.target.strip()
     follower_key = _safe_user_key(follower)
@@ -2433,6 +2508,7 @@ def follow_user(payload: FollowIn):
         raise HTTPException(status_code=400, detail="follower and target are required")
     if follower_key == target_key:
         raise HTTPException(status_code=400, detail="Choose another user to follow")
+    _enforce_token_identity_match(authorization, db, follower)
 
     follows = _read_follows_store()
     existing = next(
@@ -2458,11 +2534,17 @@ def follow_user(payload: FollowIn):
 
 
 @app.delete("/follows", summary="Unfollow a user")
-def unfollow_user(follower: str = Query(...), target: str = Query(...)):
+def unfollow_user(
+    follower: str = Query(...),
+    target: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     follower_key = _safe_user_key(follower)
     target_key = _safe_user_key(target)
     if not follower_key or not target_key:
         raise HTTPException(status_code=400, detail="follower and target are required")
+    _enforce_token_identity_match(authorization, db, follower)
     follows = _read_follows_store()
     next_follows = [
         item for item in follows
@@ -2476,11 +2558,13 @@ def unfollow_user(follower: str = Query(...), target: str = Query(...)):
 def get_messages(
     user: str = Query(...),
     peer: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     current = _safe_user_key(user)
     if not current:
         raise HTTPException(status_code=400, detail="user is required")
+    _enforce_token_identity_match(authorization, db, user)
 
     try:
         _ensure_direct_messages_table(db)
@@ -2559,7 +2643,11 @@ def get_messages(
 
 
 @app.post("/messages", summary="Send a direct message")
-def send_message(payload: DirectMessageIn, db: Session = Depends(get_db)):
+def send_message(
+    payload: DirectMessageIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     sender = payload.sender.strip()
     recipient = payload.recipient.strip()
     body = payload.body.strip()
@@ -2571,6 +2659,7 @@ def send_message(payload: DirectMessageIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Choose another user to message")
     if not body:
         raise HTTPException(status_code=400, detail="Write a message first")
+    _enforce_token_identity_match(authorization, db, sender)
 
     messages = _read_messages_store()
     message = {
@@ -2621,10 +2710,12 @@ async def create_proposal(
     decision_level: str = Form("standard"),
     voting_days: Optional[int] = Form(None),
     execution_mode: str = Form("manual"),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db)
 ):
     if author_type not in ("human", "company", "ai"):
         raise HTTPException(status_code=400, detail="Invalid author_type")
+    _enforce_token_identity_match(authorization, db, author)
     
     os.makedirs(uploads_dir, exist_ok=True)
     image_filename = None
@@ -2861,6 +2952,33 @@ def get_current_harmonizer(
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
+
+
+def _optional_current_harmonizer(authorization: Optional[str], db: Session):
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    try:
+        return get_current_harmonizer(authorization, db)
+    except HTTPException:
+        # Compatibility-first: legacy sessions may have non-JWT fallback tokens.
+        # Only enforce conflicts when a token can be resolved to a real account.
+        return None
+
+
+def _enforce_token_identity_match(
+    authorization: Optional[str],
+    db: Session,
+    *identity_values: Optional[str],
+):
+    current_user = _optional_current_harmonizer(authorization, db)
+    if not current_user:
+        return None
+    token_key = _safe_user_key(getattr(current_user, "username", ""))
+    for value in identity_values:
+        value_key = _safe_user_key(value or "")
+        if value_key and value_key != token_key:
+            raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
+    return current_user
 
 
 @app.get("/users/me")
@@ -3461,9 +3579,14 @@ def list_comments(proposal_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/comments")
-def add_comment(c: CommentIn, db: Session = Depends(get_db)):
+def add_comment(
+    c: CommentIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     import datetime
     try:
+        _enforce_token_identity_match(authorization, db, c.user)
         _ensure_comment_thread_columns(db)
         # --- 1. Obter ou criar Harmonizer ---
         author_obj = db.query(Harmonizer).filter(Harmonizer.username == c.user).first() if CRUD_MODELS_AVAILABLE else None
@@ -3592,6 +3715,7 @@ def add_comment(c: CommentIn, db: Session = Depends(get_db)):
 def update_comment(
     comment_id: int,
     payload: CommentUpdateIn,
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     requester = _safe_user_key(payload.user)
@@ -3600,6 +3724,7 @@ def update_comment(
         raise HTTPException(status_code=400, detail="user is required")
     if not next_comment:
         raise HTTPException(status_code=400, detail="comment is required")
+    _enforce_token_identity_match(authorization, db, payload.user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -3655,11 +3780,13 @@ def update_comment(
 def delete_comment(
     comment_id: int,
     user: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     requester = _safe_user_key(user)
     if not requester:
         raise HTTPException(status_code=400, detail="user is required")
+    _enforce_token_identity_match(authorization, db, user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -3967,6 +4094,7 @@ async def upload_image(
     file: UploadFile = File(...),
     username: Optional[str] = Form(None),
     user_id: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     os.makedirs(uploads_dir, exist_ok=True)
@@ -3978,6 +4106,8 @@ async def upload_image(
     avatar_url = f"/uploads/{unique_name}"
     clean_username = (username or "").strip()
     clean_user_id = (user_id or "").strip()
+    if clean_username:
+        _enforce_token_identity_match(authorization, db, clean_username)
     profile_synced = False
     sync_error = ""
     user = None
@@ -4024,7 +4154,12 @@ async def upload_file(file: UploadFile = File(...)):
 
 # --- Delete endpoints ---
 @app.patch("/proposals/{pid}", response_model=ProposalSchema)
-def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(get_db)):
+def update_proposal(
+    pid: int,
+    payload: ProposalUpdateIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     author = (payload.author or "").strip()
     next_body = (payload.body or "").strip()
     next_title = (payload.title or "").strip() or (next_body[:70] if next_body else "")
@@ -4032,6 +4167,7 @@ def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="author is required")
     if not next_body and not next_title:
         raise HTTPException(status_code=400, detail="Nothing to update")
+    _enforce_token_identity_match(authorization, db, author)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -4072,10 +4208,16 @@ def update_proposal(pid: int, payload: ProposalUpdateIn, db: Session = Depends(g
 
 
 @app.delete("/proposals/{pid}")
-def delete_proposal(pid: int, author: Optional[str] = Query(None), db: Session = Depends(get_db)):
+def delete_proposal(
+    pid: int,
+    author: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     clean_author = (author or "").strip()
     if not clean_author:
         raise HTTPException(status_code=400, detail="author is required")
+    _enforce_token_identity_match(authorization, db, clean_author)
     try:
         if CRUD_MODELS_AVAILABLE:
             row = db.query(Proposal).filter(Proposal.id == pid).first()

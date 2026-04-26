@@ -39,6 +39,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-key
 
 Set the same variables in Vercel. For production, `NEXT_PUBLIC_API_URL` should be the Railway backend URL with no trailing slash.
 
+On Railway, set `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` to the exact public frontend origins when ready, for example `https://2177.tech,https://www.2177.tech`. If unset, the backend keeps wildcard CORS for compatibility and reports the warning in `/health`.
+
 See `SOCIAL_AUTH_SETUP.md` for Google, Facebook, and GitHub OAuth setup details.
 
 ## API Rules

@@ -4,12 +4,12 @@ import { createContext, useState, useContext, useEffect, useCallback, useMemo } 
 import supabase, { isSupabaseConfigured } from "@/supabaseClient";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { FALLBACK_AVATAR, isUploadedAvatarValue, normalizeAvatarValue } from "@/utils/avatar";
+import { PASSWORD_SESSION_KEY, authHeaders } from "@/utils/authSession";
 
 const UserContext = createContext();
 
 const GUEST_STORAGE_KEY = "supernova_social_six_guest";
 const CUSTOM_STORAGE_PREFIX = "supernova_social_six_custom::";
-const PASSWORD_SESSION_KEY = "supernova_password_session";
 const DEFAULT_AVATAR = FALLBACK_AVATAR;
 const SPECIES_KEYS = new Set(["human", "ai", "company"]);
 
@@ -414,7 +414,7 @@ export function UserProvider({ children }) {
     if (username && shouldSyncProfile) {
       fetch(`${API_BASE_URL}/profile/${encodeURIComponent(username)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           username: nextStored.customName || username,
           avatar_url: normalizeAvatarValue(nextStored.customAvatar || ""),
@@ -472,6 +472,19 @@ export function UserProvider({ children }) {
       species: normalizeSpecies(payload.species) || accountSpecies,
       customAvatar: normalizeAvatarValue(payload.avatar_url || avatar || storedProfile?.customAvatar || providerProfile.avatar || ""),
     };
+    if (payload.access_token) {
+      const authPayload = {
+        token: payload.access_token,
+        id: payload.id || payload.username,
+        username: payload.username || cleanUsername,
+        email: payload.email || providerProfile.email || "",
+        avatar: normalizeAvatarValue(payload.avatar_url || nextStored.customAvatar || ""),
+        species: normalizeSpecies(payload.species) || accountSpecies,
+      };
+      writeSessionStorage(PASSWORD_SESSION_KEY, authPayload);
+      setSession(null);
+      setPasswordAuth(authPayload);
+    }
     const key = getCustomStorageKey(authUser, passwordAuth);
     writeStorage(key, nextStored);
     setStoredProfile(nextStored);
@@ -489,7 +502,7 @@ export function UserProvider({ children }) {
 
     const response = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(currentUsername)}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         username: cleanUsername,
         avatar_url: nextAvatar,

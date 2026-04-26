@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IoLockClosedOutline, IoPaperPlaneOutline, IoSearchOutline } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
+import { usePageVisible } from "@/utils/pageVisibility";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 
@@ -49,6 +51,7 @@ export default function MessagesPage() {
   const [composerFocused, setComposerFocused] = useState(false);
   const shareDraftLoadedRef = useRef(false);
   const currentUser = isAuthenticated ? userData?.name?.trim() || "" : "";
+  const pageVisible = usePageVisible();
   const readKey = `${READ_PREFIX}${peerKey(currentUser)}::`;
 
   useEffect(() => {
@@ -134,12 +137,15 @@ export default function MessagesPage() {
   const conversationsQuery = useQuery({
     queryKey: ["direct-conversations", currentUser],
     enabled: Boolean(isAuthenticated && currentUser),
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`);
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`, {
+        headers: authHeaders(),
+        signal,
+      });
       if (!response.ok) throw new Error("Failed to load conversations");
       return response.json();
     },
-    refetchInterval: 4000,
+    refetchInterval: pageVisible ? 4000 : false,
   });
 
   const peers = useMemo(() => {
@@ -224,14 +230,18 @@ export default function MessagesPage() {
   const threadQuery = useQuery({
     queryKey: ["direct-thread", currentUser, selectedPeer],
     enabled: Boolean(isAuthenticated && currentUser && selectedPeer),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const response = await fetch(
-        `${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}&peer=${encodeURIComponent(selectedPeer)}`
+        `${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}&peer=${encodeURIComponent(selectedPeer)}`,
+        {
+          headers: authHeaders(),
+          signal,
+        }
       );
       if (!response.ok) throw new Error("Failed to load thread");
       return response.json();
     },
-    refetchInterval: selectedPeer ? 4000 : false,
+    refetchInterval: pageVisible && selectedPeer ? 4000 : false,
   });
 
   useEffect(() => {
@@ -290,7 +300,7 @@ export default function MessagesPage() {
       if (!isAuthenticated) throw new Error("Sign in to send messages.");
       const response = await fetch(`${API_BASE_URL}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           sender: currentUser,
           recipient: selectedPeer,

@@ -13,6 +13,7 @@ import {
 } from "react-icons/io5";
 import { BiSolidLike, BiSolidDislike } from "react-icons/bi";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
@@ -188,7 +189,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     queryKey: ["home-following", userData?.name || ""],
     enabled: Boolean(isAuthenticated && userData?.name),
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/follows?user=${encodeURIComponent(userData.name)}`);
+      const response = await fetch(`${API_BASE_URL}/follows?user=${encodeURIComponent(userData.name)}`, {
+        headers: authHeaders(),
+      });
       if (!response.ok) throw new Error("Failed to load follows");
       return response.json();
     },

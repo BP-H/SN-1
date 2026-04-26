@@ -3,6 +3,7 @@ import { useState } from "react";
 import { IoClose } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 
@@ -43,7 +44,7 @@ function InsertComment({
     try {
       const res = await fetch(`${API_BASE_URL}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           proposal_id: Number(proposalId),
           user: userData.name,

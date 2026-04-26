@@ -22,6 +22,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "./UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 
@@ -220,6 +221,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       }
       const response = await fetch(`${API_BASE_URL}/upload-image`, {
         method: "POST",
+        headers: authHeaders(),
         body: formData,
       });
       if (!response.ok) throw new Error("Failed to upload avatar.");

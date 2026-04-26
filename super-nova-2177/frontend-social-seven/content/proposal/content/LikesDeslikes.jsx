@@ -6,6 +6,7 @@ import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { IoChevronUp } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 
@@ -145,7 +146,7 @@ function LikesDeslikes({
     try {
       const response = await fetch(`${backendUrl}/votes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ proposal_id: proposalId, username: userData.name, choice, voter_type: voterType }),
       });
       if (!response.ok) { setErrorMsg([await getApiError(response, `Vote failed: ${response.status}`)]); return false; }
@@ -159,7 +160,10 @@ function LikesDeslikes({
         proposal_id: String(proposalId),
         username: userData.name,
       });
-      const response = await fetch(`${backendUrl}/votes?${params.toString()}`, { method: "DELETE" });
+      const response = await fetch(`${backendUrl}/votes?${params.toString()}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
       if (!response.ok) { setErrorMsg([await getApiError(response, `Remove failed: ${response.status}`)]); return false; }
       return true;
     } catch (err) { setErrorMsg([`Remove failed: ${err.message}`]); return false; }

@@ -17,6 +17,7 @@ import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
@@ -105,7 +106,8 @@ export default function UserPostsPage() {
     enabled: Boolean(isAuthenticated && currentUsername && username && !isOwnProfile),
     queryFn: async () => {
       const response = await fetch(
-        `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(currentUsername)}&target=${encodeURIComponent(username)}`
+        `${API_BASE_URL}/follows/status?follower=${encodeURIComponent(currentUsername)}&target=${encodeURIComponent(username)}`,
+        { headers: authHeaders() }
       );
       if (!response.ok) throw new Error("Failed to load follow status");
       return response.json();
@@ -179,7 +181,7 @@ export default function UserPostsPage() {
           : `${API_BASE_URL}/follows`,
         {
           method: following ? "DELETE" : "POST",
-          headers: following ? undefined : { "Content-Type": "application/json" },
+          headers: following ? authHeaders() : authHeaders({ "Content-Type": "application/json" }),
           body: following ? undefined : JSON.stringify({ follower: currentUsername, target: username }),
         }
       );
@@ -205,7 +207,7 @@ export default function UserPostsPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(currentUsername)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           bio: aboutDraft.trim(),
           domain_url: domainDraft.trim(),
