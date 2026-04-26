@@ -2,6 +2,17 @@
 
 Use this checklist after backend, FE7, or protocol-surface deployments. It is intentionally small and should not require changing production data.
 
+## Automated Check
+
+Run the public protocol smoke script after deployment:
+
+```bash
+python scripts/smoke_protocol.py https://2177.tech
+```
+
+The script checks public manifests, schemas, examples, domain-preview safety fields, and confirms dangerous POST routes still return `404` or `405`.
+It follows canonical host redirects, so either `https://2177.tech` or `https://www.2177.tech` can be checked.
+
 ## Public Protocol
 
 - `GET /health` returns `200`.
