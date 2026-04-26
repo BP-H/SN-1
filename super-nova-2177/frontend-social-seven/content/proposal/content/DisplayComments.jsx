@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   IoArrowUndoOutline,
   IoChatbubbleOutline,
@@ -45,6 +46,7 @@ function DisplayComments({
   const menuButtonRef = useRef(null);
   const menuPanelRef = useRef(null);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { userData, isAuthenticated } = useUser();
 
   const getInitials = (fullName) => {
@@ -170,6 +172,9 @@ function DisplayComments({
       if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
       setFollowingAuthor(Boolean(payload.following));
       setNotify([payload.following ? `Following ${name}.` : `Unfollowed ${name}.`]);
+      queryClient.invalidateQueries({ queryKey: ["home-following"] });
+      queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
+      queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
     } catch (error) {
       setErrorMsg([error.message || "Follow action failed."]);
     } finally {

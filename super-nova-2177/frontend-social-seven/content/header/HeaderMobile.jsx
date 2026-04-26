@@ -15,6 +15,7 @@ import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 
 const READ_PREFIX = "supernova_dm_seen::";
+const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 
 export default function HeaderMobile({
   showSettings,
@@ -101,8 +102,19 @@ export default function HeaderMobile({
     }
   };
 
+  const goHome = () => {
+    setShowSettings(false);
+    window.dispatchEvent(new Event("supernova:show-header"));
+    if (pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    sessionStorage.setItem(HOME_SCROLL_TOP_KEY, "1");
+    router.push("/");
+  };
+
   const items = [
-    { key: "home", label: "Home", icon: IoHome, onClick: () => { setShowSettings(false); router.push("/"); } },
+    { key: "home", label: "Home", icon: IoHome, onClick: goHome },
     {
       key: "discover",
       label: "Discover",

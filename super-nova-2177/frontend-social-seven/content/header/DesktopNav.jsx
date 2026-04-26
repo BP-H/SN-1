@@ -17,6 +17,7 @@ import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
 const READ_PREFIX = "supernova_dm_seen::";
+const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 
 export default function DesktopNav({ showSettings, setShowSettings }) {
   const router = useRouter();
@@ -114,9 +115,20 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
     window.dispatchEvent(new Event("supernova:open-menu"));
   };
 
+  const goHome = () => {
+    setShowSettings(false);
+    window.dispatchEvent(new Event("supernova:show-header"));
+    if (pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    sessionStorage.setItem(HOME_SCROLL_TOP_KEY, "1");
+    router.push("/");
+  };
+
   const navItems = [
     { key: "menu", label: "Menu", icon: IoMenu, action: openSupernovaMenu },
-    { key: "home", label: "Home", icon: IoHome, action: () => router.push("/") },
+    { key: "home", label: "Home", icon: IoHome, action: goHome },
     { key: "discover", label: "Discover", icon: IoCompassOutline, action: () => router.push("/proposals") },
     {
       key: "messages",

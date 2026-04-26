@@ -20,6 +20,8 @@ import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
+const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
+
 function uniqueNodes(items = []) {
   const seen = new Set();
   return items.filter((item) => {
@@ -57,6 +59,17 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const go = (path) => {
     onClose?.();
     router.push(path);
+  };
+
+  const goHome = () => {
+    onClose?.();
+    window.dispatchEvent(new Event("supernova:show-header"));
+    if (window.location.pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    sessionStorage.setItem(HOME_SCROLL_TOP_KEY, "1");
+    router.push("/");
   };
 
   return createPortal(
@@ -111,7 +124,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
 
         <div className="space-y-1 px-3 pb-4">
           {[
-            { label: "Home", icon: IoHomeOutline, action: () => go("/") },
+            { label: "Home", icon: IoHomeOutline, action: goHome },
             { label: "Discover protocol feed", icon: IoGitNetworkOutline, action: () => go("/proposals") },
             { label: "Saved posts", icon: IoBookmarkOutline, action: () => go("/bookmarks") },
             {

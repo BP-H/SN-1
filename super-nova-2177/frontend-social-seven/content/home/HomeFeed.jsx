@@ -57,6 +57,11 @@ const SYSTEM_VOTE_CONFIG = {
   deadline: "2026-04-27T18:00:00-07:00",
 };
 const FEED_PAGE_SIZE = 30;
+const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
+
+function normalizeAuthorName(name = "") {
+  return String(name || "").trim().toLowerCase();
+}
 
 function formatCountdown(deadlineString, nowMs) {
   const deadline = new Date(deadlineString);
@@ -93,6 +98,14 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
   const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem(HOME_SCROLL_TOP_KEY) !== "1") return;
+    sessionStorage.removeItem(HOME_SCROLL_TOP_KEY);
+    window.dispatchEvent(new Event("supernova:show-header"));
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setSystemNow(Date.now()), 30000);
@@ -138,6 +151,39 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     },
   });
   const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
+
+  const { data: followsData } = useQuery({
+    queryKey: ["home-following", userData?.name || ""],
+    enabled: Boolean(isAuthenticated && userData?.name),
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/follows?user=${encodeURIComponent(userData.name)}`);
+      if (!response.ok) throw new Error("Failed to load follows");
+      return response.json();
+    },
+    staleTime: 30_000,
+  });
+
+  const priorityAuthors = useMemo(() => {
+    const names = new Set();
+    if (userData?.name) names.add(normalizeAuthorName(userData.name));
+    (followsData?.following || []).forEach((item) => {
+      const username = normalizeAuthorName(item?.username);
+      if (username) names.add(username);
+    });
+    return names;
+  }, [followsData, userData?.name]);
+
+  const orderedPosts = useMemo(() => {
+    if (!priorityAuthors.size) return posts;
+    return posts
+      .map((post, index) => ({
+        post,
+        index,
+        priority: priorityAuthors.has(normalizeAuthorName(post?.userName)) ? 0 : 1,
+      }))
+      .sort((a, b) => a.priority - b.priority || a.index - b.index)
+      .map((entry) => entry.post);
+  }, [posts, priorityAuthors]);
 
   const { data: systemVoteData } = useQuery({
     queryKey: ["system-vote", backendUrl, userData?.name || ""],
@@ -434,13 +480,13 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 Retry
               </button>
             </div>
-          ) : posts.length === 0 ? (
+          ) : orderedPosts.length === 0 ? (
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
               No posts yet.
             </div>
           ) : (
             <>
-              {posts.map((post) => (
+              {orderedPosts.map((post) => (
                 <ProposalCard
                   key={post.id}
                   id={post.id}

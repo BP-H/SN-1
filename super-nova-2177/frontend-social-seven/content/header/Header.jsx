@@ -14,6 +14,8 @@ import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
+const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
+
 export default function Header({
   errorMsg,
   setErrorMsg,
@@ -64,6 +66,18 @@ export default function Header({
     router.push("/proposals");
   };
 
+  const goHome = () => {
+    setShowNotifications(false);
+    setHeaderHidden(false);
+    window.dispatchEvent(new Event("supernova:show-header"));
+    if (pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    sessionStorage.setItem(HOME_SCROLL_TOP_KEY, "1");
+    router.push("/");
+  };
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (headerRef.current && !headerRef.current.contains(event.target)) {
@@ -90,6 +104,12 @@ export default function Header({
     };
     window.addEventListener("supernova:open-menu", openSupernovaMenu);
     return () => window.removeEventListener("supernova:open-menu", openSupernovaMenu);
+  }, []);
+
+  useEffect(() => {
+    const showHeader = () => setHeaderHidden(false);
+    window.addEventListener("supernova:show-header", showHeader);
+    return () => window.removeEventListener("supernova:show-header", showHeader);
   }, []);
 
   useEffect(() => {
@@ -188,10 +208,7 @@ export default function Header({
 
             <button
               type="button"
-              onClick={() => {
-                setShowNotifications(false);
-                router.push("/");
-              }}
+              onClick={goHome}
               className="min-w-0 flex-1 overflow-hidden text-left"
               aria-label="Go home"
             >

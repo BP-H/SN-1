@@ -277,6 +277,7 @@ function ProposalCard({
 
   const refreshFeeds = () => {
     queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+    queryClient.invalidateQueries({ queryKey: ["home-following"] });
     queryClient.invalidateQueries({ queryKey: ["proposals"] });
     queryClient.invalidateQueries({ queryKey: ["user-posts"] });
     queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
@@ -367,6 +368,9 @@ function ProposalCard({
       if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
       setFollowingAuthor(Boolean(payload.following));
       setNotify?.([payload.following ? `Following ${authorName}.` : `Unfollowed ${authorName}.`]);
+      queryClient.invalidateQueries({ queryKey: ["home-following"] });
+      queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
+      queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
     } catch (error) {
       setErrorMsg?.([error.message || "Follow action failed."]);
     } finally {
