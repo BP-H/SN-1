@@ -11,7 +11,7 @@ This file records the current enforcement posture so SuperNova does not jump fro
 | Local safe-check workflow | Active, manual-only | Not PR-blocking yet. |
 | FE7 lint/build | Manual | Run directly in `super-nova-2177/frontend-social-seven`. |
 | Protected core diff check | Active locally | `scripts/check_safe.py` checks protected core zero diff. |
-| CODEOWNERS | Added, validation pending | `.github/CODEOWNERS` exists, but GitHub review-request behavior should be validated before branch protection depends on it. |
+| CODEOWNERS | Syntax validated through PR #8; auto-review inconclusive | PR #8 touched a CODEOWNERS-protected docs file and merged cleanly. Auto-review behavior remains inconclusive because the PR author was also the repo owner/CODEOWNER. |
 | Required checks | Not enabled | No workflow is required as a blocking branch rule yet. |
 | Strict branch protection | Not enabled | Wait until workflows are stable and CODEOWNERS behavior is confirmed. |
 
@@ -19,11 +19,9 @@ This file records the current enforcement posture so SuperNova does not jump fro
 
 Do these without changing runtime behavior:
 
-1. Open or inspect a tiny test PR that touches a CODEOWNERS-protected docs file.
-2. Confirm GitHub requests review from `@BP-H`.
-3. Confirm no CODEOWNERS syntax issue appears in the PR UI.
-4. Confirm public protocol smoke and local safe-check workflows can still be run manually.
-5. Only then consider making any check required.
+1. Use a future PR from a different contributor or bot to confirm CODEOWNERS auto-review requests.
+2. Confirm public protocol smoke and local safe-check workflows can still be run manually.
+3. Only then consider making any check required.
 
 ## Do Not Enable Yet
 

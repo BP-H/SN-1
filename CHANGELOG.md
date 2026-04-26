@@ -19,3 +19,4 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added AI explanation and simulation v1 plan as preview-only, non-executing guidance.
 - Added protected-path CODEOWNERS and a read-only cleanup candidate snapshot.
 - Added branch protection rollout status to keep enforcement staged and non-surprising.
+- Recorded CODEOWNERS validation outcome and safe-check baseline snapshot.
