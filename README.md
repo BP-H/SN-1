@@ -43,8 +43,15 @@ npm run build
 - Set `NEXT_PUBLIC_API_URL` in Vercel to the Railway backend URL with no trailing slash.
 - Set `DATABASE_URL` in Railway for production persistence.
 - Optional Supabase OAuth uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Public protocol smoke checks run daily and can be triggered manually from GitHub Actions.
 
 When `DATABASE_URL` is missing locally, the wrapper should use `supernova_local.db` rather than creating a fresh random universe database for the social feed.
+
+Run safe local verification before protocol or backend pushes:
+
+```powershell
+python scripts/check_safe.py
+```
 
 ## Species Contract
 
