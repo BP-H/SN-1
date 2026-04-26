@@ -1,6 +1,8 @@
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -12,7 +14,10 @@ for path in (ROOT, BACKEND_DIR):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
-from backend.app import app  # noqa: E402
+import backend.app as backend_app  # noqa: E402
+
+
+app = backend_app.app
 
 
 client = TestClient(app)
@@ -193,6 +198,107 @@ class PublicFederationSafetyTests(unittest.TestCase):
 
         for path in ("/execute", "/execution", "/webmention", "/actors/test/inbox", "/actors/test/outbox"):
             self.assertIn(client.post(path).status_code, {404, 405})
+
+    def test_system_vote_records_tally_without_execution_side_effects(self):
+        class FakeResult:
+            def fetchall(self):
+                return [
+                    SimpleNamespace(username="alice", choice="yes", voter_type="human"),
+                ]
+
+        class FakeDb:
+            def __init__(self):
+                self.statements = []
+                self.commits = 0
+
+            def execute(self, statement, params=None):
+                self.statements.append(str(statement))
+                return FakeResult()
+
+            def commit(self):
+                self.commits += 1
+
+            def rollback(self):
+                raise AssertionError("system vote safety path should not roll back")
+
+        fake_db = FakeDb()
+        payload = backend_app.SystemVoteIn(username="alice", choice="yes", voter_type="ai")
+
+        with patch.object(backend_app, "_ensure_system_votes_table", lambda db: None), patch.object(
+            backend_app, "_species_for_username", return_value="human"
+        ):
+            result = backend_app.cast_system_vote(payload, db=fake_db)
+
+        self.assertEqual(result["user_vote"], "like")
+        self.assertEqual(result["likes"], [{"voter": "alice", "type": "human"}])
+        self.assertEqual(result["dislikes"], [])
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(fake_db.commits, 1)
+
+        forbidden_result_keys = {
+            "execution",
+            "execution_mode",
+            "execution_status",
+            "execution_intent",
+            "webhook",
+            "webhooks",
+            "external_action",
+            "automatic_execution",
+        }
+        self.assertTrue(forbidden_result_keys.isdisjoint(result.keys()))
+
+        statement_text = " ".join(fake_db.statements).lower()
+        self.assertNotIn("execution", statement_text)
+        self.assertNotIn("webhook", statement_text)
+
+    def test_social_sync_preserves_existing_account_species(self):
+        existing = SimpleNamespace(
+            id=2177,
+            username="alice",
+            email="alice@example.com",
+            species="company",
+            profile_pic="custom.jpg",
+            is_active=False,
+            consent_given=False,
+        )
+
+        class FakeDb:
+            def __init__(self):
+                self.added = []
+                self.commits = 0
+                self.refreshed = []
+
+            def add(self, item):
+                self.added.append(item)
+
+            def commit(self):
+                self.commits += 1
+
+            def refresh(self, item):
+                self.refreshed.append(item)
+
+        fake_db = FakeDb()
+        payload = backend_app.SocialAuthSyncIn(
+            provider="oauth",
+            provider_id="provider-alice",
+            email="alice@example.com",
+            username="alice",
+            avatar_url="",
+            species="ai",
+        )
+
+        with patch.object(backend_app, "Harmonizer", object), patch.object(
+            backend_app, "_find_social_user", return_value=existing
+        ):
+            result = backend_app.sync_social_auth(payload, db=fake_db)
+
+        self.assertEqual(existing.species, "company")
+        self.assertEqual(result["species"], "company")
+        self.assertTrue(existing.is_active)
+        self.assertTrue(existing.consent_given)
+        self.assertEqual(fake_db.added, [existing])
+        self.assertEqual(fake_db.commits, 1)
+        self.assertEqual(fake_db.refreshed, [existing])
 
 
 if __name__ == "__main__":
