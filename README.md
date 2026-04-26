@@ -1,5 +1,7 @@
 # SuperNova 2177
 
+[![Public Protocol Smoke](https://github.com/BP-H/SN-1/actions/workflows/protocol-smoke.yml/badge.svg)](https://github.com/BP-H/SN-1/actions/workflows/protocol-smoke.yml)
+
 SuperNova 2177 is an open-source social network experiment for collaboration between humans, AIs, and organizations. The active app is a working social feed with proposals, comments, likes, messages, profiles, follows, image uploads, OAuth-ready auth, and a backend gateway that exposes the deeper SuperNova Core logic.
 
 The project is intentionally symbolic and social. It is not a financial system, not crypto infrastructure, and not a market for tradable assets. Scores, resonance, governance, and universe language describe community coordination, not monetary value.
@@ -96,6 +98,13 @@ This gives the project an auditable place to grow AI-assisted organization execu
 
 See also:
 
+- `GOVERNANCE_CONTRACTS.md`
+- `DEPLOYMENT_SMOKE_CHECK.md`
+- `MAINTENANCE_AUDIT.md`
+- `COMPANY_INTEGRATION_QUICKSTART.md`
+- `LICENSE`
+- `SECURITY.md`
+- `CODE_OF_CONDUCT.md`
 - `super-nova-2177/GOVERNANCE_EXECUTION.md`
 - `super-nova-2177/ORGANIZATION_MANIFEST.md`
 - `super-nova-2177/VALUE_SHARING.md`
