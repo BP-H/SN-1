@@ -22,8 +22,16 @@ const KEY_STORAGE = "supernova-ai-cursor-key";
 const ORB_SIZE = 56;
 const DIAL_SIZE = 184;
 
+const AiWidgetIcon = ({ className = "" }) => <RiVoiceAiFill className={className} />;
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function isKeyboardEditable(element) {
+  if (!element?.closest?.("[data-ai-cursor-root]")) return false;
+  const tag = element.tagName?.toLowerCase();
+  return tag === "input" || tag === "textarea" || Boolean(element.isContentEditable);
 }
 
 function fallbackFor(action, target) {
@@ -58,6 +66,7 @@ export default function AssistantOrb() {
   const commentInputRef = useRef(null);
   const hoverElementRef = useRef(null);
   const returnTimerRef = useRef(null);
+  const keyboardFocusRef = useRef(false);
   const dragRef = useRef({
     active: false,
     moved: false,
@@ -170,6 +179,25 @@ export default function AssistantOrb() {
   useEffect(() => {
     if (!mounted) return undefined;
 
+    const syncKeyboardFocus = () => {
+      keyboardFocusRef.current = isKeyboardEditable(document.activeElement);
+    };
+    const syncAfterFocusLeaves = () => {
+      window.setTimeout(syncKeyboardFocus, 0);
+    };
+
+    document.addEventListener("focusin", syncKeyboardFocus);
+    document.addEventListener("focusout", syncAfterFocusLeaves);
+    syncKeyboardFocus();
+    return () => {
+      document.removeEventListener("focusin", syncKeyboardFocus);
+      document.removeEventListener("focusout", syncAfterFocusLeaves);
+    };
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mounted) return undefined;
+
     const handleMove = (event) => {
       if (!dragRef.current.active) return;
       const nextX = clamp(event.clientX - dragRef.current.offsetX, 8, window.innerWidth - ORB_SIZE - 8);
@@ -275,6 +303,7 @@ export default function AssistantOrb() {
     const retreat = (event) => {
       if (dragRef.current.active) return;
       if (event?.target?.closest?.("[data-ai-cursor-root]")) return;
+      if (event?.type !== "wheel" && keyboardFocusRef.current && isKeyboardEditable(document.activeElement)) return;
       if (menuOpen || settingsOpen || commentOpen || reply) returnToDock();
     };
     const escape = (event) => {
@@ -521,6 +550,9 @@ export default function AssistantOrb() {
     mounted && typeof window !== "undefined"
       ? (() => {
           const width = Math.min(window.innerWidth - 16, 352);
+          const viewport = window.visualViewport;
+          const viewportTop = viewport?.offsetTop || 0;
+          const viewportHeight = viewport?.height || window.innerHeight;
           const panelHeight = commentOpen ? 246 : settingsOpen ? 132 : 168;
           const rightRoom = window.innerWidth - (pos.x + ORB_SIZE + 12);
           const leftRoom = pos.x - 12;
@@ -536,11 +568,12 @@ export default function AssistantOrb() {
             : pos.y > window.innerHeight / 2
             ? pos.y - panelHeight - 92
             : pos.y + ORB_SIZE + 92;
-          const maxTop = Math.max(72, window.innerHeight - panelHeight - 8);
+          const minTop = Math.max(72, viewportTop + 8);
+          const maxTop = Math.max(minTop, viewportTop + viewportHeight - panelHeight - 8);
           return {
             width: `${width}px`,
             left: `${clamp(desiredLeft, 8, window.innerWidth - width - 8)}px`,
-            top: `${clamp(desiredTop, 72, maxTop)}px`,
+            top: `${clamp(desiredTop, minTop, maxTop)}px`,
           };
         })()
       : {};
@@ -565,7 +598,7 @@ export default function AssistantOrb() {
               dragging ? "scale-105 cursor-grabbing" : "cursor-grab"
             }`}
           >
-            <RiVoiceAiFill className="text-[1.7rem]" />
+            <AiWidgetIcon className="text-[1.7rem]" />
           </button>
         </div>
       )}
@@ -723,7 +756,7 @@ export default function AssistantOrb() {
           dockHidden ? "ai-cursor-dock-hidden pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
-        <RiVoiceAiFill className="text-[1.12rem]" />
+        <AiWidgetIcon className="text-[1.12rem]" />
       </button>
 
       {mounted && typeof document !== "undefined" ? createPortal(floatingUi, document.body) : null}

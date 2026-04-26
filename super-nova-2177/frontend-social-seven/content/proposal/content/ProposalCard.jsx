@@ -27,6 +27,24 @@ import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { hasLink } from "@/utils/linkify";
 
+function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
+  const safeFallbackDays = Number(fallbackDays || 0);
+  if (!deadlineValue) return safeFallbackDays > 0 ? `Window ${safeFallbackDays}d` : "Voting window";
+  const deadline = new Date(deadlineValue);
+  if (Number.isNaN(deadline.getTime())) {
+    return safeFallbackDays > 0 ? `Window ${safeFallbackDays}d` : "Voting window";
+  }
+  const remaining = deadline.getTime() - nowMs;
+  if (remaining <= 0) return "Voting ended";
+  const totalMinutes = Math.ceil(remaining / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `Ends in ${days}d ${hours}h`;
+  if (hours > 0) return `Ends in ${hours}h ${minutes}m`;
+  return `Ends in ${Math.max(1, minutes)}m`;
+}
+
 function ProposalCard({
   id,
   userName,
@@ -62,6 +80,7 @@ function ProposalCard({
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
   const [localUserName, setLocalUserName] = useState(userName || "");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const shareMenuRef = useRef(null);
 
   const { userData, defaultAvatar } = useUser();
@@ -77,19 +96,15 @@ function ProposalCard({
   const decisionThresholdLabel = decisionThreshold > 0 ? `${Math.round(decisionThreshold * 100)}%` : "";
   const decisionExecutionMode = String(governance?.execution_mode || governance?.execution || "manual").toLowerCase();
   const decisionExecutionLabel = decisionExecutionMode === "automatic" || decisionExecutionMode === "auto" ? "Automatic execution" : "Manual execution";
-  const decisionDeadlineLabel = (() => {
-    if (!isDecisionProposal) return "";
-    const fallbackDays = Number(governance?.voting_days || 0);
-    const dayLabel = (days) => `${days} ${days === 1 ? "day" : "days"}`;
-    if (!governance?.voting_deadline) return fallbackDays > 0 ? dayLabel(fallbackDays) : "Voting window";
-    const deadline = new Date(governance.voting_deadline);
-    if (Number.isNaN(deadline.getTime())) return fallbackDays > 0 ? dayLabel(fallbackDays) : "Voting window";
-    const diffMs = deadline.getTime() - Date.now();
-    if (diffMs <= 0) return "Vote ended";
-    const hours = Math.ceil(diffMs / (60 * 60 * 1000));
-    if (hours < 24) return `${Math.max(1, hours)}h left`;
-    return dayLabel(Math.ceil(hours / 24));
-  })();
+  const decisionDeadlineLabel = isDecisionProposal
+    ? formatDecisionCountdown(governance?.voting_deadline, governance?.voting_days, nowMs)
+    : "";
+
+  useEffect(() => {
+    if (!isDecisionProposal || !governance?.voting_deadline) return undefined;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, [governance?.voting_deadline, isDecisionProposal]);
   const commentsById = useMemo(() => {
     const map = new Map();
     localComments.forEach((comment) => {
