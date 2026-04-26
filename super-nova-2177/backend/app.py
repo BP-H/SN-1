@@ -877,11 +877,21 @@ def _ensure_profile_metadata_table(db: Session) -> None:
             username_key VARCHAR(255) PRIMARY KEY,
             username VARCHAR(255) NOT NULL,
             domain_url TEXT DEFAULT '',
-            domain_as_profile BOOLEAN DEFAULT 0,
+            domain_as_profile BOOLEAN DEFAULT FALSE,
             updated_at VARCHAR(64) NOT NULL
         )
     """))
     db.commit()
+
+
+def _coerce_profile_boolean(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value).strip().lower() in {"1", "true", "t", "yes", "on"}
 
 
 def _profile_metadata(db: Session, username: str) -> Dict[str, Any]:
@@ -902,7 +912,7 @@ def _profile_metadata(db: Session, username: str) -> Dict[str, Any]:
         data = getattr(row, "_mapping", row)
         return {
             "domain_url": data["domain_url"] or "",
-            "domain_as_profile": bool(data["domain_as_profile"]),
+            "domain_as_profile": _coerce_profile_boolean(data["domain_as_profile"]),
         }
     except Exception:
         db.rollback()
@@ -922,7 +932,7 @@ def _upsert_profile_metadata(
     next_domain = current.get("domain_url", "")
     if domain_url is not None:
         next_domain = _normalize_profile_url(domain_url)
-    next_domain_as_profile = bool(
+    next_domain_as_profile = _coerce_profile_boolean(
         current.get("domain_as_profile", False) if domain_as_profile is None else domain_as_profile
     )
     if not next_domain:
