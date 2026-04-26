@@ -9,12 +9,22 @@ import { API_BASE_URL } from "@/utils/apiBase";
 import { speciesAccentGradient } from "@/utils/species";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
+const SLIDER_BLUE = "#1877f2";
+const SLIDER_PINK = "#ff4f8f";
+
+function mixHex(start, end, ratio) {
+  const t = Math.min(Math.max(ratio, 0), 1);
+  const parse = (hex) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+  const [sr, sg, sb] = parse(start);
+  const [er, eg, eb] = parse(end);
+  const toHex = (value) => Math.round(value).toString(16).padStart(2, "0");
+  return `#${toHex(sr + (er - sr) * t)}${toHex(sg + (eg - sg) * t)}${toHex(sb + (eb - sb) * t)}`;
+}
+
+/* Old weighted-slider blue start: hsl(230,80%,75%). */
 function getSliderColor(ratio) {
   const t = Math.min(Math.max(ratio / 100, 0), 1);
-  const h = 230 + (335 - 230) * t;
-  const s = 80 + (100 - 80) * t;
-  const l = 75 + (65 - 75) * t;
-  return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+  return mixHex(SLIDER_BLUE, SLIDER_PINK, t);
 }
 
 function SpeciesVoteRow({ icon: Icon, label, likes, dislikes, internalPercent, accent }) {
@@ -113,7 +123,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                 className="h-full rounded-full transition-all duration-300"
                 style={{
                   width: `${Math.min(counts.supportPercent, 100)}%`,
-                  background: `linear-gradient(90deg, hsl(230,80%,75%) 0%, ${getSliderColor(counts.supportPercent)} 100%)`,
+                  background: `linear-gradient(90deg, ${SLIDER_BLUE} 0%, ${getSliderColor(counts.supportPercent)} 100%)`,
                 }}
               />
             </div>

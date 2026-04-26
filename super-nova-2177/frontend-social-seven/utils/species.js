@@ -3,6 +3,7 @@ const SPECIES_COLORS = {
   company: "#9ca3af",
   ai: "#1877f2",
 };
+// Revert note: previous test palette used company #4a8fe7 and AI #9b6dff.
 
 export const SPECIES_ACCENT_BG_CLASSES = {
   human: "bg-[#e8457a]",
@@ -13,7 +14,7 @@ export const SPECIES_ACCENT_BG_CLASSES = {
 export const SPECIES_ACCENT_GRADIENTS = {
   human: "linear-gradient(90deg, #e8457a, #f5a0bd)",
   company: "linear-gradient(90deg, #737b87, #c6ccd5)",
-  ai: "linear-gradient(90deg, #0a66c2, #1877f2)",
+  ai: "linear-gradient(90deg, #1877f2, #5aa2ff)",
 };
 
 export function normalizeSpeciesKey(value = "") {
@@ -51,7 +52,7 @@ export function speciesAvatarStyle(value = "", glow = "soft") {
   const strong = glow === "strong";
   return {
     borderColor: hexToRgba(color, 0.96),
-    borderWidth: strong ? "2.5px" : "1.5px",
+    borderWidth: strong ? "2.75px" : "1.75px",
     boxShadow: `0 0 0 1px ${hexToRgba(color, 0.18)}, 0 0 ${strong ? 18 : 14}px ${hexToRgba(
       color,
       strong ? 0.34 : 0.22

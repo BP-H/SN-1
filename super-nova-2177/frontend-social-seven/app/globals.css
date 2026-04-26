@@ -9,8 +9,9 @@
   --pink: #ff4f8f;
   --pink-soft: rgba(255, 79, 143, 0.16);
   --pink-glow: rgba(255, 79, 143, 0.36);
-  --blue: #929cff;
-  --blue-soft: rgba(146, 156, 255, 0.14);
+  /* Revert note: previous test blues were #929cff, #7e8dff, #a4b2ff, #6878ff; slider start was hsl(230,80%,75%). */
+  --blue: #1877f2;
+  --blue-soft: rgba(24, 119, 242, 0.14);
   --gray: rgba(255, 255, 255, 0.06);
   --backgroundGray: #05070a;
   --surface: rgba(11, 14, 20, 0.94);
@@ -24,8 +25,8 @@
   --shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
   --shadow-header: 0 12px 28px rgba(0, 0, 0, 0.24);
   --shadow-pink: 0 0 18px rgba(255, 79, 143, 0.38);
-  --shadow-blue: 0 0 18px rgba(146, 156, 255, 0.28);
-  --neon-blue: #a4b2ff;
+  --shadow-blue: 0 0 18px rgba(24, 119, 242, 0.28);
+  --neon-blue: #1877f2;
   --shell-max: 27rem;
   --shell-gutter: 0.75rem;
   --shell-inner: calc(var(--shell-max) - 1rem);
@@ -37,8 +38,8 @@
   --pink: #ff4f95;
   --pink-soft: rgba(255, 79, 149, 0.12);
   --pink-glow: rgba(255, 79, 149, 0.25);
-  --blue: #7e8dff;
-  --blue-soft: rgba(126, 141, 255, 0.14);
+  --blue: #1877f2;
+  --blue-soft: rgba(24, 119, 242, 0.14);
   --gray: rgba(17, 24, 39, 0.06);
   --backgroundGray: #f4f5fb;
   --surface: rgba(255, 255, 255, 0.94);
@@ -52,8 +53,8 @@
   --shadow: 0 12px 28px rgba(25, 30, 48, 0.12);
   --shadow-header: 0 10px 30px rgba(25, 30, 48, 0.12);
   --shadow-pink: 0 0 18px rgba(255, 79, 149, 0.22);
-  --shadow-blue: 0 0 18px rgba(126, 141, 255, 0.18);
-  --neon-blue: #6878ff;
+  --shadow-blue: 0 0 18px rgba(24, 119, 242, 0.18);
+  --neon-blue: #1877f2;
 }
 
 html[data-theme="light"] body {
@@ -560,7 +561,7 @@ html.messages-keyboard-open .mobile-bottom-shell {
 .mobile-settings-glass .effect {
   background:
     radial-gradient(circle at 12% 20%, rgba(255, 79, 143, 0.16), transparent 42%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(146, 156, 255, 0.08));
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(24, 119, 242, 0.08));
   backdrop-filter: blur(22px) saturate(1.22);
   -webkit-backdrop-filter: blur(22px) saturate(1.22);
   filter: none !important;
@@ -750,7 +751,7 @@ html[data-theme="light"] .composer-governance-button.active {
 }
 
 .supernova-toast-success {
-  border-color: rgba(146, 156, 255, 0.18);
+  border-color: rgba(24, 119, 242, 0.18);
 }
 
 .profile-auth-card .auth-muted {
@@ -851,7 +852,7 @@ html[data-theme="light"] .composer-governance-button.active {
 .composer-textarea::-webkit-scrollbar-thumb,
 .ai-cursor-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 79, 143, 0.72), rgba(146, 156, 255, 0.44));
+  background: linear-gradient(180deg, rgba(255, 79, 143, 0.72), rgba(24, 119, 242, 0.44));
 }
 
 @media (min-width: 10000px) {
@@ -1339,7 +1340,7 @@ html[data-theme="light"] .composer-governance-button.active {
   html[data-theme="light"] .ai-cursor-dock {
     background:
       radial-gradient(circle at 49% 40%, rgba(255, 255, 255, 0.94) 0 7%, transparent 8%),
-      radial-gradient(circle at 52% 52%, rgba(255, 79, 149, 0.72), rgba(126, 141, 255, 0.54) 58%, rgba(255, 255, 255, 0.2)) !important;
+      radial-gradient(circle at 52% 52%, rgba(255, 79, 149, 0.72), rgba(24, 119, 242, 0.54) 58%, rgba(255, 255, 255, 0.2)) !important;
     border-color: rgba(255, 79, 149, 0.22) !important;
     color: #fff !important;
     box-shadow:
@@ -1357,7 +1358,7 @@ html[data-theme="light"] .composer-governance-button.active {
   }
 
   html[data-theme="light"] .ai-cursor-dial {
-    background: radial-gradient(circle, rgba(255, 79, 149, 0.12), rgba(126, 141, 255, 0.08) 44%, transparent 68%);
+    background: radial-gradient(circle, rgba(255, 79, 149, 0.12), rgba(24, 119, 242, 0.08) 44%, transparent 68%);
     border-color: rgba(17, 24, 39, 0.08);
     box-shadow: 0 0 22px rgba(255, 79, 149, 0.12);
   }
@@ -1607,14 +1608,14 @@ html[data-theme="light"] .composer-governance-button {
 html[data-theme="light"] .mobile-topbar .ai-cursor-dock {
   background:
     radial-gradient(circle at 49% 40%, rgba(255, 255, 255, 0.98) 0 7%, transparent 8%),
-    radial-gradient(circle at 52% 52%, rgba(255, 79, 149, 0.9), rgba(126, 141, 255, 0.74) 58%, rgba(94, 111, 255, 0.42)) !important;
+    radial-gradient(circle at 52% 52%, rgba(255, 79, 149, 0.9), rgba(24, 119, 242, 0.74) 58%, rgba(24, 119, 242, 0.42)) !important;
   border-color: rgba(255, 79, 149, 0.28) !important;
   color: #fff !important;
   opacity: 1 !important;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.72),
     0 0 22px rgba(255, 79, 149, 0.28),
-    0 8px 18px rgba(126, 141, 255, 0.2) !important;
+    0 8px 18px rgba(24, 119, 242, 0.2) !important;
 }
 
 html[data-theme="light"] .profile-settings-glass-shell {
@@ -1880,7 +1881,7 @@ html[data-theme="light"] .profile-settings-glass-tint {
 html[data-theme="light"] .ai-cursor-core {
   background:
     radial-gradient(circle at 48% 39%, rgba(255, 255, 255, 0.98) 0 8%, transparent 9%),
-    radial-gradient(circle at 52% 52%, rgba(255, 79, 149, 0.92), rgba(126, 141, 255, 0.78) 58%, rgba(31, 42, 60, 0.74)) !important;
+    radial-gradient(circle at 52% 52%, rgba(255, 79, 149, 0.92), rgba(24, 119, 242, 0.78) 58%, rgba(31, 42, 60, 0.74)) !important;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.88),
     0 0 0 7px rgba(255, 79, 149, 0.08),
@@ -1889,7 +1890,7 @@ html[data-theme="light"] .ai-cursor-core {
 
 html[data-theme="light"] .ai-cursor-dial {
   background:
-    radial-gradient(circle, rgba(255, 79, 149, 0.16), rgba(126, 141, 255, 0.1) 43%, rgba(255, 255, 255, 0) 68%) !important;
+    radial-gradient(circle, rgba(255, 79, 149, 0.16), rgba(24, 119, 242, 0.1) 43%, rgba(255, 255, 255, 0) 68%) !important;
   border-color: rgba(255, 79, 149, 0.18) !important;
   box-shadow: 0 0 30px rgba(255, 79, 149, 0.16) !important;
 }
@@ -1920,7 +1921,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-tone="blue"] {
     0 1px 0 rgba(255, 255, 255, 0.94) inset,
     0 0 0 5px rgba(255, 255, 255, 0.34),
     0 12px 30px rgba(25, 30, 48, 0.2),
-    0 0 22px rgba(126, 141, 255, 0.16) !important;
+    0 0 22px rgba(24, 119, 242, 0.16) !important;
 }
 
 html[data-theme="light"] .ai-cursor-action-button[data-active="true"] {
@@ -2556,7 +2557,7 @@ html[data-theme="light"] .post-action-bar {
     align-items: center;
     justify-content: center;
     border-radius: 0.75rem;
-    background: linear-gradient(135deg, rgba(255, 79, 143, 0.9), rgba(146, 156, 255, 0.72));
+    background: linear-gradient(135deg, rgba(255, 79, 143, 0.9), rgba(24, 119, 242, 0.72));
     color: white;
     font-size: 0.82rem;
     font-weight: 900;
