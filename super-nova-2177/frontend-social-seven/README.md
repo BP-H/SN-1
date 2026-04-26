@@ -44,6 +44,8 @@ On Railway, the backend may keep wildcard CORS for public, non-cookie API/federa
 Read-only open-network endpoints exposed by the backend gateway:
 
 - `/.well-known/webfinger?resource=acct:username@2177.tech`
+- `/.well-known/supernova`
+- `/.well-known/supernova.json`
 - `/actors/{username}`
 - `/actors/{username}/outbox`
 - `/u/{username}/export.json`

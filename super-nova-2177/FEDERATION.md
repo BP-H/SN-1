@@ -11,6 +11,8 @@ The current safety model is:
 
 Current read-only federation surfaces:
 
+- `GET /.well-known/supernova`
+- `GET /.well-known/supernova.json`
 - `GET /.well-known/webfinger`
 - `GET /actors/{username}`
 - `GET /actors/{username}/outbox`

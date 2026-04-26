@@ -114,6 +114,7 @@ NO_STORE_PREFIXES = (
     "/users/me",
     "/upload-image",
 )
+SUPERNOVA_INSTANCE_VERSION = "2026-04"
 
 if SUPER_NOVA_AVAILABLE:
     SessionLocal = _runtime['session_local']
@@ -1769,6 +1770,68 @@ def _cors_diagnostics() -> Dict[str, Any]:
         "cors_note": CORS_CONFIG["note"],
         "identity_model": "open public reads with token-checked writes; no cross-origin cookies",
     }
+
+
+@app.get("/.well-known/supernova", summary="Describe this SuperNova instance")
+@app.get("/.well-known/supernova.json", summary="Describe this SuperNova instance")
+def supernova_well_known():
+    host = urlparse(PUBLIC_BASE_URL).netloc or "2177.tech"
+    payload = {
+        "service": "SuperNova 2177",
+        "schema": "supernova.instance_manifest.v1",
+        "version": SUPERNOVA_INSTANCE_VERSION,
+        "public_base_url": PUBLIC_BASE_URL,
+        "open_federation": True,
+        "cors": {
+            "public_reads": "*" if CORS_CONFIG["public_api_cors_open"] else "allowlist",
+            "credentials": False,
+            "mode": CORS_CONFIG["mode"],
+        },
+        "endpoints": {
+            "health": f"{PUBLIC_BASE_URL}/health",
+            "status": f"{PUBLIC_BASE_URL}/supernova-status",
+            "webfinger": f"{PUBLIC_BASE_URL}/.well-known/webfinger?resource=acct:{{username}}@{host}",
+            "profile_json": f"{PUBLIC_BASE_URL}/profile/{{username}}",
+            "actor": f"{PUBLIC_BASE_URL}/actors/{{username}}",
+            "outbox": f"{PUBLIC_BASE_URL}/actors/{{username}}/outbox",
+            "portable_profile": f"{PUBLIC_BASE_URL}/u/{{username}}/export.json",
+        },
+        "identity": {
+            "local_handle": "username",
+            "canonical_domain_field": "claimed_domain",
+            "verified_domain_field": "verified_domain",
+            "did_method": "did:web",
+            "domain_verified_requires_proof": True,
+        },
+        "domain_verification": {
+            "status": "planned",
+            "claimed_domains_are_not_verified": True,
+            "planned_methods": ["https_well_known", "dns_txt"],
+            "https_well_known_path": "/.well-known/supernova",
+            "dns_txt_label": "_supernova",
+        },
+        "federation": {
+            "mode": "read_only_discovery",
+            "activitypub_inbox": False,
+            "webmention_receiver": False,
+            "remote_feed_mutation": False,
+        },
+        "public_data_policy": {
+            "public_exports_only": True,
+            "excluded_fields": [
+                "email",
+                "password_hash",
+                "access_token",
+                "refresh_token",
+                "direct_messages",
+                "private_message_metadata",
+                "secrets",
+                "admin_state",
+                "debug_state",
+            ],
+        },
+    }
+    return JSONResponse(payload, headers=PUBLIC_FEDERATION_CACHE_HEADERS)
 
 
 @app.get("/health", summary="Check API health")

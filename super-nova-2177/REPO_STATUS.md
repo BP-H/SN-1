@@ -68,5 +68,5 @@ Silent browser sync must not overwrite an existing account species. Explicit pro
 - Vercel should set `NEXT_PUBLIC_API_URL` to the Railway backend URL without a trailing slash.
 - Public API CORS is intentionally open by default for federation-style, non-cookie access. Keep `allow_credentials=false`; protect identity with bearer tokens, domain verification, and future signatures rather than origin lock-in.
 - Only set `ALLOWED_ORIGINS` or `BACKEND_ALLOWED_ORIGINS` when deliberately running a private/allowlisted surface. `/health` and `/supernova-status` report the active federation/CORS mode.
-- Read-only federation surfaces are additive and safe to disable by routing if needed: `/.well-known/webfinger`, `/actors/{username}`, `/actors/{username}/outbox`, and `/u/{username}/export.json`.
+- Read-only federation surfaces are additive and safe to disable by routing if needed: `/.well-known/supernova`, `/.well-known/webfinger`, `/actors/{username}`, `/actors/{username}/outbox`, and `/u/{username}/export.json`.
 - Federation profile payloads distinguish claimed domains from verified domains. Until ownership proof is implemented, `domain_verified` stays false and no verified-domain badge should be shown.
