@@ -19,6 +19,7 @@ import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
+import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
@@ -120,11 +121,29 @@ export default function UserPostsPage() {
   const profile = profileQuery.data || {};
   const socialUser = (usersQuery.data || []).find((user) => user.username?.toLowerCase() === username.toLowerCase());
   const firstPost = posts[0];
+  const profileSpecies = profile.species || socialUser?.species || firstPost?.author_type || "human";
+  const profileAvatarStyle = speciesAvatarStyle(profileSpecies, "strong");
   const image = avatarUrl(profile.avatar_url || socialUser?.avatar || firstPost?.author_img);
   const publicDomain = profile.domain_url || socialUser?.domain_url || "";
   const domainAsProfile = Boolean((profile.domain_as_profile || socialUser?.domain_as_profile) && publicDomain);
   const profileTargetUrl = domainAsProfile ? normalizeLinkHref(publicDomain) : "";
   const following = Boolean(followQuery.data?.following);
+  const harmonyScore = Math.round(Number(profile.harmony_score ?? profile.karma ?? 0) || 0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const scrollProfileTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.querySelector(".app-shell")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    };
+    scrollProfileTop();
+    const frame = window.requestAnimationFrame(scrollProfileTop);
+    const timer = window.setTimeout(scrollProfileTop, 60);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [username]);
 
   useEffect(() => {
     setAboutDraft(profile.bio || "");
@@ -215,10 +234,11 @@ export default function UserPostsPage() {
       onError={(event) => {
         event.currentTarget.src = defaultAvatar;
       }}
-      className="h-20 w-20 rounded-full object-cover shadow-[var(--shadow-pink)]"
+      className="h-20 w-20 rounded-full border object-cover"
+      style={profileAvatarStyle}
     />
   ) : (
-    <span className="flex h-20 w-20 items-center justify-center rounded-full bgGray text-xl font-black">
+    <span className="flex h-20 w-20 items-center justify-center rounded-full border bgGray text-xl font-black" style={profileAvatarStyle}>
       {(username || "SN").slice(0, 2).toUpperCase()}
     </span>
   );
@@ -240,7 +260,7 @@ export default function UserPostsPage() {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[1.15rem] font-black">{profile.username || username}</h1>
             <p className="mt-1 text-[0.72rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">
-              {profile.species || "human"} node
+              {profileSpecies} node
             </p>
             {publicDomain && (
               <a
@@ -324,15 +344,30 @@ export default function UserPostsPage() {
             <button
               type="button"
               onClick={() => setDomainAsProfileDraft((value) => !value)}
-              className={`flex min-h-10 items-center justify-between gap-3 rounded-[0.9rem] px-3 py-2 text-left text-[0.78rem] font-semibold ${
+              className={`flex min-h-11 items-center justify-between gap-3 rounded-[0.9rem] px-3 py-2 text-left text-[0.78rem] font-semibold ${
                 domainAsProfileDraft
-                  ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                  ? "bg-[rgba(255,79,149,0.16)] text-[var(--text-black)] shadow-[var(--shadow-pink)]"
                   : "bg-white/[0.055] text-[var(--text-gray-light)]"
               }`}
-              aria-pressed={domainAsProfileDraft}
+              role="switch"
+              aria-checked={domainAsProfileDraft}
             >
-              <span className="min-w-0">Use this domain when people click my profile picture</span>
-              <IoGlobeOutline className="shrink-0" />
+              <span className="flex min-w-0 items-center gap-2">
+                <IoGlobeOutline className="shrink-0 text-[var(--pink)]" />
+                <span className="min-w-0">Profile photo opens domain</span>
+              </span>
+              <span
+                className={`relative h-6 w-11 shrink-0 rounded-full border border-[var(--horizontal-line)] ${
+                  domainAsProfileDraft ? "bg-[var(--pink)]" : "bg-black/15"
+                }`}
+                aria-hidden="true"
+              >
+                <span
+                  className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-sm ${
+                    domainAsProfileDraft ? "left-[1.45rem]" : "left-1"
+                  }`}
+                />
+              </span>
             </button>
             <div className="flex justify-end gap-2">
               <button
@@ -364,8 +399,8 @@ export default function UserPostsPage() {
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {[
             ["Posts", posts.length],
-            ["Species", profile.species || "human"],
-            ["Harmony", Math.round(profile.harmony_score || 0)],
+            ["Species", profileSpecies],
+            ["Harmony", harmonyScore],
           ].map(([label, value]) => (
             <div key={label} className="rounded-[0.8rem] bg-white/[0.045] px-2 py-2">
               <p className="text-[0.86rem] font-bold text-[var(--text-black)]">{value}</p>

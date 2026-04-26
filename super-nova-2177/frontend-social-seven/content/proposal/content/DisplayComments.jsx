@@ -17,6 +17,7 @@ import {
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
+import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 
 function DisplayComments({
@@ -24,6 +25,7 @@ function DisplayComments({
   comment,
   name,
   image,
+  species = "human",
   canDelete = false,
   canEdit = false,
   onDelete = () => {},
@@ -59,6 +61,7 @@ function DisplayComments({
 
   const initials = getInitials(name);
   const imageUrl = normalizeAvatarValue(image) ? avatarDisplayUrl(image) : "";
+  const avatarStyle = speciesAvatarStyle(species);
   const profileHref = name ? `/users/${encodeURIComponent(name)}` : "/profile";
   const isSelf = Boolean(
     name && userData?.name && String(name).toLowerCase() === String(userData.name).toLowerCase()
@@ -286,16 +289,17 @@ function DisplayComments({
           </div>
         </div>
       ) : (
-        <Link href={profileHref} className="shrink-0" aria-label={`${name || "User"} profile`}>
+        <Link href={profileHref} scroll className="shrink-0" aria-label={`${name || "User"} profile`}>
           {imageUrl && !imageFailed ? (
             <img
               src={imageUrl}
               alt={name}
-              className="h-9 w-9 rounded-full object-cover shadow-md"
+              className="h-9 w-9 rounded-full border object-cover"
+              style={avatarStyle}
               onError={() => setImageFailed(true)}
             />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--gray)] p-2 shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border bg-[var(--gray)] p-2" style={avatarStyle}>
               <p className="text-[0.78rem] font-semibold">{initials}</p>
             </div>
           )}

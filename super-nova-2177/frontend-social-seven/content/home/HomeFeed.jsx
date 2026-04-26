@@ -14,6 +14,7 @@ import {
 import { BiSolidLike, BiSolidDislike } from "react-icons/bi";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import CreatePost from "../create post/CreatePost";
@@ -120,6 +121,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
   const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
+  const userAvatarStyle = speciesAvatarStyle(voterType);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -425,10 +427,11 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   onError={(event) => {
                     event.currentTarget.src = defaultAvatar;
                   }}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover"
+                  className="h-9 w-9 shrink-0 rounded-full border object-cover"
+                  style={userAvatarStyle}
                 />
               ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bgGray text-[0.72rem] font-semibold" style={userAvatarStyle}>
                   {(userData?.name || "SN").slice(0, 2).toUpperCase()}
                 </div>
               )}

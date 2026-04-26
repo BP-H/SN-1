@@ -25,6 +25,7 @@ import MediaInput from "./Media";
 import PdfPager from "../proposal/content/PdfPager";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import { speciesAvatarStyle } from "@/utils/species";
 
 function InputFields({
   setDiscard,
@@ -67,6 +68,7 @@ function InputFields({
     Boolean(selectedFile) &&
     (selectedFile.type === "application/pdf" || /\.pdf$/i.test(selectedFile.name || ""));
   const userAvatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
+  const userAvatarStyle = speciesAvatarStyle(userData?.species || "human");
   const isDecisionMode = proposalMode === "decision";
   const decisionThresholdLabel = decisionLevel === "important" ? "90%" : "60%";
 
@@ -645,10 +647,11 @@ function InputFields({
               onError={(event) => {
                 event.currentTarget.src = defaultAvatar;
               }}
-              className="composer-action-avatar mr-1 h-9 w-9 shrink-0 rounded-full object-cover"
+              className="composer-action-avatar mr-1 h-9 w-9 shrink-0 rounded-full border object-cover"
+              style={userAvatarStyle}
             />
           ) : (
-            <div className="composer-action-avatar mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
+            <div className="composer-action-avatar mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bgGray text-[0.72rem] font-semibold" style={userAvatarStyle}>
               {(userData?.name || "SN").slice(0, 2).toUpperCase()}
             </div>
           )}

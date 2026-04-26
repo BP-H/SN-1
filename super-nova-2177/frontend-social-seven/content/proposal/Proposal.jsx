@@ -13,6 +13,7 @@ import {
 import { SearchInputContext } from "@/app/layout";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 import CreatePost from "../create post/CreatePost";
 import InputFields from "../create post/InputFields";
@@ -247,16 +248,18 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
             <div className="hide-scrollbar flex gap-2 overflow-x-auto pb-1">
               {peopleData.map((person) => {
                 const image = avatarDisplayUrl(person.avatar, "");
+                const avatarStyle = speciesAvatarStyle(person.species || "human");
                 return (
                   <Link
                     key={person.username}
                     href={`/users/${encodeURIComponent(person.username)}`}
+                    scroll
                     className="flex min-w-[8.25rem] max-w-[8.25rem] shrink-0 items-center gap-2 rounded-full bg-white/[0.045] px-2 py-2 hover:bg-white/[0.08]"
                   >
                     {image ? (
-                      <img src={image} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                      <img src={image} alt="" className="h-8 w-8 shrink-0 rounded-full border object-cover" style={avatarStyle} />
                     ) : (
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bgGray text-[0.68rem] font-bold">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bgGray text-[0.68rem] font-bold" style={avatarStyle}>
                         {(person.username || "SN").slice(0, 2).toUpperCase()}
                       </span>
                     )}

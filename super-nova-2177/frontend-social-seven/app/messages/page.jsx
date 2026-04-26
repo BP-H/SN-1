@@ -7,6 +7,7 @@ import { IoLockClosedOutline, IoPaperPlaneOutline, IoSearchOutline } from "react
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
+import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 
 function avatarUrl(value) {
@@ -336,6 +337,7 @@ export default function MessagesPage() {
   const selectedUser = peers.find((peer) => peer.username === selectedPeer);
   const messages = threadQuery.data?.messages || [];
   const selectedAvatar = avatarUrl(selectedUser?.avatar);
+  const selectedAvatarStyle = speciesAvatarStyle(selectedUser?.species || "human");
 
   const selectPeer = (username) => {
     if (!isAuthenticated) return;
@@ -411,10 +413,11 @@ export default function MessagesPage() {
                 ))
               : peers.map((peer) => {
                   const active = peer.username === selectedPeer;
-                  const image = avatarUrl(peer.avatar);
-                  const currentPeerKey = peerKey(peer.username);
-                  const unread = unreadPeerKeys.has(currentPeerKey);
-                  return (
+                      const image = avatarUrl(peer.avatar);
+                      const currentPeerKey = peerKey(peer.username);
+                      const unread = unreadPeerKeys.has(currentPeerKey);
+                      const peerAvatarStyle = speciesAvatarStyle(peer.species || "human");
+                      return (
                     <div
                       key={peer.username}
                       role="button"
@@ -434,14 +437,15 @@ export default function MessagesPage() {
                     >
                       <Link
                         href={`/users/${encodeURIComponent(peer.username)}`}
+                        scroll
                         className="relative z-10 shrink-0"
                         aria-label={`${peer.username} profile`}
                         onClick={(event) => event.stopPropagation()}
                       >
                         {image ? (
-                          <img src={image} alt="" className="h-8 w-8 rounded-full object-cover" />
+                          <img src={image} alt="" className="h-8 w-8 rounded-full border object-cover" style={peerAvatarStyle} />
                         ) : (
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/25 text-[0.68rem] font-bold">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full border bg-black/25 text-[0.68rem] font-bold" style={peerAvatarStyle}>
                             {initials(peer.username)}
                           </span>
                         )}
@@ -475,11 +479,11 @@ export default function MessagesPage() {
           {selectedPeer ? (
             <>
               <div className="flex items-center justify-between gap-2 pb-3">
-                <Link href={`/users/${encodeURIComponent(selectedPeer)}`} className="flex min-w-0 items-center gap-2">
+                <Link href={`/users/${encodeURIComponent(selectedPeer)}`} scroll className="flex min-w-0 items-center gap-2">
                   {selectedAvatar ? (
-                    <img src={selectedAvatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                    <img src={selectedAvatar} alt="" className="h-9 w-9 rounded-full border object-cover" style={selectedAvatarStyle} />
                   ) : (
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bgGray text-[0.72rem] font-bold">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full border bgGray text-[0.72rem] font-bold" style={selectedAvatarStyle}>
                       {initials(selectedPeer)}
                     </span>
                   )}

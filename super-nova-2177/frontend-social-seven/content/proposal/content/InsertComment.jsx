@@ -4,6 +4,7 @@ import { IoClose } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import { speciesAvatarStyle } from "@/utils/species";
 
 function InsertComment({
   proposalId,
@@ -91,6 +92,7 @@ function InsertComment({
 
   const [imgError, setImgError] = useState(false);
   const avatarSrc = isAuthenticated ? avatarDisplayUrl(userData.avatar, defaultAvatar) : defaultAvatar;
+  const avatarStyle = speciesAvatarStyle(userData.species || "human");
 
   return (
     <div className="mb-3 flex w-full min-w-0 flex-col gap-2">
@@ -110,12 +112,12 @@ function InsertComment({
         </div>
       )}
       <div className="flex w-full min-w-0 items-center gap-2">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--gray)] shadow-sm">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-[var(--gray)]" style={avatarStyle}>
           {avatarSrc && !imgError ? (
             <img
               src={avatarSrc}
               alt={userData.name}
-              className="h-9 w-9 rounded-full object-cover"
+              className="h-full w-full rounded-full object-cover"
               onError={() => setImgError(true)}
             />
           ) : (

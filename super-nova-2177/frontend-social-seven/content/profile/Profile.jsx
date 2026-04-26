@@ -23,6 +23,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "./UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import { speciesAvatarStyle } from "@/utils/species";
 
 const SPECIES = [
   { key: "human", label: "Human", icon: <FaUser />, color: "bg-[#e8457a]" },
@@ -104,6 +105,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
   const avatarPreview = isAuthenticated
     ? avatarDisplayUrl(avatarUrl || userData.avatar, defaultAvatar)
     : defaultAvatar;
+  const avatarStyle = speciesAvatarStyle(selectedSpecies || userData.species || "human");
   const openAuth = (mode) => {
     if (!isAuthenticated && typeof window !== "undefined") {
       window.dispatchEvent(
@@ -352,7 +354,8 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             onError={(event) => {
               event.currentTarget.src = defaultAvatar;
             }}
-            className="h-14 w-14 rounded-full border border-[var(--horizontal-line)] object-cover"
+            className="h-14 w-14 rounded-full border object-cover"
+            style={avatarStyle}
           />
           {isAuthenticated && (
             <>

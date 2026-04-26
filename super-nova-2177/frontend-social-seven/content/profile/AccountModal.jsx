@@ -12,6 +12,7 @@ import {
 } from "react-icons/io5";
 import { useUser } from "./UserContext";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { speciesAvatarStyle } from "@/utils/species";
 
 const SPECIES = [
   { key: "human", label: "Human", icon: <FaUser />, color: "bg-[#e8457a]" },
@@ -58,6 +59,7 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
   }, [isAuthenticated, onClose, open]);
 
   if (!mounted || !open) return null;
+  const avatarStyle = speciesAvatarStyle(species || "human");
 
   const submit = async (event) => {
     event.preventDefault();
@@ -127,7 +129,7 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <img src={defaultAvatar} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+            <img src={defaultAvatar} alt="" className="h-12 w-12 shrink-0 rounded-full border object-cover" style={avatarStyle} />
             <div className="min-w-0">
               <p className="truncate text-[1rem] font-black">SuperNova account</p>
               <p className="auth-muted mt-0.5 text-[0.7rem]">
@@ -276,6 +278,7 @@ export function ProfileSetupModal({ open }) {
   }, [open, userData?.email, userData?.name]);
 
   if (!mounted || !open) return null;
+  const avatarStyle = speciesAvatarStyle(species || userData?.species || "human");
 
   const submit = async (event) => {
     event.preventDefault();
@@ -315,7 +318,8 @@ export function ProfileSetupModal({ open }) {
             <img
               src={userData?.avatar ? avatarDisplayUrl(userData.avatar, defaultAvatar) : defaultAvatar}
               alt=""
-              className="h-12 w-12 shrink-0 rounded-full object-cover"
+              className="h-12 w-12 shrink-0 rounded-full border object-cover"
+              style={avatarStyle}
             />
             <div className="min-w-0">
               <p className="truncate text-[1rem] font-black">Choose your SuperNova identity</p>

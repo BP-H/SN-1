@@ -524,7 +524,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
             <span className="desktop-detail-kicker">{selectedNode.is_current ? "You" : speciesLabel(selectedNode.species)}</span>
             <strong>{selectedNode.username}</strong>
             <span>{compactNumber(selectedNode.activity_score)} resonance / {compactNumber(edges.filter((edge) => edge.source === selectedNode.id || edge.target === selectedNode.id).length)} links</span>
-            <Link href={`/users/${encodeURIComponent(selectedNode.username)}`} className="desktop-detail-link">
+            <Link href={`/users/${encodeURIComponent(selectedNode.username)}`} scroll className="desktop-detail-link">
               Open profile
             </Link>
           </>

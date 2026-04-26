@@ -2039,6 +2039,12 @@ def profile(username: str, db: Session = Depends(get_db)):
             if latest:
                 follow_counts = _follow_counts(username)
                 metadata = _profile_metadata(db, username)
+                signal_harmony = min(
+                    100.0,
+                    float(post_count or 0) * 6.0
+                    + float(follow_counts.get("followers", 0) or 0) * 1.2
+                    + float(follow_counts.get("following", 0) or 0) * 0.25,
+                )
                 return {
                     "username": username,
                     "avatar_url": _social_avatar(getattr(latest, "author_img", "")),
@@ -2048,9 +2054,9 @@ def profile(username: str, db: Session = Depends(get_db)):
                     "followers": follow_counts["followers"],
                     "following": follow_counts["following"],
                     "status": "online",
-                    "karma": 0,
-                    "harmony_score": 0,
-                    "creative_spark": 0,
+                    "karma": float(post_count or 0),
+                    "harmony_score": signal_harmony,
+                    "creative_spark": float(post_count or 0) * 10.0,
                     "species": getattr(latest, "author_type", "human"),
                     "post_count": post_count,
                 }

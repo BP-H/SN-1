@@ -30,6 +30,7 @@ import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { hasLink, normalizeLinkHref } from "@/utils/linkify";
+import { speciesAvatarStyle } from "@/utils/species";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -62,6 +63,7 @@ function ProposalCard({
   comments = [],
   profileUrl = "",
   domainAsProfile = false,
+  specie = "human",
   setErrorMsg,
   setNotify,
   isDetailPage = false,
@@ -95,6 +97,8 @@ function ProposalCard({
   const router = useRouter();
   const authorName = localUserName || userName || "";
   const isOwner = Boolean(authorName && userData?.name && authorName.toLowerCase() === userData.name.toLowerCase());
+  const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
+  const authorAvatarStyle = speciesAvatarStyle(authorSpecies);
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
   const governance = media?.governance || null;
@@ -455,10 +459,6 @@ function ProposalCard({
   const detailHref = id !== undefined && id !== null && id !== "" ? `/proposals/${encodeURIComponent(id)}` : "/proposals";
   const userHref = authorName ? `/users/${encodeURIComponent(authorName)}` : "/profile";
   const profileDomainHref = domainAsProfile && profileUrl ? normalizeLinkHref(profileUrl) : "";
-  const AuthorLink = profileDomainHref ? "a" : Link;
-  const authorLinkProps = profileDomainHref
-    ? { href: profileDomainHref, target: "_blank", rel: "noopener noreferrer", title: "Open profile domain" }
-    : { href: userHref };
   const userVote = likes.some((v) => v.voter === userData?.name)
     ? "like"
     : dislikes.some((v) => v.voter === userData?.name)
@@ -565,31 +565,51 @@ function ProposalCard({
     >
       {/* Header: avatar, name, time, options */}
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <AuthorLink {...authorLinkProps} className="flex min-w-0 items-center gap-3">
-          <div className="shrink-0">
-            {displayAvatar ? (
+        {profileDomainHref ? (
+          <a
+            href={profileDomainHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open profile domain"
+            className="flex min-w-0 items-center gap-3"
+          >
+            <div className="shrink-0">
               <img
-                src={displayAvatar}
+                src={displayAvatar || defaultAvatar}
                 alt="user avatar"
                 onError={(event) => {
                   event.currentTarget.src = defaultAvatar;
                 }}
-                className="h-10 w-10 rounded-full object-cover shadow-md"
+                className="h-10 w-10 rounded-full border object-cover"
+                style={authorAvatarStyle}
               />
-            ) : (
+            </div>
+            <div className="min-w-0 truncate text-[0.9rem]">
+              <span className="font-semibold text-[var(--text-black)]">{authorName}</span>
+              <span className="mx-2 text-[var(--text-gray-light)]">•</span>
+              <span className="text-[var(--text-gray-light)]">{time}</span>
+            </div>
+          </a>
+        ) : (
+          <Link href={userHref} scroll className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0">
               <img
-                src={defaultAvatar}
+                src={displayAvatar || defaultAvatar}
                 alt="user avatar"
-                className="h-10 w-10 rounded-full object-cover shadow-md"
+                onError={(event) => {
+                  event.currentTarget.src = defaultAvatar;
+                }}
+                className="h-10 w-10 rounded-full border object-cover"
+                style={authorAvatarStyle}
               />
-            )}
-          </div>
-          <div className="min-w-0 truncate text-[0.9rem]">
-            <span className="font-semibold text-[var(--text-black)]">{authorName}</span>
-            <span className="mx-2 text-[var(--text-gray-light)]">•</span>
-            <span className="text-[var(--text-gray-light)]">{time}</span>
-          </div>
-        </AuthorLink>
+            </div>
+            <div className="min-w-0 truncate text-[0.9rem]">
+              <span className="font-semibold text-[var(--text-black)]">{authorName}</span>
+              <span className="mx-2 text-[var(--text-gray-light)]">•</span>
+              <span className="text-[var(--text-gray-light)]">{time}</span>
+            </div>
+          </Link>
+        )}
 
         {/* Species icon badge - replaces text label */}
         <div ref={optionsMenuRef} className="relative">
@@ -967,6 +987,7 @@ function ProposalCard({
                     commentId={commentId}
                     name={comment.user}
                     image={comment.user_img}
+                    species={comment.species}
                     comment={comment.comment}
                     canDelete={canDeleteComment}
                     canEdit={Boolean(!isDeletedComment && commentId && isCommentAuthor)}
