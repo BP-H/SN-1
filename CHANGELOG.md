@@ -16,3 +16,4 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added conservative dependency monitoring, manual safe-check workflow, protocol guarantee matrix, and release checklist.
 - Added dependency update policy and branch protection rollout plan.
 - Tightened Dependabot to leave semver-major upgrades for manual migration branches.
+- Added AI explanation and simulation v1 plan as preview-only, non-executing guidance.
