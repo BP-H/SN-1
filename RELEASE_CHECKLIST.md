@@ -11,6 +11,7 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] FE7 production build passes.
 - [ ] Protected core diff is zero unless the release explicitly includes reviewed core work.
 - [ ] Public protocol smoke reports zero failures.
+- [ ] Read-only social/backend smoke passes or records auth-gated social reads as skipped.
 
 ## Governance And Protocol Review
 
