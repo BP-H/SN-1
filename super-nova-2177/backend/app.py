@@ -1816,6 +1816,32 @@ def supernova_well_known():
             "webmention_receiver": False,
             "remote_feed_mutation": False,
         },
+        "governance": {
+            "species": ["human", "ai", "company"],
+            "three_species_protocol": True,
+            "decision_flow": [
+                "proposal",
+                "ai_explanation_or_simulation",
+                "three_species_vote",
+                "decision_record",
+                "execution_intent",
+                "company_or_human_ratification",
+                "manual_execution",
+            ],
+            "execution_current_mode": "manual_preview_only",
+            "company_ratification_required": True,
+            "automatic_execution": False,
+            "ai_execution_without_ratification": False,
+        },
+        "organization_integration": {
+            "status": "planned",
+            "manifest_path": "/.well-known/supernova",
+            "domain_verification_required": True,
+            "current_mode": "read_only_manifest",
+            "automatic_execution": False,
+            "company_webhooks": False,
+            "allowed_actions": [],
+        },
         "public_data_policy": {
             "public_exports_only": True,
             "excluded_fields": [

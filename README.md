@@ -79,6 +79,13 @@ Frontend seven can tag a normal post as a decision proposal without changing the
 
 This gives the project an auditable place to grow AI-assisted organization execution later without surprising the working social app today.
 
+See also:
+
+- `super-nova-2177/GOVERNANCE_EXECUTION.md`
+- `super-nova-2177/ORGANIZATION_MANIFEST.md`
+- `super-nova-2177/VALUE_SHARING.md`
+- `super-nova-2177/AI_RIGHTS_RESEARCH.md`
+
 ## Universe Forks
 
 Forks are welcome. The healthiest fork is not just a copy; it adds one meaningful improvement while preserving the symbolic, non-financial, tri-species spirit of the project.

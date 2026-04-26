@@ -19,6 +19,13 @@ Current read-only federation surfaces:
 - `GET /u/{username}/export.json`
 - `GET /api/users/{username}/portable-profile`
 
+Related protocol guardrails:
+
+- `GOVERNANCE_EXECUTION.md`
+- `ORGANIZATION_MANIFEST.md`
+- `VALUE_SHARING.md`
+- `AI_RIGHTS_RESEARCH.md`
+
 These endpoints must stay public-only. They should not expose email, password hashes, access tokens, direct messages, private message metadata, secrets, admin state, or debug internals.
 
 Domain fields are claims until verified:
