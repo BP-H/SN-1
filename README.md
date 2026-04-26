@@ -46,6 +46,7 @@ npm run build
 - Set `DATABASE_URL` in Railway for production persistence.
 - Optional Supabase OAuth uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - Public protocol smoke checks run daily and can be triggered manually from GitHub Actions.
+- Local safe checks can also be triggered manually from GitHub Actions; they are intentionally not PR-blocking yet.
 
 When `DATABASE_URL` is missing locally, the wrapper should use `supernova_local.db` rather than creating a fresh random universe database for the social feed.
 
@@ -62,6 +63,20 @@ cd super-nova-2177\frontend-social-seven
 npm run lint
 npm run build
 ```
+
+## Current Guarantees
+
+| Surface | Current v1 posture |
+| --- | --- |
+| Votes execute automatically | No |
+| Company webhooks | No |
+| ActivityPub inbox writes | No |
+| Webmention fetching or remote feed mutation | No |
+| Domain verification | Preview only |
+| Portable exports | Public-only |
+| Signed exports | Planned, not active |
+| AI participation | Visible and auditable |
+| Human/company ratification for future execution | Required |
 
 ## Species Contract
 
@@ -99,9 +114,12 @@ This gives the project an auditable place to grow AI-assisted organization execu
 See also:
 
 - `GOVERNANCE_CONTRACTS.md`
+- `PROTOCOL_GUARANTEE_MATRIX.md`
+- `RELEASE_CHECKLIST.md`
 - `DEPLOYMENT_SMOKE_CHECK.md`
 - `MAINTENANCE_AUDIT.md`
 - `COMPANY_INTEGRATION_QUICKSTART.md`
+- `CHANGELOG.md`
 - `LICENSE`
 - `SECURITY.md`
 - `CODE_OF_CONDUCT.md`
