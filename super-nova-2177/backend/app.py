@@ -906,14 +906,24 @@ def _public_user_payload(user, provider: str = "password") -> Dict[str, Any]:
     }
 
 
-def _create_optional_access_token(user) -> Optional[str]:
-    username = (getattr(user, "username", "") or "").strip()
-    if not username or not auth_utils or not hasattr(auth_utils, "create_access_token"):
+def _create_wrapper_access_token(username: str, expires_delta: Optional[timedelta] = None) -> Optional[str]:
+    subject = (username or "").strip()
+    if not subject or jwt is None:
         return None
     try:
-        return auth_utils.create_access_token({"sub": username})
+        settings = get_settings()
+        expire = datetime.datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+        return jwt.encode(
+            {"sub": subject, "exp": expire},
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM,
+        )
     except Exception:
         return None
+
+
+def _create_optional_access_token(user) -> Optional[str]:
+    return _create_wrapper_access_token(getattr(user, "username", "") or "")
 
 
 def _auth_fields_for_user(user) -> Dict[str, str]:
@@ -1913,12 +1923,7 @@ def credential_login(payload: CredentialLoginIn, db: Session = Depends(get_db)):
         except HTTPException:
             db.rollback()
 
-    token = uuid.uuid4().hex
-    if auth_utils and hasattr(auth_utils, "create_access_token"):
-        try:
-            token = auth_utils.create_access_token({"sub": user.username})
-        except Exception:
-            token = uuid.uuid4().hex
+    token = _create_wrapper_access_token(user.username) or uuid.uuid4().hex
 
     return {
         "access_token": token,
