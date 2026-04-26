@@ -2263,15 +2263,15 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .universe-page .desktop-node-human {
-  color: #67e8f9;
+  color: #e8457a;
 }
 
 .universe-page .desktop-node-ai {
-  color: #b99cff;
+  color: #1877f2;
 }
 
 .universe-page .desktop-node-company {
-  color: #ffcf72;
+  color: #9ca3af;
 }
 
 .universe-page .desktop-node-float {
@@ -2338,11 +2338,11 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .universe-page .desktop-species-ai {
-  background: rgba(155, 109, 255, 0.78);
+  background: rgba(24, 119, 242, 0.78);
 }
 
 .universe-page .desktop-species-company {
-  background: rgba(74, 143, 231, 0.78);
+  background: rgba(156, 163, 175, 0.8);
 }
 
 .universe-page .desktop-constellation-detail {
@@ -2874,11 +2874,11 @@ html[data-theme="light"] .post-action-bar {
   }
 
   .desktop-species-ai {
-    background: rgba(155, 109, 255, 0.78);
+    background: rgba(24, 119, 242, 0.78);
   }
 
   .desktop-species-company {
-    background: rgba(74, 143, 231, 0.78);
+    background: rgba(156, 163, 175, 0.8);
   }
 
   .desktop-people-list {
@@ -3065,15 +3065,15 @@ html[data-theme="light"] .post-action-bar {
   }
 
   .desktop-node-human {
-    color: #67e8f9;
+    color: #e8457a;
   }
 
   .desktop-node-ai {
-    color: #b99cff;
+    color: #1877f2;
   }
 
   .desktop-node-company {
-    color: #ffcf72;
+    color: #9ca3af;
   }
 
   .desktop-node-aura {

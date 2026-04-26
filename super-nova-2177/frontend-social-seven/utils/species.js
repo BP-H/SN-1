@@ -1,7 +1,19 @@
 const SPECIES_COLORS = {
   human: "#e8457a",
-  company: "#4a8fe7",
-  ai: "#9b6dff",
+  company: "#9ca3af",
+  ai: "#1877f2",
+};
+
+export const SPECIES_ACCENT_BG_CLASSES = {
+  human: "bg-[#e8457a]",
+  company: "bg-[#9ca3af]",
+  ai: "bg-[#1877f2]",
+};
+
+export const SPECIES_ACCENT_GRADIENTS = {
+  human: "linear-gradient(90deg, #e8457a, #f5a0bd)",
+  company: "linear-gradient(90deg, #737b87, #c6ccd5)",
+  ai: "linear-gradient(90deg, #0a66c2, #1877f2)",
 };
 
 export function normalizeSpeciesKey(value = "") {
@@ -14,6 +26,14 @@ export function normalizeSpeciesKey(value = "") {
 
 export function speciesAccentColor(value = "") {
   return SPECIES_COLORS[normalizeSpeciesKey(value)] || SPECIES_COLORS.human;
+}
+
+export function speciesAccentBgClass(value = "") {
+  return SPECIES_ACCENT_BG_CLASSES[normalizeSpeciesKey(value)] || SPECIES_ACCENT_BG_CLASSES.human;
+}
+
+export function speciesAccentGradient(value = "") {
+  return SPECIES_ACCENT_GRADIENTS[normalizeSpeciesKey(value)] || SPECIES_ACCENT_GRADIENTS.human;
 }
 
 function hexToRgba(hex, alpha) {

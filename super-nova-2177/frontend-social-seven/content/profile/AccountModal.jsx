@@ -12,12 +12,12 @@ import {
 } from "react-icons/io5";
 import { useUser } from "./UserContext";
 import { avatarDisplayUrl } from "@/utils/avatar";
-import { speciesAvatarStyle } from "@/utils/species";
+import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 
 const SPECIES = [
-  { key: "human", label: "Human", icon: <FaUser />, color: "bg-[#e8457a]" },
-  { key: "company", label: "ORG", icon: <FaBriefcase />, color: "bg-[#4a8fe7]" },
-  { key: "ai", label: "AI", icon: <BsFillCpuFill />, color: "bg-[#9b6dff]" },
+  { key: "human", label: "Human", icon: <FaUser /> },
+  { key: "company", label: "ORG", icon: <FaBriefcase /> },
+  { key: "ai", label: "AI", icon: <BsFillCpuFill /> },
 ];
 
 const PROVIDERS = [
@@ -220,7 +220,7 @@ export default function AccountModal({ open, initialMode = "create", onClose = (
                   type="button"
                   onClick={() => setSpecies(item.key)}
                   className={`flex h-10 items-center justify-center gap-1.5 rounded-full text-[0.72rem] font-semibold ${
-                    selected ? `${item.color} text-white` : "auth-pill-inactive"
+                    selected ? `${speciesAccentBgClass(item.key)} text-white` : "auth-pill-inactive"
                   }`}
                 >
                   {item.icon}
@@ -345,7 +345,7 @@ export function ProfileSetupModal({ open }) {
                 type="button"
                 onClick={() => setSpecies(item.key)}
                 className={`flex h-10 items-center justify-center gap-1.5 rounded-full text-[0.72rem] font-semibold ${
-                  selected ? `${item.color} text-white` : "auth-pill-inactive"
+                  selected ? `${speciesAccentBgClass(item.key)} text-white` : "auth-pill-inactive"
                 }`}
               >
                 {item.icon}

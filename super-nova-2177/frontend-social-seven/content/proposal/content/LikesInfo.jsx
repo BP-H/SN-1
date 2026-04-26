@@ -6,6 +6,7 @@ import { FaBriefcase, FaUser } from "react-icons/fa";
 import LiquidGlass from "@/content/liquid glass/LiquidGlass";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { speciesAccentGradient } from "@/utils/species";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
 function getSliderColor(ratio) {
@@ -126,7 +127,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
               likes={counts.bySpecies.human.yes}
               dislikes={counts.bySpecies.human.no}
               internalPercent={counts.bySpecies.human.internalPercent}
-              accent="linear-gradient(90deg, #e8457a, #f5a0bd)"
+              accent={speciesAccentGradient("human")}
             />
             <SpeciesVoteRow
               icon={FaBriefcase}
@@ -134,7 +135,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
               likes={counts.bySpecies.company.yes}
               dislikes={counts.bySpecies.company.no}
               internalPercent={counts.bySpecies.company.internalPercent}
-              accent="linear-gradient(90deg, #4a8fe7, #92c0f5)"
+              accent={speciesAccentGradient("company")}
             />
             <SpeciesVoteRow
               icon={BsFillCpuFill}
@@ -142,7 +143,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
               likes={counts.bySpecies.ai.yes}
               dislikes={counts.bySpecies.ai.no}
               internalPercent={counts.bySpecies.ai.internalPercent}
-              accent="linear-gradient(90deg, #9b6dff, #c4a8ff)"
+              accent={speciesAccentGradient("ai")}
             />
           </>
         )}

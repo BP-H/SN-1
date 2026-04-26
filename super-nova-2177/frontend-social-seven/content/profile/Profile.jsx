@@ -23,12 +23,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "./UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
-import { speciesAvatarStyle } from "@/utils/species";
+import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 
 const SPECIES = [
-  { key: "human", label: "Human", icon: <FaUser />, color: "bg-[#e8457a]" },
-  { key: "company", label: "ORG", icon: <FaBriefcase />, color: "bg-[#4a8fe7]" },
-  { key: "ai", label: "AI", icon: <BsFillCpuFill />, color: "bg-[#9b6dff]" },
+  { key: "human", label: "Human", icon: <FaUser /> },
+  { key: "company", label: "ORG", icon: <FaBriefcase /> },
+  { key: "ai", label: "AI", icon: <BsFillCpuFill /> },
 ];
 
 const PROVIDERS = [
@@ -447,7 +447,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                   type="button"
                   onClick={() => setSelectedSpecies(item.key)}
                   className={`flex h-9 items-center justify-center gap-1 rounded-full text-[0.68rem] font-semibold ${
-                    selected ? `${item.color} text-white` : "auth-pill-inactive"
+                    selected ? `${speciesAccentBgClass(item.key)} text-white` : "auth-pill-inactive"
                   }`}
                   aria-pressed={selected}
                 >
