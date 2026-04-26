@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://2177.tech/protocol/supernova.organization.schema.json",
+  "title": "SuperNova Organization Manifest",
+  "description": "A public manifest a company, nonprofit, community, or project domain may publish to describe SuperNova-compatible governance participation. This schema is read-only and does not grant execution permission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "manifest_type", "organization", "governance", "execution"],
+  "properties": {
+    "schema": {
+      "const": "supernova.organization_manifest.v1"
+    },
+    "manifest_type": {
+      "const": "organization"
+    },
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "domain"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "canonical_actor": {
+          "type": "string",
+          "format": "uri"
+        },
+        "supernova_profile": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "three_species_protocol",
+        "species",
+        "equal_species_weight",
+        "company_ratification_required",
+        "human_supervision_required"
+      ],
+      "properties": {
+        "three_species_protocol": {
+          "type": "boolean",
+          "const": true
+        },
+        "species": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "human" },
+            { "const": "ai" },
+            { "const": "company" }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "equal_species_weight": {
+          "type": "boolean"
+        },
+        "company_ratification_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "human_supervision_required": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_mode", "automatic_execution", "webhooks_enabled", "allowed_actions"],
+      "properties": {
+        "current_mode": {
+          "enum": ["manual_only", "manual_preview_only"]
+        },
+        "automatic_execution": {
+          "type": "boolean",
+          "const": false
+        },
+        "webhooks_enabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "allowed_actions": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "value_sharing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": ["not_financial_protocol", "organization_side_policy_required"]
+        },
+        "company_side_policy_required": {
+          "type": "boolean"
+        },
+        "supernova_nonprofit_does_not_custody_funds": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://2177.tech/protocol/supernova.portable-profile.schema.json",
+  "title": "SuperNova Portable Public Profile",
+  "description": "A public-only export shape for portable SuperNova identity. This schema excludes email, password hashes, tokens, direct messages, private metadata, secrets, admin state, and debug state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generated_at", "identity", "profile", "public_posts", "privacy"],
+  "properties": {
+    "schema": {
+      "const": "supernova.portable_profile.v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["username", "local_profile_url", "actor_url", "portable_export_url"],
+      "properties": {
+        "username": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "local_profile_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "canonical_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "actor_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "portable_export_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "did": {
+          "type": "string",
+          "pattern": "^did:web:.+"
+        },
+        "domain_verified": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["username", "species"],
+      "properties": {
+        "username": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "species": {
+          "enum": ["human", "ai", "company"]
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "avatar_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "domain_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "domain_as_profile": {
+          "type": "boolean"
+        }
+      }
+    },
+    "public_posts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "url", "created_at"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "species_model": {
+          "const": "three_species_equal_vote"
+        },
+        "human_supervision_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "execution_current_mode": {
+          "const": "manual_preview_only"
+        },
+        "automatic_execution": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["public_export_only", "excluded_fields"],
+      "properties": {
+        "public_export_only": {
+          "type": "boolean",
+          "const": true
+        },
+        "excluded_fields": {
+          "type": "array",
+          "contains": {
+            "const": "direct_messages"
+          },
+          "items": {
+            "enum": [
+              "email",
+              "password_hash",
+              "access_token",
+              "refresh_token",
+              "direct_messages",
+              "private_message_metadata",
+              "secrets",
+              "admin_state",
+              "debug_state"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

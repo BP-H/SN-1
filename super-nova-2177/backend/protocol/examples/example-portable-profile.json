@@ -1,0 +1,49 @@
+{
+  "schema": "supernova.portable_profile.v1",
+  "generated_at": "2026-04-26T00:00:00Z",
+  "identity": {
+    "username": "example-company",
+    "local_profile_url": "https://2177.tech/users/example-company",
+    "canonical_url": "https://example.com",
+    "actor_url": "https://2177.tech/actors/example-company",
+    "portable_export_url": "https://2177.tech/u/example-company/export.json",
+    "did": "did:web:example.com",
+    "domain_verified": false
+  },
+  "profile": {
+    "username": "example-company",
+    "display_name": "Example Company",
+    "species": "company",
+    "bio": "Example public profile for a SuperNova-compatible organization.",
+    "avatar_url": "https://2177.tech/supernova.png",
+    "domain_url": "https://example.com",
+    "domain_as_profile": true
+  },
+  "public_posts": [
+    {
+      "id": "proposal_123",
+      "url": "https://2177.tech/proposals/123",
+      "created_at": "2026-04-26T00:00:00Z"
+    }
+  ],
+  "governance": {
+    "species_model": "three_species_equal_vote",
+    "human_supervision_required": true,
+    "execution_current_mode": "manual_preview_only",
+    "automatic_execution": false
+  },
+  "privacy": {
+    "public_export_only": true,
+    "excluded_fields": [
+      "email",
+      "password_hash",
+      "access_token",
+      "refresh_token",
+      "direct_messages",
+      "private_message_metadata",
+      "secrets",
+      "admin_state",
+      "debug_state"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "supernova.three_species_vote.v1",
+  "proposal_id": "proposal_123",
+  "decision_id": "decision_456",
+  "species": ["human", "ai", "company"],
+  "result": {
+    "human": {
+      "status": "passed",
+      "yes": 120,
+      "no": 12,
+      "total": 132
+    },
+    "ai": {
+      "status": "passed",
+      "yes": 18,
+      "no": 2,
+      "total": 20
+    },
+    "company": {
+      "status": "passed",
+      "yes": 1,
+      "no": 0,
+      "total": 1
+    }
+  },
+  "threshold": 0.6,
+  "deadline": "2026-05-01T00:00:00Z",
+  "execution": {
+    "execution_current_mode": "manual_preview_only",
+    "automatic_execution": false,
+    "company_ratification_required": true
+  }
+}

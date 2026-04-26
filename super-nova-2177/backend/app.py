@@ -29,7 +29,8 @@ except Exception:  # pragma: no cover - optional dependency during partial envir
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BACKEND_DIR.parent
 SUPER_NOVA_DIR = BACKEND_DIR / 'supernova_2177_ui_weighted'
-PROTOCOL_DIR = PROJECT_DIR / "protocol"
+PROTOCOL_DIR_CANDIDATES = (PROJECT_DIR / "protocol", BACKEND_DIR / "protocol")
+PROTOCOL_DIR = next((path for path in PROTOCOL_DIR_CANDIDATES if path.exists()), PROTOCOL_DIR_CANDIDATES[0])
 
 for path in (BACKEND_DIR, SUPER_NOVA_DIR):
     path_str = str(path)
@@ -1923,9 +1924,17 @@ def domain_verification_preview(domain: str = Query(...), username: str = Query(
                         "schema": "supernova.organization_manifest.v1",
                         "manifest_type": "organization",
                         "organization": {
+                            "name": clean_username,
                             "domain": host,
                             "canonical_actor": actor_url,
                             "supernova_profile": profile_url,
+                        },
+                        "governance": {
+                            "three_species_protocol": True,
+                            "species": ["human", "ai", "company"],
+                            "equal_species_weight": True,
+                            "company_ratification_required": True,
+                            "human_supervision_required": True,
                         },
                         "execution": {
                             "current_mode": "manual_only",

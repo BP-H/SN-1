@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://2177.tech/protocol/supernova.execution-intent.schema.json",
+  "title": "SuperNova Execution Intent",
+  "description": "A manual-preview intent envelope for a passed or proposed decision. It is not an executor and does not grant permission to call webhooks or external systems.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "proposal_id",
+    "organization_domain",
+    "created_by",
+    "execution_mode",
+    "automatic_execution",
+    "requires_company_ratification",
+    "requires_human_supervision",
+    "species_result",
+    "status"
+  ],
+  "properties": {
+    "schema": {
+      "const": "supernova.execution_intent.v1"
+    },
+    "decision_id": {
+      "type": "string"
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "organization_domain": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_mode": {
+      "const": "manual_preview_only"
+    },
+    "automatic_execution": {
+      "type": "boolean",
+      "const": false
+    },
+    "requires_company_ratification": {
+      "type": "boolean",
+      "const": true
+    },
+    "requires_human_supervision": {
+      "type": "boolean",
+      "const": true
+    },
+    "risk_tier": {
+      "enum": ["low", "medium", "high", "unknown"]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "ai_analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "included": {
+          "type": "boolean"
+        },
+        "human_review_required": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "species_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["human", "ai", "company"],
+      "properties": {
+        "human": {
+          "enum": ["pending", "passed", "failed", "abstained", "not_applicable"]
+        },
+        "ai": {
+          "enum": ["pending", "passed", "failed", "abstained", "not_applicable"]
+        },
+        "company": {
+          "enum": ["pending", "passed", "failed", "abstained", "not_applicable"]
+        }
+      }
+    },
+    "rollback_plan": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "status": {
+      "enum": ["intent_created", "awaiting_ratification", "ratified", "manually_executed", "cancelled"]
+    }
+  }
+}

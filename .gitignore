@@ -14,6 +14,7 @@ build/
 .next/
 out/
 .cache/
+*.tsbuildinfo
 *.pyc
 __pycache__/
 
@@ -42,7 +43,11 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+*.bak
+*.backup*
+combined_repo.md
 local_data/
+uploads/
 super-nova-2177/backend/uploads/
 super-nova-2177/backend/messages_store.json
 super-nova-2177/backend/follows_store.json

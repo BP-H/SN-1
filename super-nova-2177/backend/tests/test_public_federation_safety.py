@@ -16,6 +16,18 @@ from backend.app import app  # noqa: E402
 
 
 client = TestClient(app)
+PROTOCOL_FILENAMES = {
+    "supernova.organization.schema.json",
+    "supernova.execution-intent.schema.json",
+    "supernova.three-species-vote.schema.json",
+    "supernova.portable-profile.schema.json",
+}
+PROTOCOL_EXAMPLE_FILENAMES = {
+    "example-organization-manifest.json",
+    "example-execution-intent.json",
+    "example-three-species-vote.json",
+    "example-portable-profile.json",
+}
 
 
 class PublicFederationSafetyTests(unittest.TestCase):
@@ -69,6 +81,12 @@ class PublicFederationSafetyTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertEqual(payload["properties"]["schema"]["const"], schema_name)
+
+    def test_backend_protocol_mirror_exists_for_backend_only_deploys(self):
+        backend_protocol_dir = BACKEND_DIR / "protocol"
+        self.assertTrue(backend_protocol_dir.exists())
+        self.assertTrue(all((backend_protocol_dir / name).exists() for name in PROTOCOL_FILENAMES))
+        self.assertTrue(all((backend_protocol_dir / "examples" / name).exists() for name in PROTOCOL_EXAMPLE_FILENAMES))
 
     def test_protocol_examples_are_public_and_keep_v1_manual_only(self):
         for path, schema_name in {
@@ -129,6 +147,12 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(payload["does_not_verify_yet"])
         self.assertEqual(payload["domain"], "example.com")
         self.assertEqual(payload["methods"]["https_well_known"]["url"], "https://example.com/.well-known/supernova")
+        expected_example = payload["methods"]["https_well_known"]["expected_example"]
+        self.assertEqual(expected_example["organization"]["name"], "alice")
+        self.assertEqual(expected_example["governance"]["species"], ["human", "ai", "company"])
+        self.assertTrue(expected_example["governance"]["three_species_protocol"])
+        self.assertTrue(expected_example["governance"]["company_ratification_required"])
+        self.assertTrue(expected_example["governance"]["human_supervision_required"])
         self.assertEqual(payload["methods"]["dns_txt"]["name"], "_supernova.example.com")
         self.assertFalse(payload["safety"]["external_fetch"])
         self.assertFalse(payload["safety"]["dns_lookup"])

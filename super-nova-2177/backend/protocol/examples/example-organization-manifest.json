@@ -1,0 +1,28 @@
+{
+  "schema": "supernova.organization_manifest.v1",
+  "manifest_type": "organization",
+  "organization": {
+    "name": "Example Company",
+    "domain": "example.com",
+    "canonical_actor": "https://2177.tech/actors/example-company",
+    "supernova_profile": "https://2177.tech/users/example-company"
+  },
+  "governance": {
+    "three_species_protocol": true,
+    "species": ["human", "ai", "company"],
+    "equal_species_weight": true,
+    "company_ratification_required": true,
+    "human_supervision_required": true
+  },
+  "execution": {
+    "current_mode": "manual_only",
+    "automatic_execution": false,
+    "webhooks_enabled": false,
+    "allowed_actions": []
+  },
+  "value_sharing": {
+    "status": "not_financial_protocol",
+    "company_side_policy_required": true,
+    "supernova_nonprofit_does_not_custody_funds": true
+  }
+}

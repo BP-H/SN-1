@@ -1,0 +1,24 @@
+{
+  "schema": "supernova.execution_intent.v1",
+  "decision_id": "decision_456",
+  "proposal_id": "proposal_123",
+  "organization_domain": "example.com",
+  "created_by": "supernova",
+  "execution_mode": "manual_preview_only",
+  "automatic_execution": false,
+  "requires_company_ratification": true,
+  "requires_human_supervision": true,
+  "risk_tier": "low",
+  "summary": "Preview a supervised change that must be ratified before execution.",
+  "ai_analysis": {
+    "included": true,
+    "human_review_required": true
+  },
+  "species_result": {
+    "human": "passed",
+    "ai": "passed",
+    "company": "passed"
+  },
+  "rollback_plan": "",
+  "status": "intent_created"
+}
