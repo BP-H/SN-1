@@ -1,20 +1,20 @@
 const SPECIES_COLORS = {
   human: "#e8457a",
   company: "#9ca3af",
-  ai: "#558af9",
+  ai: "#5e8dfa",
 };
-// Revert note: current AI midpoint blue is #558af9. Previous tests used AI #1877f2 and #9b6dff; company #4a8fe7.
+// Revert note: current AI 85% blue is #5e8dfa. Previous tests used AI #558af9, #1877f2, and #9b6dff; company #4a8fe7.
 
 export const SPECIES_ACCENT_BG_CLASSES = {
   human: "bg-[#e8457a]",
   company: "bg-[#9ca3af]",
-  ai: "bg-[#558af9]",
+  ai: "bg-[#5e8dfa]",
 };
 
 export const SPECIES_ACCENT_GRADIENTS = {
   human: "linear-gradient(90deg, #e8457a, #f5a0bd)",
   company: "linear-gradient(90deg, #737b87, #c6ccd5)",
-  ai: "linear-gradient(90deg, #558af9, #8db5ff)",
+  ai: "linear-gradient(90deg, #5e8dfa, #98bbff)",
 };
 
 export function normalizeSpeciesKey(value = "") {

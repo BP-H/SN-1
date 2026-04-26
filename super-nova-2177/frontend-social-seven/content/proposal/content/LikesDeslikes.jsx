@@ -9,7 +9,7 @@ import { API_BASE_URL } from "@/utils/apiBase";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 
-const SLIDER_BLUE = "#558af9";
+const SLIDER_BLUE = "#5e8dfa";
 const SLIDER_PINK = "#ff4f8f";
 
 function mixHex(start, end, ratio) {

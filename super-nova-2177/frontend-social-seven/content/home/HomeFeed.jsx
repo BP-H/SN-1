@@ -42,7 +42,7 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
-const SLIDER_BLUE = "#558af9";
+const SLIDER_BLUE = "#5e8dfa";
 const SLIDER_PINK = "#ff4f8f";
 
 function mixHex(start, end, ratio) {
