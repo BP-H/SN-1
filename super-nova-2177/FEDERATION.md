@@ -25,6 +25,7 @@ Related protocol guardrails:
 - `ORGANIZATION_MANIFEST.md`
 - `VALUE_SHARING.md`
 - `AI_RIGHTS_RESEARCH.md`
+- `protocol/`
 
 These endpoints must stay public-only. They should not expose email, password hashes, access tokens, direct messages, private message metadata, secrets, admin state, or debug internals.
 

@@ -43,6 +43,22 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertFalse(organization["company_webhooks"])
         self.assertEqual(organization["allowed_actions"], [])
 
+        schemas = payload["protocol_schemas"]
+        self.assertTrue(schemas["organization_manifest"].endswith("/protocol/supernova.organization.schema.json"))
+        self.assertTrue(schemas["execution_intent"].endswith("/protocol/supernova.execution-intent.schema.json"))
+        self.assertTrue(schemas["three_species_vote"].endswith("/protocol/supernova.three-species-vote.schema.json"))
+
+    def test_protocol_schema_files_are_public_static_json(self):
+        for path, schema_name in {
+            "/protocol/supernova.organization.schema.json": "supernova.organization_manifest.v1",
+            "/protocol/supernova.execution-intent.schema.json": "supernova.execution_intent.v1",
+            "/protocol/supernova.three-species-vote.schema.json": "supernova.three_species_vote.v1",
+        }.items():
+            response = client.get(path)
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["properties"]["schema"]["const"], schema_name)
+
     def test_public_manifest_keeps_private_export_fields_excluded(self):
         response = client.get("/.well-known/supernova")
         self.assertEqual(response.status_code, 200)
@@ -73,6 +89,9 @@ class PublicFederationSafetyTests(unittest.TestCase):
             methods = getattr(route, "methods", set()) or set()
             path = getattr(route, "path", "")
             self.assertFalse(path in blocked_posts and "POST" in methods)
+
+        for path in ("/execute", "/execution", "/webmention", "/actors/test/inbox", "/actors/test/outbox"):
+            self.assertIn(client.post(path).status_code, {404, 405})
 
 
 if __name__ == "__main__":

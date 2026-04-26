@@ -85,6 +85,7 @@ See also:
 - `super-nova-2177/ORGANIZATION_MANIFEST.md`
 - `super-nova-2177/VALUE_SHARING.md`
 - `super-nova-2177/AI_RIGHTS_RESEARCH.md`
+- `super-nova-2177/protocol/`
 
 ## Universe Forks
 

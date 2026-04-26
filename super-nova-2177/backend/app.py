@@ -27,7 +27,9 @@ except Exception:  # pragma: no cover - optional dependency during partial envir
     jwt = None
 
 BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BACKEND_DIR.parent
 SUPER_NOVA_DIR = BACKEND_DIR / 'supernova_2177_ui_weighted'
+PROTOCOL_DIR = PROJECT_DIR / "protocol"
 
 for path in (BACKEND_DIR, SUPER_NOVA_DIR):
     path_str = str(path)
@@ -317,6 +319,8 @@ async def cache_control_middleware(request: Request, call_next):
 uploads_dir = os.environ.get("UPLOADS_DIR") or os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+if PROTOCOL_DIR.exists():
+    app.mount("/protocol", StaticFiles(directory=str(PROTOCOL_DIR)), name="protocol")
 if SUPER_NOVA_CORE_APP is not None:
     app.mount("/core", SUPER_NOVA_CORE_APP, name="supernova_core")
 
@@ -1841,6 +1845,11 @@ def supernova_well_known():
             "automatic_execution": False,
             "company_webhooks": False,
             "allowed_actions": [],
+        },
+        "protocol_schemas": {
+            "organization_manifest": f"{PUBLIC_BASE_URL}/protocol/supernova.organization.schema.json",
+            "execution_intent": f"{PUBLIC_BASE_URL}/protocol/supernova.execution-intent.schema.json",
+            "three_species_vote": f"{PUBLIC_BASE_URL}/protocol/supernova.three-species-vote.schema.json",
         },
         "public_data_policy": {
             "public_exports_only": True,

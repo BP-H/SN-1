@@ -16,6 +16,8 @@ Organization manifests are planned. The live SuperNova instance manifest can des
 
 ## Example Future Manifest
 
+The static JSON Schema version lives at `protocol/supernova.organization.schema.json`.
+
 ```json
 {
   "schema": "supernova.organization_manifest.v1",

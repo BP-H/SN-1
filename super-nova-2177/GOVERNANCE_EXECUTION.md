@@ -66,6 +66,8 @@ When SuperNova later needs to represent a passed decision without executing it, 
 
 This envelope is documentation and future contract shape. It is not a live route and not a permission to execute.
 
+The static JSON Schema version lives at `protocol/supernova.execution-intent.schema.json`.
+
 ## Guardrails
 
 - Do not edit `backend/supernova_2177_ui_weighted/supernovacore.py` for wrapper or frontend execution polish.
