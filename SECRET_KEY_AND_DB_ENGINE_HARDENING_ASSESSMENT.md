@@ -40,7 +40,8 @@ current wrapper/core/database import order is compatibility-sensitive.
 | Production-only fallback `SECRET_KEY` guard | Completed by PR #30. |
 | Local/dev/test compatibility | Preserved intentionally; missing local fallback secrets still use the previous compatibility path. |
 | Production secret requirement | Production deployments must set a stable non-placeholder `SECRET_KEY`. |
-| DB engine centralization | Not changed by PR #30; deferred until shared-engine consistency tests exist. |
+| DB engine consistency tests | Completed by PR #32 using a controlled temporary SQLite environment. |
+| DB engine centralization | Not changed by PR #30 or PR #32; cleanup remains deferred to a separate focused PR. |
 
 ## Files Inspected
 
@@ -182,6 +183,8 @@ Rollback plan:
 
 ### PR 2: DB Engine Consistency Tests
 
+Status: completed by PR #32.
+
 Goal: prove the active app/runtime/database path before deleting or merging
 fallback engine logic.
 
@@ -196,6 +199,15 @@ Suggested scope:
   the same intended engine under normal runtime loading.
 - Add fallback-path tests only if they can be isolated without touching live DB
   files or migrations.
+
+Completion notes:
+
+- PR #32 added `test_db_engine_consistency.py`.
+- The tests prove that `backend.supernova_runtime`, `backend.app`, and
+  `backend.db_utils` share the same runtime `SessionLocal` path under a
+  controlled temporary SQLite environment.
+- No live production DB values were used or printed.
+- No DB engine cleanup or fallback removal was performed.
 
 Rollback plan:
 
