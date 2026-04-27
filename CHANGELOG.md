@@ -33,5 +33,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added DB engine consistency tests for active backend runtime wiring.
 - Added backend.db_utils fallback DB engine tests.
 - Simplified backend.db_utils fallback session factory with tests preserving behavior.
+- Added core-change protocol and SuperNova Lab strategy docs to protect future core/governance evolution.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
