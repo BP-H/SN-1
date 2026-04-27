@@ -24,11 +24,23 @@ The main production-relevant secret behavior is split between:
 - legacy or experimental UI surfaces that still use development placeholders
   such as `dev`.
 
-No code was changed in this pass. The safest next implementation is a tiny
-production-only secret guard that fails startup only when an explicit production
-environment is set and the backend would otherwise use a missing or weak
-placeholder secret. DB engine cleanup should come after that, with tests, because
-the current wrapper/core/database import order is compatibility-sensitive.
+No code was changed in the original assessment pass. PR #30 completed the first
+tiny runtime hardening step by adding a production-only fallback `SECRET_KEY`
+guard with focused tests. Local/dev/test compatibility remains intentionally
+preserved, while production deployments must set a stable non-placeholder
+`SECRET_KEY`.
+
+DB engine cleanup is still deferred until consistency tests exist, because the
+current wrapper/core/database import order is compatibility-sensitive.
+
+## Completed Hardening
+
+| Item | Status |
+| --- | --- |
+| Production-only fallback `SECRET_KEY` guard | Completed by PR #30. |
+| Local/dev/test compatibility | Preserved intentionally; missing local fallback secrets still use the previous compatibility path. |
+| Production secret requirement | Production deployments must set a stable non-placeholder `SECRET_KEY`. |
+| DB engine centralization | Not changed by PR #30; deferred until shared-engine consistency tests exist. |
 
 ## Files Inspected
 
@@ -121,9 +133,11 @@ No values were recorded.
 | Production-only hard error | Yes, first runtime hardening candidate | If an explicit production env is set and the fallback secret is missing/weak, fail startup or settings creation. |
 | Duplicate DB engine cleanup | Later | Requires tests proving the wrapper, `db_utils`, core `SessionLocal`, and app routes share the intended bind. |
 
-## Recommended Future PR Order
+## Recommended PR Order
 
 ### PR 1: Tiny Production Secret Guard
+
+Status: completed by PR #30.
 
 Goal: prevent production from silently using missing or placeholder JWT secrets.
 
@@ -149,6 +163,15 @@ Tests needed:
 - Development/local env with missing secret still starts for local tests.
 - Runtime/core happy path remains unchanged.
 - Existing backend federation safety tests still pass.
+
+Completion notes:
+
+- PR #30 added focused tests for production missing/placeholder secrets, strong
+  production secrets, local/dev compatibility, and fallback auth utility
+  behavior.
+- PR #30 did not touch `supernovacore.py`, `db_models.py`, DB engine behavior,
+  route behavior, dependencies, frontend logic, federation writes, execution,
+  domain verification, or AI runtime.
 
 Rollback plan:
 
