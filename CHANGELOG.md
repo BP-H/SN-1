@@ -36,5 +36,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added core-change protocol and SuperNova Lab strategy docs to protect future core/governance evolution.
 - Added production readiness gap assessment for uploads, FE7 API origin, CI gates, and backup/restore planning.
 - Added bounded backend upload size checks with focused oversized-file tests.
+- Added FE7 production API-origin fail-fast validation to avoid localhost fallback in production.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
