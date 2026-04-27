@@ -24,5 +24,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added CODEOWNERS coverage for social/backend smoke tooling and refreshed the safe-check baseline after PR #13.
 - Added CODEOWNERS coverage for cleanup assessment docs and changelog.
 - Added CODEOWNERS coverage for dependency triage assessment.
+- Updated FE7 eslint-config-next to 15.5.15 after isolated dependency checks.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
