@@ -12,6 +12,7 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] Protected core diff is zero unless the release explicitly includes reviewed core work.
 - [ ] Public protocol smoke reports zero failures.
 - [ ] Read-only social/backend smoke passes or records auth-gated social reads as skipped.
+- [ ] Optional until the API origin is known and stable: direct backend API smoke passes with `python scripts/smoke_social_backend.py "$NEXT_PUBLIC_API_URL" --strict-backend`.
 
 ## Governance And Protocol Review
 

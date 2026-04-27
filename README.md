@@ -60,7 +60,10 @@ Run the read-only social/backend smoke before dependency triage or cleanup that 
 
 ```powershell
 python scripts/smoke_social_backend.py https://2177.tech
+python scripts/smoke_social_backend.py "$NEXT_PUBLIC_API_URL" --strict-backend
 ```
+
+Use the strict backend command only when `NEXT_PUBLIC_API_URL` points to a reachable backend API origin.
 
 Use `python scripts/check_safe.py --local-only` when offline. Run FE7 checks directly before frontend-sensitive pushes:
 
