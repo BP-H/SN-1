@@ -27,5 +27,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added CODEOWNERS coverage for dependency triage assessment.
 - Updated FE7 eslint-config-next to 15.5.15 after isolated dependency checks.
 - Updated FE7 tailwindcss to 4.2.4 after isolated dependency checks and visual sanity review.
+- Updated FE7 @supabase/supabase-js to 2.104.1 after isolated dependency checks and auth/social smoke review.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
