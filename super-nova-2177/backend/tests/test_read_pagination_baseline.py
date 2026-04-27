@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def run_probe(probe: str) -> dict:
@@ -29,7 +29,7 @@ def run_probe(probe: str) -> dict:
 
         completed = subprocess.run(
             [sys.executable, "-c", probe],
-            cwd=ROOT,
+            cwd=PROJECT_ROOT,
             env=env,
             capture_output=True,
             text=True,
@@ -60,9 +60,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-root = Path.cwd()
-backend_dir = root / "super-nova-2177" / "backend"
-for path in (root, backend_dir):
+project_root = Path.cwd()
+backend_dir = project_root / "backend"
+for path in (project_root, backend_dir):
     path_text = str(path)
     if path_text not in sys.path:
         sys.path.insert(0, path_text)
@@ -71,7 +71,17 @@ import backend.app as backend_app
 from db_models import Base
 
 client = TestClient(backend_app.app)
-Base.metadata.create_all(bind=backend_app.SessionLocal.kw["bind"])
+
+
+def current_bind():
+    session = backend_app.SessionLocal()
+    try:
+        return session.get_bind()
+    finally:
+        session.close()
+
+
+Base.metadata.create_all(bind=current_bind())
 
 
 def seed_social_graph():
