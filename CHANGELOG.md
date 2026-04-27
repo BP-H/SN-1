@@ -32,5 +32,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added production-only fallback SECRET_KEY hardening with focused tests.
 - Added DB engine consistency tests for active backend runtime wiring.
 - Added backend.db_utils fallback DB engine tests.
+- Simplified backend.db_utils fallback session factory with tests preserving behavior.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
