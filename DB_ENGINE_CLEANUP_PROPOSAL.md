@@ -8,7 +8,7 @@ federation writes, execution, domain verification, or AI runtime.
 
 ## Recommendation
 
-Defer runtime DB engine cleanup for now.
+The first tiny runtime DB cleanup was completed by PR #37.
 
 PR #32 proved the normal active runtime wiring. PR #35 added fallback-specific
 coverage for `backend.db_utils`, proving its fallback `SessionLocal` can
@@ -16,8 +16,10 @@ initialize and bind to a controlled temporary SQLite URL when runtime is
 unavailable-like. These tests do not prove every standalone import, legacy
 deployment, or partial-dependency edge case.
 
-The next runtime cleanup, if any, should be tiny, wrapper-only, and should not
-touch `supernovacore.py` or `db_models.py`.
+PR #37 extracted the `backend.db_utils` fallback engine/session construction
+into a tiny helper while preserving the same fallback contract. The next runtime
+cleanup, if any, should remain tiny, wrapper-only, and should not touch
+`supernovacore.py` or `db_models.py`.
 
 ## What PR #32 Proved
 
@@ -51,13 +53,27 @@ SQLite `DATABASE_URL`, it proved:
 
 The test did not use, print, or commit live production DB values or secrets.
 
+## What PR #37 Completed
+
+PR #37 simplified the `backend.db_utils` fallback session factory.
+
+It changed only `super-nova-2177/backend/db_utils.py` and did not touch
+`supernovacore.py`, `db_models.py`, `backend/app.py`, DB files, migrations,
+routes, auth behavior, dependencies, frontend logic, environment files, or
+secrets.
+
+The fallback behavior remains covered by
+`super-nova-2177/backend/tests/test_db_utils_fallback.py`, and the normal
+runtime wiring remains covered by
+`super-nova-2177/backend/tests/test_db_engine_consistency.py`.
+
 ## DB Engine Paths Still Present
 
 | Path | Role | Current status | Cleanup posture |
 | --- | --- | --- | --- |
 | `super-nova-2177/backend/supernova_runtime.py` | Active runtime loader. Preserves provided `DATABASE_URL`; otherwise sets `DB_MODE=central` and points to a local SQLite file. | Active production-relevant wrapper path. | Keep. This is the central path PR #32 verified. |
 | `super-nova-2177/backend/app.py` | Active backend wrapper. Uses runtime `SessionLocal` when available; otherwise creates a standalone fallback engine. | Active wrapper plus compatibility fallback. | Do not change yet; fallback import behavior needs separate coverage. |
-| `super-nova-2177/backend/db_utils.py` | Active utility. Uses runtime `session_local` when available; otherwise creates a standalone fallback engine. | Active utility plus compatibility fallback. | Potential smallest future cleanup target now that PR #35 covers fallback behavior. |
+| `super-nova-2177/backend/db_utils.py` | Active utility. Uses runtime `session_local` when available; otherwise creates a standalone fallback engine through the helper added by PR #37. | Active utility plus compatibility fallback. | Keep. Further cleanup should remain tiny and test-backed. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/db_models.py` | Core model module. Creates module-level `engine`/`SessionLocal`; `central` mode requires `DATABASE_URL`; `init_db()` can rebind. | Active production-relevant core model path. | Do not touch in the next cleanup. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py` | Protected core. Can import or create `SessionLocal`; `create_app()` rebinds `db_models.engine` to settings engine URL. | Active/protected core path. | Do not touch. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/backend/app.py` | Nested backend experiment with separate FastAPI/Postgres handling. | Legacy/nested/deployment-sensitive candidate. | Do not touch in DB engine cleanup. Assess separately. |
@@ -87,11 +103,13 @@ tests proving the desired fallback behavior.
 
 ## Smallest Possible Future Cleanup PR
 
-Recommended future branch:
+Status: completed by PR #37.
 
-`security/centralize-db-utils-fallback-engine`
+Completed branch:
 
-Recommended scope:
+`security/tiny-db-utils-fallback-cleanup`
+
+Completed scope:
 
 - Limit code changes to `super-nova-2177/backend/db_utils.py`.
 - Preserve the fallback contract proven by PR #35.
@@ -99,9 +117,8 @@ Recommended scope:
   migrations, environment files, routes, or auth behavior.
 - Keep the diff small and rollback-friendly.
 
-The smallest runtime cleanup candidate is a narrow `backend/db_utils.py`
-fallback refactor that reduces duplication while preserving the same fallback
-contract. If the diff is not obviously tiny, defer again.
+PR #37 completed a narrow `backend/db_utils.py` fallback refactor that reduced
+inline duplication while preserving the same fallback contract.
 
 ## Why `supernovacore.py` and `db_models.py` Remain Untouched
 
@@ -163,9 +180,8 @@ For a later runtime cleanup PR:
 
 ## Bottom Line
 
-This pass should remain docs-only.
-
 PR #32 gives useful confidence in the active runtime path. PR #35 gives focused
-coverage for the `backend.db_utils` fallback path. A tiny `db_utils.py` cleanup
-can now be considered, but only as a separate PR that preserves the proven
-fallback contract and leaves protected core/model files untouched.
+coverage for the `backend.db_utils` fallback path. PR #37 completed the first
+tiny `db_utils.py` cleanup while preserving the proven fallback contract and
+leaving protected core/model files untouched. Any later DB cleanup should remain
+separate, smaller than it feels tempting to make, and backed by the same tests.

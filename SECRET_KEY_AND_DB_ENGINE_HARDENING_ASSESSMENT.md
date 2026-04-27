@@ -42,7 +42,8 @@ current wrapper/core/database import order is compatibility-sensitive.
 | Production secret requirement | Production deployments must set a stable non-placeholder `SECRET_KEY`. |
 | DB engine consistency tests | Completed by PR #32 using a controlled temporary SQLite environment. |
 | `backend.db_utils` fallback tests | Completed by PR #35 using a controlled temporary SQLite environment and an unavailable-like runtime. |
-| DB engine centralization | Not changed by PR #30, PR #32, or PR #35; cleanup remains deferred to a separate focused PR. |
+| Tiny `backend.db_utils` fallback session factory cleanup | Completed by PR #37; fallback behavior remains covered by `test_db_utils_fallback.py`. |
+| DB engine centralization | Not changed by PR #30, PR #32, PR #35, or PR #37; broader cleanup remains deferred to a separate focused PR. |
 
 ## Files Inspected
 
@@ -216,26 +217,31 @@ Rollback plan:
 
 ### PR 3: Duplicate DB Engine Cleanup
 
-Status: deferred. PR #35 completed the fallback-specific `backend.db_utils`
-tests needed before considering this cleanup.
+Status: first tiny cleanup completed by PR #37. Broader DB engine cleanup remains
+deferred.
 
 Goal: remove or reduce duplicate fallback engine creation only after tests prove
 the intended path.
 
-Suggested future branch:
+Completed branch:
 
-`security/centralize-backend-db-engine-fallback`
+`security/tiny-db-utils-fallback-cleanup`
 
-Suggested scope:
+Completed scope:
 
 - Keep `db_models.py` and `supernovacore.py` untouched unless a focused test
   proves a safe change.
-- Prefer consolidating wrapper fallback behavior around `supernova_runtime.py`
-  and `db_utils.py`.
 - Do not touch DB files, migrations, uploads, or legacy/nested backend folders.
-- If the next implementation touches code, keep it limited to
-  `super-nova-2177/backend/db_utils.py` and preserve the fallback contract
-  proven by PR #35.
+- Limit code changes to `super-nova-2177/backend/db_utils.py` and preserve the
+  fallback contract proven by PR #35.
+
+Completion notes:
+
+- PR #37 extracted the fallback engine/session construction into a tiny helper.
+- Fallback behavior remains covered by `test_db_utils_fallback.py`.
+- Normal runtime wiring remains covered by `test_db_engine_consistency.py`.
+- PR #37 did not touch `supernovacore.py`, `db_models.py`, `backend/app.py`, DB
+  files, migrations, routes, or auth behavior.
 
 Rollback plan:
 
