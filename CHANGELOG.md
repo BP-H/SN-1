@@ -31,5 +31,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Pinned active FE7 Next to 15.5.15 after RSC/Next security assessment.
 - Added production-only fallback SECRET_KEY hardening with focused tests.
 - Added DB engine consistency tests for active backend runtime wiring.
+- Added backend.db_utils fallback DB engine tests.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
