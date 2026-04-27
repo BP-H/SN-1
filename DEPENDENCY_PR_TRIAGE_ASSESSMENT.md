@@ -2,18 +2,26 @@
 
 Branch: `deps/assess-open-dependency-prs`
 
-Base commit: `5794a0f` (`master` after PR #16)
-
 Mode: assessment-only. No dependency PRs were merged, closed, rebased, recreated, or modified. No package files, lockfiles, runtime code, auth, database, uploads, migrations, execution, federation writes, domain verification, AI runtime, frontend product logic, route behavior, or protected core files were changed.
 
-## Current Baseline
+## Current Status
 
 | Item | Result |
 | --- | --- |
-| Current `master` includes PR #16 | Yes, merge commit `5794a0f`. |
-| Open dependency/security PRs found | PR #1, PR #4, PR #6, PR #7. |
-| Open dependency PRs modified | No. |
-| Protected `supernovacore.py` diff | Zero before assessment. |
+| Original dependency triage baseline | `master` included PR #16 at `5794a0f`. |
+| Current status update | PR #19 completed the FE7 `eslint-config-next` update from current master at `d94dcac`. |
+| Open dependency/security PRs remaining | PR #1, PR #4, PR #6, PR #7. |
+| PR #7 status | Superseded by PR #19; do not merge as-is. |
+| Open dependency PRs modified by this assessment | No. |
+| Protected `supernovacore.py` diff | Zero. |
+
+## Completed Dependency Updates
+
+| Package | Completed By | Result |
+| --- | --- | --- |
+| FE7 `eslint-config-next` `15.5.2` to `15.5.15` | PR #19 | Completed from current master with FE7 lint/build, safe-check, public protocol smoke, social backend smoke, backend safety tests, and protected core zero diff. |
+
+PR #7 remains open as the original Dependabot PR, but it is superseded by PR #19. Do not merge PR #7 as-is.
 
 ## Open PR Summary
 
@@ -21,8 +29,8 @@ Mode: assessment-only. No dependency PRs were merged, closed, rebased, recreated
 | --- | --- | --- | --- | --- | ---: | --- | --- | --- |
 | #1 | Vercel bot | `next` across multiple apps | Patch versions, but broad multi-frontend security PR | 5 | 107 commits behind current master | Success / Ready | High | Do not merge as-is. Recreate from current master and split active FE7 from legacy frontends if possible. |
 | #4 | Dependabot | `@supabase/supabase-js` | Same-major minor jump `2.58.0` to `2.104.1` | 3 | 27 commits behind current master | Success / Ready | Medium-high | Defer until auth/social-login smoke exists. Rebase/recreate before testing. |
-| #6 | Dependabot | `tailwindcss` | Minor jump `4.1.17` to `4.2.4` | 3 | 27 commits behind current master | Success / Ready | Medium | Rebase/recreate after #7; requires FE7 build plus visual sanity check. |
-| #7 | Dependabot | `eslint-config-next` | Patch/security jump `15.5.2` to `15.5.15` | 3 | 24 commits behind current master | Success / Ready | Low-medium | Safest first candidate after recreation/rebase; requires lint/build and smoke checks. |
+| #6 | Dependabot | `tailwindcss` | Minor jump `4.1.17` to `4.2.4` | 3 | 27 commits behind current master | Success / Ready | Medium | Next dependency candidate after PR #19; requires FE7 build plus visual sanity check. |
+| #7 | Dependabot | `eslint-config-next` | Patch/security jump `15.5.2` to `15.5.15` | 3 | 24 commits behind current master | Success / Ready | Superseded | Superseded by current-master PR #19. Do not merge as-is. |
 
 Base staleness was measured as commits from each PR base SHA to current `HEAD` on `master`.
 
@@ -93,7 +101,7 @@ Observations:
 
 Recommendation:
 
-- Rebase or recreate after PR #7 is handled.
+- Rebase or recreate after PR #19; this is the next dependency candidate.
 - Required checks: FE7 lint/build, Vercel preview, public protocol smoke, social backend smoke, safe-check, and visual sanity check of key FE7 screens.
 - Defer if visual review cannot be performed.
 
@@ -114,9 +122,10 @@ Observations:
 
 Recommendation:
 
-- This is the safest first dependency candidate, but not as-is.
-- Rebase or recreate from current master first.
-- Required checks: FE7 lint/build, safe-check, public protocol smoke, social backend smoke, Vercel preview, and protected core diff zero.
+- Completed by PR #19 from current master.
+- PR #19 intentionally changed only FE7 `package.json` and `package-lock.json`; it did not include `yarn.lock`.
+- Required checks passed before merge: FE7 lint/build, safe-check, public protocol smoke, social backend smoke, backend safety tests, Vercel preview, and protected core diff zero.
+- The original Dependabot PR #7 remains open but is superseded. Do not merge PR #7 as-is.
 
 ## Dependabot Label Warning
 
@@ -129,11 +138,10 @@ This does not block the dependency diffs themselves, but it means Dependabot can
 
 ## Recommended Merge Sequence
 
-1. Recreate or rebase PR #7 (`eslint-config-next`) from current master.
-2. Run all checks and merge only if boring.
-3. Recreate or rebase PR #6 (`tailwindcss`) and add visual sanity checks.
-4. Recreate or rebase PR #4 (`@supabase/supabase-js`) only after login/social-auth smoke coverage is available.
-5. Recreate PR #1 as a focused current-master security update, ideally scoped first to active FE7, with legacy frontends handled separately.
+1. Completed: PR #19 updated FE7 `eslint-config-next` from current master.
+2. Recreate or rebase PR #6 (`tailwindcss`) and add visual sanity checks.
+3. Recreate or rebase PR #4 (`@supabase/supabase-js`) only after login/social-auth smoke coverage is available.
+4. Recreate PR #1 as a focused current-master security update, ideally scoped first to active FE7, with legacy frontends handled separately.
 
 ## Required Checks Before Any Dependency Merge
 
@@ -169,8 +177,9 @@ For any future dependency merge:
 
 - PR #1: defer as-is because it is broad, old, and touches legacy frontends.
 - PR #4: defer until auth/social-login smoke exists.
-- PR #6: defer until the safer dev-tooling update is handled and visual review is available.
+- PR #6: next dependency candidate, but defer merge if visual review is unavailable.
+- PR #7: superseded by PR #19. Do not merge as-is.
 
 ## Bottom Line
 
-Do not merge dependency PRs in bulk. The safest first dependency action is a fresh current-master PR for `eslint-config-next`, followed by Tailwind only with visual review, then Supabase only with auth smoke coverage, and finally a recreated/split Next security update.
+Do not merge dependency PRs in bulk. The first dependency action, a fresh current-master PR for FE7 `eslint-config-next`, was completed by PR #19. The next dependency candidate is Tailwind only with visual review, then Supabase only with auth smoke coverage, and finally a recreated/split Next security update.
