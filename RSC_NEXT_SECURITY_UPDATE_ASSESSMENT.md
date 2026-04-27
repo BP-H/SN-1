@@ -10,6 +10,7 @@ Mode: assessment-only. No dependency PRs were merged, closed, rebased, recreated
 | --- | --- |
 | Current master commit | `f6aa4c1` |
 | PR #25 included | Yes, `DEPENDENCY_PR_TRIAGE_ASSESSMENT.md` now records PR #24 Supabase completion. |
+| PR #27 included | Yes, active FE7 `package.json` and `package-lock.json` now explicitly use `next@15.5.15`. |
 | Working tree before assessment | Clean. |
 | Protected `supernovacore.py` diff | Zero. |
 | Assessment output | This document only. |
@@ -41,7 +42,7 @@ Primary references:
 - Next.js advisory: <https://nextjs.org/blog/CVE-2025-66478>
 - React advisory: <https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components>
 
-Assessment note: the active FE7 lockfile currently resolves `next` to `15.5.15`, which is newer than the patched `15.5.x` versions listed in the official advisories. This means the future replacement PR should verify the active FE7 state from current master instead of blindly applying PR #1's stale package diff.
+Assessment note: the active FE7 lockfile already resolved `next` to `15.5.15`, which is newer than the patched `15.5.x` versions listed in the official advisories. PR #27 made the active FE7 manifest match that patched lockfile version instead of blindly applying PR #1's stale package diff.
 
 ## Files Changed By PR #1
 
@@ -68,7 +69,7 @@ PR #1 does not update `react` or `react-dom`; it only updates `next` package dec
 
 | Surface | `package.json` Next | Lockfile Next | React | React DOM | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Active FE7: `super-nova-2177/frontend-social-seven` | `^15.1.0` | `15.5.15` | `^18.3.1` | `^18.3.1` | Active app. Lockfile already resolves to a patched `15.5.x` line newer than advisory minimums. |
+| Active FE7: `super-nova-2177/frontend-social-seven` | `15.5.15` | `15.5.15` | `^18.3.1` | `^18.3.1` | Active app. PR #27 made the manifest explicitly match the already-resolved patched `15.5.15` lockfile version. |
 | `super-nova-2177/frontend-social-six` | `^16.0.3` | `16.0.3` | `^18.3.1` | `^18.3.1` | Legacy/alternate frontend. Needs separate review. |
 | `super-nova-2177/frontend-next` | `^16.0.3` | `16.0.3` | `^18.3.1` | `^18.3.1` | Legacy/alternate frontend. Needs separate review. |
 | Nested `nova-web` | `14.2.31` | `14.2.31` | `18.2.0` | `18.2.0` | Nested/legacy app. Cleanup assessment already treats this area as sensitive. |
@@ -81,40 +82,32 @@ No direct `react-server-dom-*` package reference was found in the active FE7 pac
 - Its base SHA is 125 commits behind current master.
 - It mixes the active FE7 app with legacy frontends and a nested legacy app.
 - It does not update active FE7's `package-lock.json`, even though current FE7 lockfile state is important for the actual deployed dependency.
-- Its active FE7 package change targets `next@15.1.11`, while current FE7 already locks `next@15.5.15`.
+- Its active FE7 package change targets `next@15.1.11`, while current FE7 now explicitly uses `next@15.5.15` in both `package.json` and `package-lock.json`.
 - It would make security, legacy cleanup, and deployment-surface decisions in one PR.
 - The old Vercel preview being Ready does not prove the current master replacement will be safe.
 
 ## Recommended Safe Path
 
-Create a fresh replacement from current master, scoped first to active FE7 only.
+The active FE7 replacement step has been completed by PR #27. FE7 now explicitly pins Next to `15.5.15`, matching the already-resolved lockfile version.
 
-Proposed replacement branch:
+Completed replacement branch:
 
 ```txt
-security/recreate-rsc-next-cve-fe7-only
+security/pin-fe7-next-15-5-15
 ```
 
-Allowed files for the future replacement PR:
+Files changed by PR #27:
 
 ```txt
 super-nova-2177/frontend-social-seven/package.json
 super-nova-2177/frontend-social-seven/package-lock.json
 ```
 
-Do not include `yarn.lock` unless explicitly approved. If npm touches it, restore it and stop if the package-lock cannot represent the intended update alone.
-
-Suggested future replacement behavior:
-
-1. Confirm whether FE7 is already effectively patched because `package-lock.json` resolves `next@15.5.15`.
-2. If an update is still needed, use the current official advisory and current master, not PR #1's old branch.
-3. Keep the update on the active FE7 release line; do not jump to Next 16.
-4. Do not update React, React DOM, Supabase, Tailwind, OpenAI, legacy frontends, or nested `nova-web` in the same PR.
-5. Open the replacement as a draft until Vercel preview and full checks pass.
+PR #27 did not include `yarn.lock`, React, React DOM, Supabase, Tailwind, OpenAI, legacy frontends, or nested `nova-web`.
 
 ## Legacy Surface Plan
 
-Handle these separately after the active FE7 decision:
+Handle these separately after the active FE7 pin:
 
 | Surface | Recommendation |
 | --- | --- |
@@ -122,7 +115,7 @@ Handle these separately after the active FE7 decision:
 | `frontend-next` | Assess whether it is still deployed or should be archived before updating. |
 | Nested `nova-web` | Treat as deployment/cleanup-sensitive. Do not update or delete until the nested backend and lockfile cleanup plan is resolved. |
 
-## Required Checks For Future FE7 Replacement PR
+## Checks Used For PR #27
 
 - FE7 `npm run lint`
 - FE7 `npm run build`
@@ -137,7 +130,7 @@ Handle these separately after the active FE7 decision:
 
 ## Rollback Plan
 
-If the future FE7 security replacement causes build, preview, auth/session, routing, protocol smoke, social smoke, or production regressions:
+If the FE7 security pin causes build, preview, auth/session, routing, protocol smoke, social smoke, or production regressions:
 
 1. Revert that single replacement PR.
 2. Confirm Vercel production returns to Ready.
@@ -146,4 +139,4 @@ If the future FE7 security replacement causes build, preview, auth/session, rout
 
 ## Bottom Line
 
-Do not merge PR #1 as-is. The safe next step is a fresh current-master FE7-only security replacement, or a documented no-op if active FE7 is already proven patched by its current `next@15.5.15` lockfile. Legacy frontend and nested `nova-web` updates should be assessed separately.
+Do not merge PR #1 as-is. Active FE7 is now explicitly pinned to `next@15.5.15` in both `package.json` and `package-lock.json` by PR #27. Legacy frontend and nested `nova-web` Next security handling remains separate future assessment work.
