@@ -13,6 +13,7 @@
 # Safety checks and governance tests
 /scripts/check_safe.py @BP-H
 /scripts/smoke_protocol.py @BP-H
+/scripts/smoke_social_backend.py @BP-H
 /scripts/list_cleanup_candidates.py @BP-H
 /super-nova-2177/backend/tests/test_public_federation_safety.py @BP-H
 
@@ -30,4 +31,5 @@
 /BRANCH_PROTECTION_PLAN.md @BP-H
 /RELEASE_CHECKLIST.md @BP-H
 /DEPLOYMENT_SMOKE_CHECK.md @BP-H
+/SOCIAL_BACKEND_SMOKE_CHECK.md @BP-H
 /MAINTENANCE_AUDIT.md @BP-H
