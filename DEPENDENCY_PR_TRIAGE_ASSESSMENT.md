@@ -1,0 +1,176 @@
+# Dependency PR Triage Assessment
+
+Branch: `deps/assess-open-dependency-prs`
+
+Base commit: `5794a0f` (`master` after PR #16)
+
+Mode: assessment-only. No dependency PRs were merged, closed, rebased, recreated, or modified. No package files, lockfiles, runtime code, auth, database, uploads, migrations, execution, federation writes, domain verification, AI runtime, frontend product logic, route behavior, or protected core files were changed.
+
+## Current Baseline
+
+| Item | Result |
+| --- | --- |
+| Current `master` includes PR #16 | Yes, merge commit `5794a0f`. |
+| Open dependency/security PRs found | PR #1, PR #4, PR #6, PR #7. |
+| Open dependency PRs modified | No. |
+| Protected `supernovacore.py` diff | Zero before assessment. |
+
+## Open PR Summary
+
+| PR | Source | Package(s) | Semver / Scope | Files Changed | Base Staleness | Vercel Preview | Risk | Recommendation |
+| --- | --- | --- | --- | --- | ---: | --- | --- | --- |
+| #1 | Vercel bot | `next` across multiple apps | Patch versions, but broad multi-frontend security PR | 5 | 107 commits behind current master | Success / Ready | High | Do not merge as-is. Recreate from current master and split active FE7 from legacy frontends if possible. |
+| #4 | Dependabot | `@supabase/supabase-js` | Same-major minor jump `2.58.0` to `2.104.1` | 3 | 27 commits behind current master | Success / Ready | Medium-high | Defer until auth/social-login smoke exists. Rebase/recreate before testing. |
+| #6 | Dependabot | `tailwindcss` | Minor jump `4.1.17` to `4.2.4` | 3 | 27 commits behind current master | Success / Ready | Medium | Rebase/recreate after #7; requires FE7 build plus visual sanity check. |
+| #7 | Dependabot | `eslint-config-next` | Patch/security jump `15.5.2` to `15.5.15` | 3 | 24 commits behind current master | Success / Ready | Low-medium | Safest first candidate after recreation/rebase; requires lint/build and smoke checks. |
+
+Base staleness was measured as commits from each PR base SHA to current `HEAD` on `master`.
+
+## Detailed Findings
+
+### PR #1: Vercel RSC CVE / Next.js Security Update
+
+Changed files:
+
+- `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package-lock.json`
+- `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package.json`
+- `super-nova-2177/frontend-next/package.json`
+- `super-nova-2177/frontend-social-seven/package.json`
+- `super-nova-2177/frontend-social-six/package.json`
+
+Observations:
+
+- The PR is important because it is security-motivated.
+- It is broad: active FE7 plus multiple legacy or experimental frontends and the legacy `nova-web` app.
+- It is a draft PR and its base is 107 commits behind current master.
+- Vercel preview status is `success`, but that does not prove all affected legacy apps are still safe or intended deployment targets.
+- The diff includes Next updates in legacy surfaces that are not currently the active FE7 production path.
+
+Recommendation:
+
+- Do not merge PR #1 as-is.
+- Recreate from current master.
+- Prefer a fresh, focused active-FE7 security update first, with legacy frontend updates handled separately or deferred after repo hygiene.
+- Required checks before any future merge: FE7 lint/build, public protocol smoke, social backend smoke, safe-check, Vercel preview, and a rollback plan.
+
+### PR #4: Supabase Client Update
+
+Changed files:
+
+- `super-nova-2177/frontend-social-seven/package-lock.json`
+- `super-nova-2177/frontend-social-seven/package.json`
+- `super-nova-2177/frontend-social-seven/yarn.lock`
+
+Observations:
+
+- Updates `@supabase/supabase-js` from `2.58.0` to `2.104.1`.
+- This is same-major semver, but it is a large minor-version jump.
+- It affects auth/session/social-login-adjacent client behavior.
+- The dependency tree introduces newer Supabase subpackages with `node >=20.0.0` engine declarations.
+- Its base is 27 commits behind current master.
+- Vercel preview status is `success`.
+
+Recommendation:
+
+- Do not merge before auth/social-login smoke testing exists.
+- Rebase or recreate from current master before testing.
+- Required checks: FE7 lint/build, Vercel preview, public protocol smoke, social backend smoke, safe-check, login/social-auth manual smoke, and rollback plan.
+
+### PR #6: Tailwind Update
+
+Changed files:
+
+- `super-nova-2177/frontend-social-seven/package-lock.json`
+- `super-nova-2177/frontend-social-seven/package.json`
+- `super-nova-2177/frontend-social-seven/yarn.lock`
+
+Observations:
+
+- Updates `tailwindcss` from `4.1.17` to `4.2.4`.
+- Same-major minor update, but styling and generated CSS can change.
+- Its base is 27 commits behind current master.
+- Vercel preview status is `success`.
+
+Recommendation:
+
+- Rebase or recreate after PR #7 is handled.
+- Required checks: FE7 lint/build, Vercel preview, public protocol smoke, social backend smoke, safe-check, and visual sanity check of key FE7 screens.
+- Defer if visual review cannot be performed.
+
+### PR #7: eslint-config-next Update
+
+Changed files:
+
+- `super-nova-2177/frontend-social-seven/package-lock.json`
+- `super-nova-2177/frontend-social-seven/package.json`
+- `super-nova-2177/frontend-social-seven/yarn.lock`
+
+Observations:
+
+- Updates `eslint-config-next` from `15.5.2` to `15.5.15`.
+- Patch-level dev-tooling/security update for the active FE7 app.
+- Its base is 24 commits behind current master.
+- Vercel preview status is `success`.
+
+Recommendation:
+
+- This is the safest first dependency candidate, but not as-is.
+- Rebase or recreate from current master first.
+- Required checks: FE7 lint/build, safe-check, public protocol smoke, social backend smoke, Vercel preview, and protected core diff zero.
+
+## Dependabot Label Warning
+
+Dependabot comments on PR #4, PR #6, and PR #7 report missing labels:
+
+- `dependencies`
+- `frontend-social-seven`
+
+This does not block the dependency diffs themselves, but it means Dependabot cannot apply the configured labels. Handle in a separate docs/tooling/admin pass by either creating the labels in GitHub or adjusting `.github/dependabot.yml`. Do not mix this with dependency merges.
+
+## Recommended Merge Sequence
+
+1. Recreate or rebase PR #7 (`eslint-config-next`) from current master.
+2. Run all checks and merge only if boring.
+3. Recreate or rebase PR #6 (`tailwindcss`) and add visual sanity checks.
+4. Recreate or rebase PR #4 (`@supabase/supabase-js`) only after login/social-auth smoke coverage is available.
+5. Recreate PR #1 as a focused current-master security update, ideally scoped first to active FE7, with legacy frontends handled separately.
+
+## Required Checks Before Any Dependency Merge
+
+Every dependency PR should be tested alone:
+
+- `python scripts/check_safe.py --local-only`
+- `python scripts/check_safe.py`
+- `python scripts/smoke_social_backend.py https://2177.tech`
+- `python -m unittest super-nova-2177/backend/tests/test_public_federation_safety.py`
+- FE7 `npm run lint`
+- FE7 `npm run build`
+- Vercel preview must be Ready
+- Protected `supernovacore.py` diff must be zero
+
+Additional PR-specific checks:
+
+- Supabase: login/social-auth/session smoke.
+- Tailwind: visual sanity check across key FE7 screens.
+- Vercel RSC/Next security: active-FE7 focused branch, then legacy surface plan.
+
+## Rollback Plan
+
+For any future dependency merge:
+
+1. Merge only one dependency PR at a time.
+2. Confirm Vercel production deployment reaches Ready.
+3. Run public protocol smoke after deployment.
+4. Run social backend smoke against `https://2177.tech`.
+5. If production breaks, revert that single dependency merge commit.
+6. Do not merge the next dependency PR until production is stable again.
+
+## PRs To Defer
+
+- PR #1: defer as-is because it is broad, old, and touches legacy frontends.
+- PR #4: defer until auth/social-login smoke exists.
+- PR #6: defer until the safer dev-tooling update is handled and visual review is available.
+
+## Bottom Line
+
+Do not merge dependency PRs in bulk. The safest first dependency action is a fresh current-master PR for `eslint-config-next`, followed by Tailwind only with visual review, then Supabase only with auth smoke coverage, and finally a recreated/split Next security update.
