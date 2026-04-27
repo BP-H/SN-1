@@ -11,6 +11,35 @@ from passlib.context import CryptContext
 # Shared cryptography context used for password validation
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+PRODUCTION_ENVIRONMENT_NAMES = (
+    "SUPERNOVA_ENV",
+    "APP_ENV",
+    "ENV",
+    "RAILWAY_ENVIRONMENT",
+)
+PRODUCTION_ENVIRONMENT_VALUES = {"production", "prod"}
+WEAK_SECRET_KEY_VALUES = {"", "changeme", "dev", "secret", "default"}
+
+
+def _is_explicit_production_environment(environ: Optional[Dict[str, str]] = None) -> bool:
+    source = os.environ if environ is None else environ
+    return any(
+        str(source.get(name, "")).strip().lower() in PRODUCTION_ENVIRONMENT_VALUES
+        for name in PRODUCTION_ENVIRONMENT_NAMES
+    )
+
+
+def _is_weak_secret_key(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in WEAK_SECRET_KEY_VALUES
+
+
+def _fallback_secret_key_from_env(environ: Optional[Dict[str, str]] = None) -> str:
+    source = os.environ if environ is None else environ
+    secret_key = source.get("SECRET_KEY")
+    if _is_explicit_production_environment(source) and _is_weak_secret_key(secret_key):
+        raise RuntimeError("SECRET_KEY must be set to a non-placeholder value in production.")
+    return secret_key or "changeme"
+
 
 try:  # pragma: no cover - defensive import for shared exception
     from superNova_2177 import InvalidConsentError  # type: ignore
@@ -29,7 +58,7 @@ def get_auth_settings():
     except Exception:
         # Fallback values primarily used in standalone mode/tests
         class Settings:
-            SECRET_KEY = os.environ.get("SECRET_KEY", "changeme")
+            SECRET_KEY = _fallback_secret_key_from_env()
             ALGORITHM = os.environ.get("ALGORITHM", "HS256")
 
         return Settings()
@@ -74,4 +103,3 @@ def get_db() -> Generator:
         generator = fallback_get_db()
 
     yield from generator
-
