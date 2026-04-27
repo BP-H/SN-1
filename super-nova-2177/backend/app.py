@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import json
 import os
-import shutil
 import sys
 import uuid
 from datetime import timedelta
@@ -397,6 +396,21 @@ DOCUMENT_UPLOAD_EXTENSIONS = {
 }
 
 
+def _upload_limit_from_env(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, ""))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+UPLOAD_IMAGE_MAX_BYTES = _upload_limit_from_env("UPLOAD_IMAGE_MAX_BYTES", 10 * 1024 * 1024)
+UPLOAD_AVATAR_MAX_BYTES = _upload_limit_from_env("UPLOAD_AVATAR_MAX_BYTES", UPLOAD_IMAGE_MAX_BYTES)
+UPLOAD_VIDEO_MAX_BYTES = _upload_limit_from_env("UPLOAD_VIDEO_MAX_BYTES", 100 * 1024 * 1024)
+UPLOAD_DOCUMENT_MAX_BYTES = _upload_limit_from_env("UPLOAD_DOCUMENT_MAX_BYTES", 25 * 1024 * 1024)
+UPLOAD_COPY_CHUNK_BYTES = 1024 * 1024
+
+
 def _safe_upload_extension(upload: UploadFile, fallback: str = "") -> str:
     raw_ext = os.path.splitext(upload.filename or "")[1].lower()
     if raw_ext and 1 < len(raw_ext) <= 12 and raw_ext[1:].replace("-", "").isalnum():
@@ -411,18 +425,47 @@ def _upload_matches(upload: UploadFile, prefix: str, allowed_extensions: set[str
     return content_type in GENERIC_UPLOAD_TYPES and _safe_upload_extension(upload) in allowed_extensions
 
 
-def _save_upload_file(upload: UploadFile, allowed_extensions: Optional[set[str]] = None, fallback_ext: str = "") -> str:
+def _remove_partial_upload(path: str) -> None:
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def _copy_upload_file_bounded(upload: UploadFile, file_path: str, max_bytes: int) -> None:
+    written = 0
+    try:
+        upload.file.seek(0)
+    except Exception:
+        pass
+    try:
+        with open(file_path, "wb") as f:
+            while True:
+                chunk = upload.file.read(UPLOAD_COPY_CHUNK_BYTES)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(status_code=413, detail="Uploaded file is too large")
+                f.write(chunk)
+    except Exception:
+        _remove_partial_upload(file_path)
+        raise
+
+
+def _save_upload_file(
+    upload: UploadFile,
+    allowed_extensions: Optional[set[str]] = None,
+    fallback_ext: str = "",
+    max_bytes: int = UPLOAD_DOCUMENT_MAX_BYTES,
+) -> str:
     ext = _safe_upload_extension(upload, fallback_ext)
     if allowed_extensions is not None and ext not in allowed_extensions:
         ext = fallback_ext if fallback_ext in allowed_extensions else ""
     unique_name = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(uploads_dir, unique_name)
-    try:
-        upload.file.seek(0)
-    except Exception:
-        pass
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(upload.file, f, length=1024 * 1024)
+    _copy_upload_file_bounded(upload, file_path, max_bytes)
     return unique_name
 
 
@@ -3271,7 +3314,12 @@ async def create_proposal(
     for image_upload in image_uploads:
         if not _upload_matches(image_upload, "image/", IMAGE_UPLOAD_EXTENSIONS):
             raise HTTPException(status_code=400, detail="Uploaded image files must be images")
-        next_filename = _save_upload_file(image_upload, IMAGE_UPLOAD_EXTENSIONS, ".jpg")
+        next_filename = _save_upload_file(
+            image_upload,
+            IMAGE_UPLOAD_EXTENSIONS,
+            ".jpg",
+            UPLOAD_IMAGE_MAX_BYTES,
+        )
         image_filenames.append(next_filename)
     if len(image_filenames) == 1:
         image_filename = image_filenames[0]
@@ -3281,13 +3329,22 @@ async def create_proposal(
     if video_file:
         if not _upload_matches(video_file, "video/", VIDEO_UPLOAD_EXTENSIONS):
             raise HTTPException(status_code=400, detail="Uploaded video file must be a video")
-        video_filename = _save_upload_file(video_file, VIDEO_UPLOAD_EXTENSIONS, ".mp4")
+        video_filename = _save_upload_file(
+            video_file,
+            VIDEO_UPLOAD_EXTENSIONS,
+            ".mp4",
+            UPLOAD_VIDEO_MAX_BYTES,
+        )
         video_value = video_filename
     
     if file:
         if _safe_upload_extension(file) not in DOCUMENT_UPLOAD_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Uploaded file type is not supported")
-        file_filename = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS)
+        file_filename = _save_upload_file(
+            file,
+            DOCUMENT_UPLOAD_EXTENSIONS,
+            max_bytes=UPLOAD_DOCUMENT_MAX_BYTES,
+        )
 
     from datetime import datetime as dt
     if date:
@@ -4635,7 +4692,7 @@ async def upload_image(
     if not _upload_matches(file, "image/", IMAGE_UPLOAD_EXTENSIONS):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image")
 
-    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg")
+    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg", UPLOAD_AVATAR_MAX_BYTES)
 
     avatar_url = f"/uploads/{unique_name}"
     clean_username = (username or "").strip()
@@ -4683,7 +4740,7 @@ async def upload_file(file: UploadFile = File(...)):
     os.makedirs(uploads_dir, exist_ok=True)
     if _safe_upload_extension(file) not in DOCUMENT_UPLOAD_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Uploaded file type is not supported")
-    unique_name = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS)
+    unique_name = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS, max_bytes=UPLOAD_DOCUMENT_MAX_BYTES)
     return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
 
 # --- Delete endpoints ---
