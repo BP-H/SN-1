@@ -33,9 +33,10 @@ class SmokeResult:
 
 
 class SocialBackendSmoke:
-    def __init__(self, base_url: str, timeout: float) -> None:
+    def __init__(self, base_url: str, timeout: float, strict_backend: bool) -> None:
         self.base_url = base_url.rstrip("/") + "/"
         self.timeout = timeout
+        self.strict_backend = strict_backend
         self.results: list[SmokeResult] = []
 
     def record(self, status: str, label: str, detail: str = "") -> None:
@@ -105,7 +106,7 @@ class SocialBackendSmoke:
         return payload
 
     def check_health(self) -> None:
-        payload = self.get_json("/health", "/health", skip_auth_unavailable=True)
+        payload = self.get_json("/health", "/health", skip_auth_unavailable=not self.strict_backend)
         if payload is None:
             return
         if isinstance(payload, dict):
@@ -114,7 +115,7 @@ class SocialBackendSmoke:
             self.fail("/health returns object", f"got {type(payload).__name__}")
 
     def check_status(self) -> None:
-        payload = self.get_json("/supernova-status", "/supernova-status", skip_auth_unavailable=True)
+        payload = self.get_json("/supernova-status", "/supernova-status", skip_auth_unavailable=not self.strict_backend)
         if payload is None:
             return
         if isinstance(payload, dict):
@@ -164,12 +165,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smoke-check SuperNova public social/backend read routes.")
     parser.add_argument("base_url", help="Base URL to check, for example https://2177.tech")
     parser.add_argument("--timeout", type=float, default=15.0, help="Request timeout in seconds")
+    parser.add_argument(
+        "--strict-backend",
+        action="store_true",
+        help="Require backend health/status routes to return 200 JSON. Use this with the direct backend API origin.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    return SocialBackendSmoke(args.base_url, args.timeout).run()
+    return SocialBackendSmoke(args.base_url, args.timeout, args.strict_backend).run()
 
 
 if __name__ == "__main__":
