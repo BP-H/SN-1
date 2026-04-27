@@ -21,6 +21,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added branch protection rollout status to keep enforcement staged and non-surprising.
 - Recorded CODEOWNERS validation outcome and safe-check baseline snapshot.
 - Added read-only social/backend smoke checks, strict backend-origin mode, and PowerShell-correct documentation.
+- Added auth/social login smoke baseline docs for Supabase dependency update gates.
 - Added CODEOWNERS coverage for social/backend smoke tooling and refreshed the safe-check baseline after PR #13.
 - Added CODEOWNERS coverage for cleanup assessment docs and changelog.
 - Added CODEOWNERS coverage for dependency triage assessment.

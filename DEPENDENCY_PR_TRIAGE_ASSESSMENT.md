@@ -12,6 +12,7 @@ Mode: assessment-only. No dependency PRs were merged, closed, rebased, recreated
 | Current status update | PR #19 completed FE7 `eslint-config-next`; PR #21 completed FE7 `tailwindcss` from current master. |
 | Open dependency/security PRs remaining | PR #1, PR #4, PR #6, PR #7. |
 | PR #7 status | Superseded by PR #19; do not merge as-is. |
+| Auth/social login baseline | Production `https://2177.tech` Supabase login was manually confirmed working after PR #21; use `AUTH_SOCIAL_SMOKE_CHECK.md` before and after any Supabase update. |
 | Open dependency PRs modified by this assessment | No. |
 | Protected `supernovacore.py` diff | Zero. |
 
@@ -83,6 +84,8 @@ Observations:
 Recommendation:
 
 - Do not merge before auth/social-login smoke testing exists.
+- Production Supabase login is currently manually confirmed working after PR #21.
+- Use `AUTH_SOCIAL_SMOKE_CHECK.md` for before/after verification before merging PR #4 or any recreated Supabase update branch.
 - Rebase or recreate from current master before testing.
 - Required checks: FE7 lint/build, Vercel preview, public protocol smoke, social backend smoke, safe-check, login/social-auth manual smoke, and rollback plan.
 
@@ -143,7 +146,7 @@ This does not block the dependency diffs themselves, but it means Dependabot can
 
 1. Completed: PR #19 updated FE7 `eslint-config-next` from current master.
 2. Completed: PR #21 updated FE7 `tailwindcss` from current master after visual sanity review.
-3. Recreate or rebase PR #4 (`@supabase/supabase-js`) only after login/social-auth smoke coverage is available.
+3. Recreate or rebase PR #4 (`@supabase/supabase-js`) only after `AUTH_SOCIAL_SMOKE_CHECK.md` is used for before/after login and session verification.
 4. Recreate PR #1 as a focused current-master security update, ideally scoped first to active FE7, with legacy frontends handled separately.
 
 ## Required Checks Before Any Dependency Merge
@@ -161,7 +164,7 @@ Every dependency PR should be tested alone:
 
 Additional PR-specific checks:
 
-- Supabase: login/social-auth/session smoke.
+- Supabase: `AUTH_SOCIAL_SMOKE_CHECK.md` before and after the update.
 - Tailwind: visual sanity check across key FE7 screens.
 - Vercel RSC/Next security: active-FE7 focused branch, then legacy surface plan.
 
@@ -179,10 +182,10 @@ For any future dependency merge:
 ## PRs To Defer
 
 - PR #1: defer as-is because it is broad, old, and touches legacy frontends.
-- PR #4: defer until auth/social-login smoke exists.
+- PR #4: defer until `AUTH_SOCIAL_SMOKE_CHECK.md` is used for before/after verification.
 - PR #6: superseded by PR #21. Do not merge as-is.
 - PR #7: superseded by PR #19. Do not merge as-is.
 
 ## Bottom Line
 
-Do not merge dependency PRs in bulk. The first dependency action, a fresh current-master PR for FE7 `eslint-config-next`, was completed by PR #19. The second dependency action, a fresh current-master PR for FE7 `tailwindcss`, was completed by PR #21 after visual sanity review. The next dependency candidate is Supabase only after auth smoke coverage exists, followed by a recreated/split Next security update.
+Do not merge dependency PRs in bulk. The first dependency action, a fresh current-master PR for FE7 `eslint-config-next`, was completed by PR #19. The second dependency action, a fresh current-master PR for FE7 `tailwindcss`, was completed by PR #21 after visual sanity review. The next dependency candidate is Supabase only after `AUTH_SOCIAL_SMOKE_CHECK.md` is used for before/after auth and session verification, followed by a recreated/split Next security update.
