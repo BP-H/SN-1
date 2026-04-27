@@ -23,5 +23,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added read-only social/backend smoke checks, strict backend-origin mode, and PowerShell-correct documentation.
 - Added CODEOWNERS coverage for social/backend smoke tooling and refreshed the safe-check baseline after PR #13.
 - Added CODEOWNERS coverage for cleanup assessment docs and changelog.
+- Added CODEOWNERS coverage for dependency triage assessment.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
