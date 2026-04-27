@@ -65,6 +65,12 @@ python scripts/smoke_social_backend.py "$env:NEXT_PUBLIC_API_URL" --strict-backe
 
 Use the strict backend command only when `NEXT_PUBLIC_API_URL` points to a reachable backend API origin.
 
+Before Supabase client dependency updates, use the manual auth/social smoke baseline:
+
+```txt
+AUTH_SOCIAL_SMOKE_CHECK.md
+```
+
 Use `python scripts/check_safe.py --local-only` when offline. Run FE7 checks directly before frontend-sensitive pushes:
 
 ```powershell
@@ -132,6 +138,7 @@ See also:
 - `CLEANUP_CANDIDATES_SNAPSHOT.md`
 - `SAFE_CHECK_RESULTS_SNAPSHOT.md`
 - `SOCIAL_BACKEND_SMOKE_CHECK.md`
+- `AUTH_SOCIAL_SMOKE_CHECK.md`
 - `DEPLOYMENT_SMOKE_CHECK.md`
 - `MAINTENANCE_AUDIT.md`
 - `COMPANY_INTEGRATION_QUICKSTART.md`

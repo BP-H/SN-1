@@ -33,6 +33,13 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] GitHub Actions updates passed the relevant workflow before release.
 - [ ] Framework/runtime major updates have a rollback plan.
 
+## Auth And Social Login Review
+
+- [ ] Before Supabase client dependency updates, `AUTH_SOCIAL_SMOKE_CHECK.md` was run against the current baseline.
+- [ ] After Supabase client dependency updates, `AUTH_SOCIAL_SMOKE_CHECK.md` was run again against the preview or staging surface.
+- [ ] No usernames, emails, tokens, cookies, session values, callback codes, or environment values were logged or committed.
+- [ ] Login, OAuth callback, session restore, profile/account state, logout, reload behavior, and redirect behavior were checked.
+
 ## Documentation Review
 
 - [ ] `CHANGELOG.md` is updated.
