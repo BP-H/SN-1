@@ -8,9 +8,17 @@ Run it against the public frontend/protocol origin:
 python scripts/smoke_social_backend.py https://2177.tech
 ```
 
-Run it separately against the direct backend API origin when `NEXT_PUBLIC_API_URL` is available and points to a reachable backend:
+Run it separately against the direct backend API origin when `NEXT_PUBLIC_API_URL` is available and points to a reachable backend.
+
+PowerShell:
 
 ```powershell
+python scripts/smoke_social_backend.py "$env:NEXT_PUBLIC_API_URL" --strict-backend
+```
+
+bash/zsh:
+
+```bash
 python scripts/smoke_social_backend.py "$NEXT_PUBLIC_API_URL" --strict-backend
 ```
 
