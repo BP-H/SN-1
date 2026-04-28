@@ -41,6 +41,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added local safe PR gates workflow for deterministic backend and FE7 checks.
 - Added read-compatible pagination parameters for public comment reads.
 - Added read-compatible pagination parameters for direct message reads.
+- Added read-compatible embedded comments/votes caps for proposal list reads.
 - Added auth-bound write route hardening assessment for active backend identity checks.
 - Added product roadmap assessment for grants, mentions, reply UI, and homepage clarity.
 - Added guest write policy assessment for proposal and comment creation routes.
