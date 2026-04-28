@@ -3085,7 +3085,7 @@ def follow_user(
         raise HTTPException(status_code=400, detail="follower and target are required")
     if follower_key == target_key:
         raise HTTPException(status_code=400, detail="Choose another user to follow")
-    _enforce_token_identity_match(authorization, db, follower)
+    _require_token_identity_match(authorization, db, follower)
 
     follows = _read_follows_store()
     existing = next(
@@ -3121,7 +3121,7 @@ def unfollow_user(
     target_key = _safe_user_key(target)
     if not follower_key or not target_key:
         raise HTTPException(status_code=400, detail="follower and target are required")
-    _enforce_token_identity_match(authorization, db, follower)
+    _require_token_identity_match(authorization, db, follower)
     follows = _read_follows_store()
     next_follows = [
         item for item in follows

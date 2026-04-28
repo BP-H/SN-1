@@ -24,6 +24,7 @@ def run_auth_probe(probe: str) -> dict:
                 "APP_ENV": "development",
                 "ENV": "development",
                 "UPLOADS_DIR": str(Path(tmpdir) / "uploads"),
+                "FOLLOWS_STORE_PATH": str(Path(tmpdir) / "follows_store.json"),
             }
         )
         env.pop("RAILWAY_ENVIRONMENT", None)
@@ -71,6 +72,7 @@ for path in (project_root, backend_dir):
 import backend.app as backend_app
 from db_models import Base
 
+backend_app.FOLLOWS_STORE_PATH = Path(os.environ["FOLLOWS_STORE_PATH"])
 client = TestClient(backend_app.app)
 
 
@@ -422,6 +424,88 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertTrue(result["profile_synced"])
         self.assertEqual(result["profile_pic"], result["url"])
         self.assertEqual(len(result["files"]), 1)
+
+    def test_follow_requires_matching_bearer_identity_and_public_read_remains_open(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            body = {"follower": "alice", "target": "bob"}
+            missing = client.post("/follows", json=body)
+            invalid = client.post("/follows", json=body, headers=invalid_headers)
+            wrong = client.post("/follows", json=body, headers=bob_headers)
+            matching = client.post("/follows", json=body, headers=alice_headers)
+            payload = matching.json()
+            public_read = client.get("/follows?user=alice")
+            public_payload = public_read.json()
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "keys": sorted(payload.keys()),
+                "following": payload.get("following"),
+                "follower": payload.get("follower"),
+                "target": payload.get("target"),
+                "public_read_status": public_read.status_code,
+                "public_read_keys": sorted(public_payload.keys()),
+                "public_following": public_payload.get("following", []),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(set(result["keys"]), {"follower", "following", "target"})
+        self.assertTrue(result["following"])
+        self.assertEqual(result["follower"], "alice")
+        self.assertEqual(result["target"], "bob")
+        self.assertEqual(result["public_read_status"], 200)
+        self.assertEqual(set(result["public_read_keys"]), {"followers", "following", "user"})
+        self.assertEqual(len(result["public_following"]), 1)
+        self.assertEqual(result["public_following"][0]["username"], "bob")
+        self.assertIn("created_at", result["public_following"][0])
+
+    def test_unfollow_requires_matching_bearer_identity(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            body = {"follower": "alice", "target": "bob"}
+            client.post("/follows", json=body, headers=alice_headers)
+            missing = client.delete("/follows?follower=alice&target=bob")
+            invalid = client.delete("/follows?follower=alice&target=bob", headers=invalid_headers)
+            wrong = client.delete("/follows?follower=alice&target=bob", headers=bob_headers)
+            matching = client.delete("/follows?follower=alice&target=bob", headers=alice_headers)
+            payload = matching.json()
+            after = client.get("/follows?user=alice")
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "keys": sorted(payload.keys()),
+                "following": payload.get("following"),
+                "follower": payload.get("follower"),
+                "target": payload.get("target"),
+                "after_following": after.json().get("following", []),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(set(result["keys"]), {"follower", "following", "target"})
+        self.assertFalse(result["following"])
+        self.assertEqual(result["follower"], "alice")
+        self.assertEqual(result["target"], "bob")
+        self.assertEqual(result["after_following"], [])
 
 
 if __name__ == "__main__":
