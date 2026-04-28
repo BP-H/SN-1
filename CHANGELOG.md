@@ -44,5 +44,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Required bearer-token ownership checks for profile updates and direct-message routes.
 - Required bearer-token ownership checks for upload-image profile sync.
 - Required bearer-token ownership checks for follow and unfollow mutations.
+- Required bearer-token ownership checks for comment edit and delete mutations.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.

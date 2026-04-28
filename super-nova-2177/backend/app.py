@@ -4329,7 +4329,7 @@ def update_comment(
         raise HTTPException(status_code=400, detail="user is required")
     if not next_comment:
         raise HTTPException(status_code=400, detail="comment is required")
-    _enforce_token_identity_match(authorization, db, payload.user)
+    _require_token_identity_match(authorization, db, payload.user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -4391,7 +4391,7 @@ def delete_comment(
     requester = _safe_user_key(user)
     if not requester:
         raise HTTPException(status_code=400, detail="user is required")
-    _enforce_token_identity_match(authorization, db, user)
+    _require_token_identity_match(authorization, db, user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
