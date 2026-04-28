@@ -47,6 +47,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added idempotent proposal and proposal-vote read indexes with focused tests.
 - Added auth-bound write route hardening assessment for active backend identity checks.
 - Added product roadmap assessment for grants, mentions, reply UI, and homepage clarity.
+- Added profile visual grid and content tabs assessment for future FE7 profile polish.
 - Added guest write policy assessment for proposal and comment creation routes.
 - Required bearer-token ownership checks for profile updates and direct-message routes.
 - Required bearer-token ownership checks for upload-image profile sync.
