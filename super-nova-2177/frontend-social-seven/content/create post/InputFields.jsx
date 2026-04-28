@@ -24,7 +24,7 @@ import ErrorMessage from "../Error";
 import MediaInput from "./Media";
 import PdfPager from "../proposal/content/PdfPager";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 
@@ -312,6 +312,11 @@ function InputFields({
     if (!isAuthenticated) {
       requireAccount("Sign in to publish on SuperNova.");
       return;
+    }
+    try {
+      requireBackendAuthSession();
+    } catch {
+      errors.push(BACKEND_AUTH_MISSING_MESSAGE);
     }
     if (!text.trim()) {
       errors.push(
