@@ -557,6 +557,13 @@ DIRECT_MESSAGES_READ_INDEX_STATEMENTS = (
     "ON direct_messages (conversation_id, created_at, id)",
 )
 
+PROPOSAL_READ_INDEX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS idx_proposals_created_id "
+    "ON proposals (created_at, id)",
+    "CREATE INDEX IF NOT EXISTS idx_proposal_votes_proposal_vote "
+    "ON proposal_votes (proposal_id, vote)",
+)
+
 
 def _execute_index_statements(db: Session, statements: tuple[str, ...]) -> None:
     for statement in statements:
@@ -569,6 +576,14 @@ def _ensure_comments_read_indexes(db: Session) -> None:
 
 def _ensure_direct_messages_read_indexes(db: Session) -> None:
     _execute_index_statements(db, DIRECT_MESSAGES_READ_INDEX_STATEMENTS)
+
+
+def _ensure_proposal_read_indexes(db: Session) -> None:
+    try:
+        _execute_index_statements(db, PROPOSAL_READ_INDEX_STATEMENTS)
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _ensure_comment_thread_columns(db: Session) -> None:
@@ -3679,6 +3694,7 @@ def list_proposals(
     - search: string search on title/description/username
     """
     try:
+        _ensure_proposal_read_indexes(db)
         has_comment_cap = embedded_comments_limit is not None
         has_vote_cap = embedded_votes_limit is not None
         safe_comment_cap = max(0, min(int(embedded_comments_limit), 500)) if has_comment_cap else None
@@ -4705,6 +4721,7 @@ def list_runs(db: Session = Depends(get_db)):
 # --- Proposal detail endpoint (final version, single definition) ---
 @app.get("/proposals/{pid}", response_model=ProposalSchema)
 def get_proposal(pid: int, db: Session = Depends(get_db)):
+    _ensure_proposal_read_indexes(db)
     if CRUD_MODELS_AVAILABLE:
         row = db.query(Proposal).filter(Proposal.id == pid).first()
         if not row:

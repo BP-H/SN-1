@@ -288,6 +288,14 @@ Branch:
 
 `scalability/add-proposals-votes-indexes`
 
+Status:
+
+- Completed by this follow-up PR for `idx_proposals_created_id` and
+  `idx_proposal_votes_proposal_vote` using idempotent local/runtime DDL.
+- Deferred `idx_proposals_username_id` because active filters commonly use
+  `lower(userName)`/case-insensitive matching and the mixed-case column makes a
+  plain portable index less useful without production-like DB validation.
+
 Allowed files:
 
 - Same narrow pattern as PR A.
