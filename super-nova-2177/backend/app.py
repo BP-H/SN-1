@@ -2730,7 +2730,7 @@ def update_profile(
     clean_username = username.strip()
     if not clean_username:
         raise HTTPException(status_code=400, detail="Username is required")
-    _enforce_token_identity_match(authorization, db, clean_username)
+    _require_token_identity_match(authorization, db, clean_username)
 
     user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
     if not user:
@@ -3141,7 +3141,7 @@ def get_messages(
     current = _safe_user_key(user)
     if not current:
         raise HTTPException(status_code=400, detail="user is required")
-    _enforce_token_identity_match(authorization, db, user)
+    _require_token_identity_match(authorization, db, user)
 
     try:
         _ensure_direct_messages_table(db)
@@ -3236,7 +3236,7 @@ def send_message(
         raise HTTPException(status_code=400, detail="Choose another user to message")
     if not body:
         raise HTTPException(status_code=400, detail="Write a message first")
-    _enforce_token_identity_match(authorization, db, sender)
+    _require_token_identity_match(authorization, db, sender)
 
     messages = _read_messages_store()
     message = {
@@ -3564,6 +3564,20 @@ def _enforce_token_identity_match(
     current_user = _optional_current_harmonizer(authorization, db)
     if not current_user:
         return None
+    token_key = _safe_user_key(getattr(current_user, "username", ""))
+    for value in identity_values:
+        value_key = _safe_user_key(value or "")
+        if value_key and value_key != token_key:
+            raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
+    return current_user
+
+
+def _require_token_identity_match(
+    authorization: Optional[str],
+    db: Session,
+    *identity_values: Optional[str],
+):
+    current_user = get_current_harmonizer(authorization, db)
     token_key = _safe_user_key(getattr(current_user, "username", ""))
     for value in identity_values:
         value_key = _safe_user_key(value or "")
