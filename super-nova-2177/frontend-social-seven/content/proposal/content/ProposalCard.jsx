@@ -979,7 +979,7 @@ function ProposalCard({
                 setNotify={setNotify}
                 proposalId={id}
                 setLocalComments={setLocalComments}
-                parentComment={replyTarget}
+                parentComment={null}
                 onCancelReply={() => setReplyTarget(null)}
               />
             </div>
@@ -987,6 +987,9 @@ function ProposalCard({
               {threadedComments.map(({ comment, index, depth }) => {
                 const commentId = comment.id ?? "";
                 const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
+                const isActiveReplyTarget = Boolean(
+                  replyTarget?.id && commentId && String(replyTarget.id) === String(commentId)
+                );
                 const isDeletedComment = Boolean(comment.deleted || comment.user === "[deleted]");
                 const isCommentAuthor = Boolean(
                   comment.user &&
@@ -1015,7 +1018,20 @@ function ProposalCard({
                     depth={depth}
                     setErrorMsg={setErrorMsg}
                     setNotify={setNotify}
-                  />
+                  >
+                    {isActiveReplyTarget && (
+                      <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+                        <InsertComment
+                          setErrorMsg={setErrorMsg}
+                          setNotify={setNotify}
+                          proposalId={id}
+                          setLocalComments={setLocalComments}
+                          parentComment={replyTarget}
+                          onCancelReply={() => setReplyTarget(null)}
+                        />
+                      </div>
+                    )}
+                  </DisplayComments>
                 );
               })}
             </div>
