@@ -3642,6 +3642,8 @@ def list_proposals(
     before_id: Optional[int] = Query(None, ge=1),
     limit: int = Query(80, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    embedded_comments_limit: Optional[int] = Query(None),
+    embedded_votes_limit: Optional[int] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -3650,6 +3652,11 @@ def list_proposals(
     - search: string search on title/description/username
     """
     try:
+        has_comment_cap = embedded_comments_limit is not None
+        has_vote_cap = embedded_votes_limit is not None
+        safe_comment_cap = max(0, min(int(embedded_comments_limit), 500)) if has_comment_cap else None
+        safe_vote_cap = max(0, min(int(embedded_votes_limit), 500)) if has_vote_cap else None
+
         # --- ORM MODE ---
         if CRUD_MODELS_AVAILABLE:
             from sqlalchemy import func, case
@@ -3840,22 +3847,47 @@ def list_proposals(
 
             # Votes and Comments
             if CRUD_MODELS_AVAILABLE:
-                votes = db.query(ProposalVote).filter(ProposalVote.proposal_id == prop.id).all()
-                comments = db.query(Comment).filter(Comment.proposal_id == prop.id).all()
+                vote_query = db.query(ProposalVote).filter(ProposalVote.proposal_id == prop.id)
+                if has_vote_cap:
+                    vote_query = vote_query.order_by(ProposalVote.harmonizer_id.asc()).limit(safe_vote_cap)
+                votes = vote_query.all()
+
+                comment_query = db.query(Comment).filter(Comment.proposal_id == prop.id)
+                if has_comment_cap:
+                    comment_query = comment_query.order_by(Comment.id.asc()).limit(safe_comment_cap)
+                comments = comment_query.all()
             else:
                 # fallback: try to get from votes and comments tables
                 if votes_table_exists:
-                    votes = db.execute(
-                        text("SELECT * FROM proposal_votes WHERE proposal_id = :pid"),
-                        {"pid": prop.id}
-                    ).fetchall()
+                    if has_vote_cap:
+                        votes = db.execute(
+                            text(
+                                "SELECT * FROM proposal_votes WHERE proposal_id = :pid "
+                                "ORDER BY harmonizer_id ASC LIMIT :limit"
+                            ),
+                            {"pid": prop.id, "limit": safe_vote_cap},
+                        ).fetchall()
+                    else:
+                        votes = db.execute(
+                            text("SELECT * FROM proposal_votes WHERE proposal_id = :pid"),
+                            {"pid": prop.id},
+                        ).fetchall()
                 else:
                     votes = []
                 if comments_table_exists:
-                    comments = db.execute(
-                        text("SELECT * FROM comments WHERE proposal_id = :pid"),
-                        {"pid": prop.id}
-                    ).fetchall()
+                    if has_comment_cap:
+                        comments = db.execute(
+                            text(
+                                "SELECT * FROM comments WHERE proposal_id = :pid "
+                                "ORDER BY id ASC LIMIT :limit"
+                            ),
+                            {"pid": prop.id, "limit": safe_comment_cap},
+                        ).fetchall()
+                    else:
+                        comments = db.execute(
+                            text("SELECT * FROM comments WHERE proposal_id = :pid"),
+                            {"pid": prop.id},
+                        ).fetchall()
                 else:
                     comments = []
 
