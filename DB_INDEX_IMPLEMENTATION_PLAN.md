@@ -230,6 +230,12 @@ Branch:
 
 `scalability/add-comments-direct-messages-indexes`
 
+Status:
+
+- Completed by this follow-up PR with idempotent local/runtime DDL only.
+- Added focused SQLite tests proving the three index names and existing
+  direct-message indexes remain present after repeated helper calls.
+
 Allowed files:
 
 - `super-nova-2177/backend/app.py`, only if the existing runtime schema helper

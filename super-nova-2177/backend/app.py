@@ -545,6 +545,32 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
     }
 
 
+COMMENTS_READ_INDEX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS idx_comments_proposal_created_id "
+    "ON comments (proposal_id, created_at, id)",
+    "CREATE INDEX IF NOT EXISTS idx_comments_parent_created_id "
+    "ON comments (parent_comment_id, created_at, id)",
+)
+
+DIRECT_MESSAGES_READ_INDEX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS idx_direct_messages_conversation_created_id "
+    "ON direct_messages (conversation_id, created_at, id)",
+)
+
+
+def _execute_index_statements(db: Session, statements: tuple[str, ...]) -> None:
+    for statement in statements:
+        db.execute(text(statement))
+
+
+def _ensure_comments_read_indexes(db: Session) -> None:
+    _execute_index_statements(db, COMMENTS_READ_INDEX_STATEMENTS)
+
+
+def _ensure_direct_messages_read_indexes(db: Session) -> None:
+    _execute_index_statements(db, DIRECT_MESSAGES_READ_INDEX_STATEMENTS)
+
+
 def _ensure_comment_thread_columns(db: Session) -> None:
     try:
         if str(DB_ENGINE_URL or "").startswith("sqlite"):
@@ -552,10 +578,10 @@ def _ensure_comment_thread_columns(db: Session) -> None:
             column_names = {getattr(column, "_mapping", column)["name"] for column in columns}
             if "parent_comment_id" not in column_names:
                 db.execute(text("ALTER TABLE comments ADD COLUMN parent_comment_id INTEGER"))
-                db.commit()
         else:
             db.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER"))
-            db.commit()
+        _ensure_comments_read_indexes(db)
+        db.commit()
     except Exception:
         db.rollback()
 
@@ -1211,6 +1237,7 @@ def _ensure_direct_messages_table(db: Session) -> None:
         "CREATE INDEX IF NOT EXISTS idx_direct_messages_recipient "
         "ON direct_messages (recipient)"
     ))
+    _ensure_direct_messages_read_indexes(db)
     db.commit()
 
 
