@@ -4201,16 +4201,36 @@ def list_notifications(
 
 # --- Comment endpoint ---
 @app.get("/comments")
-def list_comments(proposal_id: int, db: Session = Depends(get_db)):
+def list_comments(
+    proposal_id: int,
+    limit: Optional[int] = Query(None),
+    offset: int = Query(0),
+    db: Session = Depends(get_db),
+):
     _ensure_comment_thread_columns(db)
+    has_pagination = limit is not None
+    safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
+    safe_offset = max(0, int(offset or 0))
     if CRUD_MODELS_AVAILABLE:
-        comments = db.query(Comment).filter(Comment.proposal_id == proposal_id).all()
+        query = db.query(Comment).filter(Comment.proposal_id == proposal_id)
+        if has_pagination:
+            query = query.order_by(Comment.id.asc()).offset(safe_offset).limit(safe_limit)
+        comments = query.all()
         return [_serialize_comment_record(db, comment) for comment in comments]
 
-    result = db.execute(
-        text("SELECT * FROM comments WHERE proposal_id = :pid"),
-        {"pid": proposal_id},
-    )
+    if has_pagination:
+        result = db.execute(
+            text(
+                "SELECT * FROM comments WHERE proposal_id = :pid "
+                "ORDER BY id ASC LIMIT :limit OFFSET :offset"
+            ),
+            {"pid": proposal_id, "limit": safe_limit, "offset": safe_offset},
+        )
+    else:
+        result = db.execute(
+            text("SELECT * FROM comments WHERE proposal_id = :pid"),
+            {"pid": proposal_id},
+        )
     return [_serialize_comment_record(db, comment) for comment in result.fetchall()]
 
 
