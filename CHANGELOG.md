@@ -40,5 +40,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added FE7 production API-origin fail-fast validation to avoid localhost fallback in production.
 - Added local safe PR gates workflow for deterministic backend and FE7 checks.
 - Added auth-bound write route hardening assessment for active backend identity checks.
+- Required bearer-token ownership checks for profile updates and direct-message routes.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.

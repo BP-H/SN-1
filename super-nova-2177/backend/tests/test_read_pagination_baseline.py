@@ -223,6 +223,7 @@ class ReadPaginationBaselineTests(unittest.TestCase):
     def test_messages_peer_thread_without_pagination_returns_full_thread_only(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
+            seed_social_graph()
             db = backend_app.SessionLocal()
             try:
                 backend_app._ensure_direct_messages_table(db)
@@ -275,7 +276,11 @@ class ReadPaginationBaselineTests(unittest.TestCase):
             finally:
                 db.close()
 
-            response = client.get("/messages?user=alice&peer=bob")
+            alice_token = backend_app._create_wrapper_access_token("alice")
+            response = client.get(
+                "/messages?user=alice&peer=bob",
+                headers={"Authorization": f"Bearer {alice_token}"},
+            )
             payload = response.json()
             messages = payload.get("messages", [])
             result = {
