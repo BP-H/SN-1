@@ -54,6 +54,7 @@ def run_auth_probe(probe: str) -> dict:
 
 
 PROBE_PREAMBLE = """
+import datetime
 import json
 import os
 import sys
@@ -106,7 +107,15 @@ def seed_users():
             species="ai",
             profile_pic="default.jpg",
         )
-        db.add_all([alice, bob])
+        cara = backend_app.Harmonizer(
+            username="cara",
+            email="cara@example.test",
+            hashed_password="test",
+            bio="third",
+            species="company",
+            profile_pic="default.jpg",
+        )
+        db.add_all([alice, bob, cara])
         db.commit()
         backend_app._ensure_direct_messages_table(db)
         rows = [
@@ -145,8 +154,10 @@ seed_users()
 upload_dir = Path(os.environ["UPLOADS_DIR"])
 alice_token = backend_app._create_wrapper_access_token("alice")
 bob_token = backend_app._create_wrapper_access_token("bob")
+cara_token = backend_app._create_wrapper_access_token("cara")
 alice_headers = {"Authorization": f"Bearer {alice_token}"}
 bob_headers = {"Authorization": f"Bearer {bob_token}"}
+cara_headers = {"Authorization": f"Bearer {cara_token}"}
 invalid_headers = {"Authorization": "Bearer not-a-valid-token"}
 
 
@@ -174,6 +185,47 @@ def user_id_for(username):
             backend_app.func.lower(backend_app.Harmonizer.username) == username.lower()
         ).first()
         return getattr(user, "id", None)
+    finally:
+        db.close()
+
+
+def seed_comment_target(author="alice", proposal_owner="bob", content="original comment"):
+    db = backend_app.SessionLocal()
+    try:
+        author_obj = db.query(backend_app.Harmonizer).filter(
+            backend_app.func.lower(backend_app.Harmonizer.username) == author.lower()
+        ).first()
+        owner_obj = db.query(backend_app.Harmonizer).filter(
+            backend_app.func.lower(backend_app.Harmonizer.username) == proposal_owner.lower()
+        ).first()
+        node = backend_app.VibeNode(
+            name=f"comment-auth-node-{author}-{proposal_owner}",
+            author_id=owner_obj.id,
+        )
+        proposal = backend_app.Proposal(
+            title="Comment auth proposal",
+            description="Pins comment edit/delete auth behavior.",
+            userName=proposal_owner,
+            userInitials=proposal_owner[:2].upper(),
+            author_type="human",
+            author_id=owner_obj.id,
+            voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+        )
+        db.add_all([node, proposal])
+        db.commit()
+        db.refresh(node)
+        db.refresh(proposal)
+        comment = backend_app.Comment(
+            content=content,
+            author_id=author_obj.id,
+            vibenode_id=node.id,
+            proposal_id=proposal.id,
+            created_at=datetime.datetime.utcnow(),
+        )
+        db.add(comment)
+        db.commit()
+        db.refresh(comment)
+        return {"proposal_id": proposal.id, "comment_id": comment.id}
     finally:
         db.close()
 """
@@ -506,6 +558,153 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["follower"], "alice")
         self.assertEqual(result["target"], "bob")
         self.assertEqual(result["after_following"], [])
+
+    def test_comment_edit_requires_matching_author_bearer_identity(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seeded = seed_comment_target(author="alice", proposal_owner="bob")
+            comment_id = seeded["comment_id"]
+            proposal_id = seeded["proposal_id"]
+            missing = client.patch(
+                f"/comments/{comment_id}",
+                json={"user": "alice", "comment": "missing token"},
+            )
+            invalid = client.patch(
+                f"/comments/{comment_id}",
+                json={"user": "alice", "comment": "invalid token"},
+                headers=invalid_headers,
+            )
+            wrong = client.patch(
+                f"/comments/{comment_id}",
+                json={"user": "alice", "comment": "wrong token"},
+                headers=bob_headers,
+            )
+            matching = client.patch(
+                f"/comments/{comment_id}",
+                json={"user": "alice", "comment": "edited by alice"},
+                headers=alice_headers,
+            )
+            payload = matching.json()
+            public_read = client.get(f"/comments?proposal_id={proposal_id}")
+            public_payload = public_read.json()
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "keys": sorted(payload.keys()),
+                "comment": payload.get("comment"),
+                "user": payload.get("user"),
+                "public_read_status": public_read.status_code,
+                "public_count": len(public_payload),
+                "public_comment": public_payload[0].get("comment") if public_payload else "",
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(
+            set(result["keys"]),
+            {
+                "comment",
+                "created_at",
+                "deleted",
+                "id",
+                "parent_comment_id",
+                "proposal_id",
+                "species",
+                "user",
+                "user_img",
+            },
+        )
+        self.assertEqual(result["comment"], "edited by alice")
+        self.assertEqual(result["user"], "alice")
+        self.assertEqual(result["public_read_status"], 200)
+        self.assertEqual(result["public_count"], 1)
+        self.assertEqual(result["public_comment"], "edited by alice")
+
+    def test_comment_delete_requires_author_or_proposal_owner_bearer_identity(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            author_seeded = seed_comment_target(
+                author="alice",
+                proposal_owner="bob",
+                content="delete by author",
+            )
+            author_comment_id = author_seeded["comment_id"]
+            missing = client.delete(f"/comments/{author_comment_id}?user=alice")
+            invalid = client.delete(
+                f"/comments/{author_comment_id}?user=alice",
+                headers=invalid_headers,
+            )
+            wrong = client.delete(
+                f"/comments/{author_comment_id}?user=alice",
+                headers=cara_headers,
+            )
+            matching_author = client.delete(
+                f"/comments/{author_comment_id}?user=alice",
+                headers=alice_headers,
+            )
+
+            owner_seeded = seed_comment_target(
+                author="alice",
+                proposal_owner="bob",
+                content="delete by owner",
+            )
+            owner_comment_id = owner_seeded["comment_id"]
+            matching_owner = client.delete(
+                f"/comments/{owner_comment_id}?user=bob",
+                headers=bob_headers,
+            )
+            owner_read = client.get(f"/comments?proposal_id={owner_seeded['proposal_id']}")
+            author_payload = matching_author.json()
+            owner_payload = matching_owner.json()
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_author_status": matching_author.status_code,
+                "matching_author_keys": sorted(author_payload.keys()),
+                "matching_author_deleted": author_payload.get("deleted"),
+                "matching_author_tombstone": author_payload.get("tombstone"),
+                "matching_owner_status": matching_owner.status_code,
+                "matching_owner_keys": sorted(owner_payload.keys()),
+                "matching_owner_deleted": owner_payload.get("deleted"),
+                "matching_owner_tombstone": owner_payload.get("tombstone"),
+                "owner_read_status": owner_read.status_code,
+                "owner_read_count": len(owner_read.json()),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_author_status"], 200)
+        self.assertEqual(
+            set(result["matching_author_keys"]),
+            {"deleted", "ok", "pruned_comment_ids", "tombstone"},
+        )
+        self.assertTrue(result["matching_author_deleted"])
+        self.assertFalse(result["matching_author_tombstone"])
+        self.assertEqual(result["matching_owner_status"], 200)
+        self.assertEqual(
+            set(result["matching_owner_keys"]),
+            {"deleted", "ok", "pruned_comment_ids", "tombstone"},
+        )
+        self.assertTrue(result["matching_owner_deleted"])
+        self.assertFalse(result["matching_owner_tombstone"])
+        self.assertEqual(result["owner_read_status"], 200)
+        self.assertEqual(result["owner_read_count"], 0)
 
 
 if __name__ == "__main__":
