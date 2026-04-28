@@ -23,6 +23,7 @@ def run_auth_probe(probe: str) -> dict:
                 "SUPERNOVA_ENV": "development",
                 "APP_ENV": "development",
                 "ENV": "development",
+                "UPLOADS_DIR": str(Path(tmpdir) / "uploads"),
             }
         )
         env.pop("RAILWAY_ENVIRONMENT", None)
@@ -53,6 +54,7 @@ def run_auth_probe(probe: str) -> dict:
 
 PROBE_PREAMBLE = """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -138,11 +140,40 @@ def seed_users():
 
 
 seed_users()
+upload_dir = Path(os.environ["UPLOADS_DIR"])
 alice_token = backend_app._create_wrapper_access_token("alice")
 bob_token = backend_app._create_wrapper_access_token("bob")
 alice_headers = {"Authorization": f"Bearer {alice_token}"}
 bob_headers = {"Authorization": f"Bearer {bob_token}"}
 invalid_headers = {"Authorization": "Bearer not-a-valid-token"}
+
+
+def uploaded_files():
+    if not upload_dir.exists():
+        return []
+    return sorted(item.name for item in upload_dir.iterdir() if item.is_file())
+
+
+def profile_pic_for(username):
+    db = backend_app.SessionLocal()
+    try:
+        user = db.query(backend_app.Harmonizer).filter(
+            backend_app.func.lower(backend_app.Harmonizer.username) == username.lower()
+        ).first()
+        return getattr(user, "profile_pic", "") if user else ""
+    finally:
+        db.close()
+
+
+def user_id_for(username):
+    db = backend_app.SessionLocal()
+    try:
+        user = db.query(backend_app.Harmonizer).filter(
+            backend_app.func.lower(backend_app.Harmonizer.username) == username.lower()
+        ).first()
+        return getattr(user, "id", None)
+    finally:
+        db.close()
 """
 
 
@@ -251,6 +282,146 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["sender"], "alice")
         self.assertEqual(result["recipient"], "bob")
         self.assertEqual(result["body"], "secure hello")
+
+    def test_raw_image_upload_without_profile_sync_still_succeeds(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            response = client.post(
+                "/upload-image",
+                files={"file": ("raw.png", b"small-image", "image/png")},
+            )
+            payload = response.json()
+            result = {
+                "status_code": response.status_code,
+                "keys": sorted(payload.keys()),
+                "filename": payload.get("filename", ""),
+                "url": payload.get("url", ""),
+                "profile_synced": payload.get("profile_synced"),
+                "files": uploaded_files(),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["status_code"], 200)
+        self.assertEqual(
+            set(result["keys"]),
+            {"content_type", "filename", "profile_synced", "sync_error", "url"},
+        )
+        self.assertTrue(result["filename"].endswith(".png"))
+        self.assertEqual(result["url"], f"/uploads/{result['filename']}")
+        self.assertFalse(result["profile_synced"])
+        self.assertEqual(result["files"], [result["filename"]])
+
+    def test_upload_image_username_profile_sync_requires_matching_bearer_identity(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            missing = client.post(
+                "/upload-image",
+                data={"username": "alice"},
+                files={"file": ("missing.png", b"small-image", "image/png")},
+            )
+            invalid = client.post(
+                "/upload-image",
+                data={"username": "alice"},
+                files={"file": ("invalid.png", b"small-image", "image/png")},
+                headers=invalid_headers,
+            )
+            wrong = client.post(
+                "/upload-image",
+                data={"username": "alice"},
+                files={"file": ("wrong.png", b"small-image", "image/png")},
+                headers=bob_headers,
+            )
+            matching = client.post(
+                "/upload-image",
+                data={"username": "alice"},
+                files={"file": ("matching.png", b"small-image", "image/png")},
+                headers=alice_headers,
+            )
+            payload = matching.json()
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "keys": sorted(payload.keys()),
+                "profile_synced": payload.get("profile_synced"),
+                "url": payload.get("url"),
+                "profile_pic": profile_pic_for("alice"),
+                "files": uploaded_files(),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(
+            set(result["keys"]),
+            {"content_type", "filename", "profile_synced", "sync_error", "url"},
+        )
+        self.assertTrue(result["profile_synced"])
+        self.assertEqual(result["profile_pic"], result["url"])
+        self.assertEqual(len(result["files"]), 1)
+
+    def test_upload_image_user_id_profile_sync_requires_matching_bearer_identity(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            alice_id = user_id_for("alice")
+            missing = client.post(
+                "/upload-image",
+                data={"user_id": str(alice_id)},
+                files={"file": ("missing.png", b"small-image", "image/png")},
+            )
+            invalid = client.post(
+                "/upload-image",
+                data={"user_id": str(alice_id)},
+                files={"file": ("invalid.png", b"small-image", "image/png")},
+                headers=invalid_headers,
+            )
+            wrong = client.post(
+                "/upload-image",
+                data={"user_id": str(alice_id)},
+                files={"file": ("wrong.png", b"small-image", "image/png")},
+                headers=bob_headers,
+            )
+            matching = client.post(
+                "/upload-image",
+                data={"user_id": str(alice_id)},
+                files={"file": ("matching.png", b"small-image", "image/png")},
+                headers=alice_headers,
+            )
+            payload = matching.json()
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "profile_synced": payload.get("profile_synced"),
+                "url": payload.get("url"),
+                "profile_pic": profile_pic_for("alice"),
+                "files": uploaded_files(),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertTrue(result["profile_synced"])
+        self.assertEqual(result["profile_pic"], result["url"])
+        self.assertEqual(len(result["files"]), 1)
 
 
 if __name__ == "__main__":
