@@ -5,6 +5,7 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 ## Required Checks
 
 - [ ] PRs pass the local safe PR gates workflow for deterministic backend tests, `check_safe.py --local-only`, FE7 `npm ci`/lint/build, and protected core zero diff.
+- [ ] Backup/restore readiness is confirmed using `BACKUP_RESTORE_RUNBOOK.md` (inventory, backup path, restore drill plan, and rollback path).
 - [ ] `python scripts/check_safe.py --local-only`
 - [ ] `python scripts/check_safe.py`
 - [ ] Backend federation/safety tests pass.

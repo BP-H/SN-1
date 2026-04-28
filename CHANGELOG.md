@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a production backup/restore runbook and release-checklist confirmation gate without runtime or infrastructure changes.
 - Added community health docs: root license, security policy, code of conduct, and issue templates.
 - Added governance contracts documenting v1 manual-preview-only safety guarantees.
 - Added verified-domain and signed-export v1 plans without enabling runtime verification or signing.
