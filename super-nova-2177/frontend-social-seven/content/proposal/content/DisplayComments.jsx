@@ -37,6 +37,7 @@ function DisplayComments({
   deleting = false,
   setErrorMsg = () => {},
   setNotify = () => {},
+  children = null,
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -64,6 +65,9 @@ function DisplayComments({
   const imageUrl = normalizeAvatarValue(image) ? avatarDisplayUrl(image) : "";
   const avatarStyle = speciesAvatarStyle(species);
   const profileHref = name ? `/users/${encodeURIComponent(name)}` : "/profile";
+  const depthOffsetStyle = depth
+    ? { marginLeft: `${Math.min(depth, 2) * 0.85}rem`, width: `calc(100% - ${Math.min(depth, 2) * 0.85}rem)` }
+    : undefined;
   const isSelf = Boolean(
     name && userData?.name && String(name).toLowerCase() === String(userData.name).toLowerCase()
   );
@@ -282,7 +286,7 @@ function DisplayComments({
     <>
     <div
       className="comment-row flex w-full min-w-0 items-start gap-2"
-      style={depth ? { marginLeft: `${Math.min(depth, 2) * 0.85}rem`, width: `calc(100% - ${Math.min(depth, 2) * 0.85}rem)` } : undefined}
+      style={depthOffsetStyle}
     >
       {isDeleted ? (
         <div className="shrink-0" aria-hidden="true">
@@ -383,6 +387,13 @@ function DisplayComments({
         )}
       </div>
     </div>
+    {children && (
+      <div className="comment-inline-reply flex w-full min-w-0" style={depthOffsetStyle}>
+        <div className="ml-11 min-w-0 flex-1">
+          {children}
+        </div>
+      </div>
+    )}
     {menuPanel}
     </>
   );

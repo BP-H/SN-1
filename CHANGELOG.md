@@ -57,5 +57,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Required bearer-token ownership checks for proposal and comment creation.
 - Hardened debug-supernova production gating and removed filesystem internals from its development response.
 - Restored FE7 backend bearer-session persistence for social-authenticated protected writes.
+- Rendered FE7 comment reply composer inline under the target comment.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.
