@@ -69,7 +69,7 @@ SYSTEM_VOTE_QUESTION = os.environ.get(
     "SYSTEM_VOTE_QUESTION",
     "Should SuperNova prioritize AI rights as the next major research focus?",
 )
-SYSTEM_VOTE_DEADLINE = os.environ.get("SYSTEM_VOTE_DEADLINE", "2026-04-27T18:00:00-07:00")
+SYSTEM_VOTE_DEADLINE = (os.environ.get("SYSTEM_VOTE_DEADLINE") or "").strip() or None
 PUBLIC_BASE_URL = (
     os.environ.get("SUPERNOVA_PUBLIC_URL")
     or os.environ.get("PUBLIC_BASE_URL")
@@ -769,6 +769,30 @@ def _normalize_system_vote_choice(choice: str) -> str:
     if value in {"no", "down", "dislike", "oppose"}:
         return "no"
     raise HTTPException(status_code=400, detail="choice must be yes or no")
+
+
+def _configured_system_vote_deadline() -> Optional[datetime.datetime]:
+    if not SYSTEM_VOTE_DEADLINE:
+        return None
+    raw_deadline = SYSTEM_VOTE_DEADLINE.strip()
+    try:
+        parsed = datetime.datetime.fromisoformat(raw_deadline.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail="SYSTEM_VOTE_DEADLINE is invalid") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed.astimezone(datetime.timezone.utc)
+
+
+def _enforce_system_vote_deadline(now: Optional[datetime.datetime] = None) -> None:
+    deadline = _configured_system_vote_deadline()
+    if deadline is None:
+        return
+    current = now or datetime.datetime.now(datetime.timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=datetime.timezone.utc)
+    if current.astimezone(datetime.timezone.utc) > deadline:
+        raise HTTPException(status_code=403, detail="System vote deadline has passed")
 
 
 def _ensure_system_votes_table(db: Session) -> None:
@@ -3902,11 +3926,17 @@ def get_system_vote_config():
 
 
 @app.post("/system-vote")
-def cast_system_vote(payload: SystemVoteIn, db: Session = Depends(get_db)):
+def cast_system_vote(
+    payload: SystemVoteIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     username = (payload.username or "").strip()
     if not username:
         raise HTTPException(status_code=400, detail="username is required")
     choice = _normalize_system_vote_choice(payload.choice)
+    _require_token_identity_match(authorization, db, username)
+    _enforce_system_vote_deadline()
     voter_type = _species_for_username(db, username, payload.voter_type)
     now = datetime.datetime.utcnow()
 
@@ -3943,10 +3973,15 @@ def cast_system_vote(payload: SystemVoteIn, db: Session = Depends(get_db)):
 
 
 @app.delete("/system-vote")
-def remove_system_vote(username: str = Query(...), db: Session = Depends(get_db)):
+def remove_system_vote(
+    username: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     requester = (username or "").strip()
     if not requester:
         raise HTTPException(status_code=400, detail="username is required")
+    _require_token_identity_match(authorization, db, requester)
     try:
         _ensure_system_votes_table(db)
         db.execute(
