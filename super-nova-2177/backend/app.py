@@ -3312,7 +3312,7 @@ async def create_proposal(
 ):
     if author_type not in ("human", "company", "ai"):
         raise HTTPException(status_code=400, detail="Invalid author_type")
-    _enforce_token_identity_match(authorization, db, author)
+    _require_token_identity_match(authorization, db, author)
     
     os.makedirs(uploads_dir, exist_ok=True)
     image_filename = None
@@ -4222,7 +4222,7 @@ def add_comment(
 ):
     import datetime
     try:
-        _enforce_token_identity_match(authorization, db, c.user)
+        _require_token_identity_match(authorization, db, c.user)
         _ensure_comment_thread_columns(db)
         # --- 1. Obter ou criar Harmonizer ---
         author_obj = db.query(Harmonizer).filter(Harmonizer.username == c.user).first() if CRUD_MODELS_AVAILABLE else None
@@ -4340,6 +4340,9 @@ def add_comment(
             "species": species_value,
             "comments": comments_list
         }
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         import traceback

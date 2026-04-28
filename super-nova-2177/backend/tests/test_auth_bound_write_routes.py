@@ -189,6 +189,16 @@ def user_id_for(username):
         db.close()
 
 
+def harmonizer_count_for(username):
+    db = backend_app.SessionLocal()
+    try:
+        return db.query(backend_app.Harmonizer).filter(
+            backend_app.func.lower(backend_app.Harmonizer.username) == username.lower()
+        ).count()
+    finally:
+        db.close()
+
+
 def seed_comment_target(author="alice", proposal_owner="bob", content="original comment"):
     db = backend_app.SessionLocal()
     try:
@@ -558,6 +568,165 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["follower"], "alice")
         self.assertEqual(result["target"], "bob")
         self.assertEqual(result["after_following"], [])
+
+    def test_proposal_create_requires_matching_bearer_identity(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            form = {
+                "title": "Authenticated proposal",
+                "body": "Proposal create should require a matching token.",
+                "author": "alice",
+                "author_type": "human",
+            }
+            missing = client.post("/proposals", data=form)
+            invalid = client.post("/proposals", data=form, headers=invalid_headers)
+            wrong = client.post("/proposals", data=form, headers=bob_headers)
+            matching = client.post("/proposals", data=form, headers=alice_headers)
+            payload = matching.json()
+            public_read = client.get("/proposals?filter=latest&author=alice&limit=10")
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "keys": sorted(payload.keys()),
+                "title": payload.get("title"),
+                "text": payload.get("text"),
+                "userName": payload.get("userName"),
+                "author_type": payload.get("author_type"),
+                "public_read_status": public_read.status_code,
+                "public_read_count": len(public_read.json()),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(
+            set(result["keys"]),
+            {
+                "author_img",
+                "author_type",
+                "comments",
+                "dislikes",
+                "domain_as_profile",
+                "id",
+                "likes",
+                "media",
+                "profile_url",
+                "text",
+                "time",
+                "title",
+                "userInitials",
+                "userName",
+            },
+        )
+        self.assertEqual(result["title"], "Authenticated proposal")
+        self.assertEqual(result["text"], "Proposal create should require a matching token.")
+        self.assertEqual(result["userName"], "alice")
+        self.assertEqual(result["author_type"], "human")
+        self.assertEqual(result["public_read_status"], 200)
+        self.assertGreaterEqual(result["public_read_count"], 1)
+
+    def test_comment_create_requires_matching_bearer_identity_and_preserves_replies(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seeded = seed_comment_target(author="alice", proposal_owner="bob")
+            proposal_id = seeded["proposal_id"]
+            parent_id = seeded["comment_id"]
+            body = {
+                "proposal_id": proposal_id,
+                "user": "alice",
+                "species": "human",
+                "comment": "secure comment",
+            }
+            ghost_before = harmonizer_count_for("ghost-commenter")
+            missing_unknown = client.post(
+                "/comments",
+                json={
+                    "proposal_id": proposal_id,
+                    "user": "ghost-commenter",
+                    "species": "human",
+                    "comment": "should not create fallback user",
+                },
+            )
+            ghost_after = harmonizer_count_for("ghost-commenter")
+            missing = client.post("/comments", json=body)
+            invalid = client.post("/comments", json=body, headers=invalid_headers)
+            wrong = client.post("/comments", json=body, headers=bob_headers)
+            matching = client.post("/comments", json=body, headers=alice_headers)
+            reply = client.post(
+                "/comments",
+                json={
+                    "proposal_id": proposal_id,
+                    "user": "alice",
+                    "species": "human",
+                    "comment": "secure reply",
+                    "parent_comment_id": parent_id,
+                },
+                headers=alice_headers,
+            )
+            matching_payload = matching.json()
+            reply_payload = reply.json()
+            public_read = client.get(f"/comments?proposal_id={proposal_id}")
+            public_payload = public_read.json()
+            result = {
+                "missing_unknown_status": missing_unknown.status_code,
+                "ghost_before": ghost_before,
+                "ghost_after": ghost_after,
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "matching_status": matching.status_code,
+                "matching_keys": sorted(matching_payload.keys()),
+                "matching_comment_keys": sorted(matching_payload.get("comments", [{}])[0].keys()),
+                "matching_comment": matching_payload.get("comments", [{}])[0].get("comment"),
+                "matching_user": matching_payload.get("comments", [{}])[0].get("user"),
+                "reply_status": reply.status_code,
+                "parent_id": parent_id,
+                "reply_parent": reply_payload.get("comments", [{}])[0].get("parent_comment_id"),
+                "public_read_status": public_read.status_code,
+                "public_count": len(public_payload),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_unknown_status"], 401)
+        self.assertEqual(result["ghost_before"], 0)
+        self.assertEqual(result["ghost_after"], 0)
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(set(result["matching_keys"]), {"comments", "ok", "species"})
+        self.assertEqual(
+            set(result["matching_comment_keys"]),
+            {
+                "comment",
+                "created_at",
+                "deleted",
+                "id",
+                "parent_comment_id",
+                "proposal_id",
+                "species",
+                "user",
+                "user_img",
+            },
+        )
+        self.assertEqual(result["matching_comment"], "secure comment")
+        self.assertEqual(result["matching_user"], "alice")
+        self.assertEqual(result["reply_status"], 200)
+        self.assertEqual(result["reply_parent"], result["parent_id"])
+        self.assertEqual(result["public_read_status"], 200)
+        self.assertGreaterEqual(result["public_count"], 3)
 
     def test_comment_edit_requires_matching_author_bearer_identity(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
