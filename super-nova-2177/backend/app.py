@@ -4706,17 +4706,11 @@ async def upload_image(
     if not _upload_matches(file, "image/", IMAGE_UPLOAD_EXTENSIONS):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image")
 
-    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg", UPLOAD_AVATAR_MAX_BYTES)
-
-    avatar_url = f"/uploads/{unique_name}"
     clean_username = (username or "").strip()
     clean_user_id = (user_id or "").strip()
-    if clean_username:
-        _enforce_token_identity_match(authorization, db, clean_username)
-    profile_synced = False
     sync_error = ""
     user = None
-    if Harmonizer is not None:
+    if (clean_username or clean_user_id) and Harmonizer is not None:
         try:
             if clean_user_id:
                 try:
@@ -4725,10 +4719,18 @@ async def upload_image(
                     user = None
             if user is None and clean_username:
                 user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
+            if user is not None:
+                _require_token_identity_match(authorization, db, getattr(user, "username", ""))
+        except HTTPException:
+            raise
         except Exception as exc:
             db.rollback()
             sync_error = str(exc)
 
+    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg", UPLOAD_AVATAR_MAX_BYTES)
+
+    avatar_url = f"/uploads/{unique_name}"
+    profile_synced = False
     if user is not None:
         try:
             user.profile_pic = avatar_url
