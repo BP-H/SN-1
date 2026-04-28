@@ -3155,6 +3155,8 @@ def unfollow_user(
 def get_messages(
     user: str = Query(...),
     peer: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None),
+    offset: int = Query(0),
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -3162,18 +3164,31 @@ def get_messages(
     if not current:
         raise HTTPException(status_code=400, detail="user is required")
     _require_token_identity_match(authorization, db, user)
+    has_pagination = limit is not None
+    safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
+    safe_offset = max(0, int(offset or 0))
 
     try:
         _ensure_direct_messages_table(db)
         if peer:
             cid = _conversation_id(user, peer)
-            rows = db.execute(
-                text(
-                    "SELECT id, conversation_id, sender, recipient, body, created_at "
-                    "FROM direct_messages WHERE conversation_id = :cid ORDER BY created_at ASC"
-                ),
-                {"cid": cid},
-            ).fetchall()
+            if has_pagination:
+                rows = db.execute(
+                    text(
+                        "SELECT id, conversation_id, sender, recipient, body, created_at "
+                        "FROM direct_messages WHERE conversation_id = :cid "
+                        "ORDER BY created_at ASC, id ASC LIMIT :limit OFFSET :offset"
+                    ),
+                    {"cid": cid, "limit": safe_limit, "offset": safe_offset},
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    text(
+                        "SELECT id, conversation_id, sender, recipient, body, created_at "
+                        "FROM direct_messages WHERE conversation_id = :cid ORDER BY created_at ASC"
+                    ),
+                    {"cid": cid},
+                ).fetchall()
             return {"peer": peer, "messages": [_message_payload(row) for row in rows]}
 
         rows = db.execute(
@@ -3200,13 +3215,14 @@ def get_messages(
                 "updated_at": message.get("created_at", ""),
             }
 
-        return {
-            "conversations": sorted(
-                conversations.values(),
-                key=lambda item: item.get("updated_at", ""),
-                reverse=True,
-            )
-        }
+        sorted_conversations = sorted(
+            conversations.values(),
+            key=lambda item: item.get("updated_at", ""),
+            reverse=True,
+        )
+        if has_pagination:
+            sorted_conversations = sorted_conversations[safe_offset:safe_offset + safe_limit]
+        return {"conversations": sorted_conversations}
     except Exception:
         db.rollback()
 
@@ -3214,7 +3230,10 @@ def get_messages(
     if peer:
         cid = _conversation_id(user, peer)
         thread = [message for message in messages if message.get("conversation_id") == cid]
-        return {"peer": peer, "messages": sorted(thread, key=lambda item: item.get("created_at", ""))}
+        sorted_thread = sorted(thread, key=lambda item: item.get("created_at", ""))
+        if has_pagination:
+            sorted_thread = sorted_thread[safe_offset:safe_offset + safe_limit]
+        return {"peer": peer, "messages": sorted_thread}
 
     conversations: Dict[str, Dict[str, Any]] = {}
     for message in messages:
@@ -3230,13 +3249,14 @@ def get_messages(
             "updated_at": message.get("created_at", ""),
         }
 
-    return {
-        "conversations": sorted(
-            conversations.values(),
-            key=lambda item: item.get("updated_at", ""),
-            reverse=True,
-        )
-    }
+    sorted_conversations = sorted(
+        conversations.values(),
+        key=lambda item: item.get("updated_at", ""),
+        reverse=True,
+    )
+    if has_pagination:
+        sorted_conversations = sorted_conversations[safe_offset:safe_offset + safe_limit]
+    return {"conversations": sorted_conversations}
 
 
 @app.post("/messages", summary="Send a direct message")
