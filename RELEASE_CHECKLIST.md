@@ -4,6 +4,7 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 
 ## Required Checks
 
+- [ ] PRs pass the local safe PR gates workflow for deterministic backend tests, `check_safe.py --local-only`, FE7 `npm ci`/lint/build, and protected core zero diff.
 - [ ] `python scripts/check_safe.py --local-only`
 - [ ] `python scripts/check_safe.py`
 - [ ] Backend federation/safety tests pass.
@@ -13,6 +14,7 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] Public protocol smoke reports zero failures.
 - [ ] Read-only social/backend smoke passes or records auth-gated social reads as skipped.
 - [ ] Optional until the API origin is known and stable: direct backend API smoke passes with `python scripts/smoke_social_backend.py "$env:NEXT_PUBLIC_API_URL" --strict-backend` in PowerShell.
+- [ ] Live smoke checks remain manual/scheduled and are not required PR gates yet.
 
 ## Governance And Protocol Review
 

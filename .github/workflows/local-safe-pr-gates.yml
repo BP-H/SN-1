@@ -1,0 +1,77 @@
+name: Local Safe PR Gates
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-safe-pr-gates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-local-checks:
+    name: Backend local deterministic checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r super-nova-2177/backend/requirements.txt
+
+      - name: Run focused backend tests
+        run: |
+          python -m unittest super-nova-2177/backend/tests/test_public_federation_safety.py
+          python -m unittest super-nova-2177/backend/tests/test_secret_key_hardening.py
+          python -m unittest super-nova-2177/backend/tests/test_db_engine_consistency.py
+          python -m unittest super-nova-2177/backend/tests/test_db_utils_fallback.py
+          python -m unittest super-nova-2177/backend/tests/test_read_pagination_baseline.py
+          python -m unittest super-nova-2177/backend/tests/test_upload_size_limits.py
+
+      - name: Run local safe check
+        run: python scripts/check_safe.py --local-only
+
+      - name: Confirm protected core diff is zero
+        run: |
+          git -c safe.directory="$GITHUB_WORKSPACE" diff --exit-code HEAD -- \
+            super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py \
+            super-nova-2177/frontend-vite-basic/supernovacore.py
+
+  fe7-local-checks:
+    name: FE7 local deterministic checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: super-nova-2177/frontend-social-seven/package-lock.json
+
+      - name: Install FE7 dependencies
+        working-directory: super-nova-2177/frontend-social-seven
+        run: npm ci
+
+      - name: Run FE7 lint
+        working-directory: super-nova-2177/frontend-social-seven
+        run: npm run lint
+
+      - name: Run FE7 build
+        working-directory: super-nova-2177/frontend-social-seven
+        run: npm run build
