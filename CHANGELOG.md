@@ -40,6 +40,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added FE7 production API-origin fail-fast validation to avoid localhost fallback in production.
 - Added local safe PR gates workflow for deterministic backend and FE7 checks.
 - Added auth-bound write route hardening assessment for active backend identity checks.
+- Added product roadmap assessment for grants, mentions, reply UI, and homepage clarity.
 - Required bearer-token ownership checks for profile updates and direct-message routes.
 - Required bearer-token ownership checks for upload-image profile sync.
 - Required bearer-token ownership checks for follow and unfollow mutations.
