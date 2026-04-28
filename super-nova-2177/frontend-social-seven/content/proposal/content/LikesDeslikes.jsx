@@ -6,7 +6,7 @@ import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { IoChevronUp } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 
@@ -130,6 +130,12 @@ function LikesDeslikes({
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
       }
+      return false;
+    }
+    try {
+      requireBackendAuthSession();
+    } catch {
+      setErrorMsg([BACKEND_AUTH_MISSING_MESSAGE]);
       return false;
     }
     const errors = [];

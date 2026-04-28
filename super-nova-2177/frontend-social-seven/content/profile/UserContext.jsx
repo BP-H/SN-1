@@ -4,7 +4,13 @@ import { createContext, useState, useContext, useEffect, useCallback, useMemo } 
 import supabase, { isSupabaseConfigured } from "@/supabaseClient";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { FALLBACK_AVATAR, isUploadedAvatarValue, normalizeAvatarValue } from "@/utils/avatar";
-import { PASSWORD_SESSION_KEY, authHeaders } from "@/utils/authSession";
+import {
+  authHeaders,
+  clearBackendAuthSession,
+  readPasswordAuthSession,
+  requireBackendAuthSession,
+  writeBackendAuthSession,
+} from "@/utils/authSession";
 
 const UserContext = createContext();
 
@@ -55,46 +61,6 @@ function removeStorage(key) {
   }
 }
 
-function readSessionStorage(key) {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSessionStorage(key, value) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Ignore unavailable storage.
-  }
-}
-
-function removeSessionStorage(key) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.removeItem(key);
-  } catch {
-    // Ignore unavailable storage.
-  }
-}
-
-function readPasswordSession() {
-  const sessionAuth = readSessionStorage(PASSWORD_SESSION_KEY);
-  if (sessionAuth?.token) return sessionAuth;
-  const legacyAuth = readStorage(PASSWORD_SESSION_KEY);
-  if (legacyAuth?.token) {
-    writeSessionStorage(PASSWORD_SESSION_KEY, legacyAuth);
-    removeStorage(PASSWORD_SESSION_KEY);
-    return legacyAuth;
-  }
-  return null;
-}
-
 function getCustomStorageKey(authUser, passwordAuth) {
   const identityId = authUser?.id || passwordAuth?.id;
   if (!identityId) return GUEST_STORAGE_KEY;
@@ -137,6 +103,28 @@ function getPasswordProfile(passwordAuth) {
     species: passwordAuth.species || "",
     provider: "password",
   };
+}
+
+function sameUsername(left = "", right = "") {
+  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+}
+
+function profileMatchesBackendAuth(storedProfile = {}, backendAuth = null) {
+  if (!backendAuth?.token) return false;
+  const storedName = String(storedProfile?.customName || "").trim();
+  return Boolean(storedName && sameUsername(storedName, backendAuth.username));
+}
+
+function persistBackendAuthFromSyncPayload(payload = {}, fallback = {}) {
+  if (!payload?.access_token) return null;
+  return writeBackendAuthSession({
+    token: payload.access_token,
+    id: payload.id || payload.username || fallback.username || "",
+    username: payload.username || fallback.username || "",
+    email: payload.email || fallback.email || "",
+    avatar: normalizeAvatarValue(payload.avatar_url || fallback.avatar || ""),
+    species: normalizeSpecies(payload.species) || normalizeSpecies(fallback.species) || "human",
+  });
 }
 
 function mergeUserData(providerProfile, storedProfile = {}) {
@@ -190,7 +178,7 @@ export function UserProvider({ children }) {
   );
 
   useEffect(() => {
-    const savedPasswordAuth = readPasswordSession();
+    const savedPasswordAuth = readPasswordAuthSession();
     const initialStored = readStorage(getCustomStorageKey(null, savedPasswordAuth)) || readStorage(GUEST_STORAGE_KEY) || {};
     if (savedPasswordAuth?.token) setPasswordAuth(savedPasswordAuth);
     setStoredProfile(initialStored);
@@ -202,25 +190,39 @@ export function UserProvider({ children }) {
 
     let mounted = true;
 
+    const applySessionState = (nextSession) => {
+      const currentBackendAuth = readPasswordAuthSession();
+      let nextBackendAuth = currentBackendAuth?.token ? currentBackendAuth : null;
+      let nextStored = {};
+
+      if (nextSession?.user) {
+        const socialKey = getCustomStorageKey(nextSession.user, nextBackendAuth);
+        nextStored = readStorage(socialKey) || {};
+        if (nextBackendAuth && !profileMatchesBackendAuth(nextStored, nextBackendAuth)) {
+          clearBackendAuthSession();
+          nextBackendAuth = null;
+        }
+      } else {
+        const passwordKey = getCustomStorageKey(null, nextBackendAuth);
+        nextStored = readStorage(passwordKey) || {};
+      }
+
+      setSession(nextSession);
+      setPasswordAuth(nextBackendAuth);
+      setStoredProfile(nextStored);
+      setAuthLoading(false);
+    };
+
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      const nextSession = data?.session ?? null;
-      setSession(nextSession);
-      if (nextSession?.user) setPasswordAuth(null);
-      const key = getCustomStorageKey(nextSession?.user ?? null, nextSession?.user ? null : savedPasswordAuth);
-      setStoredProfile(readStorage(key) || {});
-      setAuthLoading(false);
+      applySessionState(data?.session ?? null);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
-      setSession(nextSession ?? null);
-      if (nextSession?.user) setPasswordAuth(null);
-      const key = getCustomStorageKey(nextSession?.user ?? null, nextSession?.user ? null : savedPasswordAuth);
-      setStoredProfile(readStorage(key) || {});
-      setAuthLoading(false);
+      applySessionState(nextSession ?? null);
     });
 
     return () => {
@@ -345,6 +347,15 @@ export function UserProvider({ children }) {
         const responseSpecies = normalizeSpecies(payload.species);
         const responseAvatar = normalizeAvatarValue(payload.avatar_url || "");
         const localAvatar = normalizeAvatarValue(storedProfile?.customAvatar || "");
+        const syncedAuth = persistBackendAuthFromSyncPayload(payload, {
+          username,
+          email: providerProfile.email,
+          avatar: responseAvatar || localAvatar || providerProfile.avatar || userData.avatar || "",
+          species: responseSpecies || storedProfile?.species || providerProfile.species || userData.species,
+        });
+        if (syncedAuth) {
+          setPasswordAuth((current) => (current?.token === syncedAuth.token ? current : syncedAuth));
+        }
         const shouldAdoptSpecies = !normalizeSpecies(storedProfile?.species) && responseSpecies;
         const shouldAdoptAvatar = responseAvatar && (
           !localAvatar ||
@@ -379,6 +390,7 @@ export function UserProvider({ children }) {
     storedProfile,
     userData.avatar,
     userData.name,
+    userData.species,
     authUser,
     passwordAuth,
     needsProfileSetup,
@@ -409,8 +421,7 @@ export function UserProvider({ children }) {
     setStoredProfile(nextStored);
 
     const username = passwordAuth?.username || current.name || providerProfile.name || nextStored.customName || "";
-    const shouldSyncProfile =
-      Boolean(passwordAuth?.token) || Boolean(providerProfile.id && providerProfile.provider !== "guest");
+    const shouldSyncProfile = Boolean(readPasswordAuthSession()?.token);
     if (username && shouldSyncProfile) {
       fetch(`${API_BASE_URL}/profile/${encodeURIComponent(username)}`, {
         method: "PATCH",
@@ -434,8 +445,7 @@ export function UserProvider({ children }) {
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizeSpecies(nextStored.species) || "human",
         };
-        writeSessionStorage(PASSWORD_SESSION_KEY, nextAuth);
-        return nextAuth;
+        return writeBackendAuthSession(nextAuth) || nextAuth;
       });
     }
   }, [authUser, passwordAuth, providerProfile, storedProfile]);
@@ -472,16 +482,13 @@ export function UserProvider({ children }) {
       species: normalizeSpecies(payload.species) || accountSpecies,
       customAvatar: normalizeAvatarValue(payload.avatar_url || avatar || storedProfile?.customAvatar || providerProfile.avatar || ""),
     };
-    if (payload.access_token) {
-      const authPayload = {
-        token: payload.access_token,
-        id: payload.id || payload.username,
-        username: payload.username || cleanUsername,
-        email: payload.email || providerProfile.email || "",
-        avatar: normalizeAvatarValue(payload.avatar_url || nextStored.customAvatar || ""),
-        species: normalizeSpecies(payload.species) || accountSpecies,
-      };
-      writeSessionStorage(PASSWORD_SESSION_KEY, authPayload);
+    const authPayload = persistBackendAuthFromSyncPayload(payload, {
+      username: cleanUsername,
+      email: providerProfile.email,
+      avatar: nextStored.customAvatar,
+      species: accountSpecies,
+    });
+    if (authPayload) {
       setSession(null);
       setPasswordAuth(authPayload);
     }
@@ -499,6 +506,7 @@ export function UserProvider({ children }) {
     const nextAvatar = normalizeAvatarValue(avatar || current.avatar || "");
     if (!currentUsername) throw new Error("Current username is missing.");
     if (!cleanUsername) throw new Error("Choose a username.");
+    requireBackendAuthSession();
 
     const response = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(currentUsername)}`, {
       method: "PATCH",
@@ -533,8 +541,7 @@ export function UserProvider({ children }) {
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizeSpecies(nextStored.species) || "human",
         };
-        writeSessionStorage(PASSWORD_SESSION_KEY, nextAuth);
-        return nextAuth;
+        return writeBackendAuthSession(nextAuth) || nextAuth;
       });
     }
 
@@ -548,15 +555,17 @@ export function UserProvider({ children }) {
   }, [authUser, passwordAuth]);
 
   const applyPasswordSession = useCallback((payload) => {
-    const authPayload = {
+    const authPayload = writeBackendAuthSession({
       token: payload.access_token,
       id: payload.user?.id || payload.user?.username,
       username: payload.user?.username || "",
       email: payload.user?.email || "",
       avatar: normalizeAvatarValue(payload.user?.avatar_url || payload.user?.profile_pic || ""),
       species: normalizeSpecies(payload.user?.species) || "human",
-    };
-    writeSessionStorage(PASSWORD_SESSION_KEY, authPayload);
+    });
+    if (!authPayload?.token) {
+      throw new Error("Backend session token is missing.");
+    }
     setSession(null);
     setPasswordAuth(authPayload);
     const key = getCustomStorageKey(null, authPayload);
@@ -638,8 +647,7 @@ export function UserProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    removeSessionStorage(PASSWORD_SESSION_KEY);
-    removeStorage(PASSWORD_SESSION_KEY);
+    clearBackendAuthSession();
     setPasswordAuth(null);
     if (!supabase || !isSupabaseConfigured) {
       setSession(null);
@@ -662,6 +670,7 @@ export function UserProvider({ children }) {
         authLoading,
         authConfigured: isSupabaseConfigured,
         isAuthenticated: Boolean(session?.user || passwordAuth?.token),
+        backendAuthReady: Boolean(passwordAuth?.token),
         needsProfileSetup,
         passwordAuth,
         authProvider: userData.provider,

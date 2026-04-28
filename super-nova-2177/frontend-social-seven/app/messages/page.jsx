@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IoLockClosedOutline, IoPaperPlaneOutline, IoSearchOutline } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
 import { usePageVisible } from "@/utils/pageVisibility";
@@ -38,7 +38,7 @@ const READ_PREFIX = "supernova_dm_seen::";
 const SHARE_DRAFT_KEY = "supernova_dm_share_draft";
 
 export default function MessagesPage() {
-  const { userData, defaultAvatar, isAuthenticated } = useUser();
+  const { userData, defaultAvatar, isAuthenticated, backendAuthReady } = useUser();
   const queryClient = useQueryClient();
   const messageBoxRef = useRef(null);
   const threadPaneRef = useRef(null);
@@ -136,7 +136,7 @@ export default function MessagesPage() {
 
   const conversationsQuery = useQuery({
     queryKey: ["direct-conversations", currentUser],
-    enabled: Boolean(isAuthenticated && currentUser),
+    enabled: Boolean(isAuthenticated && backendAuthReady && currentUser),
     queryFn: async ({ signal }) => {
       const response = await fetch(`${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}`, {
         headers: authHeaders(),
@@ -229,7 +229,7 @@ export default function MessagesPage() {
 
   const threadQuery = useQuery({
     queryKey: ["direct-thread", currentUser, selectedPeer],
-    enabled: Boolean(isAuthenticated && currentUser && selectedPeer),
+    enabled: Boolean(isAuthenticated && backendAuthReady && currentUser && selectedPeer),
     queryFn: async ({ signal }) => {
       const response = await fetch(
         `${API_BASE_URL}/messages?user=${encodeURIComponent(currentUser)}&peer=${encodeURIComponent(selectedPeer)}`,
@@ -298,6 +298,11 @@ export default function MessagesPage() {
   const sendMutation = useMutation({
     mutationFn: async () => {
       if (!isAuthenticated) throw new Error("Sign in to send messages.");
+      try {
+        requireBackendAuthSession();
+      } catch {
+        throw new Error(BACKEND_AUTH_MISSING_MESSAGE);
+      }
       const response = await fetch(`${API_BASE_URL}/messages`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
@@ -392,6 +397,29 @@ export default function MessagesPage() {
             className="mt-5 rounded-full bg-[var(--pink)] px-5 py-2.5 text-[0.82rem] font-bold text-white shadow-[var(--shadow-pink)]"
           >
             Sign in
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  if (!backendAuthReady) {
+    return (
+      <div className="messages-shell social-shell pb-0">
+        <section className="mobile-feed-panel social-panel mx-auto flex min-h-[calc(100dvh-var(--header-offset)-var(--dock-offset)-1rem)] max-w-[26rem] flex-col items-center justify-center rounded-[1.25rem] px-6 py-8 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06] text-[var(--pink)]">
+            <IoLockClosedOutline />
+          </div>
+          <h1 className="mt-4 text-[1.05rem] font-black">Finish account setup</h1>
+          <p className="mt-2 max-w-[18rem] text-[0.86rem] leading-5 text-[var(--text-gray-light)]">
+            {BACKEND_AUTH_MISSING_MESSAGE}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }))}
+            className="mt-5 rounded-full bg-[var(--pink)] px-5 py-2.5 text-[0.82rem] font-bold text-white shadow-[var(--shadow-pink)]"
+          >
+            Continue
           </button>
         </section>
       </div>
