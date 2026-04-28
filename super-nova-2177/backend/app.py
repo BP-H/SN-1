@@ -2347,16 +2347,12 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
 #
 @app.get("/debug-supernova")
 def debug_supernova():
-    if os.environ.get("SUPERNOVA_ENV", "development") == "production":
+    if _is_explicit_production_environment():
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "supernova_available": SUPER_NOVA_AVAILABLE,
         "supernova": _supernova_runtime_payload(include_routes=True),
-        "python_path": sys.path,
-        "current_dir": os.getcwd(),
-        "dir_contents": os.listdir('.'),
-        "supernova_dir": str(SUPER_NOVA_DIR),
-        "supernova_dir_exists": SUPER_NOVA_DIR.exists()
+        "debug_mode": "development",
     }
 
 @app.get("/debug/search-test")
