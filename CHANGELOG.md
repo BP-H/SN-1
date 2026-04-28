@@ -46,5 +46,6 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Required bearer-token ownership checks for follow and unfollow mutations.
 - Required bearer-token ownership checks for comment edit and delete mutations.
 - Required bearer-token ownership checks for votes router create/delete mutations and removed dummy user auto-create.
+- Required bearer-token ownership checks for system-vote mutations and removed stale default deadline enforcement.
 - Removed generated combined repo snapshot after branch-tested cleanup.
 - Removed tracked backup Python files after branch-tested cleanup.

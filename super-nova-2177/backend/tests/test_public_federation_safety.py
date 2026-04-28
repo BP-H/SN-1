@@ -343,6 +343,10 @@ class PublicFederationSafetyTests(unittest.TestCase):
 
         with patch.object(backend_app, "_ensure_system_votes_table", lambda db: None), patch.object(
             backend_app, "_species_for_username", return_value="human"
+        ), patch.object(
+            backend_app, "_require_token_identity_match", return_value=SimpleNamespace(username="alice")
+        ), patch.object(
+            backend_app, "_enforce_system_vote_deadline", lambda: None
         ):
             result = backend_app.cast_system_vote(payload, db=fake_db)
 
