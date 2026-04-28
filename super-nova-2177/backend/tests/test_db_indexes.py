@@ -99,12 +99,18 @@ PROBE = textwrap.dedent(
         backend_app._ensure_direct_messages_table(db)
         backend_app._ensure_comment_thread_columns(db)
         backend_app._ensure_direct_messages_table(db)
+        backend_app._ensure_proposal_read_indexes(db)
+        backend_app._ensure_proposal_read_indexes(db)
 
         comments_indexes = index_names(db, "comments")
         direct_messages_indexes = index_names(db, "direct_messages")
+        proposals_indexes = index_names(db, "proposals")
+        proposal_votes_indexes = index_names(db, "proposal_votes")
         result = {
             "comments_indexes": comments_indexes,
             "direct_messages_indexes": direct_messages_indexes,
+            "proposals_indexes": proposals_indexes,
+            "proposal_votes_indexes": proposal_votes_indexes,
             "index_columns": {
                 "idx_comments_proposal_created_id": index_columns(
                     db, "idx_comments_proposal_created_id"
@@ -114,6 +120,12 @@ PROBE = textwrap.dedent(
                 ),
                 "idx_direct_messages_conversation_created_id": index_columns(
                     db, "idx_direct_messages_conversation_created_id"
+                ),
+                "idx_proposals_created_id": index_columns(
+                    db, "idx_proposals_created_id"
+                ),
+                "idx_proposal_votes_proposal_vote": index_columns(
+                    db, "idx_proposal_votes_proposal_vote"
                 ),
             },
         }
@@ -157,6 +169,23 @@ class DbIndexTests(unittest.TestCase):
             "idx_direct_messages_recipient",
         }
         self.assertTrue(existing_names.issubset(set(result["direct_messages_indexes"])))
+
+    def test_proposal_and_vote_indexes_are_created_idempotently(self):
+        result = run_probe(PROBE)
+
+        self.assertIn("idx_proposals_created_id", result["proposals_indexes"])
+        self.assertIn(
+            "idx_proposal_votes_proposal_vote",
+            result["proposal_votes_indexes"],
+        )
+        self.assertEqual(
+            result["index_columns"]["idx_proposals_created_id"],
+            ["created_at", "id"],
+        )
+        self.assertEqual(
+            result["index_columns"]["idx_proposal_votes_proposal_vote"],
+            ["proposal_id", "vote"],
+        )
 
 
 if __name__ == "__main__":
