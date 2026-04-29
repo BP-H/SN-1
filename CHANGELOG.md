@@ -49,6 +49,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added product roadmap assessment for grants, mentions, reply UI, and homepage clarity.
 - Added profile visual grid and content tabs assessment for future FE7 profile polish.
 - Added profile collab tags, mentions, approvals, and shared-profile-grid assessment.
+- Added approved-collab request and approval contract for future profile feed work.
 - Added backend mention parser contract tests before runtime notification or collab behavior.
 - Added first-pass backend comment mention records and notifications without FE7 or collab behavior changes.
 - Added first-pass backend proposal mention notifications without FE7 or collab behavior changes.
