@@ -7,6 +7,7 @@ const EXPECTED_TOOLS = [
   "search_proposals",
   "get_proposal",
   "get_proposal_comments",
+  "get_proposal_vote_summary",
   "get_profile",
   "get_supernova_connector_spec",
 ];

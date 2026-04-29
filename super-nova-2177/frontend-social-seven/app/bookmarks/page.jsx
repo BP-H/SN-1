@@ -145,6 +145,7 @@ export default function BookmarksPage() {
               logo={post.author_img}
               media={mapPostMedia(post)}
               comments={post.comments}
+              collabs={post.collabs}
               likes={post.likes}
               dislikes={post.dislikes}
               profileUrl={post.profile_url}

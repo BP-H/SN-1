@@ -87,7 +87,7 @@ function getVisualMeta(post) {
   return null;
 }
 
-function ProfileVisualTile({ post, visual, onOpen }) {
+function ProfileVisualTile({ post, visual, onOpen, isCollab = false }) {
   const [thumbnailSrc, setThumbnailSrc] = useState(visual?.src || "");
   const [thumbnailFailed, setThumbnailFailed] = useState(!visual?.src);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -147,6 +147,11 @@ function ProfileVisualTile({ post, visual, onOpen }) {
           Video
         </span>
       )}
+      {isCollab && (
+        <span className="profile-visual-collab-badge absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.08em]">
+          Collab
+        </span>
+      )}
       {hasVoteSignal && (
         <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.6rem] font-bold text-white">
           {likeCount}+ {dislikeCount}-
@@ -203,11 +208,11 @@ export default function UserPostsPage() {
   });
 
   const postsQuery = useInfiniteQuery({
-    queryKey: ["user-posts", username],
+    queryKey: ["user-posts", username, "include-collabs"],
     enabled: Boolean(username),
     queryFn: async ({ pageParam = 0 }) => {
       const response = await fetch(
-        `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}`
+        `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&include_collabs=true&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}`
       );
       if (!response.ok) throw new Error("Failed to load posts");
       return response.json();
@@ -243,10 +248,14 @@ export default function UserPostsPage() {
   });
 
   const posts = useMemo(() => {
-    return (postsQuery.data?.pages?.flat() || []).filter(
-      (post) => post.userName?.toLowerCase() === username.toLowerCase()
-    );
-  }, [postsQuery.data, username]);
+    const seen = new Set();
+    return (postsQuery.data?.pages?.flat() || []).filter((post) => {
+      const key = post?.id ?? `${post?.userName || "post"}-${post?.title || ""}-${post?.time || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [postsQuery.data]);
   const visualPosts = useMemo(
     () => posts.map((post) => ({ post, visual: getVisualMeta(post) })).filter((item) => item.visual),
     [posts]
@@ -391,6 +400,17 @@ export default function UserPostsPage() {
     router.push(`/proposals/${encodeURIComponent(proposalId)}`);
   };
 
+  const isProfileCollabPost = (post) => {
+    const profileKey = username.toLowerCase();
+    const authorKey = String(post?.userName || "").toLowerCase();
+    if (!profileKey || !authorKey || authorKey === profileKey) return false;
+    return Array.isArray(post?.collabs)
+      && post.collabs.some(
+        (collab) => collab?.status === "approved"
+          && String(collab?.username || "").toLowerCase() === profileKey
+      );
+  };
+
   const renderPostCard = (post) => (
     <ProposalCard
       key={post.id}
@@ -403,6 +423,7 @@ export default function UserPostsPage() {
       logo={post.author_img}
       media={post.media}
       comments={post.comments}
+      collabs={post.collabs}
       likes={post.likes}
       dislikes={post.dislikes}
       profileUrl={post.profile_url}
@@ -683,6 +704,7 @@ export default function UserPostsPage() {
                         key={post.id || `${post.userName || "post"}-${index}`}
                         post={post}
                         visual={visual}
+                        isCollab={isProfileCollabPost(post)}
                         onOpen={() => openProposal(post.id)}
                       />
                     ))}

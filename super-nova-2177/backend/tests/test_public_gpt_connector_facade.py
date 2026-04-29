@@ -103,10 +103,19 @@ def seed_public_context():
             bio="Public Bob bio",
             profile_pic="bob.png",
         )
-        db.add_all([alice, bob])
+        cara = backend_app.Harmonizer(
+            username="cara",
+            email="cara@example.test",
+            hashed_password="test",
+            species="company",
+            bio="Public Cara bio",
+            profile_pic="cara.png",
+        )
+        db.add_all([alice, bob, cara])
         db.commit()
         db.refresh(alice)
         db.refresh(bob)
+        db.refresh(cara)
 
         node = backend_app.VibeNode(name="connector-node", author_id=alice.id)
         primary = backend_app.Proposal(
@@ -178,6 +187,14 @@ def seed_public_context():
                     author_user_id=alice.id,
                     collaborator_user_id=bob.id,
                     requested_by_user_id=alice.id,
+                    status="approved",
+                    responded_at=datetime.datetime(2026, 1, 1, 12, 3, 0),
+                ),
+                ProposalCollab(
+                    proposal_id=primary.id,
+                    author_user_id=alice.id,
+                    collaborator_user_id=cara.id,
+                    requested_by_user_id=alice.id,
                     status="pending",
                 ),
             ]
@@ -193,6 +210,7 @@ discovery = client.get("/connector/supernova")
 spec = client.get("/connector/supernova/spec")
 proposal_list = client.get("/connector/proposals?search=Connector&limit=10&offset=0")
 proposal_detail = client.get(f"/connector/proposals/{seeded['primary_id']}")
+proposal_votes = client.get(f"/connector/proposals/{seeded['primary_id']}/votes")
 comments = client.get(f"/connector/proposals/{seeded['primary_id']}/comments?limit=1&offset=1")
 profile = client.get("/connector/profiles/alice")
 missing_profile = client.get("/connector/profiles/missing-user")
@@ -207,6 +225,8 @@ result = {
     "list": proposal_list.json(),
     "detail_status": proposal_detail.status_code,
     "detail": proposal_detail.json(),
+    "votes_status": proposal_votes.status_code,
+    "votes": proposal_votes.json(),
     "comments_status": comments.status_code,
     "comments": comments.json(),
     "profile_status": profile.status_code,
@@ -236,6 +256,7 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertIn("proposals", discovery["resources"])
         self.assertIn("comments", discovery["resources"])
         self.assertEqual(discovery["endpoints"]["spec"], "/connector/supernova/spec")
+        self.assertEqual(discovery["endpoints"]["proposal_votes"], "/connector/proposals/{id}/votes")
 
     def test_spec_endpoint_describes_public_read_only_facade(self):
         self.assertEqual(self.result["spec_status"], 200)
@@ -257,6 +278,7 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertEqual(spec["endpoints"]["proposals"], "/connector/proposals")
         self.assertEqual(spec["endpoints"]["proposal"], "/connector/proposals/{id}")
         self.assertEqual(spec["endpoints"]["proposal_comments"], "/connector/proposals/{id}/comments")
+        self.assertEqual(spec["endpoints"]["proposal_votes"], "/connector/proposals/{id}/votes")
         self.assertEqual(spec["endpoints"]["profile"], "/connector/profiles/{username}")
         self.assertIn("search", spec["parameters"])
         self.assertIn("limit", spec["parameters"])
@@ -290,7 +312,12 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["title"], "Connector Public Proposal")
         self.assertEqual(items[0]["author"]["username"], "alice")
-        self.assertEqual(items[0]["vote_summary"], {"oppose": 1, "support": 1, "total": 2})
+        self.assertEqual(
+            items[0]["vote_summary"],
+            {"approval_ratio": 0.5, "down": 1, "oppose": 1, "support": 1, "total": 2, "up": 1},
+        )
+        self.assertEqual(items[0]["collabs"][0]["username"], "bob")
+        self.assertEqual(items[0]["collabs"][0]["status"], "approved")
         self.assertTrue(items[0]["web_url"].endswith(f"/proposals/{items[0]['id']}"))
         self.assertNotIn("comments", items[0])
         self.assertNotIn("likes", items[0])
@@ -301,6 +328,22 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertEqual(detail["id"], items[0]["id"])
         self.assertEqual(detail["text"], "Public connector body mentioning @bob.")
         self.assertEqual(detail["media"]["image"], "/uploads/connector-image.png")
+        self.assertEqual(detail["collabs"][0]["username"], "bob")
+
+    def test_connector_vote_summary_endpoint_returns_public_aggregate_only(self):
+        self.assertEqual(self.result["votes_status"], 200)
+        votes = self.result["votes"]
+        self.assertEqual(votes["mode"], "public_read_only")
+        self.assertEqual(votes["resource"], "proposal_vote_summary")
+        self.assertEqual(
+            votes["vote_summary"],
+            {"approval_ratio": 0.5, "down": 1, "oppose": 1, "support": 1, "total": 2, "up": 1},
+        )
+
+        votes_text = json.dumps(votes, sort_keys=True).lower()
+        self.assertNotIn("alice@example.test", votes_text)
+        self.assertNotIn("bob@example.test", votes_text)
+        self.assertNotIn("token", votes_text)
 
     def test_connector_comments_are_limited_to_public_proposal_comments(self):
         self.assertEqual(self.result["comments_status"], 200)
@@ -339,7 +382,7 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         )
         self.assertNotIn("PRIVATE_NOTIFICATION_SENTINEL", combined)
         self.assertNotIn("pending", combined.lower())
-        self.assertNotIn("collab", combined.lower())
+        self.assertNotIn("cara", combined.lower())
         self.assertNotIn("email", combined.lower())
         self.assertNotIn("token", combined.lower())
         self.assertIn(self.result["write_attempt_status"], (405, 404))

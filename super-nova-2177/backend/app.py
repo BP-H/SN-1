@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import asc, desc, func, or_, text
+from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 try:
@@ -851,6 +851,21 @@ def _compute_vote_totals(db: Session, proposal_id: int) -> Dict[str, int]:
     return {"up": up, "down": down}
 
 
+def _public_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
+    totals = _compute_vote_totals(db, proposal_id)
+    up = int(totals.get("up", 0) or 0)
+    down = int(totals.get("down", 0) or 0)
+    total = up + down
+    return {
+        "up": up,
+        "down": down,
+        "support": up,
+        "oppose": down,
+        "total": total,
+        "approval_ratio": round(up / total, 4) if total else None,
+    }
+
+
 def _normalize_system_vote_choice(choice: str) -> str:
     value = (choice or "").strip().lower()
     if value in {"yes", "up", "like", "support"}:
@@ -954,6 +969,7 @@ class ProposalSchema(BaseModel):
     dislikes: List[Dict] = []
     comments: List[Dict] = []
     media: Dict = {}
+    collabs: List[Dict] = []
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -2723,15 +2739,8 @@ def _connector_author_context(db: Session, proposal) -> Dict[str, Any]:
     }
 
 
-def _connector_vote_summary(db: Session, proposal_id: int) -> Dict[str, int]:
-    totals = _compute_vote_totals(db, proposal_id)
-    support = int(totals.get("up", 0) or 0)
-    oppose = int(totals.get("down", 0) or 0)
-    return {
-        "support": support,
-        "oppose": oppose,
-        "total": support + oppose,
-    }
+def _connector_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
+    return _public_vote_summary(db, proposal_id)
 
 
 def _connector_proposal_payload(db: Session, proposal, include_text: bool = True) -> Dict[str, Any]:
@@ -2747,6 +2756,7 @@ def _connector_proposal_payload(db: Session, proposal, include_text: bool = True
         ),
         "web_url": _connector_public_web_url(f"/proposals/{proposal_id}"),
         "vote_summary": _connector_vote_summary(db, proposal_id),
+        "collabs": _approved_proposal_collabs(db, proposal_id),
         "media": _media_payload(
             getattr(proposal, "image", ""),
             getattr(proposal, "video", ""),
@@ -2851,6 +2861,7 @@ def connector_supernova_discovery():
             "proposals": "/connector/proposals?search=&limit=&offset=",
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments?limit=&offset=",
+            "proposal_votes": "/connector/proposals/{id}/votes",
             "profile": "/connector/profiles/{username}",
             "spec": "/connector/supernova/spec",
         },
@@ -2898,7 +2909,7 @@ def connector_supernova_spec():
                 "response_shape": {
                     "mode": "public_read_only",
                     "resource": "proposals",
-                    "items": ["id", "type", "title", "text", "author", "created_at", "web_url", "vote_summary", "media"],
+                    "items": ["id", "type", "title", "text", "author", "created_at", "web_url", "vote_summary", "collabs", "media"],
                 },
             },
             "proposal": {
@@ -2910,7 +2921,7 @@ def connector_supernova_spec():
                 "response_shape": {
                     "mode": "public_read_only",
                     "resource": "proposal",
-                    "item": ["id", "type", "title", "text", "author", "created_at", "web_url", "vote_summary", "media"],
+                    "item": ["id", "type", "title", "text", "author", "created_at", "web_url", "vote_summary", "collabs", "media"],
                 },
             },
             "comments": {
@@ -2928,9 +2939,13 @@ def connector_supernova_spec():
                 },
             },
             "vote_summaries": {
+                "endpoint": "/connector/proposals/{id}/votes",
                 "embedded_in": ["proposals", "proposal"],
-                "summary": "Public aggregate support/opposition counts embedded as vote_summary.",
-                "response_shape": ["support", "oppose", "total"],
+                "summary": "Public aggregate support/opposition counts exposed as vote_summary.",
+                "parameters": {
+                    "id": {"in": "path", "type": "integer", "required": True},
+                },
+                "response_shape": ["up", "down", "support", "oppose", "total", "approval_ratio"],
             },
         },
         "endpoints": {
@@ -2939,6 +2954,7 @@ def connector_supernova_spec():
             "proposals": "/connector/proposals",
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments",
+            "proposal_votes": "/connector/proposals/{id}/votes",
             "profile": "/connector/profiles/{username}",
         },
         "parameters": {
@@ -3014,6 +3030,17 @@ def connector_get_proposal(proposal_id: int, db: Session = Depends(get_db)):
         "mode": "public_read_only",
         "resource": "proposal",
         "item": _connector_proposal_payload(db, proposal, include_text=True),
+    }
+
+
+@app.get("/connector/proposals/{proposal_id}/votes", summary="Read public proposal vote summary through the connector facade")
+def connector_get_proposal_vote_summary(proposal_id: int, db: Session = Depends(get_db)):
+    _connector_get_proposal_or_404(db, proposal_id)
+    return {
+        "mode": "public_read_only",
+        "resource": "proposal_vote_summary",
+        "proposal_id": proposal_id,
+        "vote_summary": _connector_vote_summary(db, proposal_id),
     }
 
 
@@ -3620,6 +3647,41 @@ def _serialize_proposal_collab(db: Session, collab) -> Dict[str, Any]:
         "responded_at": _format_timestamp(getattr(collab, "responded_at", None)),
         "removed_at": _format_timestamp(getattr(collab, "removed_at", None)),
     }
+
+
+def _approved_proposal_collabs(db: Session, proposal_id: Optional[int]) -> List[Dict[str, Any]]:
+    if not proposal_id or ProposalCollab is None or Harmonizer is None or not CRUD_MODELS_AVAILABLE:
+        return []
+    try:
+        rows = (
+            db.query(ProposalCollab)
+            .filter(ProposalCollab.proposal_id == proposal_id)
+            .filter(ProposalCollab.status == "approved")
+            .order_by(ProposalCollab.id.asc())
+            .all()
+        )
+    except Exception:
+        return []
+
+    collabs = []
+    seen = set()
+    for row in rows:
+        user = _proposal_collab_user_summary(db, getattr(row, "collaborator_user_id", None))
+        username = (user.get("username") or "").strip()
+        key = username.lower()
+        if not username or key in seen:
+            continue
+        seen.add(key)
+        collabs.append(
+            {
+                "id": getattr(row, "id", None),
+                "username": username,
+                "species": user.get("species", "human"),
+                "avatar": user.get("avatar", ""),
+                "status": "approved",
+            }
+        )
+    return collabs
 
 
 def _record_proposal_collab_notification(
@@ -4615,7 +4677,12 @@ def send_message(
     return message
 
 
-@app.post("/proposals", response_model=ProposalSchema, summary="Create a new proposal")
+@app.post(
+    "/proposals",
+    response_model=ProposalSchema,
+    response_model_exclude={"collabs"},
+    summary="Create a new proposal",
+)
 async def create_proposal(
     title: str = Form(...),
     body: str = Form(...),
@@ -4953,6 +5020,7 @@ def list_proposals(
     offset: int = Query(0, ge=0),
     embedded_comments_limit: Optional[int] = Query(None),
     embedded_votes_limit: Optional[int] = Query(None),
+    include_collabs: bool = Query(False),
     db: Session = Depends(get_db)
 ):
     """
@@ -4971,6 +5039,30 @@ def list_proposals(
         if CRUD_MODELS_AVAILABLE:
             from sqlalchemy import func, case
             query = db.query(Proposal)
+            clean_author = (author or "").strip()
+            author_collab_user = (
+                _find_harmonizer_by_username(db, clean_author)
+                if include_collabs and clean_author and ProposalCollab is not None
+                else None
+            )
+
+            def apply_author_scope(base_query):
+                if not clean_author:
+                    return base_query
+                author_conditions = [func.lower(Proposal.userName) == clean_author.lower()]
+                if author_collab_user is not None and ProposalCollab is not None:
+                    base_query = base_query.outerjoin(
+                        ProposalCollab,
+                        and_(
+                            ProposalCollab.proposal_id == Proposal.id,
+                            ProposalCollab.status == "approved",
+                            ProposalCollab.collaborator_user_id == getattr(author_collab_user, "id", None),
+                        ),
+                    )
+                    author_conditions.append(Proposal.author_id == getattr(author_collab_user, "id", None))
+                    author_conditions.append(ProposalCollab.id.isnot(None))
+                    return base_query.filter(or_(*author_conditions)).distinct()
+                return base_query.filter(or_(*author_conditions))
 
             # SEARCH
             if search and search.strip():
@@ -4982,8 +5074,7 @@ def list_proposals(
                         Proposal.userName.ilike(search_filter)
                     )
                 )
-            if author and author.strip():
-                query = query.filter(func.lower(Proposal.userName) == author.strip().lower())
+            query = apply_author_scope(query)
             if before_id:
                 query = query.filter(Proposal.id < before_id)
 
@@ -5018,10 +5109,9 @@ def list_proposals(
                             Proposal.title.ilike(search_filter),
                             Proposal.description.ilike(search_filter),
                             Proposal.userName.ilike(search_filter)
-                        )
+                            )
                     )
-                if author and author.strip():
-                    query = query.filter(func.lower(Proposal.userName) == author.strip().lower())
+                query = apply_author_scope(query)
                 if before_id:
                     query = query.filter(Proposal.id < before_id)
                 query = query.group_by(Proposal.id).order_by(desc(vote_count))
@@ -5239,6 +5329,7 @@ def list_proposals(
                 "likes": likes,
                 "dislikes": dislikes,
                 "comments": comments_list,
+                "collabs": _approved_proposal_collabs(db, prop.id),
                 "media": _media_payload(
                     getattr(prop, "image", ""),
                     getattr(prop, "video", ""),
@@ -6265,6 +6356,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,
+            collabs=_approved_proposal_collabs(db, row.id),
             media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline)
         )
     else:
@@ -6318,6 +6410,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             likes=likes,
             dislikes=dislikes,
             comments=comments_list,
+            collabs=_approved_proposal_collabs(db, row.id),
             media=_media_payload(
                 getattr(row, "image", ""),
                 getattr(row, "video", ""),
@@ -6395,7 +6488,7 @@ async def upload_file(file: UploadFile = File(...)):
     return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
 
 # --- Delete endpoints ---
-@app.patch("/proposals/{pid}", response_model=ProposalSchema)
+@app.patch("/proposals/{pid}", response_model=ProposalSchema, response_model_exclude={"collabs"})
 def update_proposal(
     pid: int,
     payload: ProposalUpdateIn,

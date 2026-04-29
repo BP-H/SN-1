@@ -154,6 +154,22 @@ export function createSuperNovaMcpServer() {
   );
 
   server.tool(
+    "get_proposal_vote_summary",
+    "Read the public aggregate vote/support summary for one SuperNova proposal/post. This tool is read-only and cannot vote.",
+    {
+      id: z.number().int().min(1),
+    },
+    async ({ id }) => {
+      try {
+        const data = await fetchPublicConnectorJson(`/connector/proposals/${id}/votes`);
+        return compactJsonResult(data);
+      } catch (error) {
+        return upstreamErrorResult(error);
+      }
+    }
+  );
+
+  server.tool(
     "get_profile",
     "Read one public SuperNova profile by username.",
     {
