@@ -16,6 +16,7 @@ import { RiVoiceAiFill } from "react-icons/ri";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { authHeaders } from "@/utils/authSession";
+import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 
 const KEY_STORAGE = "supernova-ai-cursor-key";
@@ -94,6 +95,12 @@ export default function AssistantOrb() {
   const [commentText, setCommentText] = useState("");
   const [commentSending, setCommentSending] = useState(false);
   const [lastSignal, setLastSignal] = useState(null);
+  const mentionAutocomplete = useMentionAutocomplete({
+    value: commentText,
+    setValue: setCommentText,
+    inputRef: commentInputRef,
+  });
+  const trackCommentMentionCaret = mentionAutocomplete.trackCaret;
 
   const getDockPosition = useCallback(() => {
     if (typeof window === "undefined") return { x: 0, y: 0 };
@@ -289,9 +296,16 @@ export default function AssistantOrb() {
 
   useEffect(() => {
     if (!commentOpen) return undefined;
-    const timer = window.setTimeout(() => commentInputRef.current?.focus(), 80);
+    const timer = window.setTimeout(() => {
+      const textarea = commentInputRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      const caret = textarea.value.length;
+      textarea.setSelectionRange(caret, caret);
+      trackCommentMentionCaret(textarea);
+    }, 80);
     return () => window.clearTimeout(timer);
-  }, [commentOpen]);
+  }, [commentOpen, trackCommentMentionCaret]);
 
   useEffect(() => {
     setLastSignal(target?.userVote || null);
@@ -706,13 +720,22 @@ export default function AssistantOrb() {
 
           {commentOpen && (
             <div className="mt-3 flex flex-col gap-2">
-              <textarea
-                ref={commentInputRef}
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                placeholder="Write a comment..."
-                className="min-h-24 w-full rounded-[0.85rem] border border-white/10 bg-black/20 px-3 py-2 text-[0.84rem] outline-none placeholder:text-[var(--text-gray-light)]"
-              />
+              <div className="relative">
+                <textarea
+                  ref={commentInputRef}
+                  value={commentText}
+                  onChange={(event) => {
+                    setCommentText(event.target.value);
+                    mentionAutocomplete.trackCaret(event.currentTarget);
+                  }}
+                  onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+                  onKeyDown={mentionAutocomplete.handleKeyDown}
+                  onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+                  placeholder="Write a comment..."
+                  className="min-h-24 w-full rounded-[0.85rem] border border-white/10 bg-black/20 px-3 py-2 text-[0.84rem] outline-none placeholder:text-[var(--text-gray-light)]"
+                />
+                <MentionAutocomplete controller={mentionAutocomplete} withinAiCursor />
+              </div>
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
