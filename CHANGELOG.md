@@ -53,6 +53,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added initial backend proposal-collab model/table support with idempotent SQLite tests.
 - Added SuperNova GPT connector contract for future read-only and approval-required agent surfaces.
 - Added backend mention parser contract tests before runtime notification or collab behavior.
+- Added connector action proposal model for future approval-required GPT connector writes.
 - Added first-pass backend comment mention records and notifications without FE7 or collab behavior changes.
 - Added first-pass backend proposal mention notifications without FE7 or collab behavior changes.
 - Rendered public FE7 @mentions as profile links on post, comment, and profile bio text.
