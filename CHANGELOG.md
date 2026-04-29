@@ -50,6 +50,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added profile visual grid and content tabs assessment for future FE7 profile polish.
 - Added profile collab tags, mentions, approvals, and shared-profile-grid assessment.
 - Added backend mention parser contract tests before runtime notification or collab behavior.
+- Added first-pass backend comment mention records and notifications without FE7 or collab behavior changes.
 - Added FE7 public profile tabs with a read-only visual grid using existing post media.
 - Polished FE7 profile tab counts and visual-grid thumbnail fallback behavior.
 - Added sleeker FE7 profile visual tabs with video previews and read-only vote meters.
