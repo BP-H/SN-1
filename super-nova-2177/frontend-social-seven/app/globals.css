@@ -3038,7 +3038,8 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .proposal-collab-label,
 .proposal-collab-chip,
-.proposal-collab-extra {
+.proposal-collab-extra,
+.proposal-support-summary {
   max-width: 11rem;
   color: var(--transparent-black);
   background: rgba(255, 255, 255, 0.065);
@@ -3176,7 +3177,8 @@ html[data-theme="light"] .collab-user-suggestion:hover {
 
 html[data-theme="light"] .proposal-collab-label,
 html[data-theme="light"] .proposal-collab-chip,
-html[data-theme="light"] .proposal-collab-extra {
+html[data-theme="light"] .proposal-collab-extra,
+html[data-theme="light"] .proposal-support-summary {
   color: #242838 !important;
   background: rgba(255, 255, 255, 0.74) !important;
   border-color: rgba(17, 24, 39, 0.08) !important;

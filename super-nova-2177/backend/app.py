@@ -653,6 +653,38 @@ def _delete_comment_mention_links(db: Session, comment_ids: List[int]) -> None:
             raise
 
 
+def _delete_proposal_collab_links(db: Session, proposal_ids: List[int]) -> None:
+    clean_ids = []
+    for proposal_id in proposal_ids or []:
+        try:
+            clean_ids.append(int(proposal_id))
+        except (TypeError, ValueError):
+            continue
+    if not clean_ids:
+        return
+
+    try:
+        if ProposalCollab is not None and CRUD_MODELS_AVAILABLE:
+            db.query(ProposalCollab).filter(ProposalCollab.proposal_id.in_(clean_ids)).delete(
+                synchronize_session=False
+            )
+            return
+        for proposal_id in clean_ids:
+            db.execute(
+                text("DELETE FROM proposal_collabs WHERE proposal_id = :proposal_id"),
+                {"proposal_id": proposal_id},
+            )
+    except Exception as exc:
+        db.rollback()
+        message = str(exc).lower()
+        table_missing = (
+            "proposal_collabs" in message
+            and ("no such table" in message or "does not exist" in message or "undefinedtable" in message)
+        )
+        if not table_missing:
+            raise
+
+
 def _prune_empty_deleted_comment_ancestors(db: Session, parent_comment_id: Optional[int]) -> List[int]:
     pruned: List[int] = []
     current_parent_id = parent_comment_id
@@ -6567,6 +6599,7 @@ def delete_proposal(
                 for (row_id,) in db.query(Comment.id).filter(Comment.proposal_id == pid).all()
                 if row_id
             ]
+            _delete_proposal_collab_links(db, [pid])
             _delete_comment_mention_links(db, comment_ids)
             db.query(Comment).filter(Comment.proposal_id == pid).delete()
             db.query(ProposalVote).filter(ProposalVote.proposal_id == pid).delete()
@@ -6578,6 +6611,7 @@ def delete_proposal(
             owner = getattr(row, "userName", None) or getattr(row, "author", "")
             if not owner or str(owner).lower() != clean_author.lower():
                 raise HTTPException(status_code=403, detail="Only the author can delete this post")
+            _delete_proposal_collab_links(db, [pid])
             db.execute(text("DELETE FROM comments WHERE proposal_id = :pid"), {"pid": pid})
             db.execute(text("DELETE FROM proposal_votes WHERE proposal_id = :pid"), {"pid": pid})
             db.execute(text("DELETE FROM proposals WHERE id = :pid"), {"pid": pid})
@@ -6606,10 +6640,13 @@ def delete_all_proposals(
         )
     try:
         if CRUD_MODELS_AVAILABLE:
+            if ProposalCollab is not None:
+                db.query(ProposalCollab).delete()
             db.query(Comment).delete()
             db.query(ProposalVote).delete()
             deleted_count = db.query(Proposal).delete()
         else:
+            db.execute(text("DELETE FROM proposal_collabs"))
             db.execute(text("DELETE FROM comments"))
             db.execute(text("DELETE FROM proposal_votes"))
             result = db.execute(text("DELETE FROM proposals"))

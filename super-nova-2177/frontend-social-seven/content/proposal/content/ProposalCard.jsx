@@ -77,6 +77,21 @@ function normalizeCollabSuggestions(payload = []) {
     });
 }
 
+function supportSummaryLabel(likes = [], dislikes = [], voteSummary = null) {
+  const summary = voteSummary || {};
+  const summaryUp = Number(summary.up ?? summary.likes ?? summary.support);
+  const summaryDown = Number(summary.down ?? summary.dislikes ?? summary.oppose);
+  const up = Number.isFinite(summaryUp) ? summaryUp : Array.isArray(likes) ? likes.length : 0;
+  const down = Number.isFinite(summaryDown) ? summaryDown : Array.isArray(dislikes) ? dislikes.length : 0;
+  const summaryTotal = Number(summary.total);
+  const total = Number.isFinite(summaryTotal) && summaryTotal > 0 ? summaryTotal : up + down;
+  if (total <= 0) return "";
+  const summaryRatio = Number(summary.approval_ratio);
+  const ratio = Number.isFinite(summaryRatio) ? (summaryRatio > 1 ? summaryRatio / 100 : summaryRatio) : up / total;
+  const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  return `${percent}% support`;
+}
+
 function ProposalCard({
   id,
   userName,
@@ -87,6 +102,7 @@ function ProposalCard({
   logo,
   likes = [],
   dislikes = [],
+  voteSummary = null,
   comments = [],
   collabs = [],
   profileUrl = "",
@@ -95,6 +111,7 @@ function ProposalCard({
   setErrorMsg,
   setNotify,
   isDetailPage = false,
+  showSupportSummary = false,
 }) {
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
@@ -597,6 +614,7 @@ function ProposalCard({
     : dislikes.some((v) => v.voter === userData?.name)
     ? "dislike"
     : "";
+  const supportSummary = showSupportSummary ? supportSummaryLabel(likes, dislikes, voteSummary) : "";
 
   const youtubeId = getYouTubeId(displayVideo);
   const videoThumbnail = youtubeId
@@ -885,6 +903,13 @@ function ProposalCard({
               +{extraApprovedCollabCount}
             </span>
           )}
+        </div>
+      )}
+
+      {supportSummary && (
+        <div className="proposal-support-summary mt-2 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em]">
+          <IoCheckmark className="text-[0.82rem]" />
+          <span className="truncate">{supportSummary}</span>
         </div>
       )}
 
