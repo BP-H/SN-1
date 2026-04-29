@@ -66,7 +66,7 @@ function renderMentionParts(value = "", keyPrefix = "mention") {
         key={`${keyPrefix}-${start}-${username}`}
         href={`/users/${encodeURIComponent(username)}`}
         onClick={(event) => event.stopPropagation()}
-        className="linkified-url"
+        className="linkified-url linkified-mention"
       >
         {raw}
       </Link>
