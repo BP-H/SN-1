@@ -381,7 +381,7 @@ function DisplayComments({
             <p className={`break-words text-[0.86rem] leading-6 [overflow-wrap:anywhere] ${
               isDeleted ? "italic text-[var(--text-gray-light)]" : "text-[var(--transparent-black)]"
             }`}>
-              <LinkifiedText text={comment} />
+              <LinkifiedText text={comment} enableMentions />
             </p>
           </>
         )}

@@ -736,7 +736,7 @@ function ProposalCard({
                   className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
                   style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
                 >
-                  <LinkifiedText text={localText} />
+                  <LinkifiedText text={localText} enableMentions />
                 </p>
               ) : (
                 <Link href={detailHref} className="block min-w-0">

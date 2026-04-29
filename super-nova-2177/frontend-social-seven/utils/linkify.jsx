@@ -1,6 +1,12 @@
 "use client";
 
+import Link from "next/link";
+
 const URL_PATTERN = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+const MENTION_PATTERN = /@([A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*)/g;
+const MAX_MENTION_USERNAME_LENGTH = 80;
+const MENTION_PREFIX_DISALLOWED = /[A-Za-z0-9_.+/\-]/;
+const MENTION_SUFFIX_DISALLOWED = /[A-Za-z0-9_@-]/;
 
 function cleanUrl(raw = "") {
   return raw.replace(/[),.;!?]+$/g, "");
@@ -22,19 +28,81 @@ export function normalizeLinkHref(value = "") {
   return `https://${clean}`;
 }
 
-export default function LinkifiedText({ text = "", className = "" }) {
+function canStartMention(value, index) {
+  if (index <= 0) return true;
+  return !MENTION_PREFIX_DISALLOWED.test(value[index - 1]);
+}
+
+function canEndMention(value, index) {
+  if (index >= value.length) return true;
+  return !MENTION_SUFFIX_DISALLOWED.test(value[index]);
+}
+
+function renderMentionParts(value = "", keyPrefix = "mention") {
+  MENTION_PATTERN.lastIndex = 0;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = MENTION_PATTERN.exec(value)) !== null) {
+    const raw = match[0];
+    const username = match[1];
+    const start = match.index;
+    const end = start + raw.length;
+
+    if (
+      username.length > MAX_MENTION_USERNAME_LENGTH ||
+      !canStartMention(value, start) ||
+      !canEndMention(value, end)
+    ) {
+      continue;
+    }
+
+    if (start > lastIndex) {
+      parts.push(value.slice(lastIndex, start));
+    }
+    parts.push(
+      <Link
+        key={`${keyPrefix}-${start}-${username}`}
+        href={`/users/${encodeURIComponent(username)}`}
+        onClick={(event) => event.stopPropagation()}
+        className="linkified-url"
+      >
+        {raw}
+      </Link>
+    );
+    lastIndex = end;
+  }
+
+  if (lastIndex < value.length) {
+    parts.push(value.slice(lastIndex));
+  }
+
+  return parts.length ? parts : [value];
+}
+
+export default function LinkifiedText({ text = "", className = "", enableMentions = false }) {
   const value = String(text || "");
   URL_PATTERN.lastIndex = 0;
   const parts = [];
   let lastIndex = 0;
   let match;
 
+  const appendText = (chunk, keyPrefix) => {
+    if (!chunk) return;
+    if (!enableMentions) {
+      parts.push(chunk);
+      return;
+    }
+    parts.push(...renderMentionParts(chunk, keyPrefix));
+  };
+
   while ((match = URL_PATTERN.exec(value)) !== null) {
     const raw = match[0];
     const clean = cleanUrl(raw);
     const href = normalizeLinkHref(clean);
     if (match.index > lastIndex) {
-      parts.push(value.slice(lastIndex, match.index));
+      appendText(value.slice(lastIndex, match.index), `text-${lastIndex}`);
     }
     parts.push(
       <a
@@ -49,12 +117,12 @@ export default function LinkifiedText({ text = "", className = "" }) {
       </a>
     );
     const trailing = trailingText(raw, clean);
-    if (trailing) parts.push(trailing);
+    appendText(trailing, `trailing-${match.index}`);
     lastIndex = match.index + raw.length;
   }
 
   if (lastIndex < value.length) {
-    parts.push(value.slice(lastIndex));
+    appendText(value.slice(lastIndex), `text-${lastIndex}`);
   }
 
   return <span className={className}>{parts.length ? parts : value}</span>;
