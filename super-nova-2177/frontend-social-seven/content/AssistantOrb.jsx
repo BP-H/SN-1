@@ -9,13 +9,14 @@ import {
   IoChatbubbleEllipsesOutline,
   IoClose,
   IoKeyOutline,
+  IoListCircleOutline,
   IoPlanetOutline,
   IoSparklesOutline,
 } from "react-icons/io5";
 import { RiVoiceAiFill } from "react-icons/ri";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 
@@ -59,6 +60,52 @@ function buildPrompt(action, target) {
   return `Summarize this SuperNova social post in two short bullets and name one useful next action.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
 }
 
+function connectorActionLabel(actionType = "") {
+  const labels = {
+    draft_vote: "Vote draft",
+    draft_comment: "Comment draft",
+    draft_proposal: "Post draft",
+    draft_collab_request: "Collab draft",
+  };
+  return labels[actionType] || "Draft action";
+}
+
+function connectorActionTargetLabel(action = {}) {
+  const payload = action.draft_payload || {};
+  if (payload.proposal_title) return payload.proposal_title;
+  if (payload.title) return payload.title;
+  if (action.target_type && action.target_id) return `${action.target_type} #${action.target_id}`;
+  return "Connector action";
+}
+
+function connectorActionPreview(action = {}) {
+  const payload = action.draft_payload || {};
+  const text =
+    payload.body ||
+    payload.comment ||
+    payload.intended_choice ||
+    payload.normalized_vote ||
+    payload.collaborator_username ||
+    payload.action ||
+    "Awaiting review";
+  const cleanText = String(text || "").replace(/\s+/g, " ").trim();
+  return cleanText.length > 96 ? `${cleanText.slice(0, 96)}...` : cleanText;
+}
+
+function connectorActionCreatedAt(action = {}) {
+  if (!action.created_at) return "";
+  try {
+    return new Date(action.created_at).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 export default function AssistantOrb() {
   const router = useRouter();
   const { userData, isAuthenticated } = useUser();
@@ -94,6 +141,12 @@ export default function AssistantOrb() {
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentSending, setCommentSending] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [connectorActions, setConnectorActions] = useState([]);
+  const [connectorActionsLoading, setConnectorActionsLoading] = useState(false);
+  const [connectorActionsError, setConnectorActionsError] = useState("");
+  const [connectorActionsNotice, setConnectorActionsNotice] = useState("");
+  const [connectorActionBusyId, setConnectorActionBusyId] = useState(null);
   const [lastSignal, setLastSignal] = useState(null);
   const mentionAutocomplete = useMentionAutocomplete({
     value: commentText,
@@ -149,6 +202,7 @@ export default function AssistantOrb() {
     setMenuOpen(false);
     setSettingsOpen(false);
     setCommentOpen(false);
+    setActionsOpen(false);
     setReply("");
     setDragging(false);
     setReturning(true);
@@ -174,14 +228,14 @@ export default function AssistantOrb() {
     if (!mounted) return undefined;
 
     const handleResize = () => {
-      if (!dragRef.current.active && !ghostVisible && !menuOpen && !settingsOpen && !commentOpen && !reply) {
+      if (!dragRef.current.active && !ghostVisible && !menuOpen && !settingsOpen && !commentOpen && !actionsOpen && !reply) {
         setPos(getDockPosition());
       }
     };
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [commentOpen, getDockPosition, ghostVisible, menuOpen, mounted, reply, settingsOpen]);
+  }, [actionsOpen, commentOpen, getDockPosition, ghostVisible, menuOpen, mounted, reply, settingsOpen]);
 
   useEffect(() => {
     if (!mounted) return undefined;
@@ -284,7 +338,7 @@ export default function AssistantOrb() {
     if (!mounted) return undefined;
 
     const handleOutside = (event) => {
-      const hasActiveUi = ghostVisible || menuOpen || settingsOpen || commentOpen || Boolean(reply);
+      const hasActiveUi = ghostVisible || menuOpen || settingsOpen || commentOpen || actionsOpen || Boolean(reply);
       if (!hasActiveUi || dragRef.current.active) return;
       if (event.target?.closest?.("[data-ai-cursor-root]")) return;
       returnToDock();
@@ -292,7 +346,7 @@ export default function AssistantOrb() {
 
     document.addEventListener("pointerdown", handleOutside);
     return () => document.removeEventListener("pointerdown", handleOutside);
-  }, [commentOpen, ghostVisible, menuOpen, mounted, reply, returnToDock, settingsOpen]);
+  }, [actionsOpen, commentOpen, ghostVisible, menuOpen, mounted, reply, returnToDock, settingsOpen]);
 
   useEffect(() => {
     if (!commentOpen) return undefined;
@@ -318,7 +372,7 @@ export default function AssistantOrb() {
       if (dragRef.current.active) return;
       if (event?.target?.closest?.("[data-ai-cursor-root]")) return;
       if (event?.type !== "wheel" && keyboardFocusRef.current && isKeyboardEditable(document.activeElement)) return;
-      if (menuOpen || settingsOpen || commentOpen || reply) returnToDock();
+      if (menuOpen || settingsOpen || commentOpen || actionsOpen || reply) returnToDock();
     };
     const escape = (event) => {
       if (event.key === "Escape") returnToDock();
@@ -332,7 +386,7 @@ export default function AssistantOrb() {
       window.removeEventListener("wheel", retreat);
       window.removeEventListener("keydown", escape);
     };
-  }, [commentOpen, menuOpen, mounted, reply, returnToDock, settingsOpen]);
+  }, [actionsOpen, commentOpen, menuOpen, mounted, reply, returnToDock, settingsOpen]);
 
   const startDrag = (event) => {
     if (event.button !== undefined && event.button !== 0) return;
@@ -350,6 +404,7 @@ export default function AssistantOrb() {
     setMenuOpen(false);
     setSettingsOpen(false);
     setCommentOpen(false);
+    setActionsOpen(false);
     setReply("");
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragRef.current = {
@@ -374,10 +429,60 @@ export default function AssistantOrb() {
   const closeActivePanel = () => {
     setSettingsOpen(false);
     setCommentOpen(false);
+    setActionsOpen(false);
     setReply("");
     setBusy(false);
     if (target) setMenuOpen(true);
     setGhostVisible(true);
+  };
+
+  const loadConnectorActions = useCallback(async () => {
+    setConnectorActionsLoading(true);
+    setConnectorActionsError("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/connector/actions?status=draft&limit=50`, {
+        headers: authHeaders(),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Unable to load AI Actions.");
+      }
+      setConnectorActions(Array.isArray(payload?.actions) ? payload.actions : []);
+    } catch (error) {
+      setConnectorActions([]);
+      setConnectorActionsError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
+    } finally {
+      setConnectorActionsLoading(false);
+    }
+  }, []);
+
+  const reviewConnectorAction = async (action, reviewAction) => {
+    if (!action?.id || connectorActionBusyId) return;
+    setConnectorActionBusyId(`${reviewAction}:${action.id}`);
+    setConnectorActionsError("");
+    setConnectorActionsNotice("");
+    try {
+      requireBackendAuthSession();
+      const endpoint =
+        reviewAction === "approve"
+          ? `${API_BASE_URL}/connector/actions/${action.id}/approve-vote`
+          : `${API_BASE_URL}/connector/actions/${action.id}/cancel`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Unable to update AI Action.");
+      }
+      setConnectorActions((items) => items.filter((item) => item.id !== action.id));
+      setConnectorActionsNotice(reviewAction === "approve" ? "Vote action approved." : "Draft action canceled.");
+    } catch (error) {
+      setConnectorActionsError(error?.message || "Unable to update AI Action.");
+    } finally {
+      setConnectorActionBusyId(null);
+    }
   };
 
   const runAction = async (action) => {
@@ -385,6 +490,7 @@ export default function AssistantOrb() {
       setMenuOpen(false);
       setSettingsOpen(false);
       setCommentOpen(false);
+      setActionsOpen(false);
       setReply("");
       setGhostVisible(false);
       dockRef.current?.classList.remove("ai-cursor-dock-hidden");
@@ -395,8 +501,21 @@ export default function AssistantOrb() {
     if (action === "key") {
       setSettingsOpen((value) => !value);
       setCommentOpen(false);
+      setActionsOpen(false);
       setReply("");
       setMenuOpen(Boolean(target));
+      return;
+    }
+
+    if (action === "actions") {
+      setMenuOpen(false);
+      setSettingsOpen(false);
+      setCommentOpen(false);
+      setActionsOpen(true);
+      setReply("");
+      setGhostVisible(true);
+      setConnectorActionsNotice("");
+      await loadConnectorActions();
       return;
     }
 
@@ -425,6 +544,7 @@ export default function AssistantOrb() {
       setReply("");
       setSettingsOpen(false);
       setCommentOpen(false);
+      setActionsOpen(false);
       setMenuOpen(true);
       return;
     }
@@ -440,6 +560,7 @@ export default function AssistantOrb() {
       setCommentText(fallbackFor("comment", target));
       setCommentOpen(true);
       setSettingsOpen(false);
+      setActionsOpen(false);
       setReply("");
       setMenuOpen(true);
       return;
@@ -457,6 +578,7 @@ export default function AssistantOrb() {
       setCommentOpen(true);
       setMenuOpen(true);
       setSettingsOpen(false);
+      setActionsOpen(false);
       setReply("");
       return;
     }
@@ -552,6 +674,7 @@ export default function AssistantOrb() {
   const actions = [
     { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -56, dy: -88, size: "primary", tone: "blue" },
     { action: "like", label: "Support", icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
+    { action: "actions", label: "AI Actions", icon: IoListCircleOutline, dx: 0, dy: -124, tone: "blue" },
     { action: "comment", label: "Comment", icon: FaCommentAlt, dx: -100, dy: -28 },
     { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 100, dy: -28 },
     { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
@@ -559,7 +682,7 @@ export default function AssistantOrb() {
     { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
     { action: "key", label: "AI key", icon: IoKeyOutline, dx: 34, dy: 96 },
   ];
-  const dockHidden = dragging || ghostVisible || menuOpen || settingsOpen || commentOpen || Boolean(reply);
+  const dockHidden = dragging || ghostVisible || menuOpen || settingsOpen || commentOpen || actionsOpen || Boolean(reply);
   const floatingPanelStyle =
     mounted && typeof window !== "undefined"
       ? (() => {
@@ -567,7 +690,7 @@ export default function AssistantOrb() {
           const viewport = window.visualViewport;
           const viewportTop = viewport?.offsetTop || 0;
           const viewportHeight = viewport?.height || window.innerHeight;
-          const panelHeight = commentOpen ? 246 : settingsOpen ? 132 : 168;
+          const panelHeight = actionsOpen ? 352 : commentOpen ? 246 : settingsOpen ? 184 : 168;
           const rightRoom = window.innerWidth - (pos.x + ORB_SIZE + 12);
           const leftRoom = pos.x - 12;
           const canUseSide = Math.max(rightRoom, leftRoom) >= width;
@@ -672,7 +795,7 @@ export default function AssistantOrb() {
         </>
       )}
 
-      {(settingsOpen || commentOpen || busy || reply) && (
+      {(settingsOpen || commentOpen || actionsOpen || busy || reply) && (
         <div
           data-ai-cursor-root
           className="ai-cursor-panel fixed z-[2147482503] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-[1rem] p-3 backdrop-blur-xl"
@@ -681,10 +804,10 @@ export default function AssistantOrb() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--pink)]">
-                {settingsOpen ? "AI Key" : commentOpen ? "Comment" : "AI Cursor"}
+                {settingsOpen ? "AI Key" : commentOpen ? "Comment" : actionsOpen ? "AI Actions" : "AI Cursor"}
               </p>
               <p className="truncate text-[0.82rem] text-[var(--text-gray-light)]">
-                {target ? target.title : "Local mode is active"}
+                {actionsOpen ? "Review connector drafts" : target ? target.title : "Local mode is active"}
               </p>
             </div>
             <button
@@ -699,13 +822,27 @@ export default function AssistantOrb() {
           </div>
 
           {settingsOpen && (
-            <input
-              value={apiKey}
-              onChange={(event) => persistKey(event.target.value)}
-              type="password"
-              placeholder="OpenAI API key for local testing"
-              className="ai-cursor-field mt-3 w-full rounded-[0.8rem] px-3 py-2 text-[0.78rem] outline-none"
-            />
+            <div className="mt-3 flex flex-col gap-2">
+              <input
+                value={apiKey}
+                onChange={(event) => persistKey(event.target.value)}
+                type="password"
+                placeholder="OpenAI API key for local testing"
+                className="ai-cursor-field w-full rounded-[0.8rem] px-3 py-2 text-[0.78rem] outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setActionsOpen(true);
+                  setConnectorActionsNotice("");
+                  loadConnectorActions();
+                }}
+                className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
+              >
+                Review AI Actions
+              </button>
+            </div>
           )}
 
           {commentOpen && (
@@ -743,6 +880,105 @@ export default function AssistantOrb() {
                   {commentSending ? "Posting..." : "Post"}
                 </button>
               </div>
+            </div>
+          )}
+
+          {actionsOpen && (
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[0.74rem] font-semibold text-[var(--text-gray-light)]">
+                  Pending approval-required actions
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectorActionsNotice("");
+                    loadConnectorActions();
+                  }}
+                  disabled={connectorActionsLoading}
+                  className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-60"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {connectorActionsNotice && (
+                <div className="ai-action-notice rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
+                  {connectorActionsNotice}
+                </div>
+              )}
+
+              {connectorActionsLoading ? (
+                <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.78rem]">
+                  Loading AI Actions...
+                </div>
+              ) : connectorActionsError ? (
+                <div className="ai-action-error rounded-[0.85rem] p-3 text-[0.78rem]">
+                  {connectorActionsError}
+                </div>
+              ) : connectorActions.length === 0 ? (
+                <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.78rem]">
+                  No draft AI Actions waiting for review.
+                </div>
+              ) : (
+                <div className="ai-actions-list flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
+                  {connectorActions.map((action) => {
+                    const busyKey = connectorActionBusyId || "";
+                    const isApproving = busyKey === `approve:${action.id}`;
+                    const isCanceling = busyKey === `cancel:${action.id}`;
+                    const isVoteDraft = action.action_type === "draft_vote";
+                    return (
+                      <article key={action.id} className="ai-action-card rounded-[0.9rem] p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-[0.8rem] font-semibold">
+                              {connectorActionLabel(action.action_type)}
+                            </p>
+                            <p className="truncate text-[0.72rem] text-[var(--text-gray-light)]">
+                              {connectorActionTargetLabel(action)}
+                            </p>
+                          </div>
+                          <span className="ai-action-status-pill shrink-0 rounded-full px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.1em]">
+                            {action.status || "draft"}
+                          </span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                          {connectorActionPreview(action)}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[0.68rem] text-[var(--text-gray-light)]">
+                            {connectorActionCreatedAt(action)}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {isVoteDraft ? (
+                              <button
+                                type="button"
+                                onClick={() => reviewConnectorAction(action, "approve")}
+                                disabled={Boolean(connectorActionBusyId)}
+                                className="ai-action-approve-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                              >
+                                {isApproving ? "Approving..." : "Approve"}
+                              </button>
+                            ) : (
+                              <span className="ai-action-disabled-pill rounded-full px-3 py-1.5 text-[0.68rem] font-semibold">
+                                Approve soon
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => reviewConnectorAction(action, "cancel")}
+                              disabled={Boolean(connectorActionBusyId)}
+                              className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                            >
+                              {isCanceling ? "Canceling..." : "Cancel"}
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

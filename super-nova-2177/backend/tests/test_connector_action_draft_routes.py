@@ -348,7 +348,7 @@ class ConnectorActionDraftRouteTests(unittest.TestCase):
         self.assertEqual(result["proposal_summary"]["action"], "draft_proposal")
         self.assertEqual(result["collab_summary"]["collaborator_username"], "bob")
 
-    def test_connector_action_routes_include_drafts_and_vote_approval_only(self):
+    def test_connector_action_routes_include_inbox_cancel_drafts_and_vote_approval_only(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             routes = connector_action_routes()
@@ -367,11 +367,13 @@ class ConnectorActionDraftRouteTests(unittest.TestCase):
         self.assertEqual(
             result["routes"],
             [
+                "/connector/actions",
                 "/connector/actions/draft-collab-request",
                 "/connector/actions/draft-comment",
                 "/connector/actions/draft-proposal",
                 "/connector/actions/draft-vote",
                 "/connector/actions/{action_id}/approve-vote",
+                "/connector/actions/{action_id}/cancel",
             ],
         )
         self.assertEqual(result["execution_routes"], ["/connector/actions/{action_id}/approve-vote"])

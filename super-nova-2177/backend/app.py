@@ -3181,6 +3181,25 @@ def _connector_action_response(record, summary: Dict[str, Any], result: Dict[str
     }
 
 
+CONNECTOR_ACTION_STATUSES = {"draft", "approved", "executed", "canceled", "failed"}
+
+
+def _serialize_connector_action(record) -> Dict[str, Any]:
+    return {
+        "id": getattr(record, "id", None),
+        "action_type": getattr(record, "action_type", ""),
+        "actor_user_id": getattr(record, "actor_user_id", None),
+        "target_type": getattr(record, "target_type", ""),
+        "target_id": getattr(record, "target_id", None),
+        "status": getattr(record, "status", ""),
+        "draft_payload": _connector_action_payload(getattr(record, "draft_payload", None)),
+        "result_payload": _connector_action_payload(getattr(record, "result_payload", None)),
+        "created_at": _format_timestamp(getattr(record, "created_at", None)),
+        "approved_at": _format_timestamp(getattr(record, "approved_at", None)),
+        "executed_at": _format_timestamp(getattr(record, "executed_at", None)),
+    }
+
+
 def _connector_execute_vote(db: Session, *, actor, proposal, choice: str) -> Dict[str, Any]:
     if ProposalVote is None or Harmonizer is None:
         raise HTTPException(status_code=503, detail="Voting system unavailable")
@@ -3230,6 +3249,84 @@ def _connector_execute_vote(db: Session, *, actor, proposal, choice: str) -> Dic
         "created": created,
         "actor": getattr(actor, "username", ""),
     }
+
+
+@app.get("/connector/actions", summary="List authenticated connector action proposals")
+def connector_list_actions(
+    status: Optional[str] = Query("draft"),
+    limit: Optional[int] = Query(50),
+    offset: int = Query(0),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+
+    actor = get_current_harmonizer(authorization, db)
+    clean_status = (status or "draft").strip().lower()
+    if clean_status not in CONNECTOR_ACTION_STATUSES:
+        raise HTTPException(status_code=400, detail="Unsupported connector action status")
+    try:
+        safe_limit = int(limit if limit is not None else 50)
+    except (TypeError, ValueError):
+        safe_limit = 50
+    safe_limit = max(1, min(safe_limit, 100))
+    try:
+        safe_offset = int(offset)
+    except (TypeError, ValueError):
+        safe_offset = 0
+    safe_offset = max(0, safe_offset)
+
+    query = (
+        db.query(ConnectorActionProposal)
+        .filter(ConnectorActionProposal.actor_user_id == getattr(actor, "id", None))
+        .filter(ConnectorActionProposal.status == clean_status)
+        .order_by(desc(ConnectorActionProposal.created_at), desc(ConnectorActionProposal.id))
+    )
+    rows = query.offset(safe_offset).limit(safe_limit).all()
+    return {
+        "ok": True,
+        "actions": [_serialize_connector_action(row) for row in rows],
+        "count": len(rows),
+        "limit": safe_limit,
+        "offset": safe_offset,
+    }
+
+
+@app.post("/connector/actions/{action_id}/cancel", summary="Cancel an authenticated draft connector action")
+def connector_cancel_action(
+    action_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+
+    actor = get_current_harmonizer(authorization, db)
+    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Connector action proposal not found")
+    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
+    if getattr(action, "status", "") != "draft":
+        raise HTTPException(status_code=409, detail="Only draft connector actions can be canceled")
+
+    try:
+        action.status = "canceled"
+        db.commit()
+        db.refresh(action)
+        return {
+            "ok": True,
+            "action": _serialize_connector_action(action),
+            "executed": False,
+            "safety": {
+                "canceled_only": True,
+                "no_write_action_performed": True,
+            },
+        }
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to cancel connector action: {str(exc)}")
 
 
 @app.post("/connector/actions/draft-vote", summary="Draft a connector vote action without executing it")
