@@ -2783,6 +2783,7 @@ def connector_supernova_discovery():
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments?limit=&offset=",
             "profile": "/connector/profiles/{username}",
+            "spec": "/connector/supernova/spec",
         },
         "write_tools_enabled": False,
         "private_user_state_exposed": False,
@@ -2794,6 +2795,99 @@ def connector_supernova_discovery():
             "no_private_notifications": True,
             "no_pending_collab_requests": True,
             "no_protected_core_internals": True,
+        },
+    }
+
+
+@app.get("/connector/supernova/spec", summary="Describe the public read-only connector metadata shape")
+def connector_supernova_spec():
+    return {
+        "name": "SuperNova",
+        "mode": "public_read_only",
+        "base_url": PUBLIC_BASE_URL,
+        "resources": {
+            "profiles": {
+                "endpoint": "/connector/profiles/{username}",
+                "summary": "Public profile identity, species, bio, avatar, public web URL, and public counts.",
+                "parameters": {
+                    "username": {"in": "path", "type": "string", "required": True},
+                },
+                "response_shape": {
+                    "mode": "public_read_only",
+                    "resource": "profile",
+                    "item": ["username", "type", "species", "bio", "avatar_url", "web_url", "post_count"],
+                },
+            },
+            "proposals": {
+                "endpoint": "/connector/proposals",
+                "summary": "Public proposal/post search and list results.",
+                "parameters": {
+                    "search": {"in": "query", "type": "string", "required": False},
+                    "limit": {"in": "query", "type": "integer", "required": False, "default": 20, "maximum": 50},
+                    "offset": {"in": "query", "type": "integer", "required": False, "default": 0},
+                },
+                "response_shape": {
+                    "mode": "public_read_only",
+                    "resource": "proposals",
+                    "items": ["id", "type", "title", "text", "author", "created_at", "web_url", "vote_summary", "media"],
+                },
+            },
+            "proposal": {
+                "endpoint": "/connector/proposals/{id}",
+                "summary": "One public proposal/post by id.",
+                "parameters": {
+                    "id": {"in": "path", "type": "integer", "required": True},
+                },
+                "response_shape": {
+                    "mode": "public_read_only",
+                    "resource": "proposal",
+                    "item": ["id", "type", "title", "text", "author", "created_at", "web_url", "vote_summary", "media"],
+                },
+            },
+            "comments": {
+                "endpoint": "/connector/proposals/{id}/comments",
+                "summary": "Public comments for one proposal/post.",
+                "parameters": {
+                    "id": {"in": "path", "type": "integer", "required": True},
+                    "limit": {"in": "query", "type": "integer", "required": False, "default": 20, "maximum": 100},
+                    "offset": {"in": "query", "type": "integer", "required": False, "default": 0},
+                },
+                "response_shape": {
+                    "mode": "public_read_only",
+                    "resource": "comments",
+                    "items": ["id", "proposal_id", "parent_comment_id", "user", "species", "comment", "created_at"],
+                },
+            },
+            "vote_summaries": {
+                "embedded_in": ["proposals", "proposal"],
+                "summary": "Public aggregate support/opposition counts embedded as vote_summary.",
+                "response_shape": ["support", "oppose", "total"],
+            },
+        },
+        "endpoints": {
+            "discovery": "/connector/supernova",
+            "spec": "/connector/supernova/spec",
+            "proposals": "/connector/proposals",
+            "proposal": "/connector/proposals/{id}",
+            "proposal_comments": "/connector/proposals/{id}/comments",
+            "profile": "/connector/profiles/{username}",
+        },
+        "parameters": {
+            "search": {"type": "string", "used_by": ["/connector/proposals"]},
+            "limit": {"type": "integer", "used_by": ["/connector/proposals", "/connector/proposals/{id}/comments"]},
+            "offset": {"type": "integer", "used_by": ["/connector/proposals", "/connector/proposals/{id}/comments"]},
+        },
+        "write_tools_enabled": False,
+        "action_tools": [],
+        "private_user_state_exposed": False,
+        "safety": {
+            "public_only": True,
+            "read_only": True,
+            "requires_auth": False,
+            "no_private_notifications": True,
+            "no_pending_collab_requests": True,
+            "no_protected_core_internals": True,
+            "no_writes": True,
         },
     }
 

@@ -190,6 +190,7 @@ def seed_public_context():
 
 seeded = seed_public_context()
 discovery = client.get("/connector/supernova")
+spec = client.get("/connector/supernova/spec")
 proposal_list = client.get("/connector/proposals?search=Connector&limit=10&offset=0")
 proposal_detail = client.get(f"/connector/proposals/{seeded['primary_id']}")
 comments = client.get(f"/connector/proposals/{seeded['primary_id']}/comments?limit=1&offset=1")
@@ -200,6 +201,8 @@ write_attempt = client.post("/connector/proposals", json={"title": "no writes"})
 result = {
     "discovery_status": discovery.status_code,
     "discovery": discovery.json(),
+    "spec_status": spec.status_code,
+    "spec": spec.json(),
     "list_status": proposal_list.status_code,
     "list": proposal_list.json(),
     "detail_status": proposal_detail.status_code,
@@ -232,6 +235,54 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertIn("profiles", discovery["resources"])
         self.assertIn("proposals", discovery["resources"])
         self.assertIn("comments", discovery["resources"])
+        self.assertEqual(discovery["endpoints"]["spec"], "/connector/supernova/spec")
+
+    def test_spec_endpoint_describes_public_read_only_facade(self):
+        self.assertEqual(self.result["spec_status"], 200)
+        spec = self.result["spec"]
+        self.assertEqual(spec["name"], "SuperNova")
+        self.assertEqual(spec["mode"], "public_read_only")
+        self.assertTrue(spec["base_url"].startswith("http"))
+        self.assertFalse(spec["write_tools_enabled"])
+        self.assertFalse(spec["private_user_state_exposed"])
+        self.assertEqual(spec["action_tools"], [])
+        self.assertTrue(spec["safety"]["public_only"])
+        self.assertTrue(spec["safety"]["read_only"])
+        self.assertFalse(spec["safety"]["requires_auth"])
+        self.assertTrue(spec["safety"]["no_writes"])
+        self.assertTrue(spec["safety"]["no_private_notifications"])
+        self.assertTrue(spec["safety"]["no_pending_collab_requests"])
+        self.assertTrue(spec["safety"]["no_protected_core_internals"])
+
+        self.assertEqual(spec["endpoints"]["proposals"], "/connector/proposals")
+        self.assertEqual(spec["endpoints"]["proposal"], "/connector/proposals/{id}")
+        self.assertEqual(spec["endpoints"]["proposal_comments"], "/connector/proposals/{id}/comments")
+        self.assertEqual(spec["endpoints"]["profile"], "/connector/profiles/{username}")
+        self.assertIn("search", spec["parameters"])
+        self.assertIn("limit", spec["parameters"])
+        self.assertIn("offset", spec["parameters"])
+        self.assertIn("profiles", spec["resources"])
+        self.assertIn("proposals", spec["resources"])
+        self.assertIn("comments", spec["resources"])
+        self.assertIn("vote_summaries", spec["resources"])
+
+    def test_spec_endpoint_does_not_expose_runtime_or_private_fields(self):
+        spec_text = json.dumps(self.result["spec"], sort_keys=True).lower()
+        forbidden = [
+            "private_notification_sentinel",
+            "alice@example.test",
+            "hashed_password",
+            "secret_key",
+            "database_url",
+            "sys.path",
+            "os.getcwd",
+            "filesystem",
+            "oauth",
+            "access_token",
+            "cookie",
+        ]
+        for value in forbidden:
+            self.assertNotIn(value, spec_text)
 
     def test_connector_proposal_list_and_detail_return_compact_public_data(self):
         self.assertEqual(self.result["list_status"], 200)
