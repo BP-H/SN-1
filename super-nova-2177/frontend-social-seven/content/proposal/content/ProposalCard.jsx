@@ -31,7 +31,7 @@ import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
-import LinkifiedText, { hasLink, normalizeLinkHref } from "@/utils/linkify";
+import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
@@ -458,7 +458,6 @@ function ProposalCard({
   const displayFile = media.file ? getFullImageUrl(media.file) : "";
   const isPdfFile = /\.pdf(?:$|\?)/i.test(displayFile || "");
   const mediaLayout = media.layout === "grid" ? "grid" : "carousel";
-  const detailHref = id !== undefined && id !== null && id !== "" ? `/proposals/${encodeURIComponent(id)}` : "/proposals";
   const userHref = authorName ? `/users/${encodeURIComponent(authorName)}` : "/profile";
   const profileDomainHref = domainAsProfile && profileUrl ? normalizeLinkHref(profileUrl) : "";
   const userVote = likes.some((v) => v.voter === userData?.name)
@@ -731,23 +730,12 @@ function ProposalCard({
             </div>
           ) : localText && (
             <div className="flex min-w-0 flex-col gap-1">
-              {hasLink(localText) ? (
-                <p
-                  className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
-                  style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
-                >
-                  <LinkifiedText text={localText} enableMentions />
-                </p>
-              ) : (
-                <Link href={detailHref} className="block min-w-0">
-                  <p
-                    className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
-                    style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
-                  >
-                    {localText}
-                  </p>
-                </Link>
-              )}
+              <p
+                className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
+                style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
+              >
+                <LinkifiedText text={localText} enableMentions />
+              </p>
               {(localText.length > 220 || (localText.match(/\n/g) || []).length >= 4) && (
                 <button
                   type="button"

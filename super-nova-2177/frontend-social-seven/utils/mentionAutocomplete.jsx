@@ -9,7 +9,11 @@ const MENTION_PREFIX_DISALLOWED = /[A-Za-z0-9_.+/\-]/;
 const PARTIAL_USERNAME_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 const PANEL_MAX_WIDTH = 384;
 const PANEL_MAX_HEIGHT = 224;
+const PANEL_MIN_HEIGHT = 44;
+const PANEL_ROW_HEIGHT = 38;
+const PANEL_VERTICAL_PADDING = 12;
 const VIEWPORT_GUTTER = 8;
+const PANEL_INPUT_GAP = 6;
 
 function findActiveMention(value = "", caretIndex = 0) {
   const text = String(value || "");
@@ -152,7 +156,7 @@ export function useMentionAutocomplete({ value, setValue, inputRef, limit = 6 })
   };
 }
 
-function panelPlacement(inputRef) {
+function panelPlacement(inputRef, suggestionCount = 0) {
   if (typeof window === "undefined") return null;
   const anchor = inputRef?.current;
   const rect = anchor?.getBoundingClientRect?.();
@@ -171,11 +175,19 @@ function panelPlacement(inputRef) {
   );
   const below = viewportTop + viewportHeight - rect.bottom - VIEWPORT_GUTTER;
   const above = rect.top - viewportTop - VIEWPORT_GUTTER;
-  const placeAbove = below < 150 && above > below;
-  const maxHeight = Math.max(124, Math.min(PANEL_MAX_HEIGHT, (placeAbove ? above : below) - VIEWPORT_GUTTER));
+  const contentHeight = Math.max(
+    PANEL_MIN_HEIGHT,
+    Math.min(PANEL_MAX_HEIGHT, suggestionCount * PANEL_ROW_HEIGHT + PANEL_VERTICAL_PADDING)
+  );
+  const placeAbove = below < Math.min(contentHeight, 150) && above > below;
+  const availableHeight = Math.max(0, (placeAbove ? above : below) - VIEWPORT_GUTTER);
+  const maxHeight = Math.max(
+    PANEL_MIN_HEIGHT,
+    Math.min(PANEL_MAX_HEIGHT, contentHeight, availableHeight || contentHeight)
+  );
   const top = placeAbove
-    ? Math.max(viewportTop + VIEWPORT_GUTTER, rect.top - maxHeight - VIEWPORT_GUTTER)
-    : Math.min(rect.bottom + VIEWPORT_GUTTER, viewportTop + viewportHeight - maxHeight - VIEWPORT_GUTTER);
+    ? Math.max(viewportTop + VIEWPORT_GUTTER, rect.top - maxHeight - PANEL_INPUT_GAP)
+    : Math.min(rect.bottom + PANEL_INPUT_GAP, viewportTop + viewportHeight - maxHeight - VIEWPORT_GUTTER);
 
   return { left, top, width, maxHeight };
 }
@@ -194,7 +206,7 @@ export function MentionAutocomplete({ controller, withinAiCursor = false }) {
       return undefined;
     }
 
-    const update = () => setPlacement(panelPlacement(controller.inputRef));
+    const update = () => setPlacement(panelPlacement(controller.inputRef, controller.suggestions.length));
     update();
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
