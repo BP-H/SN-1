@@ -104,6 +104,20 @@ function getVisualMeta(post) {
   return null;
 }
 
+function isDecisionProfilePost(post) {
+  const governance = post?.media?.governance || {};
+  const kind = String(governance.kind || "").toLowerCase();
+  if (kind === "decision" || kind === "proposal" || kind === "governance") return true;
+  return Boolean(
+    governance.approval_threshold
+      || governance.threshold
+      || governance.voting_deadline
+      || governance.voting_days
+      || governance.execution_mode
+      || governance.execution
+  );
+}
+
 function ProfileVisualTile({ post, visual, onOpen, isCollab = false }) {
   const [thumbnailSrc, setThumbnailSrc] = useState(visual?.src || "");
   const [thumbnailFailed, setThumbnailFailed] = useState(!visual?.src);
@@ -345,8 +359,12 @@ export default function UserPostsPage() {
     () => posts.map((post) => ({ post, visual: getVisualMeta(post) })).filter((item) => item.visual),
     [posts]
   );
+  const decisionPosts = useMemo(
+    () => posts.filter(isDecisionProfilePost),
+    [posts]
+  );
   const textPosts = useMemo(
-    () => posts.filter((post) => !getVisualMeta(post)),
+    () => posts.filter((post) => !getVisualMeta(post) && !isDecisionProfilePost(post)),
     [posts]
   );
 
@@ -385,11 +403,18 @@ export default function UserPostsPage() {
   const tabCounts = useMemo(
     () => ({
       visuals: visualPosts.length,
-      proposals: posts.length,
+      proposals: decisionPosts.length,
       text: textPosts.length,
       collabs: approvedCollabPosts.length + (isOwnProfile ? pendingCollabCount : 0),
     }),
-    [approvedCollabPosts.length, isOwnProfile, pendingCollabCount, posts.length, textPosts.length, visualPosts.length]
+    [
+      approvedCollabPosts.length,
+      decisionPosts.length,
+      isOwnProfile,
+      pendingCollabCount,
+      textPosts.length,
+      visualPosts.length,
+    ]
   );
 
   useEffect(() => {
@@ -1028,10 +1053,10 @@ export default function UserPostsPage() {
                   {posts.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setActiveTab("proposals")}
+                      onClick={() => setActiveTab(decisionPosts.length > 0 ? "proposals" : "text")}
                       className="mt-4 rounded-full bg-white/[0.065] px-4 py-2 text-[0.76rem] font-bold text-[var(--text-black)] hover:bg-white/[0.09]"
                     >
-                      View proposals
+                      {decisionPosts.length > 0 ? "View decisions" : "View posts"}
                     </button>
                   )}
                 </div>
@@ -1053,12 +1078,12 @@ export default function UserPostsPage() {
             )}
 
             {activeTab === "proposals" && (
-              posts.length === 0 ? (
+              decisionPosts.length === 0 ? (
                 <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-                  No decisions or posts from this user yet.
+                  No decisions or proposals yet.
                 </div>
               ) : (
-                posts.map(renderPostCard)
+                decisionPosts.map(renderPostCard)
               )
             )}
 
