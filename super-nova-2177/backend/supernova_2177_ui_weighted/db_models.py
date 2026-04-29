@@ -21,6 +21,7 @@ try:
         Table,
         Float,
         JSON,
+        Index,
         text,
     )
     from sqlalchemy.orm import (
@@ -70,6 +71,9 @@ except Exception:  # pragma: no cover - optional dependency
         )
 
     def UniqueConstraint(*_a, **_kw):
+        return None
+
+    def Index(*_a, **_kw):
         return None
 
     class DeclarativeBase:
@@ -400,6 +404,37 @@ class ProposalVote(Base):
     voter = relationship("Harmonizer", foreign_keys=[harmonizer_id])
 
 proposal_votes = ProposalVote.__table__
+
+PROPOSAL_COLLAB_STATUSES = ("pending", "approved", "declined", "removed")
+
+
+class ProposalCollab(Base):
+    __tablename__ = "proposal_collabs"
+    __table_args__ = (
+        Index(
+            "idx_proposal_collabs_proposal_collaborator_status",
+            "proposal_id",
+            "collaborator_user_id",
+            "status",
+        ),
+        Index(
+            "idx_proposal_collabs_collaborator_status_requested",
+            "collaborator_user_id",
+            "status",
+            "requested_at",
+        ),
+        {"extend_existing": True},
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False, index=True)
+    author_user_id = Column(Integer, ForeignKey("harmonizers.id"), nullable=False, index=True)
+    collaborator_user_id = Column(Integer, ForeignKey("harmonizers.id"), nullable=False, index=True)
+    requested_by_user_id = Column(Integer, ForeignKey("harmonizers.id"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="pending", index=True)
+    requested_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    responded_at = Column(DateTime, nullable=True)
+    removed_at = Column(DateTime, nullable=True)
     
 class Notification(Base):
     __tablename__ = "notifications"
@@ -744,5 +779,4 @@ def seed_default_users() -> None:
         session.commit()
     finally:
         session.close()
-
 
