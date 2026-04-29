@@ -60,6 +60,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added approval-required backend connector vote action execution with audit updates.
 - Added authenticated connector action inbox/cancel endpoints and a minimal FE7 AI Actions review panel.
 - Added a separate public read-only SuperNova MCP connector prototype.
+- Added a deployment smoke-test helper and clearer testing docs for the SuperNova MCP prototype.
 - Fixed mention-linked post/comment deletes and tightened FE7 mention rendering/autocomplete placement.
 - Added first-pass backend comment mention records and notifications without FE7 or collab behavior changes.
 - Added first-pass backend proposal mention notifications without FE7 or collab behavior changes.

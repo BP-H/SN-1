@@ -6,8 +6,9 @@
   "description": "Public read-only SuperNova MCP connector prototype.",
   "scripts": {
     "dev": "node scripts/local-server.mjs",
-    "build": "node --check src/mcpServer.js && node --check api/mcp.js && node --check api/health.js && node --check scripts/local-server.mjs",
-    "test": "node --test"
+    "build": "node --check src/mcpServer.js && node --check api/mcp.js && node --check api/health.js && node --check scripts/local-server.mjs && node --check scripts/smoke-mcp.mjs",
+    "test": "node --test",
+    "smoke": "node scripts/smoke-mcp.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
