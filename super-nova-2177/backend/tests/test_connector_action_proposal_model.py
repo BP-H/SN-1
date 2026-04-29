@@ -222,7 +222,22 @@ class ConnectorActionProposalModelTests(unittest.TestCase):
     def test_connector_action_model_does_not_add_execution_routes(self):
         result = run_probe(PROBE)
 
-        self.assertEqual(result["connector_action_routes"], [])
+        self.assertEqual(
+            result["connector_action_routes"],
+            [
+                "/connector/actions/draft-collab-request",
+                "/connector/actions/draft-comment",
+                "/connector/actions/draft-proposal",
+                "/connector/actions/draft-vote",
+            ],
+        )
+        self.assertFalse(
+            any(
+                marker in route
+                for route in result["connector_action_routes"]
+                for marker in ("approve", "execute")
+            )
+        )
 
 
 if __name__ == "__main__":

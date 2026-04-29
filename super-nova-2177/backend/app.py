@@ -228,6 +228,11 @@ except Exception:  # pragma: no cover - optional in partial backend environments
     Notification = None
 
 try:
+    from db_models import ConnectorActionProposal
+except Exception:  # pragma: no cover - optional before connector action model support
+    ConnectorActionProposal = None
+
+try:
     from mention_parser import parse_mentions
 except Exception:  # pragma: no cover - parser is optional in partial environments
     parse_mentions = None
@@ -1046,6 +1051,32 @@ class DirectMessageIn(BaseModel):
 class FollowIn(BaseModel):
     follower: str
     target: str
+
+
+class ConnectorDraftVoteIn(BaseModel):
+    username: str
+    proposal_id: int
+    choice: str
+
+
+class ConnectorDraftCommentIn(BaseModel):
+    username: str
+    proposal_id: int
+    body: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class ConnectorDraftProposalIn(BaseModel):
+    author: str
+    title: str
+    body: str
+
+
+class ConnectorDraftCollabRequestIn(BaseModel):
+    author: str
+    proposal_id: int
+    collaborator_username: Optional[str] = None
+    collaborator: Optional[str] = None
 
 
 def _normalize_species(value: Optional[str]) -> str:
@@ -3019,6 +3050,251 @@ def connector_get_profile(username: str, db: Session = Depends(get_db)):
         "resource": "profile",
         "item": _connector_profile_payload(db, username),
     }
+
+
+def _connector_require_actor(
+    authorization: Optional[str],
+    db: Session,
+    username: str,
+):
+    clean_username = (username or "").strip()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="username is required")
+    return _require_token_identity_match(authorization, db, clean_username)
+
+
+def _connector_proposal_title(proposal) -> str:
+    return getattr(proposal, "title", "") or "Untitled proposal"
+
+
+def _connector_proposal_owner_username(db: Session, proposal) -> str:
+    owner = (
+        getattr(proposal, "userName", None)
+        or getattr(proposal, "author", None)
+        or ""
+    )
+    if owner:
+        return str(owner)
+    author_id = getattr(proposal, "author_id", None)
+    if author_id and Harmonizer is not None:
+        author = db.query(Harmonizer).filter(Harmonizer.id == author_id).first()
+        return getattr(author, "username", "") if author else ""
+    return ""
+
+
+def _normalize_connector_vote_choice(choice: str) -> Dict[str, str]:
+    clean_choice = (choice or "").strip().lower()
+    mapping = {
+        "support": ("support", "up"),
+        "up": ("support", "up"),
+        "oppose": ("oppose", "down"),
+        "down": ("oppose", "down"),
+    }
+    if clean_choice not in mapping:
+        raise HTTPException(status_code=400, detail="Invalid vote choice")
+    intended_choice, normalized_vote = mapping[clean_choice]
+    return {
+        "intended_choice": intended_choice,
+        "normalized_vote": normalized_vote,
+    }
+
+
+def _create_connector_action_draft(
+    db: Session,
+    *,
+    action_type: str,
+    actor_user_id: int,
+    target_type: str,
+    target_id: Optional[Any],
+    draft_payload: Dict[str, Any],
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+    record = ConnectorActionProposal(
+        action_type=action_type,
+        actor_user_id=actor_user_id,
+        target_type=target_type,
+        target_id=str(target_id) if target_id is not None else None,
+        draft_payload=draft_payload,
+        status="draft",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def _connector_draft_response(record, summary: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "mode": "draft_only",
+        "executed": False,
+        "action_proposal": {
+            "id": getattr(record, "id", None),
+            "status": getattr(record, "status", "draft"),
+            "action_type": getattr(record, "action_type", ""),
+            "actor_user_id": getattr(record, "actor_user_id", None),
+            "target_type": getattr(record, "target_type", ""),
+            "target_id": getattr(record, "target_id", None),
+        },
+        "summary": summary,
+        "safety": {
+            "requires_approval": True,
+            "no_execution": True,
+            "no_write_action_performed": True,
+        },
+    }
+
+
+@app.post("/connector/actions/draft-vote", summary="Draft a connector vote action without executing it")
+def connector_draft_vote(
+    payload: ConnectorDraftVoteIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = _connector_require_actor(authorization, db, payload.username)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    choice = _normalize_connector_vote_choice(payload.choice)
+    summary = {
+        "action": "draft_vote",
+        "actor": getattr(actor, "username", ""),
+        "proposal_id": getattr(proposal, "id", payload.proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        **choice,
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_vote",
+            actor_user_id=getattr(actor, "id", None),
+            target_type="proposal",
+            target_id=getattr(proposal, "id", payload.proposal_id),
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft vote action: {str(exc)}")
+
+
+@app.post("/connector/actions/draft-comment", summary="Draft a connector comment action without executing it")
+def connector_draft_comment(
+    payload: ConnectorDraftCommentIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = _connector_require_actor(authorization, db, payload.username)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    body = (payload.body or payload.comment or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="comment body is required")
+    summary = {
+        "action": "draft_comment",
+        "actor": getattr(actor, "username", ""),
+        "proposal_id": getattr(proposal, "id", payload.proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        "body": body,
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_comment",
+            actor_user_id=getattr(actor, "id", None),
+            target_type="proposal",
+            target_id=getattr(proposal, "id", payload.proposal_id),
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft comment action: {str(exc)}")
+
+
+@app.post("/connector/actions/draft-proposal", summary="Draft a connector proposal action without executing it")
+def connector_draft_proposal(
+    payload: ConnectorDraftProposalIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = _connector_require_actor(authorization, db, payload.author)
+    title = (payload.title or "").strip()
+    body = (payload.body or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    if not body:
+        raise HTTPException(status_code=400, detail="body is required")
+    summary = {
+        "action": "draft_proposal",
+        "actor": getattr(actor, "username", ""),
+        "title": title,
+        "body": body,
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_proposal",
+            actor_user_id=getattr(actor, "id", None),
+            target_type="proposal",
+            target_id=None,
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft proposal action: {str(exc)}")
+
+
+@app.post("/connector/actions/draft-collab-request", summary="Draft a connector collab request without executing it")
+def connector_draft_collab_request(
+    payload: ConnectorDraftCollabRequestIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = _connector_require_actor(authorization, db, payload.author)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    owner = _connector_proposal_owner_username(db, proposal)
+    if _safe_user_key(owner) != _safe_user_key(getattr(actor, "username", "")):
+        raise HTTPException(status_code=403, detail="Only the proposal author can draft a collab request")
+
+    collaborator_username = (payload.collaborator_username or payload.collaborator or "").strip()
+    if not collaborator_username:
+        raise HTTPException(status_code=400, detail="collaborator username is required")
+    collaborator = _find_harmonizer_by_username(db, collaborator_username)
+    if not collaborator:
+        raise HTTPException(status_code=404, detail="Collaborator not found")
+
+    summary = {
+        "action": "draft_collab_request",
+        "actor": getattr(actor, "username", ""),
+        "proposal_id": getattr(proposal, "id", payload.proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        "collaborator_username": getattr(collaborator, "username", collaborator_username),
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_collab_request",
+            actor_user_id=getattr(actor, "id", None),
+            target_type="proposal_collab_request",
+            target_id=getattr(proposal, "id", payload.proposal_id),
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft collab request action: {str(exc)}")
 
 
 @app.get("/.well-known/webfinger", summary="Discover a public SuperNova profile")
