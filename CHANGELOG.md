@@ -53,6 +53,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added initial backend proposal-collab model/table support with idempotent SQLite tests.
 - Added SuperNova GPT connector contract for future read-only and approval-required agent surfaces.
 - Added legacy cleanup roadmap and clarified active frontend/backend cleanup policy.
+- Removed tracked TypeScript build-info artifacts and marked `frontend-nova` as a legacy retired candidate in docs/local launchers.
 - Added backend mention parser contract tests before runtime notification or collab behavior.
 - Added connector action proposal model for future approval-required GPT connector writes.
 - Added draft-only backend connector action routes for future approval-required GPT connector writes.
