@@ -504,7 +504,7 @@ export default function UserPostsPage() {
 
         {(profile.bio || editOpen) && (
           <div className="mt-4 rounded-[0.9rem] bg-white/[0.035] px-3 py-3 text-[0.84rem] leading-5 text-[var(--transparent-black)]">
-            {profile.bio ? <LinkifiedText text={profile.bio} /> : <span className="text-[var(--text-gray-light)]">Add an about section.</span>}
+            {profile.bio ? <LinkifiedText text={profile.bio} enableMentions /> : <span className="text-[var(--text-gray-light)]">Add an about section.</span>}
           </div>
         )}
 
