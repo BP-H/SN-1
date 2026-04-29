@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { IoClose } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { speciesAvatarStyle } from "@/utils/species";
 
 function InsertComment({
@@ -18,6 +19,12 @@ function InsertComment({
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const mentionAutocomplete = useMentionAutocomplete({
+    value: comment,
+    setValue: setComment,
+    inputRef,
+  });
 
   const handlePublish = async () => {
     if (!isAuthenticated) {
@@ -133,19 +140,30 @@ function InsertComment({
             </span>
           )}
         </div>
-        <input
-          type="text"
-          placeholder={parentComment?.id ? `Reply to ${parentComment.user || "comment"}...` : "Add a comment..."}
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              handlePublish();
-            }
-          }}
-          className="h-10 min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.045)] px-4 text-[0.88rem] text-[var(--text-black)] outline-none placeholder:text-[var(--text-gray-light)]"
-        />
+        <div className="relative min-w-0 flex-1">
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder={parentComment?.id ? `Reply to ${parentComment.user || "comment"}...` : "Add a comment..."}
+            value={comment}
+            onChange={(event) => {
+              setComment(event.target.value);
+              mentionAutocomplete.trackCaret(event.currentTarget);
+            }}
+            onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+            onKeyDown={(event) => {
+              mentionAutocomplete.handleKeyDown(event);
+              if (event.defaultPrevented) return;
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handlePublish();
+              }
+            }}
+            onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+            className="h-10 w-full min-w-0 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.045)] px-4 text-[0.88rem] text-[var(--text-black)] outline-none placeholder:text-[var(--text-gray-light)]"
+          />
+          <MentionAutocomplete controller={mentionAutocomplete} />
+        </div>
         <button
           type="button"
           onClick={handlePublish}

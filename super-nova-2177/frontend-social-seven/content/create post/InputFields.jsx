@@ -26,6 +26,7 @@ import PdfPager from "../proposal/content/PdfPager";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
+import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { speciesAvatarStyle } from "@/utils/species";
 
 function InputFields({
@@ -72,6 +73,11 @@ function InputFields({
   const userAvatarStyle = speciesAvatarStyle(userData?.species || "human");
   const isDecisionMode = proposalMode === "decision";
   const decisionThresholdLabel = decisionLevel === "important" ? "90%" : "60%";
+  const mentionAutocomplete = useMentionAutocomplete({
+    value: text,
+    setValue: setText,
+    inputRef: textAreaRef,
+  });
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
@@ -634,14 +640,23 @@ function InputFields({
 
   const renderContent = () => (
     <div className="flex flex-col gap-3 text-[var(--text-black)]">
-      <textarea
-        ref={textAreaRef}
-        placeholder="Share your idea, update, or question"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        rows={1}
-        className="composer-textarea min-h-[7.4rem] max-h-[min(72dvh,58rem)] w-full resize-none rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.06)] px-4 py-3 text-[0.92rem] outline-none placeholder:text-[var(--text-gray-light)]"
-      />
+      <div className="relative">
+        <textarea
+          ref={textAreaRef}
+          placeholder="Share your idea, update, or question"
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            mentionAutocomplete.trackCaret(event.currentTarget);
+          }}
+          onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+          onKeyDown={mentionAutocomplete.handleKeyDown}
+          onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+          rows={1}
+          className="composer-textarea min-h-[7.4rem] max-h-[min(72dvh,58rem)] w-full resize-none rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.06)] px-4 py-3 text-[0.92rem] outline-none placeholder:text-[var(--text-gray-light)]"
+        />
+        <MentionAutocomplete controller={mentionAutocomplete} />
+      </div>
 
       {renderMediaPreview()}
 
