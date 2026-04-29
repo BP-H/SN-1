@@ -8,10 +8,13 @@ import {
   IoCheckmark,
   IoClose,
   IoCreateOutline,
+  IoDocumentTextOutline,
   IoGlobeOutline,
+  IoGridOutline,
   IoLinkOutline,
   IoPersonAddOutline,
   IoPersonRemoveOutline,
+  IoTextOutline,
 } from "react-icons/io5";
 import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
@@ -25,9 +28,9 @@ import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
 const PROFILE_TABS = [
-  { key: "visuals", label: "Visuals" },
-  { key: "proposals", label: "Proposals" },
-  { key: "text", label: "Text" },
+  { key: "visuals", label: "Visuals", title: "Visual posts", icon: IoGridOutline },
+  { key: "proposals", label: "Proposals", title: "Proposals", icon: IoDocumentTextOutline },
+  { key: "text", label: "Text", title: "Text posts", icon: IoTextOutline },
 ];
 
 function avatarUrl(value) {
@@ -75,6 +78,7 @@ function getVisualMeta(post) {
     return {
       kind: "video",
       src: "",
+      videoSrc: mediaUrl(media.video),
       count: 1,
     };
   }
@@ -85,13 +89,18 @@ function getVisualMeta(post) {
 function ProfileVisualTile({ post, visual, onOpen }) {
   const [thumbnailSrc, setThumbnailSrc] = useState(visual?.src || "");
   const [thumbnailFailed, setThumbnailFailed] = useState(!visual?.src);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     setThumbnailSrc(visual?.src || "");
     setThumbnailFailed(!visual?.src);
-  }, [visual?.src]);
+    setVideoFailed(false);
+  }, [visual?.src, visual?.videoSrc]);
 
   const fallbackLabel = visual?.kind === "video" ? "Video" : "Media";
+  const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
+  const dislikeCount = Array.isArray(post?.dislikes) ? post.dislikes.length : 0;
+  const hasVoteSignal = likeCount > 0 || dislikeCount > 0;
 
   return (
     <button
@@ -113,6 +122,15 @@ function ProfileVisualTile({ post, visual, onOpen }) {
             setThumbnailFailed(true);
           }}
         />
+      ) : visual?.kind === "video" && visual?.videoSrc && !videoFailed ? (
+        <video
+          src={visual.videoSrc}
+          muted
+          playsInline
+          preload="metadata"
+          className="pointer-events-none h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+          onError={() => setVideoFailed(true)}
+        />
       ) : (
         <span className="flex h-full w-full items-center justify-center bg-white/[0.035] px-2 text-center text-[0.72rem] font-bold text-[var(--text-gray-light)]">
           {fallbackLabel}
@@ -126,6 +144,11 @@ function ProfileVisualTile({ post, visual, onOpen }) {
       {visual?.kind === "video" && (
         <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
           Video
+        </span>
+      )}
+      {hasVoteSignal && (
+        <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.6rem] font-bold text-white">
+          {likeCount}+ {dislikeCount}-
         </span>
       )}
     </button>
@@ -162,7 +185,7 @@ export default function UserPostsPage() {
   const [aboutDraft, setAboutDraft] = useState("");
   const [domainDraft, setDomainDraft] = useState("");
   const [domainAsProfileDraft, setDomainAsProfileDraft] = useState(false);
-  const [activeTab, setActiveTab] = useState("proposals");
+  const [activeTab, setActiveTab] = useState("visuals");
   const currentUsername = userData?.name || "";
   const isOwnProfile = Boolean(
     currentUsername && username && currentUsername.toLowerCase() === username.toLowerCase()
@@ -268,7 +291,7 @@ export default function UserPostsPage() {
   }, [username]);
 
   useEffect(() => {
-    setActiveTab("proposals");
+    setActiveTab("visuals");
   }, [username]);
 
   useEffect(() => {
@@ -604,18 +627,23 @@ export default function UserPostsPage() {
               <div className="grid grid-cols-3 gap-1.5 rounded-full bg-white/[0.045] p-1">
                 {PROFILE_TABS.map((tab) => {
                   const selected = activeTab === tab.key;
+                  const TabIcon = tab.icon;
                   return (
                     <button
                       key={tab.key}
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
-                      className={`flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[0.72rem] font-bold transition-colors ${
+                      aria-label={tab.title}
+                      title={tab.title}
+                      aria-pressed={selected}
+                      className={`flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[0.72rem] font-bold transition-colors ${
                         selected
                           ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
                           : "text-[var(--text-gray-light)] hover:bg-white/[0.055] hover:text-[var(--text-black)]"
                       }`}
                     >
-                      <span className="min-w-0 truncate">{tab.label}</span>
+                      <TabIcon className="shrink-0 text-[1rem]" aria-hidden="true" />
+                      <span className="sr-only">{tab.label}</span>
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] ${
                         selected ? "bg-white/20 text-white" : "bg-white/[0.055] text-[var(--text-gray-light)]"
                       }`}>
@@ -630,7 +658,16 @@ export default function UserPostsPage() {
             {activeTab === "visuals" && (
               visualPosts.length === 0 ? (
                 <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-                  No visual posts yet.
+                  <p>No visual posts yet.</p>
+                  {posts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("proposals")}
+                      className="mt-4 rounded-full bg-white/[0.065] px-4 py-2 text-[0.76rem] font-bold text-[var(--text-black)] hover:bg-white/[0.09]"
+                    >
+                      View proposals
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="mobile-feed-panel social-panel rounded-[1rem] p-2">
