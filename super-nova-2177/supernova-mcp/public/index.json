@@ -1,0 +1,6 @@
+{
+  "name": "supernova-mcp",
+  "mode": "public_read_only",
+  "mcp": "/mcp",
+  "health": "/health"
+}

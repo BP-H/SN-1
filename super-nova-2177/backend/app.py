@@ -228,6 +228,11 @@ except Exception:  # pragma: no cover - optional in partial backend environments
     Notification = None
 
 try:
+    from db_models import ProposalCollab
+except Exception:  # pragma: no cover - optional before collab model support
+    ProposalCollab = None
+
+try:
     from db_models import ConnectorActionProposal
 except Exception:  # pragma: no cover - optional before connector action model support
     ConnectorActionProposal = None
@@ -1077,6 +1082,11 @@ class ConnectorDraftCollabRequestIn(BaseModel):
     proposal_id: int
     collaborator_username: Optional[str] = None
     collaborator: Optional[str] = None
+
+
+class ProposalCollabRequestIn(BaseModel):
+    proposal_id: int
+    collaborator_username: str
 
 
 def _normalize_species(value: Optional[str]) -> str:
@@ -3544,6 +3554,324 @@ def connector_draft_collab_request(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to draft collab request action: {str(exc)}")
+
+
+PROPOSAL_COLLAB_ROUTE_STATUSES = {"pending", "approved", "declined", "removed"}
+PROPOSAL_COLLAB_ACTIVE_STATUSES = {"pending", "approved"}
+
+
+def _require_proposal_collabs_available() -> None:
+    if ProposalCollab is None or Proposal is None or Harmonizer is None or not CRUD_MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Proposal collabs are unavailable")
+
+
+def _proposal_collab_limit(value: Optional[int]) -> int:
+    try:
+        parsed = int(value if value is not None else 50)
+    except (TypeError, ValueError):
+        parsed = 50
+    return max(1, min(parsed, 100))
+
+
+def _proposal_collab_offset(value: Optional[int]) -> int:
+    try:
+        parsed = int(value if value is not None else 0)
+    except (TypeError, ValueError):
+        parsed = 0
+    return max(0, parsed)
+
+
+def _proposal_collab_user_summary(db: Session, user_id: Optional[int]) -> Dict[str, Any]:
+    if not user_id or Harmonizer is None:
+        return {}
+    user = db.query(Harmonizer).filter(Harmonizer.id == user_id).first()
+    if not user:
+        return {}
+    return {
+        "id": getattr(user, "id", None),
+        "username": getattr(user, "username", ""),
+        "species": getattr(user, "species", "human"),
+        "avatar": _social_avatar(getattr(user, "profile_pic", "") or getattr(user, "avatar_url", "")),
+    }
+
+
+def _proposal_author_user(db: Session, proposal):
+    author_id = getattr(proposal, "author_id", None)
+    if author_id and Harmonizer is not None:
+        author = db.query(Harmonizer).filter(Harmonizer.id == author_id).first()
+        if author:
+            return author
+    owner_username = _connector_proposal_owner_username(db, proposal)
+    return _find_harmonizer_by_username(db, owner_username)
+
+
+def _serialize_proposal_collab(db: Session, collab) -> Dict[str, Any]:
+    proposal = db.query(Proposal).filter(Proposal.id == getattr(collab, "proposal_id", None)).first()
+    requested_by = _proposal_collab_user_summary(db, getattr(collab, "requested_by_user_id", None))
+    return {
+        "id": getattr(collab, "id", None),
+        "proposal_id": getattr(collab, "proposal_id", None),
+        "proposal_title": _connector_proposal_title(proposal) if proposal else "",
+        "author": _proposal_collab_user_summary(db, getattr(collab, "author_user_id", None)),
+        "collaborator": _proposal_collab_user_summary(db, getattr(collab, "collaborator_user_id", None)),
+        "requested_by": requested_by.get("username", ""),
+        "status": getattr(collab, "status", ""),
+        "requested_at": _format_timestamp(getattr(collab, "requested_at", None)),
+        "responded_at": _format_timestamp(getattr(collab, "responded_at", None)),
+        "removed_at": _format_timestamp(getattr(collab, "removed_at", None)),
+    }
+
+
+def _record_proposal_collab_notification(
+    db: Session,
+    recipient_user_id: Optional[int],
+    payload: Dict[str, Any],
+) -> None:
+    if not recipient_user_id or Notification is None:
+        return
+    try:
+        db.add(
+            Notification(
+                harmonizer_id=recipient_user_id,
+                message=json.dumps(payload, sort_keys=True),
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _proposal_collab_or_404(db: Session, collab_id: int):
+    _require_proposal_collabs_available()
+    collab = db.query(ProposalCollab).filter(ProposalCollab.id == collab_id).first()
+    if not collab:
+        raise HTTPException(status_code=404, detail="Proposal collab not found")
+    return collab
+
+
+@app.post("/proposal-collabs/request", summary="Request a proposal collaborator")
+def request_proposal_collab(
+    payload: ProposalCollabRequestIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    _require_proposal_collabs_available()
+    actor = get_current_harmonizer(authorization, db)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    author = _proposal_author_user(db, proposal)
+    if not author or getattr(author, "id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Only the proposal author can request a collab")
+
+    collaborator_username = (payload.collaborator_username or "").strip()
+    if not collaborator_username:
+        raise HTTPException(status_code=400, detail="collaborator username is required")
+    collaborator = _find_harmonizer_by_username(db, collaborator_username)
+    if not collaborator:
+        raise HTTPException(status_code=404, detail="Collaborator not found")
+    if getattr(collaborator, "id", None) == getattr(author, "id", None):
+        raise HTTPException(status_code=400, detail="Cannot request self-collab")
+
+    duplicate = (
+        db.query(ProposalCollab)
+        .filter(ProposalCollab.proposal_id == getattr(proposal, "id", None))
+        .filter(ProposalCollab.collaborator_user_id == getattr(collaborator, "id", None))
+        .filter(ProposalCollab.status.in_(sorted(PROPOSAL_COLLAB_ACTIVE_STATUSES)))
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="Active proposal collab already exists")
+
+    collab = ProposalCollab(
+        proposal_id=getattr(proposal, "id", payload.proposal_id),
+        author_user_id=getattr(author, "id"),
+        collaborator_user_id=getattr(collaborator, "id"),
+        requested_by_user_id=getattr(actor, "id"),
+        status="pending",
+    )
+    try:
+        db.add(collab)
+        db.commit()
+        db.refresh(collab)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to request proposal collab: {str(exc)}")
+
+    _record_proposal_collab_notification(
+        db,
+        getattr(collaborator, "id", None),
+        {
+            "type": "collab_request",
+            "source_type": "proposal_collab",
+            "collab_id": getattr(collab, "id", None),
+            "proposal_id": getattr(proposal, "id", None),
+            "title": "Collab request",
+            "actor": getattr(author, "username", ""),
+            "recipient": getattr(collaborator, "username", ""),
+            "body": f"{getattr(author, 'username', 'Someone')} invited you to collaborate on a post",
+        },
+    )
+    collab = db.query(ProposalCollab).filter(ProposalCollab.id == getattr(collab, "id", None)).first()
+    return {"ok": True, "collab": _serialize_proposal_collab(db, collab)}
+
+
+@app.get("/proposal-collabs", summary="List authenticated proposal collab requests")
+def list_proposal_collabs(
+    status: Optional[str] = Query("pending"),
+    role: Optional[str] = Query("collaborator"),
+    limit: Optional[int] = Query(50),
+    offset: Optional[int] = Query(0),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    _require_proposal_collabs_available()
+    actor = get_current_harmonizer(authorization, db)
+    clean_status = (status or "pending").strip().lower()
+    if clean_status not in PROPOSAL_COLLAB_ROUTE_STATUSES:
+        raise HTTPException(status_code=400, detail="Unsupported proposal collab status")
+    clean_role = (role or "collaborator").strip().lower()
+    if clean_role not in {"collaborator", "author"}:
+        raise HTTPException(status_code=400, detail="Unsupported proposal collab role")
+
+    safe_limit = _proposal_collab_limit(limit)
+    safe_offset = _proposal_collab_offset(offset)
+    user_id = getattr(actor, "id", None)
+    query = db.query(ProposalCollab).filter(ProposalCollab.status == clean_status)
+    if clean_role == "author":
+        query = query.filter(ProposalCollab.author_user_id == user_id)
+    else:
+        query = query.filter(ProposalCollab.collaborator_user_id == user_id)
+    rows = (
+        query.order_by(desc(ProposalCollab.requested_at), desc(ProposalCollab.id))
+        .offset(safe_offset)
+        .limit(safe_limit)
+        .all()
+    )
+    return {
+        "ok": True,
+        "collabs": [_serialize_proposal_collab(db, row) for row in rows],
+        "count": len(rows),
+        "limit": safe_limit,
+        "offset": safe_offset,
+        "role": clean_role,
+        "status": clean_status,
+    }
+
+
+def _proposal_collab_transition(
+    collab_id: int,
+    authorization: Optional[str],
+    db: Session,
+    *,
+    next_status: str,
+):
+    actor = get_current_harmonizer(authorization, db)
+    collab = _proposal_collab_or_404(db, collab_id)
+    if getattr(collab, "collaborator_user_id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Only the requested collaborator can respond")
+    if getattr(collab, "status", "") != "pending":
+        raise HTTPException(status_code=409, detail="Only pending proposal collabs can be updated")
+
+    try:
+        collab.status = next_status
+        collab.responded_at = datetime.datetime.utcnow()
+        db.commit()
+        db.refresh(collab)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update proposal collab: {str(exc)}")
+
+    notification_type = "collab_approved" if next_status == "approved" else "collab_declined"
+    notification_title = "Collab approved" if next_status == "approved" else "Collab declined"
+    _record_proposal_collab_notification(
+        db,
+        getattr(collab, "author_user_id", None),
+        {
+            "type": notification_type,
+            "source_type": "proposal_collab",
+            "collab_id": getattr(collab, "id", None),
+            "proposal_id": getattr(collab, "proposal_id", None),
+            "title": notification_title,
+            "actor": getattr(actor, "username", ""),
+            "status": next_status,
+        },
+    )
+    collab = db.query(ProposalCollab).filter(ProposalCollab.id == collab_id).first()
+    return {"ok": True, "collab": _serialize_proposal_collab(db, collab)}
+
+
+@app.post("/proposal-collabs/{collab_id}/approve", summary="Approve a pending proposal collab")
+def approve_proposal_collab(
+    collab_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    return _proposal_collab_transition(
+        collab_id,
+        authorization,
+        db,
+        next_status="approved",
+    )
+
+
+@app.post("/proposal-collabs/{collab_id}/decline", summary="Decline a pending proposal collab")
+def decline_proposal_collab(
+    collab_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    return _proposal_collab_transition(
+        collab_id,
+        authorization,
+        db,
+        next_status="declined",
+    )
+
+
+@app.post("/proposal-collabs/{collab_id}/remove", summary="Remove a proposal collab association")
+def remove_proposal_collab(
+    collab_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = get_current_harmonizer(authorization, db)
+    collab = _proposal_collab_or_404(db, collab_id)
+    actor_id = getattr(actor, "id", None)
+    if actor_id not in {getattr(collab, "author_user_id", None), getattr(collab, "collaborator_user_id", None)}:
+        raise HTTPException(status_code=403, detail="Only the proposal author or collaborator can remove a collab")
+    if getattr(collab, "status", "") == "removed":
+        raise HTTPException(status_code=409, detail="Proposal collab is already removed")
+    if getattr(collab, "status", "") not in {"pending", "approved", "declined"}:
+        raise HTTPException(status_code=409, detail="Proposal collab cannot be removed in its current status")
+
+    recipient_id = (
+        getattr(collab, "collaborator_user_id", None)
+        if actor_id == getattr(collab, "author_user_id", None)
+        else getattr(collab, "author_user_id", None)
+    )
+    try:
+        collab.status = "removed"
+        collab.removed_at = datetime.datetime.utcnow()
+        db.commit()
+        db.refresh(collab)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to remove proposal collab: {str(exc)}")
+
+    _record_proposal_collab_notification(
+        db,
+        recipient_id,
+        {
+            "type": "collab_removed",
+            "source_type": "proposal_collab",
+            "collab_id": getattr(collab, "id", None),
+            "proposal_id": getattr(collab, "proposal_id", None),
+            "title": "Collab removed",
+            "actor": getattr(actor, "username", ""),
+            "status": "removed",
+        },
+    )
+    collab = db.query(ProposalCollab).filter(ProposalCollab.id == collab_id).first()
+    return {"ok": True, "collab": _serialize_proposal_collab(db, collab)}
 
 
 @app.get("/.well-known/webfinger", summary="Discover a public SuperNova profile")
