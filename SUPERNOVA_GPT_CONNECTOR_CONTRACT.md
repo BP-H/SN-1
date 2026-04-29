@@ -204,6 +204,13 @@ recommendation. Drafting is not consent to execute.
 8. FE7 connector settings/status UI.
 9. Audit log UI.
 
+The first native/dev connector surface lives in
+`super-nova-2177/supernova-mcp` as a separate public read-only MCP prototype.
+It is designed to be deployed as its own Vercel project and connected with a
+URL such as `https://YOUR-SUPERNOVA-MCP-DEPLOYMENT.vercel.app/mcp`. That MCP
+surface is intentionally limited to public reads and does not add OAuth,
+private reads, draft actions, approval actions, or writes.
+
 Do not combine first write tools with broad connector auth, collab route
 implementation, FE7 profile-grid changes, or protected core changes.
 
