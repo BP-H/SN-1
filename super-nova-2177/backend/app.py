@@ -3146,6 +3146,92 @@ def _connector_draft_response(record, summary: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
+def _connector_action_payload(value) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _connector_action_response(record, summary: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "mode": "approval_required",
+        "executed": True,
+        "action_proposal": {
+            "id": getattr(record, "id", None),
+            "status": getattr(record, "status", ""),
+            "action_type": getattr(record, "action_type", ""),
+            "actor_user_id": getattr(record, "actor_user_id", None),
+            "target_type": getattr(record, "target_type", ""),
+            "target_id": getattr(record, "target_id", None),
+        },
+        "summary": summary,
+        "result": result,
+        "safety": {
+            "explicit_approval": True,
+            "no_background_execution": True,
+            "executed_action": "vote",
+        },
+    }
+
+
+def _connector_execute_vote(db: Session, *, actor, proposal, choice: str) -> Dict[str, Any]:
+    if ProposalVote is None or Harmonizer is None:
+        raise HTTPException(status_code=503, detail="Voting system unavailable")
+    normalized_choice = _normalize_connector_vote_choice(choice)
+    vote_value = normalized_choice["normalized_vote"]
+    species = "human"
+    try:
+        species = _normalize_species(getattr(actor, "species", None) or "human")
+    except HTTPException:
+        species = "human"
+
+    existing_vote = db.query(ProposalVote).filter(
+        ProposalVote.proposal_id == getattr(proposal, "id"),
+        ProposalVote.harmonizer_id == getattr(actor, "id"),
+    ).first()
+
+    if existing_vote:
+        if hasattr(existing_vote, "vote"):
+            existing_vote.vote = vote_value
+        if hasattr(existing_vote, "choice"):
+            existing_vote.choice = vote_value
+        if hasattr(existing_vote, "voter_type"):
+            existing_vote.voter_type = species
+        if hasattr(existing_vote, "species"):
+            existing_vote.species = species
+        created = False
+    else:
+        vote_kwargs = {
+            "proposal_id": getattr(proposal, "id"),
+            "harmonizer_id": getattr(actor, "id"),
+        }
+        if hasattr(ProposalVote, "vote"):
+            vote_kwargs["vote"] = vote_value
+        if hasattr(ProposalVote, "choice"):
+            vote_kwargs["choice"] = vote_value
+        if hasattr(ProposalVote, "voter_type"):
+            vote_kwargs["voter_type"] = species
+        if hasattr(ProposalVote, "species"):
+            vote_kwargs["species"] = species
+        db.add(ProposalVote(**vote_kwargs))
+        created = True
+
+    return {
+        "proposal_id": getattr(proposal, "id", None),
+        "vote": vote_value,
+        "intended_choice": normalized_choice["intended_choice"],
+        "created": created,
+        "actor": getattr(actor, "username", ""),
+    }
+
+
 @app.post("/connector/actions/draft-vote", summary="Draft a connector vote action without executing it")
 def connector_draft_vote(
     payload: ConnectorDraftVoteIn,
@@ -3178,6 +3264,72 @@ def connector_draft_vote(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to draft vote action: {str(exc)}")
+
+
+@app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")
+def connector_approve_vote_action(
+    action_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+
+    actor = get_current_harmonizer(authorization, db)
+    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Connector action proposal not found")
+    if getattr(action, "action_type", "") != "draft_vote":
+        raise HTTPException(status_code=400, detail="Connector action is not a draft vote")
+    if getattr(action, "status", "") != "draft":
+        raise HTTPException(status_code=409, detail="Connector action is not in draft status")
+    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
+
+    payload = _connector_action_payload(getattr(action, "draft_payload", None))
+    proposal_id = payload.get("proposal_id") or getattr(action, "target_id", None)
+    try:
+        proposal_id = int(proposal_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Connector vote draft is missing proposal_id")
+
+    proposal = _connector_get_proposal_or_404(db, proposal_id)
+    choice = payload.get("normalized_vote") or payload.get("intended_choice") or payload.get("choice")
+    if not choice:
+        raise HTTPException(status_code=400, detail="Connector vote draft is missing vote choice")
+
+    try:
+        result = _connector_execute_vote(db, actor=actor, proposal=proposal, choice=choice)
+        now = datetime.datetime.utcnow()
+        action.status = "executed"
+        action.approved_at = now
+        action.executed_at = now
+        action.result_payload = {
+            "proposal_id": result["proposal_id"],
+            "vote": result["vote"],
+            "intended_choice": result["intended_choice"],
+            "actor": result["actor"],
+            "created": result["created"],
+            "summary": "Connector vote action executed after explicit approval.",
+        }
+        db.commit()
+        db.refresh(action)
+        summary = {
+            "action": "approve_vote_action",
+            "source_action": "draft_vote",
+            "actor": getattr(actor, "username", ""),
+            "proposal_id": getattr(proposal, "id", proposal_id),
+            "proposal_title": _connector_proposal_title(proposal),
+            "vote": result["vote"],
+            "intended_choice": result["intended_choice"],
+        }
+        return _connector_action_response(action, summary, action.result_payload)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to approve vote action: {str(exc)}")
 
 
 @app.post("/connector/actions/draft-comment", summary="Draft a connector comment action without executing it")
