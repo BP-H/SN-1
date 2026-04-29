@@ -3032,13 +3032,6 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   border: 1px solid rgba(255, 255, 255, 0.065);
 }
 
-.proposal-collab-row {
-  color: var(--transparent-black);
-}
-
-.proposal-collab-label,
-.proposal-collab-chip,
-.proposal-collab-extra,
 .proposal-support-summary {
   max-width: 11rem;
   color: var(--transparent-black);
@@ -3047,22 +3040,18 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
-.proposal-collab-avatar-link {
-  color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
-  border: 2px solid rgba(15, 18, 28, 0.92);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-}
-
-.proposal-collab-avatar-link:hover,
-.proposal-collab-chip:hover {
+.proposal-inline-collab-link,
+.proposal-inline-collab-extra {
   color: var(--pink);
-  background: rgba(255, 79, 143, 0.11);
-  border-color: rgba(255, 79, 143, 0.22);
 }
 
-.proposal-collab-avatar-link:first-child {
-  margin-left: 0;
+.proposal-inline-collab-link:hover,
+.proposal-inline-collab-link:focus-visible {
+  color: var(--blue);
+  outline: none;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 .profile-visual-collab-badge {
@@ -3175,9 +3164,6 @@ html[data-theme="light"] .collab-user-suggestion:hover {
   background: rgba(17, 24, 39, 0.055) !important;
 }
 
-html[data-theme="light"] .proposal-collab-label,
-html[data-theme="light"] .proposal-collab-chip,
-html[data-theme="light"] .proposal-collab-extra,
 html[data-theme="light"] .proposal-support-summary {
   color: #242838 !important;
   background: rgba(255, 255, 255, 0.74) !important;
@@ -3187,15 +3173,14 @@ html[data-theme="light"] .proposal-support-summary {
     0 8px 18px rgba(25, 30, 48, 0.055) !important;
 }
 
-html[data-theme="light"] .proposal-collab-chip:hover {
+html[data-theme="light"] .proposal-inline-collab-link,
+html[data-theme="light"] .proposal-inline-collab-extra {
   color: #c92d70 !important;
-  background: rgba(255, 79, 143, 0.09) !important;
-  border-color: rgba(255, 79, 143, 0.2) !important;
 }
 
-html[data-theme="light"] .proposal-collab-avatar-link {
-  border-color: rgba(255, 255, 255, 0.95) !important;
-  box-shadow: 0 8px 18px rgba(25, 30, 48, 0.14) !important;
+html[data-theme="light"] .proposal-inline-collab-link:hover,
+html[data-theme="light"] .proposal-inline-collab-link:focus-visible {
+  color: #176c89 !important;
 }
 
 html[data-theme="light"] .profile-visual-collab-badge {
