@@ -222,6 +222,16 @@ else:
 
         return Settings()
 
+try:
+    from db_models import Notification
+except Exception:  # pragma: no cover - optional in partial backend environments
+    Notification = None
+
+try:
+    from mention_parser import parse_mentions
+except Exception:  # pragma: no cover - parser is optional in partial environments
+    parse_mentions = None
+
 
 CRUD_MODELS_AVAILABLE = all(
     model is not None for model in (Proposal, ProposalVote, Comment, Harmonizer, VibeNode)
@@ -4174,6 +4184,65 @@ def decide(pid: int, threshold: float = 0.6, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to save decision: {str(e)}")
 
 
+def _stored_notification_payload(notification) -> Dict[str, Any]:
+    raw_message = getattr(notification, "message", "") or ""
+    created_at = getattr(notification, "created_at", None)
+    base: Dict[str, Any] = {
+        "id": f"notification-{getattr(notification, 'id', '')}",
+        "type": "notification",
+        "title": raw_message or "Notification",
+        "time": _format_timestamp(created_at),
+    }
+    try:
+        parsed = json.loads(raw_message)
+    except Exception:
+        return base
+    if not isinstance(parsed, dict):
+        return base
+
+    payload = {**base, **parsed}
+    payload["id"] = f"notification-{getattr(notification, 'id', '')}"
+    payload["type"] = parsed.get("type") or base["type"]
+    payload["title"] = parsed.get("title") or base["title"]
+    payload["time"] = parsed.get("time") or base["time"]
+    return payload
+
+
+def _add_persisted_notifications_for_user(
+    db: Session,
+    username: str,
+    items: List[Dict[str, Any]],
+    limit: int,
+) -> None:
+    remaining = max(0, limit - len(items))
+    if (
+        remaining <= 0
+        or not username
+        or not CRUD_MODELS_AVAILABLE
+        or Harmonizer is None
+        or Notification is None
+    ):
+        return
+
+    recipient = (
+        db.query(Harmonizer)
+        .filter(func.lower(Harmonizer.username) == username.lower())
+        .first()
+    )
+    if not recipient:
+        return
+
+    notifications = (
+        db.query(Notification)
+        .filter(Notification.harmonizer_id == recipient.id)
+        .order_by(desc(Notification.created_at), desc(Notification.id))
+        .limit(remaining)
+        .all()
+    )
+    for notification in notifications:
+        items.append(_stored_notification_payload(notification))
+
+
 @app.get("/notifications")
 def list_notifications(
     user: Optional[str] = Query(None),
@@ -4223,6 +4292,7 @@ def list_notifications(
 
     if clean_user:
         try:
+            _add_persisted_notifications_for_user(db, clean_user, items, limit)
             if CRUD_MODELS_AVAILABLE:
                 owned_comment_rows = (
                     db.query(Comment.id)
@@ -4329,6 +4399,75 @@ def list_comments(
     return [_serialize_comment_record(db, comment) for comment in result.fetchall()]
 
 
+def _record_comment_mentions(
+    db: Session,
+    comment,
+    comment_text: str,
+    author_username: str,
+) -> List[str]:
+    if (
+        not CRUD_MODELS_AVAILABLE
+        or comment is None
+        or parse_mentions is None
+        or Notification is None
+        or Harmonizer is None
+    ):
+        return []
+
+    mention_tokens = parse_mentions(comment_text, author_username=author_username)
+    if not mention_tokens:
+        return []
+
+    try:
+        created_for: List[str] = []
+        current_mentions = {
+            _safe_user_key(getattr(user, "username", ""))
+            for user in getattr(comment, "mentions", []) or []
+        }
+        for token in mention_tokens:
+            mentioned_user = (
+                db.query(Harmonizer)
+                .filter(func.lower(Harmonizer.username) == token.normalized)
+                .first()
+            )
+            if not mentioned_user:
+                continue
+
+            mentioned_key = _safe_user_key(getattr(mentioned_user, "username", ""))
+            if not mentioned_key or mentioned_key in current_mentions:
+                continue
+
+            if hasattr(comment, "mentions"):
+                comment.mentions.append(mentioned_user)
+                current_mentions.add(mentioned_key)
+
+            notification_payload = {
+                "type": "mention",
+                "proposal_id": getattr(comment, "proposal_id", None),
+                "comment_id": getattr(comment, "id", None),
+                "title": "Mentioned you in a comment",
+                "actor": author_username,
+                "mentioned_user": getattr(mentioned_user, "username", ""),
+                "body": comment_text or "",
+            }
+            db.add(
+                Notification(
+                    harmonizer_id=mentioned_user.id,
+                    message=json.dumps(notification_payload, sort_keys=True),
+                )
+            )
+            created_for.append(getattr(mentioned_user, "username", ""))
+
+        if created_for:
+            db.add(comment)
+            db.commit()
+    except Exception:
+        db.rollback()
+        return []
+
+    return created_for
+
+
 @app.post("/comments")
 def add_comment(
     c: CommentIn,
@@ -4401,6 +4540,7 @@ def add_comment(
                 db.add(comment)
                 db.commit()
                 db.refresh(comment)
+                _record_comment_mentions(db, comment, c.comment, c.user)
                 # Serializar comment com profile_pic somente se não for "default.jpg"
                 comments_list = [_serialize_comment_record(db, comment)]
         else:
