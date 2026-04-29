@@ -116,6 +116,22 @@ After deployment:
 
 4. If ChatGPT custom connector UI is not available, test with Codex CLI instead.
 
+## Troubleshooting Vercel Output Directory
+
+If Vercel reports:
+
+```txt
+Error: No Output Directory named "public" found after the Build completed.
+```
+
+this project includes `public/index.json` and `vercel.json` sets
+`outputDirectory` to `public`. Redeploy the Vercel project rooted at
+`super-nova-2177/supernova-mcp`, then open `/health` and run:
+
+```bash
+npm run smoke -- https://YOUR-MCP-DEPLOYMENT.vercel.app
+```
+
 ## Test With Codex CLI
 
 ```bash
