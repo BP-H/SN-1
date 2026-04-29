@@ -24,6 +24,7 @@ import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
+import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
@@ -264,6 +265,7 @@ export default function UserPostsPage() {
   );
 
   const profile = profileQuery.data || {};
+  const verifiedBioMentions = useVerifiedMentionUsernames(profile.bio || "");
   const socialUser = (usersQuery.data || []).find((user) => user.username?.toLowerCase() === username.toLowerCase());
   const firstPost = posts[0];
   const profileSpecies = profile.species || socialUser?.species || firstPost?.author_type || "human";
@@ -504,7 +506,11 @@ export default function UserPostsPage() {
 
         {(profile.bio || editOpen) && (
           <div className="mt-4 rounded-[0.9rem] bg-white/[0.035] px-3 py-3 text-[0.84rem] leading-5 text-[var(--transparent-black)]">
-            {profile.bio ? <LinkifiedText text={profile.bio} enableMentions /> : <span className="text-[var(--text-gray-light)]">Add an about section.</span>}
+            {profile.bio ? (
+              <LinkifiedText text={profile.bio} enableMentions validMentionUsernames={verifiedBioMentions} />
+            ) : (
+              <span className="text-[var(--text-gray-light)]">Add an about section.</span>
+            )}
           </div>
         )}
 

@@ -38,7 +38,25 @@ function canEndMention(value, index) {
   return !MENTION_SUFFIX_DISALLOWED.test(value[index]);
 }
 
-function renderMentionParts(value = "", keyPrefix = "mention") {
+function normalizeMentionUsername(value = "") {
+  return String(value || "").replace(/^@/, "").trim().toLowerCase();
+}
+
+function isVerifiedMention(username = "", validMentionUsernames) {
+  if (validMentionUsernames === undefined || validMentionUsernames === null) return true;
+  const key = normalizeMentionUsername(username);
+  if (!key) return false;
+  if (validMentionUsernames instanceof Set) return validMentionUsernames.has(key);
+  if (Array.isArray(validMentionUsernames)) {
+    return validMentionUsernames.some((item) => normalizeMentionUsername(item) === key);
+  }
+  if (typeof validMentionUsernames === "object") {
+    return Boolean(validMentionUsernames[key] || validMentionUsernames[username]);
+  }
+  return false;
+}
+
+function renderMentionParts(value = "", keyPrefix = "mention", validMentionUsernames) {
   MENTION_PATTERN.lastIndex = 0;
   const parts = [];
   let lastIndex = 0;
@@ -53,7 +71,8 @@ function renderMentionParts(value = "", keyPrefix = "mention") {
     if (
       username.length > MAX_MENTION_USERNAME_LENGTH ||
       !canStartMention(value, start) ||
-      !canEndMention(value, end)
+      !canEndMention(value, end) ||
+      !isVerifiedMention(username, validMentionUsernames)
     ) {
       continue;
     }
@@ -81,7 +100,12 @@ function renderMentionParts(value = "", keyPrefix = "mention") {
   return parts.length ? parts : [value];
 }
 
-export default function LinkifiedText({ text = "", className = "", enableMentions = false }) {
+export default function LinkifiedText({
+  text = "",
+  className = "",
+  enableMentions = false,
+  validMentionUsernames,
+}) {
   const value = String(text || "");
   URL_PATTERN.lastIndex = 0;
   const parts = [];
@@ -94,7 +118,7 @@ export default function LinkifiedText({ text = "", className = "", enableMention
       parts.push(chunk);
       return;
     }
-    parts.push(...renderMentionParts(chunk, keyPrefix));
+    parts.push(...renderMentionParts(chunk, keyPrefix, validMentionUsernames));
   };
 
   while ((match = URL_PATTERN.exec(value)) !== null) {

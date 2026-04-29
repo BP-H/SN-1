@@ -19,6 +19,7 @@ import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
+import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { useUser } from "@/content/profile/UserContext";
 
 function DisplayComments({
@@ -52,6 +53,7 @@ function DisplayComments({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { userData, isAuthenticated } = useUser();
+  const verifiedMentions = useVerifiedMentionUsernames(comment);
 
   const getInitials = (fullName) => {
     if (!fullName) return "SN";
@@ -381,7 +383,7 @@ function DisplayComments({
             <p className={`break-words text-[0.86rem] leading-6 [overflow-wrap:anywhere] ${
               isDeleted ? "italic text-[var(--text-gray-light)]" : "text-[var(--transparent-black)]"
             }`}>
-              <LinkifiedText text={comment} enableMentions />
+              <LinkifiedText text={comment} enableMentions validMentionUsernames={verifiedMentions} />
             </p>
           </>
         )}
