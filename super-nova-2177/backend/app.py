@@ -3567,6 +3567,7 @@ async def create_proposal(
             db_proposal.voting_deadline = voting_deadline
             user_name = final_user
 
+        _record_proposal_mentions(db, db_proposal, body, user_name)
         author_metadata = _profile_metadata(db, user_name)
         return ProposalSchema(
             id=db_proposal.id,
@@ -4241,6 +4242,92 @@ def _add_persisted_notifications_for_user(
     )
     for notification in notifications:
         items.append(_stored_notification_payload(notification))
+
+
+def _notification_excerpt(value: str, limit: int = 240) -> str:
+    normalized = " ".join(str(value or "").split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(0, limit - 1)].rstrip() + "..."
+
+
+def _record_mention_notifications(
+    db: Session,
+    source_text: str,
+    author_username: str,
+    *,
+    source_type: str,
+    proposal_id: Optional[int] = None,
+    comment_id: Optional[int] = None,
+    title: str,
+) -> List[str]:
+    if (
+        parse_mentions is None
+        or Notification is None
+        or Harmonizer is None
+        or not CRUD_MODELS_AVAILABLE
+    ):
+        return []
+
+    mention_tokens = parse_mentions(source_text, author_username=author_username)
+    if not mention_tokens:
+        return []
+
+    created_for: List[str] = []
+    for token in mention_tokens:
+        mentioned_user = (
+            db.query(Harmonizer)
+            .filter(func.lower(Harmonizer.username) == token.normalized)
+            .first()
+        )
+        if not mentioned_user:
+            continue
+
+        notification_payload = {
+            "type": "mention",
+            "source_type": source_type,
+            "proposal_id": proposal_id,
+            "comment_id": comment_id,
+            "title": title,
+            "actor": author_username,
+            "mentioned_user": getattr(mentioned_user, "username", ""),
+            "body": _notification_excerpt(source_text),
+        }
+        db.add(
+            Notification(
+                harmonizer_id=mentioned_user.id,
+                message=json.dumps(notification_payload, sort_keys=True),
+            )
+        )
+        created_for.append(getattr(mentioned_user, "username", ""))
+
+    return created_for
+
+
+def _record_proposal_mentions(
+    db: Session,
+    proposal,
+    proposal_text: str,
+    author_username: str,
+) -> List[str]:
+    if proposal is None:
+        return []
+
+    try:
+        created_for = _record_mention_notifications(
+            db,
+            proposal_text,
+            author_username,
+            source_type="proposal",
+            proposal_id=getattr(proposal, "id", None),
+            title="Mentioned you in a post",
+        )
+        if created_for:
+            db.commit()
+        return created_for
+    except Exception:
+        db.rollback()
+        return []
 
 
 @app.get("/notifications")
