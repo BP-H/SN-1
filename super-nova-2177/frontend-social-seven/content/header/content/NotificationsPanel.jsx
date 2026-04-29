@@ -22,6 +22,42 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
+function actorLabel(value) {
+  const clean = String(value || "").trim();
+  return clean ? `@${clean}` : "Someone";
+}
+
+function notificationHref(item) {
+  if (item?.proposal_id || item?.id) {
+    return `/proposals/${encodeURIComponent(item.proposal_id || item.id)}`;
+  }
+  if (item?.actor) {
+    return `/users/${encodeURIComponent(item.actor)}`;
+  }
+  return "/proposals";
+}
+
+function notificationLabel(item) {
+  if (item?.type === "comment_reply") return `${item.actor || "Someone"} replied`;
+  if (item?.type === "mention") return `${actorLabel(item.actor)} mentioned you`;
+  if (item?.type === "collab_request") return `${actorLabel(item.actor)} invited you`;
+  if (item?.type === "collab_approved") return `${actorLabel(item.actor)} approved`;
+  if (item?.type === "collab_declined") return `${actorLabel(item.actor)} declined`;
+  if (item?.type === "collab_removed") return `${actorLabel(item.actor)} removed`;
+  return "New community post";
+}
+
+function notificationTitle(item) {
+  if (item?.type === "collab_request") {
+    return item.body || `${actorLabel(item.actor)} invited you to collaborate on a post`;
+  }
+  if (item?.type === "collab_approved") return "Collab request approved";
+  if (item?.type === "collab_declined") return "Collab request declined";
+  if (item?.type === "collab_removed") return "Collab removed";
+  if (item?.type === "comment_reply") return item.body || "Reply to your comment";
+  return item.title || "New proposal";
+}
+
 export default function NotificationsPanel({ onSelect = () => {} }) {
   const { userData, isAuthenticated } = useUser();
   const { data } = useQuery({
@@ -39,9 +75,9 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
 
   const items = (data || []).slice(0, 3).map((post) => ({
     id: post.id || post.comment_id || post.proposal_id,
-    href: `/proposals/${encodeURIComponent(post.proposal_id || post.id)}`,
-    label: post.type === "comment_reply" ? `${post.actor || "Someone"} replied` : "New community post",
-    title: post.type === "comment_reply" ? post.body || "Reply to your comment" : post.title || "New proposal",
+    href: notificationHref(post),
+    label: notificationLabel(post),
+    title: notificationTitle(post),
     time: formatRelativeTime(post.time),
   }));
 

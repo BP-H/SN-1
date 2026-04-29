@@ -16,6 +16,7 @@ import {
   IoEllipsisHorizontal,
   IoPersonAddOutline,
   IoPersonCircleOutline,
+  IoPeopleOutline,
   IoPersonRemoveOutline,
   IoChatbubbleOutline,
   IoFlashOutline,
@@ -151,6 +152,8 @@ function ProposalCard({
         return true;
       });
   }, [collabs]);
+  const visibleApprovedCollabs = approvedCollabs.slice(0, 3);
+  const extraApprovedCollabCount = Math.max(0, approvedCollabs.length - visibleApprovedCollabs.length);
   const isOwner = Boolean(authorName && userData?.name && authorName.toLowerCase() === userData.name.toLowerCase());
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
@@ -837,20 +840,21 @@ function ProposalCard({
       </div>
 
       {approvedCollabs.length > 0 && (
-        <div className="proposal-collab-row mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+        <div className="proposal-collab-row mt-2 flex min-w-0 flex-wrap items-center gap-2">
+          <span className="proposal-collab-label inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.62rem] font-black uppercase tracking-[0.12em]">
+            <IoPeopleOutline className="text-[0.85rem]" />
             with
           </span>
-          {approvedCollabs.slice(0, 3).map((collab) => (
-            <Link
-              key={collab.key}
-              href={`/users/${encodeURIComponent(collab.username)}`}
-              scroll
-              onClick={(event) => event.stopPropagation()}
-              className="proposal-collab-chip inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-[0.68rem] font-bold"
-              title={`Approved collaborator @${collab.username}`}
-            >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase">
+          <div className="proposal-collab-avatar-stack flex shrink-0 items-center -space-x-2">
+            {visibleApprovedCollabs.map((collab) => (
+              <Link
+                key={collab.key}
+                href={`/users/${encodeURIComponent(collab.username)}`}
+                scroll
+                onClick={(event) => event.stopPropagation()}
+                className="proposal-collab-avatar-link flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-[0.58rem] font-black uppercase"
+                title={`Approved collaborator @${collab.username}`}
+              >
                 {collab.avatar ? (
                   <img
                     src={collab.avatar}
@@ -862,13 +866,23 @@ function ProposalCard({
                 ) : (
                   collab.username.slice(0, 2).toUpperCase()
                 )}
-              </span>
-              <span className="truncate">@{collab.username}</span>
-            </Link>
-          ))}
-          {approvedCollabs.length > 3 && (
-            <span className="proposal-collab-chip rounded-full px-2 py-1 text-[0.68rem] font-bold">
-              +{approvedCollabs.length - 3}
+              </Link>
+            ))}
+          </div>
+          <Link
+            href={`/users/${encodeURIComponent(approvedCollabs[0].username)}`}
+            scroll
+            onClick={(event) => event.stopPropagation()}
+            className="proposal-collab-chip inline-flex min-w-0 max-w-full items-center rounded-full px-2.5 py-1 text-[0.68rem] font-bold"
+            title={`Approved collaborator @${approvedCollabs[0].username}`}
+          >
+            <span className="truncate">
+              @{approvedCollabs[0].username}
+            </span>
+          </Link>
+          {extraApprovedCollabCount > 0 && (
+            <span className="proposal-collab-extra rounded-full px-2 py-1 text-[0.68rem] font-black">
+              +{extraApprovedCollabCount}
             </span>
           )}
         </div>
