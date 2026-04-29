@@ -1854,6 +1854,126 @@ html[data-theme="light"] .linkified-mention:hover {
   text-decoration-color: rgba(255, 255, 255, 0.56);
 }
 
+.mention-autocomplete-panel {
+  background: rgba(9, 13, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--transparent-black);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+    0 18px 48px rgba(0, 0, 0, 0.42);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.mention-autocomplete-panel::-webkit-scrollbar {
+  width: 0.375rem;
+}
+
+.mention-autocomplete-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mention-autocomplete-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+.mention-autocomplete-panel:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.mention-autocomplete-row {
+  color: var(--transparent-black);
+}
+
+.mention-autocomplete-row:hover {
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.mention-autocomplete-row-active,
+.mention-autocomplete-row-active:hover {
+  background: var(--pink);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(255, 79, 143, 0.24);
+}
+
+.mention-autocomplete-avatar {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.mention-autocomplete-avatar-active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.mention-autocomplete-species {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text-gray-light);
+}
+
+.mention-autocomplete-species-active {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+html[data-theme="light"] .mention-autocomplete-panel {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(17, 24, 39, 0.1);
+  color: #263044;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 18px 42px rgba(25, 30, 48, 0.16);
+  scrollbar-color: rgba(217, 40, 115, 0.36) transparent;
+}
+
+html[data-theme="light"] .mention-autocomplete-panel::-webkit-scrollbar-thumb {
+  background: rgba(217, 40, 115, 0.24);
+}
+
+html[data-theme="light"] .mention-autocomplete-panel:hover::-webkit-scrollbar-thumb {
+  background: rgba(217, 40, 115, 0.38);
+}
+
+html[data-theme="light"] .mention-autocomplete-row {
+  color: #263044;
+}
+
+html[data-theme="light"] .mention-autocomplete-row:hover {
+  background: rgba(17, 24, 39, 0.055);
+}
+
+html[data-theme="light"] .mention-autocomplete-row-active,
+html[data-theme="light"] .mention-autocomplete-row-active:hover {
+  background: var(--pink);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(255, 79, 149, 0.22);
+}
+
+html[data-theme="light"] .mention-autocomplete-avatar {
+  background: rgba(17, 24, 39, 0.075);
+  color: #334155;
+  box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.1);
+}
+
+html[data-theme="light"] .mention-autocomplete-avatar-active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
+}
+
+html[data-theme="light"] .mention-autocomplete-species {
+  background: rgba(17, 24, 39, 0.06);
+  color: #697286;
+}
+
+html[data-theme="light"] .mention-autocomplete-species-active {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.86);
+}
+
 .message-share-banner {
   border: 1px solid rgba(255, 79, 143, 0.24);
   background: rgba(255, 79, 143, 0.1);
