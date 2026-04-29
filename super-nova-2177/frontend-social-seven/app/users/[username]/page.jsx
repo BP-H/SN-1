@@ -82,6 +82,56 @@ function getVisualMeta(post) {
   return null;
 }
 
+function ProfileVisualTile({ post, visual, onOpen }) {
+  const [thumbnailSrc, setThumbnailSrc] = useState(visual?.src || "");
+  const [thumbnailFailed, setThumbnailFailed] = useState(!visual?.src);
+
+  useEffect(() => {
+    setThumbnailSrc(visual?.src || "");
+    setThumbnailFailed(!visual?.src);
+  }, [visual?.src]);
+
+  const fallbackLabel = visual?.kind === "video" ? "Video" : "Media";
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group relative aspect-square min-w-0 overflow-hidden rounded-[0.65rem] border border-white/[0.06] bg-white/[0.045] text-left shadow-sm"
+      aria-label={`Open ${post.title || "profile post"}`}
+    >
+      {thumbnailSrc && !thumbnailFailed ? (
+        <img
+          src={thumbnailSrc}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+          onError={() => {
+            if (visual?.fallbackSrc && thumbnailSrc !== visual.fallbackSrc) {
+              setThumbnailSrc(visual.fallbackSrc);
+              return;
+            }
+            setThumbnailFailed(true);
+          }}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center bg-white/[0.035] px-2 text-center text-[0.72rem] font-bold text-[var(--text-gray-light)]">
+          {fallbackLabel}
+        </span>
+      )}
+      {visual?.count > 1 && (
+        <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
+          {visual.count}
+        </span>
+      )}
+      {visual?.kind === "video" && (
+        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
+          Video
+        </span>
+      )}
+    </button>
+  );
+}
+
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";
   const raw = String(dateString);
@@ -180,6 +230,14 @@ export default function UserPostsPage() {
   const textPosts = useMemo(
     () => posts.filter((post) => !getVisualMeta(post)),
     [posts]
+  );
+  const tabCounts = useMemo(
+    () => ({
+      visuals: visualPosts.length,
+      proposals: posts.length,
+      text: textPosts.length,
+    }),
+    [posts.length, textPosts.length, visualPosts.length]
   );
 
   const profile = profileQuery.data || {};
@@ -551,13 +609,18 @@ export default function UserPostsPage() {
                       key={tab.key}
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
-                      className={`min-h-9 rounded-full px-2 text-[0.72rem] font-bold transition-colors ${
+                      className={`flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[0.72rem] font-bold transition-colors ${
                         selected
                           ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
                           : "text-[var(--text-gray-light)] hover:bg-white/[0.055] hover:text-[var(--text-black)]"
                       }`}
                     >
-                      {tab.label}
+                      <span className="min-w-0 truncate">{tab.label}</span>
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] ${
+                        selected ? "bg-white/20 text-white" : "bg-white/[0.055] text-[var(--text-gray-light)]"
+                      }`}>
+                        {tabCounts[tab.key]}
+                      </span>
                     </button>
                   );
                 })}
@@ -573,42 +636,12 @@ export default function UserPostsPage() {
                 <div className="mobile-feed-panel social-panel rounded-[1rem] p-2">
                   <div className="grid grid-cols-3 gap-1.5">
                     {visualPosts.map(({ post, visual }, index) => (
-                      <button
+                      <ProfileVisualTile
                         key={post.id || `${post.userName || "post"}-${index}`}
-                        type="button"
-                        onClick={() => openProposal(post.id)}
-                        className="group relative aspect-square min-w-0 overflow-hidden rounded-[0.65rem] border border-white/[0.06] bg-white/[0.045] text-left shadow-sm"
-                        aria-label={`Open ${post.title || "profile post"}`}
-                      >
-                        {visual.src ? (
-                          <img
-                            src={visual.src}
-                            alt=""
-                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                            onError={(event) => {
-                              if (visual.fallbackSrc && event.currentTarget.src !== visual.fallbackSrc) {
-                                event.currentTarget.src = visual.fallbackSrc;
-                              } else {
-                                event.currentTarget.style.display = "none";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="flex h-full w-full items-center justify-center bg-white/[0.035] px-2 text-center text-[0.72rem] font-bold text-[var(--text-gray-light)]">
-                            Video
-                          </span>
-                        )}
-                        {visual.count > 1 && (
-                          <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
-                            {visual.count}
-                          </span>
-                        )}
-                        {visual.kind === "video" && (
-                          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
-                            Video
-                          </span>
-                        )}
-                      </button>
+                        post={post}
+                        visual={visual}
+                        onOpen={() => openProposal(post.id)}
+                      />
                     ))}
                   </div>
                 </div>
