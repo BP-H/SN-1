@@ -435,7 +435,52 @@ class ProposalCollab(Base):
     requested_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     responded_at = Column(DateTime, nullable=True)
     removed_at = Column(DateTime, nullable=True)
-    
+
+
+CONNECTOR_ACTION_PROPOSAL_STATUSES = (
+    "draft",
+    "approved",
+    "executed",
+    "canceled",
+    "failed",
+)
+
+
+class ConnectorActionProposal(Base):
+    __tablename__ = "connector_action_proposals"
+    __table_args__ = (
+        Index(
+            "idx_connector_action_actor_status_created",
+            "actor_user_id",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "idx_connector_action_type_status",
+            "action_type",
+            "status",
+        ),
+        Index(
+            "idx_connector_action_target",
+            "target_type",
+            "target_id",
+        ),
+        {"extend_existing": True},
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    action_type = Column(String, nullable=False, index=True)
+    actor_user_id = Column(Integer, ForeignKey("harmonizers.id"), nullable=True, index=True)
+    target_type = Column(String, nullable=False, index=True)
+    target_id = Column(String, nullable=True, index=True)
+    draft_payload = Column(JSON, nullable=True)
+    status = Column(String, nullable=False, default="draft", index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    approved_at = Column(DateTime, nullable=True)
+    executed_at = Column(DateTime, nullable=True)
+    result_payload = Column(JSON, nullable=True)
+
+
 class Notification(Base):
     __tablename__ = "notifications"
     id = Column(Integer, primary_key=True, index=True)
