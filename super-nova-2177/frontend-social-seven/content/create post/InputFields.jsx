@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import imageCompression from "browser-image-compression";
 import { FaFileAlt } from "react-icons/fa";
 import {
@@ -12,6 +12,7 @@ import {
   IoDocumentTextOutline,
   IoGridOutline,
   IoImageOutline,
+  IoPersonAddOutline,
   IoSend,
   IoShieldCheckmarkOutline,
   IoTimeOutline,
@@ -33,6 +34,7 @@ function InputFields({
   setDiscard,
   setPosts,
   refetchPosts,
+  setNotify = () => {},
   embedded = false,
   autoFocus = false,
   autoOpenMediaType = "",
@@ -52,6 +54,9 @@ function InputFields({
   const [previewIndex, setPreviewIndex] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [collabPromptUser, setCollabPromptUser] = useState(null);
+  const [pendingCollabInvitees, setPendingCollabInvitees] = useState([]);
+  const [collabNotice, setCollabNotice] = useState("");
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -73,10 +78,42 @@ function InputFields({
   const userAvatarStyle = speciesAvatarStyle(userData?.species || "human");
   const isDecisionMode = proposalMode === "decision";
   const decisionThresholdLabel = decisionLevel === "important" ? "90%" : "60%";
+  const normalizeComposerCollabUser = useCallback((user) => {
+    const username = String(user?.username || "").trim();
+    if (!username) return null;
+    const rawAvatar = user?.avatar || user?.avatar_url || user?.profile_pic || user?.profilePic || user?.author_img || "";
+    return {
+      username,
+      key: username.toLowerCase(),
+      species: String(user?.species || "human").trim() || "human",
+      avatar: avatarDisplayUrl(rawAvatar, ""),
+      initials: String(user?.initials || username || "SN").slice(0, 2).toUpperCase(),
+    };
+  }, []);
+  const handleMentionUserSelected = useCallback(
+    (user) => {
+      const selected = normalizeComposerCollabUser(user);
+      if (!selected) return;
+      if (userData?.name && selected.key === userData.name.toLowerCase()) {
+        setCollabPromptUser(null);
+        setCollabNotice("You cannot invite yourself as a collaborator.");
+        return;
+      }
+      if (pendingCollabInvitees.some((invitee) => invitee.key === selected.key)) {
+        setCollabPromptUser(null);
+        setCollabNotice(`@${selected.username} is already in your collab invites.`);
+        return;
+      }
+      setCollabNotice("");
+      setCollabPromptUser(selected);
+    },
+    [normalizeComposerCollabUser, pendingCollabInvitees, userData?.name]
+  );
   const mentionAutocomplete = useMentionAutocomplete({
     value: text,
     setValue: setText,
     inputRef: textAreaRef,
+    onSelectUser: handleMentionUserSelected,
   });
 
   const requireAccount = (message) => {
@@ -249,6 +286,63 @@ function InputFields({
     }
   };
 
+  const addPendingCollabInvitee = (user) => {
+    const selected = normalizeComposerCollabUser(user);
+    if (!selected) return;
+    if (userData?.name && selected.key === userData.name.toLowerCase()) {
+      setCollabPromptUser(null);
+      setCollabNotice("You cannot invite yourself as a collaborator.");
+      return;
+    }
+    setPendingCollabInvitees((invitees) => {
+      if (invitees.some((invitee) => invitee.key === selected.key)) return invitees;
+      return [...invitees, selected];
+    });
+    setCollabPromptUser(null);
+    setCollabNotice(`@${selected.username} added as a pending collab invite.`);
+  };
+
+  const removePendingCollabInvitee = (username) => {
+    const key = String(username || "").toLowerCase();
+    setPendingCollabInvitees((invitees) => invitees.filter((invitee) => invitee.key !== key));
+    setCollabNotice("");
+  };
+
+  const requestComposerCollabs = async (proposalId, invitees = []) => {
+    if (!proposalId || invitees.length === 0) {
+      return { total: 0, sent: 0, failed: 0 };
+    }
+
+    const results = await Promise.allSettled(
+      invitees.map(async (invitee) => {
+        const response = await fetch(`${API_BASE_URL}/proposal-collabs/request`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+          body: JSON.stringify({
+            proposal_id: proposalId,
+            collaborator_username: invitee.username,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await getApiError(response, `Unable to invite @${invitee.username}.`));
+        }
+
+        return response.json();
+      })
+    );
+
+    const sent = results.filter((result) => result.status === "fulfilled").length;
+    return {
+      total: invitees.length,
+      sent,
+      failed: invitees.length - sent,
+    };
+  };
+
   const mutation = useMutation({
     mutationFn: async (newPost) => {
       const formData = new FormData();
@@ -294,21 +388,36 @@ function InputFields({
         throw new Error(message);
       }
 
-      return response.json();
+      const createdPost = await response.json();
+      const collabSummary = await requestComposerCollabs(createdPost?.id, newPost.collabInvitees || []);
+      return { post: createdPost, collabSummary };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ post, collabSummary }) => {
       if (setPosts) {
-        setPosts((oldPosts) => [data, ...oldPosts]);
+        setPosts((oldPosts) => [post, ...oldPosts]);
       }
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["proposal-collabs"] });
       refetchPosts?.();
+
+      if (collabSummary?.total > 0) {
+        const inviteLabel = collabSummary.sent === 1 ? "collab invite" : "collab invites";
+        const message = collabSummary.failed
+          ? `Post created. ${collabSummary.sent} ${inviteLabel} sent. ${collabSummary.failed} failed.`
+          : `Post created. ${collabSummary.sent} ${inviteLabel} sent.`;
+        setNotify([message]);
+      }
+
       setDiscard(true);
       handleRemoveMedia();
       setProposalMode("post");
       setDecisionLevel("standard");
       setVotingDays(3);
       setText("");
+      setPendingCollabInvitees([]);
+      setCollabPromptUser(null);
+      setCollabNotice("");
     },
     onError: (error) => setErrorMsg([error.message]),
   });
@@ -368,6 +477,7 @@ function InputFields({
       governance_kind: isDecisionMode ? "decision" : "post",
       decision_level: decisionLevel,
       voting_days: votingDays,
+      collabInvitees: pendingCollabInvitees,
     });
   };
 
@@ -657,6 +767,87 @@ function InputFields({
         />
         <MentionAutocomplete controller={mentionAutocomplete} />
       </div>
+
+      {collabPromptUser && (
+        <div className="composer-collab-prompt flex flex-wrap items-center justify-between gap-2 rounded-[1rem] px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.64rem] font-black uppercase">
+              {collabPromptUser.avatar ? (
+                <img
+                  src={collabPromptUser.avatar}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                collabPromptUser.initials
+              )}
+            </span>
+            <p className="min-w-0 text-[0.78rem] font-semibold">
+              Invite <span className="text-[var(--pink)]">@{collabPromptUser.username}</span> as collaborator?
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => addPendingCollabInvitee(collabPromptUser)}
+              className="composer-collab-action rounded-full px-3 py-1.5 text-[0.72rem] font-black"
+            >
+              Invite
+            </button>
+            <button
+              type="button"
+              onClick={() => setCollabPromptUser(null)}
+              className="composer-collab-action secondary rounded-full px-3 py-1.5 text-[0.72rem] font-black"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(pendingCollabInvitees.length > 0 || collabNotice) && (
+        <div className="composer-collab-strip flex flex-col gap-2 rounded-[1rem] px-3 py-2">
+          {pendingCollabInvitees.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="flex items-center gap-1 text-[0.66rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                <IoPersonAddOutline className="text-[var(--pink)]" />
+                Pending collabs
+              </span>
+              {pendingCollabInvitees.map((invitee) => (
+                <button
+                  type="button"
+                  key={invitee.key}
+                  onClick={() => removePendingCollabInvitee(invitee.username)}
+                  className="composer-collab-chip inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-[0.68rem] font-bold"
+                  title={`Remove @${invitee.username}`}
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase">
+                    {invitee.avatar ? (
+                      <img
+                        src={invitee.avatar}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      invitee.initials
+                    )}
+                  </span>
+                  <span className="truncate">@{invitee.username}</span>
+                  <span className="hidden shrink-0 rounded-full px-1 py-0.5 text-[0.52rem] uppercase tracking-[0.08em] sm:inline">
+                    {invitee.species}
+                  </span>
+                  <IoClose className="shrink-0 text-[0.78rem]" />
+                </button>
+              ))}
+            </div>
+          )}
+          {collabNotice && <p className="text-[0.72rem] font-semibold text-[var(--text-gray-light)]">{collabNotice}</p>}
+        </div>
+      )}
 
       {renderMediaPreview()}
 

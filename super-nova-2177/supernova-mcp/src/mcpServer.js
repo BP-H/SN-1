@@ -4,10 +4,69 @@ import { z } from "zod";
 
 const DEFAULT_SUPERNOVA_API_BASE_URL = "https://2177.tech";
 const MAX_LIMIT = 100;
+const CONNECTOR_DISCOVERY_PATH = "/connector/supernova";
+const UPSTREAM_JSON_HINT =
+  "Hint: set SUPERNOVA_API_BASE_URL to the backend API origin that returns JSON for /connector/supernova.";
 
 export function getApiBaseUrl() {
   const configured = String(process.env.SUPERNOVA_API_BASE_URL || DEFAULT_SUPERNOVA_API_BASE_URL).trim();
   return (configured || DEFAULT_SUPERNOVA_API_BASE_URL).replace(/\/+$/, "");
+}
+
+export function getUpstreamBaseOrigin() {
+  try {
+    return new URL(getApiBaseUrl()).origin;
+  } catch {
+    return DEFAULT_SUPERNOVA_API_BASE_URL;
+  }
+}
+
+export async function checkUpstreamConnector(path = CONNECTOR_DISCOVERY_PATH) {
+  let url;
+  try {
+    url = new URL(`${getApiBaseUrl()}${path}`);
+  } catch {
+    return {
+      path,
+      status: null,
+      json: false,
+      reachable: false,
+      error: "invalid_upstream_origin",
+    };
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "supernova-mcp-health/0.1",
+      },
+      redirect: "follow",
+    });
+    const text = await response.text();
+    let json = false;
+    if (text) {
+      try {
+        JSON.parse(text);
+        json = true;
+      } catch {
+        json = false;
+      }
+    }
+    return {
+      path,
+      status: response.status,
+      json,
+    };
+  } catch {
+    return {
+      path,
+      status: null,
+      json: false,
+      reachable: false,
+    };
+  }
 }
 
 export function clampLimit(value, fallback = 25) {
@@ -67,7 +126,7 @@ async function fetchPublicConnectorJson(path, params = {}) {
       redirect: "follow",
     });
   } catch {
-    throw new Error("SuperNova upstream is unavailable");
+    throw new Error(`SuperNova upstream is unavailable for ${path}. ${UPSTREAM_JSON_HINT}`);
   }
 
   const text = await response.text();
@@ -76,7 +135,9 @@ async function fetchPublicConnectorJson(path, params = {}) {
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new Error("SuperNova upstream returned a non-JSON response");
+      throw new Error(
+        `SuperNova upstream returned non-JSON for ${path} (HTTP ${response.status}). ${UPSTREAM_JSON_HINT}`
+      );
     }
   }
 

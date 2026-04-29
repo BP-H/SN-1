@@ -96,7 +96,20 @@ After deployment:
    https://YOUR-MCP-DEPLOYMENT.vercel.app/health
    ```
 
-   It should return JSON with `ok:true`.
+   It should return JSON with `ok:true`. Before connecting ChatGPT, also
+   verify `upstream_connector_check.json` is `true`. That means the MCP
+   deployment can reach a JSON backend connector facade at
+   `/connector/supernova`.
+
+   You can also test the upstream directly:
+
+   ```txt
+   <SUPERNOVA_API_BASE_URL>/connector/supernova
+   ```
+
+   That URL should return JSON. If it returns HTML, set
+   `SUPERNOVA_API_BASE_URL` to the backend/Railway API origin, not the frontend
+   app URL.
 
 2. From this folder, run the smoke helper against the deployment base URL:
 
@@ -138,6 +151,26 @@ this project includes `public/index.json` and `vercel.json` sets
 ```bash
 npm run smoke -- https://YOUR-MCP-DEPLOYMENT.vercel.app
 ```
+
+## Troubleshooting Non-JSON Upstream Responses
+
+If ChatGPT or the MCP smoke helper reports that SuperNova upstream returned a
+non-JSON response, open:
+
+```txt
+https://YOUR-MCP-DEPLOYMENT.vercel.app/health
+```
+
+Check `upstream_connector_check`. If `json` is `false`, the configured
+`SUPERNOVA_API_BASE_URL` is probably pointing at a frontend HTML route instead
+of the backend JSON connector facade. Set it to the backend API origin where:
+
+```txt
+<SUPERNOVA_API_BASE_URL>/connector/supernova
+```
+
+returns JSON. The health payload reports only the upstream origin and connector
+check status; it does not print connector secrets or private tokens.
 
 ## Test With Codex CLI
 
