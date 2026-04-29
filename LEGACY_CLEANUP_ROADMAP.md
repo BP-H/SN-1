@@ -75,7 +75,7 @@ Additional checks:
 
 | Legacy surface | Reference findings | Risk classification | Future cleanup direction |
 | --- | --- | --- | --- |
-| `super-nova-2177/frontend-nova` | Referenced by cleanup docs, `REPO_STATUS.md`, `scripts/list_cleanup_candidates.py`, `run_local.py`, `start_supernova.ps1`, and `start_frontend_nova.ps1`; package and `index.html` self-reference. | Lowest-risk future deletion candidate, but launcher-sensitive. | Next deletion-prep PR should deprecate or remove launcher choices first, then delete in a separate explicit PR if still unreferenced. |
+| `super-nova-2177/frontend-nova` | Referenced by cleanup docs, `REPO_STATUS.md`, `scripts/list_cleanup_candidates.py`, `run_local.py`, `start_supernova.ps1`, and `start_frontend_nova.ps1`; package and `index.html` self-reference. Local launcher labels now mark it as `legacy / retired candidate` while preserving source. | First planned source-folder deletion candidate after launcher references are retired. | Next cleanup PR should remove or retire remaining local launcher references, then delete `frontend-nova` in a separate explicit PR if references are docs-only or absent. |
 | `super-nova-2177/frontend-professional` | Referenced by cleanup docs, `REPO_STATUS.md`, `scripts/list_cleanup_candidates.py`, `run_local.py`, `start_supernova.ps1`, and `start_frontend_professional.ps1`; package self-reference. | Launcher-sensitive. | Consider after `frontend-nova` cleanup pattern is proven. |
 | `super-nova-2177/frontend-next` | Referenced by cleanup/security docs, `REPO_STATUS.md`, `run_local.py`, `start_supernova.ps1`, `start_frontend_next.ps1`, and `frontend-social-six` docs; has `Dockerfile` and package files. | Deployment/security-sensitive legacy Next app. | Do not delete until a legacy Next deployment assessment confirms it is unused. |
 | `super-nova-2177/frontend-social-six` | Referenced by auth/security docs, cleanup docs, RSC/Next assessment, `REPO_STATUS.md`, launchers, `Dockerfile`, and social auth setup docs. | Auth-history-sensitive legacy social frontend. | Defer until a dedicated social-six retirement assessment. |
@@ -87,30 +87,31 @@ Additional checks:
 
 ## Generated Artifact Findings
 
-Tracked generated candidates found:
+Tracked generated candidates found in the roadmap assessment:
 
 - `super-nova-2177/frontend-vite-3d/tsconfig.tsbuildinfo`
 - `super-nova-2177/frontend-vite-basic/tsconfig.tsbuildinfo`
 
-This roadmap PR does not remove them. A future tiny generated-artifact cleanup PR
-may remove only tracked `tsconfig.tsbuildinfo` files after verifying no build or
-safe-check assumptions depend on them.
+The follow-up generated-artifact cleanup removes these tracked files only. Root
+`.gitignore` already contains `*.tsbuildinfo`, and active FE7 also has local
+coverage, so TypeScript build-info artifacts should not be reintroduced.
 
 ## Recommended Cleanup Sequence
 
-1. Generated artifact cleanup PR: remove tracked `tsconfig.tsbuildinfo` files if
-   still present and confirm FE7 build, backend safe checks, and protected core
-   diff zero.
-2. `frontend-nova` launcher deprecation PR: update docs/local launcher choices to
-   mark `frontend-nova` retired or hidden.
-3. `frontend-nova` deletion PR: only if the previous PR leaves references absent
+1. Generated artifact cleanup PR: remove tracked `tsconfig.tsbuildinfo` files and
+   confirm FE7 build, backend safe checks, and protected core diff zero.
+2. `frontend-nova` launcher deprecation prep: docs and local launcher labels mark
+   `frontend-nova` as the first `legacy / retired candidate`; source remains.
+3. `frontend-nova` launcher retirement PR: remove or hide remaining local launcher
+   references if they are still only developer convenience paths.
+4. `frontend-nova` deletion PR: only if the previous PR leaves references absent
    or docs-only.
-4. Repeat the same pattern for `frontend-professional`.
-5. Separate assessments for `frontend-next`, `frontend-social-six`,
+5. Repeat the same pattern for `frontend-professional`.
+6. Separate assessments for `frontend-next`, `frontend-social-six`,
    `frontend-vite-3d`, nested `nova-web`, and nested `nova-api`.
-6. Do not schedule `frontend-vite-basic` removal until the protected duplicate
+7. Do not schedule `frontend-vite-basic` removal until the protected duplicate
    core file and safe-check contract have a dedicated plan.
-7. Do not schedule `transcendental_resonance_frontend` removal until imports,
+8. Do not schedule `transcendental_resonance_frontend` removal until imports,
    tests, install scripts, and compatibility wrappers are intentionally retired.
 
 ## Required Checks Before Any Future Deletion

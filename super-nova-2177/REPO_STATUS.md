@@ -32,7 +32,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - `frontend-professional`
 - `frontend-vite-basic`
 - `frontend-vite-3d`
-- `frontend-nova`
+- `frontend-nova` (first planned source-folder deletion candidate after local launcher references are retired)
 - `backend/supernova_2177_ui_weighted/nova-web`
 - `backend/supernova_2177_ui_weighted/nova-api`
 - `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
@@ -43,6 +43,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - The active frontend is `frontend-social-seven`.
 - The active backend is `backend/app.py`.
 - The Railway compatibility entrypoint is `app.py`.
+- Local launcher labels should keep `frontend-social-seven` marked as the active/default FE7 path and `frontend-nova` marked as a legacy retired candidate until a separate deletion PR removes source.
 - `backend/supernova_2177_ui_weighted/supernovacore.py` is protected core. Do not edit, move, rename, delete, reformat, or copy its logic during cleanup.
 - Legacy folders are eligible for staged cleanup only after reference checks for package files, deployment config, Dockerfiles, README/docs, scripts, imports, and CI/workflows.
 - Do not delete legacy source folders in broad mixed cleanup PRs. Prefer one target folder or one generated-artifact class per deletion PR.

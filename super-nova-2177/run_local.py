@@ -19,6 +19,7 @@ FRONTENDS = {
         "port": 3000,
         "command": ["npm", "run", "dev"],
         "type": "next",
+        "status": "legacy",
     },
     "professional": {
         "dir": ROOT / "frontend-professional",
@@ -47,6 +48,7 @@ FRONTENDS = {
         "port": 5176,
         "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5176"],
         "type": "vite",
+        "status": "legacy / retired candidate",
     },
     "social-six": {
         "dir": ROOT / "frontend-social-six",
@@ -61,6 +63,7 @@ FRONTENDS = {
         "port": 3007,
         "command": ["npm", "run", "dev"],
         "type": "next",
+        "status": "active/default FE7",
     },
 }
 
@@ -68,7 +71,9 @@ FRONTENDS = {
 def choose_frontend() -> str:
     print("Available frontends:")
     for index, (name, config) in enumerate(FRONTENDS.items(), start=1):
-        print(f"  {index}. {name} ({config['dir'].name})")
+        status = config.get("status")
+        status_suffix = f" - {status}" if status else ""
+        print(f"  {index}. {name} ({config['dir'].name}){status_suffix}")
 
     while True:
         raw = input("Select a frontend by number or name: ").strip().lower()
@@ -151,7 +156,9 @@ def main() -> int:
 
     if args.list_frontends:
         for name, config in FRONTENDS.items():
-            print(f"{name}: {config['dir']}")
+            status = config.get("status")
+            status_suffix = f" [{status}]" if status else ""
+            print(f"{name}: {config['dir']}{status_suffix}")
         return 0
 
     ensure_command_exists("python")

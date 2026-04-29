@@ -3,19 +3,19 @@ Write-Host "      SuperNova 2177 Unified Launcher     " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Which Frontend would you like to launch?"
-Write-Host "  1. Next.js (Default, Most Feature-Rich)" -ForegroundColor Green
+Write-Host "  1. Next.js (Legacy)" -ForegroundColor Green
 Write-Host "  2. Vite Professional" -ForegroundColor Yellow
 Write-Host "  3. Vite 3D" -ForegroundColor Magenta
 Write-Host "  4. Vite Basic" -ForegroundColor White
-Write-Host "  5. Frontend Nova (New Minimalist SPA)" -ForegroundColor Cyan
+Write-Host "  5. Frontend Nova (legacy / retired candidate)" -ForegroundColor Cyan
 Write-Host "  6. Social Six (Next.js + Social Login)" -ForegroundColor Blue
-Write-Host "  7. Social Seven (Neon Mobile UI)" -ForegroundColor Magenta
+Write-Host "  7. Social Seven (Active/default FE7)" -ForegroundColor Magenta
 Write-Host ""
 
-$choice = Read-Host "Enter a number (1-7) or press Enter for Next.js"
+$choice = Read-Host "Enter a number (1-7) or press Enter for Social Seven"
 
 if ([string]::IsNullOrWhiteSpace($choice)) {
-    $choice = "1"
+    $choice = "7"
 }
 
 $frontendMap = @{
