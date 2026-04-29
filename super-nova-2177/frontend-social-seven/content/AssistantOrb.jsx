@@ -106,6 +106,24 @@ function connectorActionCreatedAt(action = {}) {
   }
 }
 
+function collabUserLabel(user = {}) {
+  return user?.username ? `@${user.username}` : "Unknown user";
+}
+
+function collabRequestedAt(collab = {}) {
+  if (!collab.requested_at) return "";
+  try {
+    return new Date(collab.requested_at).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 export default function AssistantOrb() {
   const router = useRouter();
   const { userData, isAuthenticated } = useUser();
@@ -147,6 +165,12 @@ export default function AssistantOrb() {
   const [connectorActionsError, setConnectorActionsError] = useState("");
   const [connectorActionsNotice, setConnectorActionsNotice] = useState("");
   const [connectorActionBusyId, setConnectorActionBusyId] = useState(null);
+  const [collabIncoming, setCollabIncoming] = useState([]);
+  const [collabOutgoing, setCollabOutgoing] = useState([]);
+  const [collabRequestsLoading, setCollabRequestsLoading] = useState(false);
+  const [collabRequestsError, setCollabRequestsError] = useState("");
+  const [collabRequestsNotice, setCollabRequestsNotice] = useState("");
+  const [collabRequestBusyId, setCollabRequestBusyId] = useState(null);
   const [lastSignal, setLastSignal] = useState(null);
   const mentionAutocomplete = useMentionAutocomplete({
     value: commentText,
@@ -457,6 +481,31 @@ export default function AssistantOrb() {
     }
   }, []);
 
+  const loadCollabRequests = useCallback(async () => {
+    setCollabRequestsLoading(true);
+    setCollabRequestsError("");
+    try {
+      requireBackendAuthSession();
+      const fetchRole = async (role) => {
+        const response = await fetch(`${API_BASE_URL}/proposal-collabs?role=${role}&status=pending&limit=50`, {
+          headers: authHeaders(),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload?.detail || "Unable to load collab requests.");
+        return Array.isArray(payload?.collabs) ? payload.collabs : [];
+      };
+      const [incoming, outgoing] = await Promise.all([fetchRole("collaborator"), fetchRole("author")]);
+      setCollabIncoming(incoming);
+      setCollabOutgoing(outgoing);
+    } catch (error) {
+      setCollabIncoming([]);
+      setCollabOutgoing([]);
+      setCollabRequestsError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
+    } finally {
+      setCollabRequestsLoading(false);
+    }
+  }, []);
+
   const reviewConnectorAction = async (action, reviewAction) => {
     if (!action?.id || connectorActionBusyId) return;
     setConnectorActionBusyId(`${reviewAction}:${action.id}`);
@@ -482,6 +531,36 @@ export default function AssistantOrb() {
       setConnectorActionsError(error?.message || "Unable to update AI Action.");
     } finally {
       setConnectorActionBusyId(null);
+    }
+  };
+
+  const reviewCollabRequest = async (collab, reviewAction) => {
+    if (!collab?.id || collabRequestBusyId) return;
+    setCollabRequestBusyId(`${reviewAction}:${collab.id}`);
+    setCollabRequestsError("");
+    setCollabRequestsNotice("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/proposal-collabs/${collab.id}/${reviewAction}`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Unable to update collab request.");
+      }
+      setCollabIncoming((items) => items.filter((item) => item.id !== collab.id));
+      setCollabOutgoing((items) => items.filter((item) => item.id !== collab.id));
+      const labels = {
+        approve: "Collab request approved.",
+        decline: "Collab request declined.",
+        remove: "Collab request removed.",
+      };
+      setCollabRequestsNotice(labels[reviewAction] || "Collab request updated.");
+    } catch (error) {
+      setCollabRequestsError(error?.message || "Unable to update collab request.");
+    } finally {
+      setCollabRequestBusyId(null);
     }
   };
 
@@ -515,7 +594,8 @@ export default function AssistantOrb() {
       setReply("");
       setGhostVisible(true);
       setConnectorActionsNotice("");
-      await loadConnectorActions();
+      setCollabRequestsNotice("");
+      await Promise.allSettled([loadConnectorActions(), loadCollabRequests()]);
       return;
     }
 
@@ -690,7 +770,7 @@ export default function AssistantOrb() {
           const viewport = window.visualViewport;
           const viewportTop = viewport?.offsetTop || 0;
           const viewportHeight = viewport?.height || window.innerHeight;
-          const panelHeight = actionsOpen ? 352 : commentOpen ? 246 : settingsOpen ? 184 : 168;
+          const panelHeight = actionsOpen ? 488 : commentOpen ? 246 : settingsOpen ? 184 : 168;
           const rightRoom = window.innerWidth - (pos.x + ORB_SIZE + 12);
           const leftRoom = pos.x - 12;
           const canUseSide = Math.max(rightRoom, leftRoom) >= width;
@@ -836,7 +916,9 @@ export default function AssistantOrb() {
                   setSettingsOpen(false);
                   setActionsOpen(true);
                   setConnectorActionsNotice("");
+                  setCollabRequestsNotice("");
                   loadConnectorActions();
+                  loadCollabRequests();
                 }}
                 className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
               >
@@ -893,9 +975,11 @@ export default function AssistantOrb() {
                   type="button"
                   onClick={() => {
                     setConnectorActionsNotice("");
+                    setCollabRequestsNotice("");
                     loadConnectorActions();
+                    loadCollabRequests();
                   }}
-                  disabled={connectorActionsLoading}
+                  disabled={connectorActionsLoading || collabRequestsLoading}
                   className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-60"
                 >
                   Refresh
@@ -979,6 +1063,127 @@ export default function AssistantOrb() {
                   })}
                 </div>
               )}
+
+              <div className="mt-3 border-t border-white/[0.08] pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[0.74rem] font-semibold text-[var(--text-gray-light)]">
+                    Collab requests
+                  </p>
+                  <span className="ai-action-status-pill rounded-full px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.1em]">
+                    pending
+                  </span>
+                </div>
+
+                {collabRequestsNotice && (
+                  <div className="ai-action-notice mt-2 rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
+                    {collabRequestsNotice}
+                  </div>
+                )}
+
+                {collabRequestsLoading ? (
+                  <div className="ai-cursor-result-box mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
+                    Loading collab requests...
+                  </div>
+                ) : collabRequestsError ? (
+                  <div className="ai-action-error mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
+                    {collabRequestsError}
+                  </div>
+                ) : collabIncoming.length === 0 && collabOutgoing.length === 0 ? (
+                  <div className="ai-cursor-result-box mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
+                    No pending collab requests.
+                  </div>
+                ) : (
+                  <div className="ai-actions-list mt-2 flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+                    {collabIncoming.map((collab) => {
+                      const busyKey = collabRequestBusyId || "";
+                      return (
+                        <article key={`incoming-${collab.id}`} className="ai-action-card rounded-[0.9rem] p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-[0.8rem] font-semibold">Incoming collab</p>
+                              <p className="truncate text-[0.72rem] text-[var(--text-gray-light)]">
+                                {collab.proposal_title || `Proposal #${collab.proposal_id}`}
+                              </p>
+                            </div>
+                            <span className="ai-action-status-pill shrink-0 rounded-full px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.1em]">
+                              {collab.status || "pending"}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                            {collabUserLabel(collab.author)} invited you.
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[0.68rem] text-[var(--text-gray-light)]">
+                              {collabRequestedAt(collab)}
+                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => reviewCollabRequest(collab, "approve")}
+                                disabled={Boolean(collabRequestBusyId)}
+                                className="ai-action-approve-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                              >
+                                {busyKey === `approve:${collab.id}` ? "Approving..." : "Approve"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => reviewCollabRequest(collab, "decline")}
+                                disabled={Boolean(collabRequestBusyId)}
+                                className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                              >
+                                {busyKey === `decline:${collab.id}` ? "Declining..." : "Decline"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => reviewCollabRequest(collab, "remove")}
+                                disabled={Boolean(collabRequestBusyId)}
+                                className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                              >
+                                {busyKey === `remove:${collab.id}` ? "Removing..." : "Remove"}
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+
+                    {collabOutgoing.map((collab) => {
+                      const busyKey = collabRequestBusyId || "";
+                      return (
+                        <article key={`outgoing-${collab.id}`} className="ai-action-card rounded-[0.9rem] p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-[0.8rem] font-semibold">Outgoing collab</p>
+                              <p className="truncate text-[0.72rem] text-[var(--text-gray-light)]">
+                                {collab.proposal_title || `Proposal #${collab.proposal_id}`}
+                              </p>
+                            </div>
+                            <span className="ai-action-status-pill shrink-0 rounded-full px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.1em]">
+                              {collab.status || "pending"}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                            Waiting on {collabUserLabel(collab.collaborator)}.
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[0.68rem] text-[var(--text-gray-light)]">
+                              {collabRequestedAt(collab)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => reviewCollabRequest(collab, "remove")}
+                              disabled={Boolean(collabRequestBusyId)}
+                              className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                            >
+                              {busyKey === `remove:${collab.id}` ? "Removing..." : "Remove"}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

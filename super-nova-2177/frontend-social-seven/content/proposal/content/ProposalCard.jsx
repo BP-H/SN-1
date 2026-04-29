@@ -8,7 +8,7 @@ import { IoMdBookmark } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import {
   IoCheckmark,
   IoClose,
@@ -33,6 +33,7 @@ import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
+import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -50,6 +51,29 @@ function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${Math.max(1, minutes)}m`;
+}
+
+function normalizeCollabSuggestions(payload = []) {
+  const list = Array.isArray(payload) ? payload : Array.isArray(payload?.users) ? payload.users : [];
+  const seen = new Set();
+  return list
+    .map((item) => {
+      const username = String(item?.username || "").trim();
+      const key = username.toLowerCase();
+      const avatar = item?.avatar || item?.avatar_url || item?.profile_pic || item?.profilePic || item?.author_img || "";
+      return {
+        username,
+        key,
+        species: String(item?.species || "human").trim() || "human",
+        avatar: avatarDisplayUrl(avatar, ""),
+        initials: String(item?.initials || username || "SN").slice(0, 2).toUpperCase(),
+      };
+    })
+    .filter((item) => {
+      if (!item.username || seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    });
 }
 
 function ProposalCard({
@@ -91,6 +115,12 @@ function ProposalCard({
   const [replyTarget, setReplyTarget] = useState(null);
   const [localUserName, setLocalUserName] = useState(userName || "");
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [collabInviteOpen, setCollabInviteOpen] = useState(false);
+  const [collabSearch, setCollabSearch] = useState("");
+  const [collabSuggestions, setCollabSuggestions] = useState([]);
+  const [collabBusy, setCollabBusy] = useState(false);
+  const [collabStatus, setCollabStatus] = useState("");
+  const [collabError, setCollabError] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
 
@@ -99,6 +129,7 @@ function ProposalCard({
   const router = useRouter();
   const authorName = localUserName || userName || "";
   const isOwner = Boolean(authorName && userData?.name && authorName.toLowerCase() === userData.name.toLowerCase());
+  const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
   const authorAvatarStyle = speciesAvatarStyle(authorSpecies);
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
@@ -121,6 +152,38 @@ function ProposalCard({
     const timer = window.setInterval(() => setNowMs(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, [governance?.voting_deadline, isDecisionProposal]);
+
+  useEffect(() => {
+    if (!collabInviteOpen || collabSearch.trim().length < 1) {
+      setCollabSuggestions([]);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/social-users?search=${encodeURIComponent(collabSearch.trim())}&limit=8`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          setCollabSuggestions([]);
+          return;
+        }
+        const selfKey = String(userData?.name || "").toLowerCase();
+        setCollabSuggestions(
+          normalizeCollabSuggestions(await response.json().catch(() => [])).filter((user) => user.key !== selfKey)
+        );
+      } catch (error) {
+        if (error?.name !== "AbortError") setCollabSuggestions([]);
+      }
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [collabInviteOpen, collabSearch, userData?.name]);
 
   useEffect(() => {
     if (id === undefined || id === null || id === "") return;
@@ -339,6 +402,49 @@ function ProposalCard({
       setErrorMsg?.([error.message || "Unable to delete post."]);
     } finally {
       setOwnerBusy(false);
+    }
+  };
+
+  const handleRequestCollab = async (username) => {
+    const collaboratorUsername = String(username || collabSearch || "").trim();
+    if (!collaboratorUsername || collabBusy) return;
+    if (!userData?.name) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (collaboratorUsername.toLowerCase() === userData.name.toLowerCase()) {
+      setCollabError("Choose someone other than yourself.");
+      return;
+    }
+
+    setCollabBusy(true);
+    setCollabError("");
+    setCollabStatus("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/proposal-collabs/request`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          proposal_id: Number(id),
+          collaborator_username: collaboratorUsername,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Unable to invite collaborator.");
+      }
+      setCollabStatus(`Invite sent to @${payload?.collab?.collaborator?.username || collaboratorUsername}.`);
+      setNotify?.([`Collab invite sent to ${payload?.collab?.collaborator?.username || collaboratorUsername}.`]);
+      setCollabSearch("");
+      setCollabSuggestions([]);
+      queryClient.invalidateQueries({ queryKey: ["proposal-collabs"] });
+    } catch (error) {
+      const message = error?.message || BACKEND_AUTH_MISSING_MESSAGE;
+      setCollabError(message);
+      setErrorMsg?.([message]);
+    } finally {
+      setCollabBusy(false);
     }
   };
 
@@ -663,6 +769,18 @@ function ProposalCard({
                   </button>
                   <button
                     type="button"
+                    onClick={() => {
+                      setCollabInviteOpen((value) => !value);
+                      setCollabStatus("");
+                      setCollabError("");
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
+                  >
+                    <IoPersonAddOutline /> Invite collab
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleDelete}
                     disabled={ownerBusy}
                     className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left text-[var(--pink)] hover:bg-white/[0.07] disabled:opacity-50"
@@ -694,6 +812,88 @@ function ProposalCard({
           )}
         </div>
       </div>
+
+      {isOwner && collabInviteOpen && (
+        <div
+          className="collab-invite-panel rounded-[1rem] p-3"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Invite collaborator</p>
+              <p className="mt-0.5 text-[0.72rem] text-[var(--text-gray-light)]">
+                They must approve before this post appears as a collab.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCollabInviteOpen(false)}
+              className="collab-mini-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              aria-label="Close collaborator invite"
+            >
+              <IoClose />
+            </button>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            <input
+              value={collabSearch}
+              onChange={(event) => {
+                setCollabSearch(event.target.value);
+                setCollabStatus("");
+                setCollabError("");
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleRequestCollab(collabSuggestions[0]?.username || collabSearch);
+                }
+                if (event.key === "Escape") setCollabInviteOpen(false);
+              }}
+              placeholder="Search username"
+              className="collab-invite-input w-full rounded-[0.85rem] px-3 py-2 text-[0.84rem] outline-none"
+            />
+            {collabSearch.trim() && collabSuggestions.length > 0 && (
+              <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pr-1">
+                {collabSuggestions.map((user) => (
+                  <button
+                    type="button"
+                    key={user.username}
+                    onClick={() => handleRequestCollab(user.username)}
+                    disabled={collabBusy}
+                    className="collab-user-suggestion flex w-full items-center gap-2 rounded-[0.8rem] px-2.5 py-2 text-left disabled:opacity-55"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/[0.08] text-[0.62rem] font-black uppercase">
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        user.initials
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[0.8rem] font-semibold">@{user.username}</span>
+                    <span className="shrink-0 rounded-full bg-white/[0.07] px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[var(--text-gray-light)]">
+                      {user.species}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {collabSearch.trim() && !collabSuggestions.length && !collabBusy && (
+              <p className="text-[0.72rem] text-[var(--text-gray-light)]">No matching users yet.</p>
+            )}
+            {collabStatus && <p className="text-[0.74rem] font-semibold text-[var(--neon-blue)]">{collabStatus}</p>}
+            {collabError && <p className="text-[0.74rem] font-semibold text-[var(--pink)]">{collabError}</p>}
+          </div>
+        </div>
+      )}
 
       {/* Post content (text + media) */}
       <div className="flex w-full min-w-0 flex-col gap-3">
@@ -734,7 +934,7 @@ function ProposalCard({
                 className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
                 style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
               >
-                <LinkifiedText text={localText} enableMentions />
+                <LinkifiedText text={localText} enableMentions validMentionUsernames={verifiedMentions} />
               </p>
               {(localText.length > 220 || (localText.match(/\n/g) || []).length >= 4) && (
                 <button
