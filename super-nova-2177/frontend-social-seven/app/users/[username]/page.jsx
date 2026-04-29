@@ -5,10 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IoChatbubbleEllipsesOutline,
+  IoCheckboxOutline,
   IoCheckmark,
   IoClose,
   IoCreateOutline,
-  IoDocumentTextOutline,
   IoGlobeOutline,
   IoGridOutline,
   IoLinkOutline,
@@ -31,9 +31,25 @@ import { useUser } from "@/content/profile/UserContext";
 const USER_POST_PAGE_SIZE = 30;
 const PROFILE_TABS = [
   { key: "visuals", label: "Visuals", title: "Visual posts", icon: IoGridOutline },
-  { key: "proposals", label: "Proposals", title: "Proposals", icon: IoDocumentTextOutline },
-  { key: "text", label: "Text", title: "Text posts", icon: IoTextOutline },
+  { key: "proposals", label: "Decisions", title: "Decisions and proposals", icon: IoCheckboxOutline },
+  { key: "text", label: "Posts", title: "Text posts", icon: IoTextOutline },
+  { key: "collabs", label: "Collabs", title: "Collaborations", icon: IoPeopleOutline },
 ];
+
+function supportPercentLabel(post, compact = false) {
+  const voteSummary = post?.vote_summary || {};
+  const summaryUp = Number(voteSummary.up ?? voteSummary.likes ?? voteSummary.support);
+  const summaryDown = Number(voteSummary.down ?? voteSummary.dislikes ?? voteSummary.oppose);
+  const up = Number.isFinite(summaryUp) ? summaryUp : Array.isArray(post?.likes) ? post.likes.length : 0;
+  const down = Number.isFinite(summaryDown) ? summaryDown : Array.isArray(post?.dislikes) ? post.dislikes.length : 0;
+  const summaryTotal = Number(voteSummary.total);
+  const total = Number.isFinite(summaryTotal) && summaryTotal > 0 ? summaryTotal : up + down;
+  if (total <= 0) return "";
+  const summaryRatio = Number(voteSummary.approval_ratio);
+  const ratio = Number.isFinite(summaryRatio) ? (summaryRatio > 1 ? summaryRatio / 100 : summaryRatio) : up / total;
+  const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  return compact ? `${percent}%` : `${percent}% support`;
+}
 
 function avatarUrl(value) {
   return normalizeAvatarValue(value) ? avatarDisplayUrl(value) : "";
@@ -100,9 +116,7 @@ function ProfileVisualTile({ post, visual, onOpen, isCollab = false }) {
   }, [visual?.src, visual?.videoSrc]);
 
   const fallbackLabel = visual?.kind === "video" ? "Video" : "Media";
-  const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
-  const dislikeCount = Array.isArray(post?.dislikes) ? post.dislikes.length : 0;
-  const hasVoteSignal = likeCount > 0 || dislikeCount > 0;
+  const supportLabel = supportPercentLabel(post, true);
 
   return (
     <button
@@ -153,9 +167,9 @@ function ProfileVisualTile({ post, visual, onOpen, isCollab = false }) {
           Collab
         </span>
       )}
-      {hasVoteSignal && (
+      {supportLabel && (
         <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.6rem] font-bold text-white">
-          {likeCount}+ {dislikeCount}-
+          {supportLabel}
         </span>
       )}
     </button>
@@ -245,7 +259,6 @@ export default function UserPostsPage() {
   const [domainDraft, setDomainDraft] = useState("");
   const [domainAsProfileDraft, setDomainAsProfileDraft] = useState(false);
   const [activeTab, setActiveTab] = useState("visuals");
-  const [collabPanelOpen, setCollabPanelOpen] = useState(false);
   const [collabReviewBusyId, setCollabReviewBusyId] = useState("");
   const [collabPanelNotice, setCollabPanelNotice] = useState("");
   const [collabPanelError, setCollabPanelError] = useState("");
@@ -302,7 +315,7 @@ export default function UserPostsPage() {
 
   const collabRequestsQuery = useQuery({
     queryKey: ["proposal-collabs", currentUsername, "pending"],
-    enabled: Boolean(isAuthenticated && currentUsername),
+    enabled: Boolean(isAuthenticated && currentUsername && isOwnProfile),
     queryFn: async () => {
       requireBackendAuthSession();
       const fetchRole = async (role) => {
@@ -336,14 +349,6 @@ export default function UserPostsPage() {
     () => posts.filter((post) => !getVisualMeta(post)),
     [posts]
   );
-  const tabCounts = useMemo(
-    () => ({
-      visuals: visualPosts.length,
-      proposals: posts.length,
-      text: textPosts.length,
-    }),
-    [posts.length, textPosts.length, visualPosts.length]
-  );
 
   const profile = profileQuery.data || {};
   const verifiedBioMentions = useVerifiedMentionUsernames(profile.bio || "");
@@ -360,6 +365,32 @@ export default function UserPostsPage() {
   const collabIncoming = collabRequestsQuery.data?.incoming || [];
   const collabOutgoing = collabRequestsQuery.data?.outgoing || [];
   const pendingCollabCount = collabIncoming.length + collabOutgoing.length;
+  const approvedCollabPosts = useMemo(() => {
+    const profileKey = username.toLowerCase();
+    if (!profileKey) return [];
+    return posts.filter((post) => {
+      const authorKey = String(post?.userName || "").toLowerCase();
+      if (!authorKey || authorKey === profileKey) return false;
+      return Array.isArray(post?.collabs)
+        && post.collabs.some(
+          (collab) => collab?.status === "approved"
+            && String(collab?.username || "").toLowerCase() === profileKey
+        );
+    });
+  }, [posts, username]);
+  const approvedCollabPostIds = useMemo(
+    () => new Set(approvedCollabPosts.map((post) => String(post.id))),
+    [approvedCollabPosts]
+  );
+  const tabCounts = useMemo(
+    () => ({
+      visuals: visualPosts.length,
+      proposals: posts.length,
+      text: textPosts.length,
+      collabs: approvedCollabPosts.length + (isOwnProfile ? pendingCollabCount : 0),
+    }),
+    [approvedCollabPosts.length, isOwnProfile, pendingCollabCount, posts.length, textPosts.length, visualPosts.length]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -580,15 +611,134 @@ export default function UserPostsPage() {
     );
   };
 
+  const renderCollabReviewSections = () => {
+    if (!isOwnProfile) return null;
+    return (
+      <>
+        {(collabPanelNotice || collabPanelError) && (
+          <div className="profile-collab-state-slot mt-3">
+            {collabPanelNotice && (
+              <div className="profile-collab-notice rounded-[0.9rem] px-3 py-2 text-[0.76rem] font-semibold">
+                {collabPanelNotice}
+              </div>
+            )}
+            {collabPanelError && (
+              <div className="profile-collab-error rounded-[0.9rem] px-3 py-2 text-[0.76rem] font-semibold">
+                {collabPanelError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isAuthenticated || !currentUsername ? (
+          <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
+            Finish account setup or sign in again to review collab requests.
+          </div>
+        ) : collabRequestsQuery.isLoading ? (
+          <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
+            Loading collab requests...
+          </div>
+        ) : collabRequestsQuery.isError ? (
+          <div className="profile-collab-error mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem]">
+            <p>{collabRequestsQuery.error?.message || "Unable to load collab requests."}</p>
+            <button
+              type="button"
+              onClick={() => collabRequestsQuery.refetch()}
+              className="profile-collab-secondary-button mt-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold"
+            >
+              Retry
+            </button>
+          </div>
+        ) : pendingCollabCount === 0 ? (
+          <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
+            No pending collab requests.
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-3">
+            <div className="profile-collab-section grid gap-2 rounded-[0.95rem] p-2">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                  Incoming
+                </p>
+                <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
+                  {collabIncoming.length}
+                </span>
+              </div>
+              {collabIncoming.length > 0 ? (
+                collabIncoming.map((collab) => renderCollabRequestCard(collab, "incoming"))
+              ) : (
+                <div className="profile-collab-empty rounded-[0.85rem] px-3 py-3 text-[0.76rem] text-[var(--text-gray-light)]">
+                  No incoming requests waiting on you.
+                </div>
+              )}
+            </div>
+            <div className="profile-collab-section grid gap-2 rounded-[0.95rem] p-2">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                  Outgoing
+                </p>
+                <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
+                  {collabOutgoing.length}
+                </span>
+              </div>
+              {collabOutgoing.length > 0 ? (
+                collabOutgoing.map((collab) => renderCollabRequestCard(collab, "outgoing"))
+              ) : (
+                <div className="profile-collab-empty rounded-[0.85rem] px-3 py-3 text-[0.76rem] text-[var(--text-gray-light)]">
+                  No outgoing invites waiting for approval.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderCollabsTabContent = () => (
+    <div className="mobile-feed-panel social-panel profile-collab-panel rounded-[1rem] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.9rem] font-black text-[var(--text-black)]">Collabs</p>
+          <p className="mt-1 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+            {isOwnProfile
+              ? `${collabIncoming.length} incoming, ${collabOutgoing.length} outgoing, ${approvedCollabPosts.length} approved.`
+              : "Public approved collaborations for this profile."}
+          </p>
+        </div>
+        {pendingCollabCount > 0 && isOwnProfile && (
+          <span className="profile-collab-count-pill shrink-0 rounded-full px-2.5 py-1 text-[0.66rem] font-black">
+            {pendingCollabCount} pending
+          </span>
+        )}
+      </div>
+
+      {renderCollabReviewSections()}
+
+      <div className="profile-collab-section mt-3 grid gap-2 rounded-[0.95rem] p-2">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+            Approved posts
+          </p>
+          <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
+            {approvedCollabPosts.length}
+          </span>
+        </div>
+        {approvedCollabPosts.length > 0 ? (
+          <div className="grid gap-2">
+            {approvedCollabPosts.map(renderPostCard)}
+          </div>
+        ) : (
+          <div className="profile-collab-empty rounded-[0.85rem] px-3 py-4 text-[0.78rem] text-[var(--text-gray-light)]">
+            {isOwnProfile ? "No approved collab posts yet." : "No public approved collab posts yet."}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const isProfileCollabPost = (post) => {
-    const profileKey = username.toLowerCase();
-    const authorKey = String(post?.userName || "").toLowerCase();
-    if (!profileKey || !authorKey || authorKey === profileKey) return false;
-    return Array.isArray(post?.collabs)
-      && post.collabs.some(
-        (collab) => collab?.status === "approved"
-          && String(collab?.username || "").toLowerCase() === profileKey
-      );
+    return approvedCollabPostIds.has(String(post?.id));
   };
 
   const renderPostCard = (post) => {
@@ -614,6 +764,8 @@ export default function UserPostsPage() {
           collabs={post.collabs}
           likes={post.likes}
           dislikes={post.dislikes}
+          voteSummary={post.vote_summary}
+          showSupportSummary
           profileUrl={post.profile_url}
           domainAsProfile={post.domain_as_profile}
           specie={post.author_type}
@@ -674,28 +826,6 @@ export default function UserPostsPage() {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setCollabPanelNotice("");
-                setCollabPanelError("");
-                setCollabPanelOpen((value) => !value);
-              }}
-              className={`profile-collab-entry-button relative flex h-10 w-10 items-center justify-center rounded-full ${
-                collabPanelOpen
-                  ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                  : "bg-white/[0.06] text-[var(--text-gray-light)] hover:text-[var(--pink)]"
-              }`}
-              aria-label="Review collab requests"
-              title="Collab requests"
-            >
-              <IoPeopleOutline />
-              {pendingCollabCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--pink)] px-1 text-[0.62rem] font-black text-white shadow-[var(--shadow-pink)]">
-                  {pendingCollabCount > 9 ? "9+" : pendingCollabCount}
-                </span>
-              )}
-            </button>
             {isOwnProfile ? (
               <button
                 type="button"
@@ -838,105 +968,6 @@ export default function UserPostsPage() {
             ))}
         </div>
 
-        {collabPanelOpen && (
-          <div className="profile-collab-panel mt-4 rounded-[1rem] p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[0.9rem] font-black text-[var(--text-black)]">Collab requests</p>
-                <p className="mt-1 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                  {pendingCollabCount > 0
-                    ? `${collabIncoming.length} incoming, ${collabOutgoing.length} outgoing pending.`
-                    : "Review incoming invites and outgoing pending requests."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCollabPanelOpen(false)}
-                className="profile-collab-secondary-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                aria-label="Close collab requests"
-              >
-                <IoClose />
-              </button>
-            </div>
-
-            {(collabPanelNotice || collabPanelError) && (
-              <div className="profile-collab-state-slot mt-3">
-                {collabPanelNotice && (
-                  <div className="profile-collab-notice rounded-[0.9rem] px-3 py-2 text-[0.76rem] font-semibold">
-                    {collabPanelNotice}
-                  </div>
-                )}
-                {collabPanelError && (
-                  <div className="profile-collab-error rounded-[0.9rem] px-3 py-2 text-[0.76rem] font-semibold">
-                    {collabPanelError}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!isAuthenticated || !currentUsername ? (
-              <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
-                Finish account setup or sign in again to review collab requests.
-              </div>
-            ) : collabRequestsQuery.isLoading ? (
-              <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
-                Loading collab requests...
-              </div>
-            ) : collabRequestsQuery.isError ? (
-              <div className="profile-collab-error mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem]">
-                <p>{collabRequestsQuery.error?.message || "Unable to load collab requests."}</p>
-                <button
-                  type="button"
-                  onClick={() => collabRequestsQuery.refetch()}
-                  className="profile-collab-secondary-button mt-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : pendingCollabCount === 0 ? (
-              <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
-                No pending collab requests.
-              </div>
-            ) : (
-              <div className="mt-3 grid gap-3">
-                <div className="profile-collab-section grid gap-2 rounded-[0.95rem] p-2">
-                  <div className="flex items-center justify-between gap-2 px-1">
-                    <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-                      Incoming
-                    </p>
-                    <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
-                      {collabIncoming.length}
-                    </span>
-                  </div>
-                  {collabIncoming.length > 0 ? (
-                    collabIncoming.map((collab) => renderCollabRequestCard(collab, "incoming"))
-                  ) : (
-                    <div className="profile-collab-empty rounded-[0.85rem] px-3 py-3 text-[0.76rem] text-[var(--text-gray-light)]">
-                      No incoming requests waiting on you.
-                    </div>
-                  )}
-                </div>
-                <div className="profile-collab-section grid gap-2 rounded-[0.95rem] p-2">
-                  <div className="flex items-center justify-between gap-2 px-1">
-                    <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-                      Outgoing
-                    </p>
-                    <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
-                      {collabOutgoing.length}
-                    </span>
-                  </div>
-                  {collabOutgoing.length > 0 ? (
-                    collabOutgoing.map((collab) => renderCollabRequestCard(collab, "outgoing"))
-                  ) : (
-                    <div className="profile-collab-empty rounded-[0.85rem] px-3 py-3 text-[0.76rem] text-[var(--text-gray-light)]">
-                      No outgoing invites waiting for approval.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </section>
 
       <div className="mt-2.5 flex flex-col gap-2.5">
@@ -956,14 +987,10 @@ export default function UserPostsPage() {
               Retry
             </button>
           </div>
-        ) : posts.length === 0 ? (
-          <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-            No posts from this user yet.
-          </div>
         ) : (
           <>
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
-              <div className="grid grid-cols-3 gap-1.5 rounded-full bg-white/[0.045] p-1">
+              <div className="grid grid-cols-4 gap-1.5 rounded-[1rem] bg-white/[0.045] p-1">
                 {PROFILE_TABS.map((tab) => {
                   const selected = activeTab === tab.key;
                   const TabIcon = tab.icon;
@@ -975,14 +1002,14 @@ export default function UserPostsPage() {
                       aria-label={tab.title}
                       title={tab.title}
                       aria-pressed={selected}
-                      className={`flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[0.72rem] font-bold transition-colors ${
+                      className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[0.85rem] px-1.5 text-[0.62rem] font-black transition-colors ${
                         selected
                           ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
                           : "text-[var(--text-gray-light)] hover:bg-white/[0.055] hover:text-[var(--text-black)]"
                       }`}
                     >
-                      <TabIcon className="shrink-0 text-[1rem]" aria-hidden="true" />
-                      <span className="sr-only">{tab.label}</span>
+                      <TabIcon className="shrink-0 text-[1.05rem]" aria-hidden="true" />
+                      <span className="max-w-full truncate">{tab.label}</span>
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] ${
                         selected ? "bg-white/20 text-white" : "bg-white/[0.055] text-[var(--text-gray-light)]"
                       }`}>
@@ -1025,7 +1052,15 @@ export default function UserPostsPage() {
               )
             )}
 
-            {activeTab === "proposals" && posts.map(renderPostCard)}
+            {activeTab === "proposals" && (
+              posts.length === 0 ? (
+                <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+                  No decisions or posts from this user yet.
+                </div>
+              ) : (
+                posts.map(renderPostCard)
+              )
+            )}
 
             {activeTab === "text" && (
               textPosts.length === 0 ? (
@@ -1036,6 +1071,8 @@ export default function UserPostsPage() {
                 textPosts.map(renderPostCard)
               )
             )}
+
+            {activeTab === "collabs" && renderCollabsTabContent()}
 
             {postsQuery.hasNextPage && (
               <button
