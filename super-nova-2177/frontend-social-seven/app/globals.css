@@ -2146,6 +2146,57 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.ai-actions-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 79, 143, 0.42) transparent;
+}
+
+.ai-actions-list::-webkit-scrollbar {
+  width: 0.35rem;
+}
+
+.ai-actions-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-actions-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 79, 143, 0.68), rgba(94, 141, 250, 0.42));
+}
+
+.ai-action-card,
+.ai-action-notice,
+.ai-action-error {
+  background: rgba(0, 0, 0, 0.2);
+  color: #f7f0ff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.ai-action-error {
+  color: #ffd9e8;
+  border-color: rgba(255, 79, 143, 0.22);
+}
+
+.ai-action-notice {
+  color: #e7f0ff;
+  border-color: rgba(94, 141, 250, 0.22);
+}
+
+.ai-action-status-pill,
+.ai-action-disabled-pill {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(247, 240, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-action-approve-button {
+  background: var(--pink);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: var(--shadow-pink);
+}
+
 .ai-cursor-action-button {
   background: rgba(11, 16, 23, 0.94);
   color: rgba(247, 240, 255, 0.72);
@@ -2256,6 +2307,41 @@ html[data-theme="light"] .ai-cursor-result-box {
   background: rgba(17, 24, 39, 0.045) !important;
   color: rgba(22, 25, 36, 0.72) !important;
   border-color: rgba(17, 24, 39, 0.09) !important;
+}
+
+html[data-theme="light"] .ai-action-card,
+html[data-theme="light"] .ai-action-notice,
+html[data-theme="light"] .ai-action-error {
+  background: rgba(17, 24, 39, 0.045) !important;
+  color: #161924 !important;
+  border-color: rgba(17, 24, 39, 0.09) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+}
+
+html[data-theme="light"] .ai-action-error {
+  color: #9f174a !important;
+  border-color: rgba(255, 79, 149, 0.22) !important;
+}
+
+html[data-theme="light"] .ai-action-notice {
+  color: #234083 !important;
+  border-color: rgba(94, 141, 250, 0.22) !important;
+}
+
+html[data-theme="light"] .ai-action-status-pill,
+html[data-theme="light"] .ai-action-disabled-pill {
+  background: rgba(255, 255, 255, 0.64) !important;
+  color: #4b556d !important;
+  border-color: rgba(17, 24, 39, 0.09) !important;
+}
+
+html[data-theme="light"] .ai-action-approve-button {
+  background: var(--pink) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.66) !important;
+  box-shadow:
+    0 10px 24px rgba(255, 79, 149, 0.18),
+    var(--shadow-pink) !important;
 }
 
 html[data-theme="light"] .ai-cursor-action-button {

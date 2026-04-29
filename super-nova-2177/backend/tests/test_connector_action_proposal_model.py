@@ -219,17 +219,19 @@ class ConnectorActionProposalModelTests(unittest.TestCase):
             ["target_type", "target_id"],
         )
 
-    def test_connector_action_model_exposes_only_drafts_and_vote_approval(self):
+    def test_connector_action_model_exposes_inbox_cancel_drafts_and_vote_approval(self):
         result = run_probe(PROBE)
 
         self.assertEqual(
             result["connector_action_routes"],
             [
+                "/connector/actions",
                 "/connector/actions/draft-collab-request",
                 "/connector/actions/draft-comment",
                 "/connector/actions/draft-proposal",
                 "/connector/actions/draft-vote",
                 "/connector/actions/{action_id}/approve-vote",
+                "/connector/actions/{action_id}/cancel",
             ],
         )
         self.assertEqual(
