@@ -1824,8 +1824,34 @@ html[data-theme="light"] .composer-governance-button.active {
   color: var(--pink);
 }
 
+.linkified-mention {
+  color: var(--pink);
+  font-weight: 800;
+  text-decoration-color: rgba(255, 79, 143, 0.45);
+}
+
+.linkified-mention:hover {
+  color: var(--neon-blue);
+  text-decoration-color: rgba(94, 141, 250, 0.55);
+}
+
+html[data-theme="light"] .linkified-mention {
+  color: #d92873;
+  text-decoration-color: rgba(217, 40, 115, 0.36);
+}
+
+html[data-theme="light"] .linkified-mention:hover {
+  color: #315fd3;
+  text-decoration-color: rgba(49, 95, 211, 0.45);
+}
+
 .message-bubble-own .linkified-url {
   color: rgba(255, 255, 255, 0.92);
+}
+
+.message-bubble-own .linkified-mention {
+  color: #fff;
+  text-decoration-color: rgba(255, 255, 255, 0.56);
 }
 
 .message-share-banner {

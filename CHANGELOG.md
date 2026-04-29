@@ -60,6 +60,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added first-pass backend proposal mention notifications without FE7 or collab behavior changes.
 - Rendered public FE7 @mentions as profile links on post, comment, and profile bio text.
 - Added first-pass FE7 @mention autocomplete for public post and comment composers.
+- Polished FE7 mention link colors and suggestion avatar rendering.
 - Polished FE7 @mention autocomplete popovers and added AI widget comment support.
 - Added FE7 public profile tabs with a read-only visual grid using existing post media.
 - Polished FE7 profile tab counts and visual-grid thumbnail fallback behavior.

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 
 const MAX_MENTION_USERNAME_LENGTH = 80;
 const MENTION_PREFIX_DISALLOWED = /[A-Za-z0-9_.+/\-]/;
@@ -35,11 +36,22 @@ function normalizeUsers(payload) {
   if (!Array.isArray(payload)) return [];
   const seen = new Set();
   return payload
-    .map((item) => ({
-      username: String(item?.username || "").trim(),
-      species: String(item?.species || "human").trim() || "human",
-      initials: String(item?.initials || item?.username || "SN").slice(0, 2).toUpperCase(),
-    }))
+    .map((item) => {
+      const rawAvatar =
+        item?.avatar ||
+        item?.avatar_url ||
+        item?.profile_pic ||
+        item?.profilePic ||
+        item?.author_img ||
+        "";
+      const avatar = normalizeAvatarValue(rawAvatar) ? avatarDisplayUrl(rawAvatar, "") : "";
+      return {
+        username: String(item?.username || "").trim(),
+        species: String(item?.species || "human").trim() || "human",
+        initials: String(item?.initials || item?.username || "SN").slice(0, 2).toUpperCase(),
+        avatar,
+      };
+    })
     .filter((item) => {
       const key = item.username.toLowerCase();
       if (!item.username || seen.has(key)) return false;
@@ -156,6 +168,32 @@ export function useMentionAutocomplete({ value, setValue, inputRef, limit = 6 })
   };
 }
 
+function MentionSuggestionAvatar({ user, active }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = Boolean(user.avatar) && !imageFailed;
+
+  return (
+    <span
+      className={`relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.62rem] font-black uppercase ring-1 ${
+        active ? "bg-white/18 text-white ring-white/20" : "bg-white/10 text-white/82 ring-white/10"
+      }`}
+    >
+      {showImage ? (
+        <img
+          src={user.avatar}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        user.initials
+      )}
+    </span>
+  );
+}
+
 function panelPlacement(inputRef, suggestionCount = 0) {
   if (typeof window === "undefined") return null;
   const anchor = inputRef?.current;
@@ -248,9 +286,7 @@ export function MentionAutocomplete({ controller, withinAiCursor = false }) {
                 : "text-[var(--transparent-black)] hover:bg-white/[0.075]"
             }`}
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[0.62rem] font-black uppercase ring-1 ring-white/10">
-              {user.initials}
-            </span>
+            <MentionSuggestionAvatar user={user} active={active} />
             <span className="min-w-0 flex-1 truncate text-[0.8rem] font-semibold">@{user.username}</span>
             <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.08em] ${
               active ? "bg-white/15 text-white/80" : "bg-white/[0.055] text-[var(--text-gray-light)]"
