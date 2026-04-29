@@ -80,6 +80,42 @@ Connector URL pattern:
 https://YOUR-MCP-DEPLOYMENT.vercel.app/mcp
 ```
 
+## Dead-Simple Deployment Test
+
+After deployment:
+
+1. Open the health endpoint in a browser:
+
+   ```txt
+   https://YOUR-MCP-DEPLOYMENT.vercel.app/health
+   ```
+
+   It should return JSON with `ok:true`.
+
+2. From this folder, run the smoke helper against the deployment base URL:
+
+   ```bash
+   npm run smoke -- https://YOUR-MCP-DEPLOYMENT.vercel.app
+   ```
+
+   The smoke helper checks `/health`, performs an MCP initialize/list-tools
+   handshake against `/mcp`, and verifies these public read-only tools are
+   present:
+
+   - `search_proposals`
+   - `get_proposal`
+   - `get_proposal_comments`
+   - `get_profile`
+   - `get_supernova_connector_spec`
+
+3. If ChatGPT exposes a custom connector or MCP developer UI, paste:
+
+   ```txt
+   https://YOUR-MCP-DEPLOYMENT.vercel.app/mcp
+   ```
+
+4. If ChatGPT custom connector UI is not available, test with Codex CLI instead.
+
 ## Test With Codex CLI
 
 ```bash
