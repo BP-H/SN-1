@@ -616,6 +616,33 @@ def _is_deleted_comment_record(comment) -> bool:
     return str(content or "").strip() == DELETED_COMMENT_TEXT
 
 
+def _delete_comment_mention_links(db: Session, comment_ids: List[int]) -> None:
+    clean_ids = []
+    for comment_id in comment_ids or []:
+        try:
+            clean_ids.append(int(comment_id))
+        except (TypeError, ValueError):
+            continue
+    if not clean_ids:
+        return
+
+    try:
+        for comment_id in clean_ids:
+            db.execute(
+                text("DELETE FROM comment_mentions WHERE comment_id = :comment_id"),
+                {"comment_id": comment_id},
+            )
+    except Exception as exc:
+        db.rollback()
+        message = str(exc).lower()
+        table_missing = (
+            "comment_mentions" in message
+            and ("no such table" in message or "does not exist" in message or "undefinedtable" in message)
+        )
+        if not table_missing:
+            raise
+
+
 def _prune_empty_deleted_comment_ancestors(db: Session, parent_comment_id: Optional[int]) -> List[int]:
     pruned: List[int] = []
     current_parent_id = parent_comment_id
@@ -628,6 +655,7 @@ def _prune_empty_deleted_comment_ancestors(db: Session, parent_comment_id: Optio
             if child_count:
                 break
             next_parent_id = getattr(parent, "parent_comment_id", None)
+            _delete_comment_mention_links(db, [current_parent_id])
             db.delete(parent)
             pruned.append(current_parent_id)
             current_parent_id = next_parent_id
@@ -5173,6 +5201,7 @@ def delete_comment(
 
             child_count = db.query(Comment).filter(Comment.parent_comment_id == comment_id).count()
             if child_count:
+                _delete_comment_mention_links(db, [comment_id])
                 comment.content = DELETED_COMMENT_TEXT
                 db.commit()
                 db.refresh(comment)
@@ -5184,7 +5213,8 @@ def delete_comment(
                 }
 
             parent_comment_id = getattr(comment, "parent_comment_id", None)
-            db.query(Comment).filter(Comment.id == comment_id).delete()
+            _delete_comment_mention_links(db, [comment_id])
+            db.delete(comment)
             pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
             db.commit()
             return {"ok": True, "deleted": comment_id, "tombstone": False, "pruned_comment_ids": pruned_comment_ids}
@@ -5585,6 +5615,12 @@ def delete_proposal(
             owner = getattr(row, "userName", "") or getattr(row, "author", "")
             if not owner or owner.lower() != clean_author.lower():
                 raise HTTPException(status_code=403, detail="Only the author can delete this post")
+            comment_ids = [
+                row_id
+                for (row_id,) in db.query(Comment.id).filter(Comment.proposal_id == pid).all()
+                if row_id
+            ]
+            _delete_comment_mention_links(db, comment_ids)
             db.query(Comment).filter(Comment.proposal_id == pid).delete()
             db.query(ProposalVote).filter(ProposalVote.proposal_id == pid).delete()
             db.query(Proposal).filter(Proposal.id == pid).delete()
