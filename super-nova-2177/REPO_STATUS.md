@@ -38,6 +38,19 @@ These folders may contain useful experiments, references, or older frontend vari
 - `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
 - Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately.
 
+## Cleanup Policy
+
+- The active frontend is `frontend-social-seven`.
+- The active backend is `backend/app.py`.
+- The Railway compatibility entrypoint is `app.py`.
+- `backend/supernova_2177_ui_weighted/supernovacore.py` is protected core. Do not edit, move, rename, delete, reformat, or copy its logic during cleanup.
+- Legacy folders are eligible for staged cleanup only after reference checks for package files, deployment config, Dockerfiles, README/docs, scripts, imports, and CI/workflows.
+- Do not delete legacy source folders in broad mixed cleanup PRs. Prefer one target folder or one generated-artifact class per deletion PR.
+- If a legacy folder is referenced by local launchers, update or retire those launcher references in the same explicit cleanup PR before deletion.
+- If a legacy folder contains deployment config, API routes, Dockerfiles, tests, or protected-core-like files, treat it as deployment-sensitive until a deeper audit proves otherwise.
+- Keep protocol docs/routes active where currently used. Do not classify protocol files as legacy frontend cleanup.
+- Keep `NEXT_PUBLIC_API_URL` and `DATABASE_URL` as the active frontend/backend env var names.
+
 ## Legacy Classification Rules
 
 - Do not move active deployment paths while Railway/Vercel are live: `app.py`, `backend/app.py`, and `frontend-social-seven`.
