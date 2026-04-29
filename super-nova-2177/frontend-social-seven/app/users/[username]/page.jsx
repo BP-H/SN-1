@@ -16,7 +16,7 @@ import {
 import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
-import { API_BASE_URL } from "@/utils/apiBase";
+import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
@@ -24,9 +24,62 @@ import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
+const PROFILE_TABS = [
+  { key: "visuals", label: "Visuals" },
+  { key: "proposals", label: "Proposals" },
+  { key: "text", label: "Text" },
+];
 
 function avatarUrl(value) {
   return normalizeAvatarValue(value) ? avatarDisplayUrl(value) : "";
+}
+
+function mediaUrl(value) {
+  const normalized = normalizeAvatarValue(value);
+  if (!normalized) return "";
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) return normalized;
+  return absoluteApiUrl(normalized);
+}
+
+function getYouTubeId(url) {
+  if (!url) return "";
+  const match = String(url).match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match?.[1] || "";
+}
+
+function getVisualMeta(post) {
+  const media = post?.media || {};
+  const images = Array.isArray(media.images) ? media.images.filter(Boolean) : [];
+  const firstImage = images[0] || media.image || "";
+  if (firstImage) {
+    return {
+      kind: "image",
+      src: mediaUrl(firstImage),
+      count: Math.max(images.length, firstImage ? 1 : 0),
+    };
+  }
+
+  const youtubeId = getYouTubeId(media.video || media.link);
+  if (youtubeId) {
+    return {
+      kind: "video",
+      src: `https://i.ytimg.com/vi_webp/${youtubeId}/maxresdefault.webp`,
+      fallbackSrc: `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`,
+      count: 1,
+    };
+  }
+
+  if (media.video) {
+    return {
+      kind: "video",
+      src: "",
+      count: 1,
+    };
+  }
+
+  return null;
 }
 
 function formatRelativeTime(dateString) {
@@ -59,6 +112,7 @@ export default function UserPostsPage() {
   const [aboutDraft, setAboutDraft] = useState("");
   const [domainDraft, setDomainDraft] = useState("");
   const [domainAsProfileDraft, setDomainAsProfileDraft] = useState(false);
+  const [activeTab, setActiveTab] = useState("proposals");
   const currentUsername = userData?.name || "";
   const isOwnProfile = Boolean(
     currentUsername && username && currentUsername.toLowerCase() === username.toLowerCase()
@@ -119,6 +173,14 @@ export default function UserPostsPage() {
       (post) => post.userName?.toLowerCase() === username.toLowerCase()
     );
   }, [postsQuery.data, username]);
+  const visualPosts = useMemo(
+    () => posts.map((post) => ({ post, visual: getVisualMeta(post) })).filter((item) => item.visual),
+    [posts]
+  );
+  const textPosts = useMemo(
+    () => posts.filter((post) => !getVisualMeta(post)),
+    [posts]
+  );
 
   const profile = profileQuery.data || {};
   const socialUser = (usersQuery.data || []).find((user) => user.username?.toLowerCase() === username.toLowerCase());
@@ -145,6 +207,10 @@ export default function UserPostsPage() {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
     };
+  }, [username]);
+
+  useEffect(() => {
+    setActiveTab("proposals");
   }, [username]);
 
   useEffect(() => {
@@ -233,6 +299,36 @@ export default function UserPostsPage() {
     if (!profileTargetUrl || typeof window === "undefined") return;
     window.open(profileTargetUrl, "_blank", "noopener,noreferrer");
   };
+
+  const openProposal = (proposalId) => {
+    if (proposalId === undefined || proposalId === null || proposalId === "") {
+      router.push("/proposals");
+      return;
+    }
+    router.push(`/proposals/${encodeURIComponent(proposalId)}`);
+  };
+
+  const renderPostCard = (post) => (
+    <ProposalCard
+      key={post.id}
+      id={post.id}
+      userName={post.userName}
+      userInitials={post.userInitials}
+      time={formatRelativeTime(post.time)}
+      title={post.title}
+      text={post.text}
+      logo={post.author_img}
+      media={post.media}
+      comments={post.comments}
+      likes={post.likes}
+      dislikes={post.dislikes}
+      profileUrl={post.profile_url}
+      domainAsProfile={post.domain_as_profile}
+      specie={post.author_type}
+      setErrorMsg={setErrorMsg}
+      setNotify={setNotify}
+    />
+  );
 
   const avatarNode = image ? (
     <img
@@ -446,27 +542,91 @@ export default function UserPostsPage() {
           </div>
         ) : (
           <>
-            {posts.map((post) => (
-              <ProposalCard
-                key={post.id}
-                id={post.id}
-                userName={post.userName}
-                userInitials={post.userInitials}
-                time={formatRelativeTime(post.time)}
-                title={post.title}
-                text={post.text}
-                logo={post.author_img}
-                media={post.media}
-                comments={post.comments}
-                likes={post.likes}
-                dislikes={post.dislikes}
-                profileUrl={post.profile_url}
-                domainAsProfile={post.domain_as_profile}
-                specie={post.author_type}
-                setErrorMsg={setErrorMsg}
-                setNotify={setNotify}
-              />
-            ))}
+            <div className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
+              <div className="grid grid-cols-3 gap-1.5 rounded-full bg-white/[0.045] p-1">
+                {PROFILE_TABS.map((tab) => {
+                  const selected = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`min-h-9 rounded-full px-2 text-[0.72rem] font-bold transition-colors ${
+                        selected
+                          ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                          : "text-[var(--text-gray-light)] hover:bg-white/[0.055] hover:text-[var(--text-black)]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {activeTab === "visuals" && (
+              visualPosts.length === 0 ? (
+                <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+                  No visual posts yet.
+                </div>
+              ) : (
+                <div className="mobile-feed-panel social-panel rounded-[1rem] p-2">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {visualPosts.map(({ post, visual }, index) => (
+                      <button
+                        key={post.id || `${post.userName || "post"}-${index}`}
+                        type="button"
+                        onClick={() => openProposal(post.id)}
+                        className="group relative aspect-square min-w-0 overflow-hidden rounded-[0.65rem] border border-white/[0.06] bg-white/[0.045] text-left shadow-sm"
+                        aria-label={`Open ${post.title || "profile post"}`}
+                      >
+                        {visual.src ? (
+                          <img
+                            src={visual.src}
+                            alt=""
+                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                            onError={(event) => {
+                              if (visual.fallbackSrc && event.currentTarget.src !== visual.fallbackSrc) {
+                                event.currentTarget.src = visual.fallbackSrc;
+                              } else {
+                                event.currentTarget.style.display = "none";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center bg-white/[0.035] px-2 text-center text-[0.72rem] font-bold text-[var(--text-gray-light)]">
+                            Video
+                          </span>
+                        )}
+                        {visual.count > 1 && (
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
+                            {visual.count}
+                          </span>
+                        )}
+                        {visual.kind === "video" && (
+                          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.62rem] font-bold text-white">
+                            Video
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
+
+            {activeTab === "proposals" && posts.map(renderPostCard)}
+
+            {activeTab === "text" && (
+              textPosts.length === 0 ? (
+                <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+                  No text-only posts yet.
+                </div>
+              ) : (
+                textPosts.map(renderPostCard)
+              )
+            )}
+
             {postsQuery.hasNextPage && (
               <button
                 type="button"
