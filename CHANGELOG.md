@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added account-bound auth regression coverage for profile, message, and profile-image sync routes.
 - Fixed proposal deletion with collab rows and moved FE7 collab review into a profile tab with support-percent polish.
 - Added a production backup/restore runbook and release-checklist confirmation gate without runtime or infrastructure changes.
 - Added community health docs: root license, security policy, code of conduct, and issue templates.
