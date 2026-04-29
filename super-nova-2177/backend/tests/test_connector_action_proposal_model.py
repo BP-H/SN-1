@@ -219,7 +219,7 @@ class ConnectorActionProposalModelTests(unittest.TestCase):
             ["target_type", "target_id"],
         )
 
-    def test_connector_action_model_does_not_add_execution_routes(self):
+    def test_connector_action_model_exposes_only_drafts_and_vote_approval(self):
         result = run_probe(PROBE)
 
         self.assertEqual(
@@ -229,14 +229,16 @@ class ConnectorActionProposalModelTests(unittest.TestCase):
                 "/connector/actions/draft-comment",
                 "/connector/actions/draft-proposal",
                 "/connector/actions/draft-vote",
+                "/connector/actions/{action_id}/approve-vote",
             ],
         )
-        self.assertFalse(
-            any(
-                marker in route
+        self.assertEqual(
+            [
+                route
                 for route in result["connector_action_routes"]
-                for marker in ("approve", "execute")
-            )
+                if "approve" in route or "execute" in route
+            ],
+            ["/connector/actions/{action_id}/approve-vote"],
         )
 
 
