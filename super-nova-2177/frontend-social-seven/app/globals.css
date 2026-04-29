@@ -647,6 +647,17 @@ html.messages-keyboard-open .mobile-bottom-shell {
   border-color: rgba(255, 79, 143, 0.22);
 }
 
+.composer-collab-pending-pill,
+.composer-collab-remove-dot {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-gray-light);
+}
+
+.composer-collab-chip:hover .composer-collab-remove-dot {
+  background: rgba(255, 79, 143, 0.18);
+  color: var(--pink);
+}
+
 .composer-governance-strip.is-decision {
   border-color: rgba(255, 79, 143, 0.2);
   background: rgba(255, 255, 255, 0.052);
@@ -717,6 +728,12 @@ html[data-theme="light"] .composer-collab-chip:hover {
   background: rgba(255, 79, 143, 0.09);
   border-color: rgba(255, 79, 143, 0.2);
   color: #c92d70;
+}
+
+html[data-theme="light"] .composer-collab-pending-pill,
+html[data-theme="light"] .composer-collab-remove-dot {
+  background: rgba(255, 255, 255, 0.74);
+  color: #687086;
 }
 
 html[data-theme="light"] .composer-governance-strip.is-decision {
@@ -3015,7 +3032,13 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   border: 1px solid rgba(255, 255, 255, 0.065);
 }
 
-.proposal-collab-chip {
+.proposal-collab-row {
+  color: var(--transparent-black);
+}
+
+.proposal-collab-label,
+.proposal-collab-chip,
+.proposal-collab-extra {
   max-width: 11rem;
   color: var(--transparent-black);
   background: rgba(255, 255, 255, 0.065);
@@ -3023,13 +3046,24 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
+.proposal-collab-avatar-link {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
+  border: 2px solid rgba(15, 18, 28, 0.92);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.proposal-collab-avatar-link:hover,
 .proposal-collab-chip:hover {
   color: var(--pink);
   background: rgba(255, 79, 143, 0.11);
   border-color: rgba(255, 79, 143, 0.22);
 }
 
-.proposal-collab-chip > span:first-child,
+.proposal-collab-avatar-link:first-child {
+  margin-left: 0;
+}
+
 .profile-visual-collab-badge {
   color: #fff;
   background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
@@ -3041,7 +3075,12 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 .profile-collab-request-card,
 .profile-collab-empty,
 .profile-collab-error,
+.profile-collab-notice,
+.profile-collab-section,
 .profile-collab-secondary-button,
+.profile-collab-danger-button,
+.profile-collab-view-post,
+.profile-collab-count-pill,
 .profile-collab-status-pill {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -3055,7 +3094,9 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .profile-collab-request-card,
 .profile-collab-empty,
-.profile-collab-error {
+.profile-collab-error,
+.profile-collab-notice,
+.profile-collab-section {
   background: rgba(255, 255, 255, 0.045);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
@@ -3065,15 +3106,34 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   border-color: rgba(255, 79, 143, 0.22);
 }
 
+.profile-collab-notice {
+  color: #dff2ff;
+  border-color: rgba(94, 141, 250, 0.22);
+}
+
 .profile-collab-secondary-button,
+.profile-collab-danger-button,
+.profile-collab-view-post,
+.profile-collab-count-pill,
 .profile-collab-status-pill {
   background: rgba(255, 255, 255, 0.065);
   color: var(--text-gray-light);
 }
 
-.profile-collab-secondary-button:hover {
+.profile-collab-view-post {
+  color: var(--pink);
+}
+
+.profile-collab-secondary-button:hover,
+.profile-collab-view-post:hover {
   background: rgba(255, 255, 255, 0.095);
   color: var(--text-black);
+}
+
+.profile-collab-danger-button:hover {
+  background: rgba(255, 79, 143, 0.11);
+  color: #ffd9e8;
+  border-color: rgba(255, 79, 143, 0.25);
 }
 
 .profile-collab-approve-button {
@@ -3081,6 +3141,12 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   background: var(--pink);
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: var(--shadow-pink);
+}
+
+.profile-collab-list-label {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
 }
 
 html[data-theme="light"] .collab-invite-panel {
@@ -3108,7 +3174,9 @@ html[data-theme="light"] .collab-user-suggestion:hover {
   background: rgba(17, 24, 39, 0.055) !important;
 }
 
-html[data-theme="light"] .proposal-collab-chip {
+html[data-theme="light"] .proposal-collab-label,
+html[data-theme="light"] .proposal-collab-chip,
+html[data-theme="light"] .proposal-collab-extra {
   color: #242838 !important;
   background: rgba(255, 255, 255, 0.74) !important;
   border-color: rgba(17, 24, 39, 0.08) !important;
@@ -3123,6 +3191,11 @@ html[data-theme="light"] .proposal-collab-chip:hover {
   border-color: rgba(255, 79, 143, 0.2) !important;
 }
 
+html[data-theme="light"] .proposal-collab-avatar-link {
+  border-color: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 8px 18px rgba(25, 30, 48, 0.14) !important;
+}
+
 html[data-theme="light"] .profile-visual-collab-badge {
   box-shadow: 0 8px 18px rgba(25, 30, 48, 0.18);
 }
@@ -3132,7 +3205,12 @@ html[data-theme="light"] .profile-collab-panel,
 html[data-theme="light"] .profile-collab-request-card,
 html[data-theme="light"] .profile-collab-empty,
 html[data-theme="light"] .profile-collab-error,
+html[data-theme="light"] .profile-collab-notice,
+html[data-theme="light"] .profile-collab-section,
 html[data-theme="light"] .profile-collab-secondary-button,
+html[data-theme="light"] .profile-collab-danger-button,
+html[data-theme="light"] .profile-collab-view-post,
+html[data-theme="light"] .profile-collab-count-pill,
 html[data-theme="light"] .profile-collab-status-pill {
   border-color: rgba(17, 24, 39, 0.08) !important;
 }
@@ -3146,7 +3224,9 @@ html[data-theme="light"] .profile-collab-panel {
 
 html[data-theme="light"] .profile-collab-request-card,
 html[data-theme="light"] .profile-collab-empty,
-html[data-theme="light"] .profile-collab-error {
+html[data-theme="light"] .profile-collab-error,
+html[data-theme="light"] .profile-collab-notice,
+html[data-theme="light"] .profile-collab-section {
   background: rgba(17, 24, 39, 0.04) !important;
   color: #242838 !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
@@ -3157,15 +3237,34 @@ html[data-theme="light"] .profile-collab-error {
   border-color: rgba(255, 79, 149, 0.22) !important;
 }
 
+html[data-theme="light"] .profile-collab-notice {
+  color: #234083 !important;
+  border-color: rgba(94, 141, 250, 0.22) !important;
+}
+
 html[data-theme="light"] .profile-collab-secondary-button,
+html[data-theme="light"] .profile-collab-danger-button,
+html[data-theme="light"] .profile-collab-view-post,
+html[data-theme="light"] .profile-collab-count-pill,
 html[data-theme="light"] .profile-collab-status-pill {
   background: rgba(255, 255, 255, 0.68) !important;
   color: #4b556d !important;
 }
 
-html[data-theme="light"] .profile-collab-secondary-button:hover {
+html[data-theme="light"] .profile-collab-view-post {
+  color: #c92d70 !important;
+}
+
+html[data-theme="light"] .profile-collab-secondary-button:hover,
+html[data-theme="light"] .profile-collab-view-post:hover {
   background: rgba(17, 24, 39, 0.07) !important;
   color: #161924 !important;
+}
+
+html[data-theme="light"] .profile-collab-danger-button:hover {
+  background: rgba(255, 79, 143, 0.09) !important;
+  color: #9f174a !important;
+  border-color: rgba(255, 79, 149, 0.22) !important;
 }
 
 html[data-theme="light"] .profile-collab-approve-button {
@@ -3175,6 +3274,10 @@ html[data-theme="light"] .profile-collab-approve-button {
   box-shadow:
     0 10px 24px rgba(255, 79, 149, 0.18),
     var(--shadow-pink) !important;
+}
+
+html[data-theme="light"] .profile-collab-list-label {
+  box-shadow: 0 8px 18px rgba(25, 30, 48, 0.14) !important;
 }
 
 html[data-theme="light"] .post-action-bar {

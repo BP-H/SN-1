@@ -15,6 +15,15 @@ MCP endpoint:
 https://YOUR-SUPERNOVA-MCP-DEPLOYMENT.vercel.app/mcp
 ```
 
+Current behavior:
+
+- Browser health/admin check: `/health`
+- ChatGPT/Codex MCP URL: `/mcp`
+- Browser `GET /mcp` saying it expects POST requests is normal
+- If `/health` reports `upstream_connector_check.json:false`, set
+  `SUPERNOVA_API_BASE_URL` to the backend API origin that returns JSON for
+  `/connector/supernova`
+
 ## Tools
 
 - `search_proposals`

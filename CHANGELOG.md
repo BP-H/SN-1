@@ -66,6 +66,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Surfaced approved collabs in public proposal/profile views and added read-only connector/MCP vote summaries.
 - Added post-composer collab invite chips from verified @mentions and MCP upstream JSON diagnostics.
 - Added profile feed fallback guards for collab-expanded posts and a visible FE7 collab request review panel.
+- Polished FE7 collab cards, composer invite chips, profile request review, and collab notification copy.
 - Fixed mention-linked post/comment deletes and tightened FE7 mention rendering/autocomplete placement.
 - Added first-pass backend comment mention records and notifications without FE7 or collab behavior changes.
 - Added first-pass backend proposal mention notifications without FE7 or collab behavior changes.

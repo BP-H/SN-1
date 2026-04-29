@@ -813,7 +813,7 @@ function InputFields({
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="flex items-center gap-1 text-[0.66rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
                 <IoPersonAddOutline className="text-[var(--pink)]" />
-                Pending collabs
+                Collab invites
               </span>
               {pendingCollabInvitees.map((invitee) => (
                 <button
@@ -837,10 +837,12 @@ function InputFields({
                     )}
                   </span>
                   <span className="truncate">@{invitee.username}</span>
-                  <span className="hidden shrink-0 rounded-full px-1 py-0.5 text-[0.52rem] uppercase tracking-[0.08em] sm:inline">
-                    {invitee.species}
+                  <span className="composer-collab-pending-pill hidden shrink-0 rounded-full px-1.5 py-0.5 text-[0.52rem] uppercase tracking-[0.08em] sm:inline">
+                    invite pending
                   </span>
-                  <IoClose className="shrink-0 text-[0.78rem]" />
+                  <span className="composer-collab-remove-dot flex h-4 w-4 shrink-0 items-center justify-center rounded-full" aria-hidden="true">
+                    <IoClose className="text-[0.72rem]" />
+                  </span>
                 </button>
               ))}
             </div>

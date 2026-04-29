@@ -247,6 +247,8 @@ export default function UserPostsPage() {
   const [activeTab, setActiveTab] = useState("visuals");
   const [collabPanelOpen, setCollabPanelOpen] = useState(false);
   const [collabReviewBusyId, setCollabReviewBusyId] = useState("");
+  const [collabPanelNotice, setCollabPanelNotice] = useState("");
+  const [collabPanelError, setCollabPanelError] = useState("");
   const currentUsername = userData?.name || "";
   const isOwnProfile = Boolean(
     currentUsername && username && currentUsername.toLowerCase() === username.toLowerCase()
@@ -476,7 +478,8 @@ export default function UserPostsPage() {
   const handleReviewCollabRequest = async (collab, reviewAction) => {
     if (!collab?.id || collabReviewBusyId) return;
     setCollabReviewBusyId(`${reviewAction}:${collab.id}`);
-    setErrorMsg([]);
+    setCollabPanelNotice("");
+    setCollabPanelError("");
     try {
       requireBackendAuthSession();
       const response = await fetch(`${API_BASE_URL}/proposal-collabs/${collab.id}/${reviewAction}`, {
@@ -492,13 +495,14 @@ export default function UserPostsPage() {
         decline: "Collab request declined.",
         remove: "Collab request removed.",
       };
+      setCollabPanelNotice(labels[reviewAction] || "Collab request updated.");
       setNotify([labels[reviewAction] || "Collab request updated."]);
       queryClient.invalidateQueries({ queryKey: ["proposal-collabs"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
     } catch (error) {
-      setErrorMsg([error?.message || BACKEND_AUTH_MISSING_MESSAGE]);
+      setCollabPanelError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
     } finally {
       setCollabReviewBusyId("");
     }
@@ -533,9 +537,9 @@ export default function UserPostsPage() {
             <button
               type="button"
               onClick={() => openProposal(collab.proposal_id)}
-              className="mt-2 max-w-full truncate text-left text-[0.78rem] font-semibold text-[var(--pink)] hover:underline"
+              className="profile-collab-view-post mt-2 inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-left text-[0.72rem] font-black"
             >
-              {proposalLabel}
+              <span className="truncate">View post: {proposalLabel}</span>
             </button>
           </div>
         </div>
@@ -547,6 +551,7 @@ export default function UserPostsPage() {
                 onClick={() => handleReviewCollabRequest(collab, "approve")}
                 disabled={Boolean(collabReviewBusyId)}
                 className="profile-collab-approve-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+                aria-busy={busyKey === `approve:${collab.id}`}
               >
                 {busyKey === `approve:${collab.id}` ? "Approving..." : "Approve"}
               </button>
@@ -554,7 +559,8 @@ export default function UserPostsPage() {
                 type="button"
                 onClick={() => handleReviewCollabRequest(collab, "decline")}
                 disabled={Boolean(collabReviewBusyId)}
-                className="profile-collab-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+                className="profile-collab-danger-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+                aria-busy={busyKey === `decline:${collab.id}`}
               >
                 {busyKey === `decline:${collab.id}` ? "Declining..." : "Decline"}
               </button>
@@ -565,6 +571,7 @@ export default function UserPostsPage() {
             onClick={() => handleReviewCollabRequest(collab, "remove")}
             disabled={Boolean(collabReviewBusyId)}
             className="profile-collab-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+            aria-busy={busyKey === `remove:${collab.id}`}
           >
             {busyKey === `remove:${collab.id}` ? "Removing..." : isIncoming ? "Remove" : "Cancel"}
           </button>
@@ -584,28 +591,38 @@ export default function UserPostsPage() {
       );
   };
 
-  const renderPostCard = (post) => (
-    <ProposalCard
-      key={post.id}
-      id={post.id}
-      userName={post.userName}
-      userInitials={post.userInitials}
-      time={formatRelativeTime(post.time)}
-      title={post.title}
-      text={post.text}
-      logo={post.author_img}
-      media={post.media}
-      comments={post.comments}
-      collabs={post.collabs}
-      likes={post.likes}
-      dislikes={post.dislikes}
-      profileUrl={post.profile_url}
-      domainAsProfile={post.domain_as_profile}
-      specie={post.author_type}
-      setErrorMsg={setErrorMsg}
-      setNotify={setNotify}
-    />
-  );
+  const renderPostCard = (post) => {
+    const isCollabPost = isProfileCollabPost(post);
+    return (
+      <div key={post.id} className={isCollabPost ? "profile-collab-list-item grid gap-2" : ""}>
+        {isCollabPost && (
+          <div className="profile-collab-list-label mx-[0.35rem] inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-[0.66rem] font-black uppercase tracking-[0.12em]">
+            <IoPeopleOutline className="text-[0.9rem]" />
+            Collab post
+          </div>
+        )}
+        <ProposalCard
+          id={post.id}
+          userName={post.userName}
+          userInitials={post.userInitials}
+          time={formatRelativeTime(post.time)}
+          title={post.title}
+          text={post.text}
+          logo={post.author_img}
+          media={post.media}
+          comments={post.comments}
+          collabs={post.collabs}
+          likes={post.likes}
+          dislikes={post.dislikes}
+          profileUrl={post.profile_url}
+          domainAsProfile={post.domain_as_profile}
+          specie={post.author_type}
+          setErrorMsg={setErrorMsg}
+          setNotify={setNotify}
+        />
+      </div>
+    );
+  };
 
   const avatarNode = image ? (
     <img
@@ -659,7 +676,11 @@ export default function UserPostsPage() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setCollabPanelOpen((value) => !value)}
+              onClick={() => {
+                setCollabPanelNotice("");
+                setCollabPanelError("");
+                setCollabPanelOpen((value) => !value);
+              }}
               className={`profile-collab-entry-button relative flex h-10 w-10 items-center justify-center rounded-full ${
                 collabPanelOpen
                   ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
@@ -823,7 +844,9 @@ export default function UserPostsPage() {
               <div className="min-w-0">
                 <p className="text-[0.9rem] font-black text-[var(--text-black)]">Collab requests</p>
                 <p className="mt-1 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                  Review incoming invites and outgoing pending requests.
+                  {pendingCollabCount > 0
+                    ? `${collabIncoming.length} incoming, ${collabOutgoing.length} outgoing pending.`
+                    : "Review incoming invites and outgoing pending requests."}
                 </p>
               </div>
               <button
@@ -835,6 +858,21 @@ export default function UserPostsPage() {
                 <IoClose />
               </button>
             </div>
+
+            {(collabPanelNotice || collabPanelError) && (
+              <div className="profile-collab-state-slot mt-3">
+                {collabPanelNotice && (
+                  <div className="profile-collab-notice rounded-[0.9rem] px-3 py-2 text-[0.76rem] font-semibold">
+                    {collabPanelNotice}
+                  </div>
+                )}
+                {collabPanelError && (
+                  <div className="profile-collab-error rounded-[0.9rem] px-3 py-2 text-[0.76rem] font-semibold">
+                    {collabPanelError}
+                  </div>
+                )}
+              </div>
+            )}
 
             {!isAuthenticated || !currentUsername ? (
               <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
@@ -861,22 +899,40 @@ export default function UserPostsPage() {
               </div>
             ) : (
               <div className="mt-3 grid gap-3">
-                {collabIncoming.length > 0 && (
-                  <div className="grid gap-2">
-                    <p className="px-1 text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                <div className="profile-collab-section grid gap-2 rounded-[0.95rem] p-2">
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
                       Incoming
                     </p>
-                    {collabIncoming.map((collab) => renderCollabRequestCard(collab, "incoming"))}
+                    <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
+                      {collabIncoming.length}
+                    </span>
                   </div>
-                )}
-                {collabOutgoing.length > 0 && (
-                  <div className="grid gap-2">
-                    <p className="px-1 text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                  {collabIncoming.length > 0 ? (
+                    collabIncoming.map((collab) => renderCollabRequestCard(collab, "incoming"))
+                  ) : (
+                    <div className="profile-collab-empty rounded-[0.85rem] px-3 py-3 text-[0.76rem] text-[var(--text-gray-light)]">
+                      No incoming requests waiting on you.
+                    </div>
+                  )}
+                </div>
+                <div className="profile-collab-section grid gap-2 rounded-[0.95rem] p-2">
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
                       Outgoing
                     </p>
-                    {collabOutgoing.map((collab) => renderCollabRequestCard(collab, "outgoing"))}
+                    <span className="profile-collab-count-pill rounded-full px-2 py-0.5 text-[0.62rem] font-black">
+                      {collabOutgoing.length}
+                    </span>
                   </div>
-                )}
+                  {collabOutgoing.length > 0 ? (
+                    collabOutgoing.map((collab) => renderCollabRequestCard(collab, "outgoing"))
+                  ) : (
+                    <div className="profile-collab-empty rounded-[0.85rem] px-3 py-3 text-[0.76rem] text-[var(--text-gray-light)]">
+                      No outgoing invites waiting for approval.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
