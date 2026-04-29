@@ -174,8 +174,8 @@ function MentionSuggestionAvatar({ user, active }) {
 
   return (
     <span
-      className={`relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.62rem] font-black uppercase ring-1 ${
-        active ? "bg-white/18 text-white ring-white/20" : "bg-white/10 text-white/82 ring-white/10"
+      className={`mention-autocomplete-avatar relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.62rem] font-black uppercase ${
+        active ? "mention-autocomplete-avatar-active" : ""
       }`}
     >
       {showImage ? (
@@ -264,7 +264,7 @@ export function MentionAutocomplete({ controller, withinAiCursor = false }) {
   const panel = (
     <div
       data-ai-cursor-root={withinAiCursor ? "true" : undefined}
-      className="fixed z-[2147482600] overflow-y-auto overflow-x-hidden rounded-[0.9rem] border border-white/10 bg-[#090d14]/95 p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.42)] ring-1 ring-white/[0.04] backdrop-blur-2xl [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 hover:[&::-webkit-scrollbar-thumb]:bg-white/35"
+      className="mention-autocomplete-panel fixed z-[2147482600] overflow-y-auto overflow-x-hidden rounded-[0.9rem] p-1.5 backdrop-blur-2xl"
       style={{
         left: `${placement.left}px`,
         top: `${placement.top}px`,
@@ -280,16 +280,14 @@ export function MentionAutocomplete({ controller, withinAiCursor = false }) {
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => controller.selectUser(user)}
-            className={`flex w-full min-w-0 items-center gap-2 rounded-[0.72rem] px-2 py-1.5 text-left transition-colors ${
-              active
-                ? "bg-[var(--pink)] text-white shadow-[0_0_18px_rgba(255,79,143,0.24)]"
-                : "text-[var(--transparent-black)] hover:bg-white/[0.075]"
+            className={`mention-autocomplete-row flex w-full min-w-0 items-center gap-2 rounded-[0.72rem] px-2 py-1.5 text-left transition-colors ${
+              active ? "mention-autocomplete-row-active" : ""
             }`}
           >
             <MentionSuggestionAvatar user={user} active={active} />
             <span className="min-w-0 flex-1 truncate text-[0.8rem] font-semibold">@{user.username}</span>
-            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.08em] ${
-              active ? "bg-white/15 text-white/80" : "bg-white/[0.055] text-[var(--text-gray-light)]"
+            <span className={`mention-autocomplete-species shrink-0 rounded-full px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.08em] ${
+              active ? "mention-autocomplete-species-active" : ""
             }`}>
               {user.species}
             </span>

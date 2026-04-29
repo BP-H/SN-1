@@ -62,6 +62,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Rendered public FE7 @mentions as profile links on post, comment, and profile bio text.
 - Added first-pass FE7 @mention autocomplete for public post and comment composers.
 - Polished FE7 mention link colors and suggestion avatar rendering.
+- Made FE7 mention autocomplete popups theme-aware for light and dark surfaces.
 - Polished FE7 @mention autocomplete popovers and added AI widget comment support.
 - Added FE7 public profile tabs with a read-only visual grid using existing post media.
 - Polished FE7 profile tab counts and visual-grid thumbnail fallback behavior.
