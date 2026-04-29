@@ -233,6 +233,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
               embedded
               autoFocus
               setDiscard={setDiscard}
+              setNotify={setNotify}
               autoOpenMediaType={pendingMediaPicker}
               onAutoOpenConsumed={() => setPendingMediaPicker("")}
             />

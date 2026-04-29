@@ -493,6 +493,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               embedded
               autoFocus
               setDiscard={setDiscard}
+              setNotify={setNotify}
               autoOpenMediaType={pendingMediaPicker}
               onAutoOpenConsumed={() => setPendingMediaPicker("")}
             />

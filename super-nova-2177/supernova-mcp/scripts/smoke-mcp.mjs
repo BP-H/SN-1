@@ -67,6 +67,15 @@ async function checkHealth(baseUrl) {
     throw new Error("GET /health did not return ok:true.");
   }
 
+  const upstreamCheck = payload?.upstream_connector_check;
+  if (upstreamCheck && upstreamCheck.json !== true) {
+    const status = upstreamCheck.status ? ` HTTP ${upstreamCheck.status}` : "";
+    throw new Error(
+      `GET /health reports upstream connector JSON check failed for ${upstreamCheck.path || "/connector/supernova"}${status}. ` +
+        "Set SUPERNOVA_API_BASE_URL to the backend API origin that returns JSON for /connector/supernova."
+    );
+  }
+
   console.log("PASS health: /health returned ok:true");
 }
 

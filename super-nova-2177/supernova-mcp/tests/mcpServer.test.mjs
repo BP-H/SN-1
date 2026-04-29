@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { clampLimit, createSuperNovaMcpServer, getApiBaseUrl, normalizeOffset } from "../src/mcpServer.js";
+import {
+  checkUpstreamConnector,
+  clampLimit,
+  createSuperNovaMcpServer,
+  getApiBaseUrl,
+  getUpstreamBaseOrigin,
+  normalizeOffset,
+} from "../src/mcpServer.js";
 
 test("default API base URL is the public SuperNova origin", () => {
   const previous = process.env.SUPERNOVA_API_BASE_URL;
@@ -19,6 +26,32 @@ test("API base URL override is trimmed and normalized", () => {
   process.env.SUPERNOVA_API_BASE_URL = " https://example.test/// ";
   try {
     assert.equal(getApiBaseUrl(), "https://example.test");
+  } finally {
+    if (previous === undefined) delete process.env.SUPERNOVA_API_BASE_URL;
+    else process.env.SUPERNOVA_API_BASE_URL = previous;
+  }
+});
+
+test("upstream origin helper exposes only the public origin", () => {
+  const previous = process.env.SUPERNOVA_API_BASE_URL;
+  process.env.SUPERNOVA_API_BASE_URL = " https://backend.example.test/api/// ";
+  try {
+    assert.equal(getUpstreamBaseOrigin(), "https://backend.example.test");
+  } finally {
+    if (previous === undefined) delete process.env.SUPERNOVA_API_BASE_URL;
+    else process.env.SUPERNOVA_API_BASE_URL = previous;
+  }
+});
+
+test("upstream connector check handles invalid origin without throwing", async () => {
+  const previous = process.env.SUPERNOVA_API_BASE_URL;
+  process.env.SUPERNOVA_API_BASE_URL = "not a url";
+  try {
+    const result = await checkUpstreamConnector();
+    assert.equal(result.path, "/connector/supernova");
+    assert.equal(result.json, false);
+    assert.equal(result.reachable, false);
+    assert.equal(result.error, "invalid_upstream_origin");
   } finally {
     if (previous === undefined) delete process.env.SUPERNOVA_API_BASE_URL;
     else process.env.SUPERNOVA_API_BASE_URL = previous;

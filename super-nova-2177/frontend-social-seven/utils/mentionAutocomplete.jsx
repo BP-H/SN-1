@@ -60,7 +60,7 @@ function normalizeUsers(payload) {
     });
 }
 
-export function useMentionAutocomplete({ value, setValue, inputRef, limit = 6 }) {
+export function useMentionAutocomplete({ value, setValue, inputRef, limit = 6, onSelectUser }) {
   const [caretIndex, setCaretIndex] = useState(0);
   const [suggestions, setSuggestions] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -89,6 +89,7 @@ export function useMentionAutocomplete({ value, setValue, inputRef, limit = 6 })
       const nextCaret = before.length + inserted.length;
 
       setValue(nextValue);
+      onSelectUser?.(user);
       close();
       window.requestAnimationFrame(() => {
         inputRef.current?.focus();
@@ -96,7 +97,7 @@ export function useMentionAutocomplete({ value, setValue, inputRef, limit = 6 })
         setCaretIndex(nextCaret);
       });
     },
-    [activeMention, close, inputRef, setValue, value]
+    [activeMention, close, inputRef, onSelectUser, setValue, value]
   );
 
   const handleKeyDown = useCallback(

@@ -64,6 +64,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added Vercel packaging for the SuperNova MCP prototype and backend proposal-collab request/approval routes.
 - Verified public FE7 @mention links against existing users and added minimal collab invite/review UI.
 - Surfaced approved collabs in public proposal/profile views and added read-only connector/MCP vote summaries.
+- Added post-composer collab invite chips from verified @mentions and MCP upstream JSON diagnostics.
 - Fixed mention-linked post/comment deletes and tightened FE7 mention rendering/autocomplete placement.
 - Added first-pass backend comment mention records and notifications without FE7 or collab behavior changes.
 - Added first-pass backend proposal mention notifications without FE7 or collab behavior changes.
