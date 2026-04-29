@@ -62,6 +62,11 @@ Local endpoints:
 - `http://127.0.0.1:3033/health`
 - `http://127.0.0.1:3033/mcp`
 
+`/mcp` is an MCP transport endpoint. Opening it directly in a browser with a
+plain `GET` can return a message such as `expects POST requests`; that is
+normal. Use `/health` for browser checks, and paste the `/mcp` URL into
+ChatGPT/Codex or another MCP client because those clients POST MCP requests.
+
 ## Deploy To Vercel
 
 1. Create a new Vercel project.
@@ -133,6 +138,9 @@ After deployment:
    ```txt
    https://YOUR-MCP-DEPLOYMENT.vercel.app/mcp
    ```
+
+   Do not use browser `GET /mcp` as the deployment test. A browser-visible
+   `expects POST requests` response is expected for the MCP endpoint.
 
 4. If ChatGPT custom connector UI is not available, test with Codex CLI instead.
 

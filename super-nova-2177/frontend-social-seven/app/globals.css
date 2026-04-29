@@ -3036,6 +3036,53 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
 }
 
+.profile-collab-entry-button,
+.profile-collab-panel,
+.profile-collab-request-card,
+.profile-collab-empty,
+.profile-collab-error,
+.profile-collab-secondary-button,
+.profile-collab-status-pill {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-collab-panel {
+  background: rgba(9, 13, 20, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 18px 42px rgba(0, 0, 0, 0.2);
+}
+
+.profile-collab-request-card,
+.profile-collab-empty,
+.profile-collab-error {
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.profile-collab-error {
+  color: #ffd9e8;
+  border-color: rgba(255, 79, 143, 0.22);
+}
+
+.profile-collab-secondary-button,
+.profile-collab-status-pill {
+  background: rgba(255, 255, 255, 0.065);
+  color: var(--text-gray-light);
+}
+
+.profile-collab-secondary-button:hover {
+  background: rgba(255, 255, 255, 0.095);
+  color: var(--text-black);
+}
+
+.profile-collab-approve-button {
+  color: #fff;
+  background: var(--pink);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-pink);
+}
+
 html[data-theme="light"] .collab-invite-panel {
   background: rgba(255, 255, 255, 0.96) !important;
   border-color: rgba(17, 24, 39, 0.08) !important;
@@ -3078,6 +3125,56 @@ html[data-theme="light"] .proposal-collab-chip:hover {
 
 html[data-theme="light"] .profile-visual-collab-badge {
   box-shadow: 0 8px 18px rgba(25, 30, 48, 0.18);
+}
+
+html[data-theme="light"] .profile-collab-entry-button,
+html[data-theme="light"] .profile-collab-panel,
+html[data-theme="light"] .profile-collab-request-card,
+html[data-theme="light"] .profile-collab-empty,
+html[data-theme="light"] .profile-collab-error,
+html[data-theme="light"] .profile-collab-secondary-button,
+html[data-theme="light"] .profile-collab-status-pill {
+  border-color: rgba(17, 24, 39, 0.08) !important;
+}
+
+html[data-theme="light"] .profile-collab-panel {
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 42px rgba(25, 30, 48, 0.1) !important;
+}
+
+html[data-theme="light"] .profile-collab-request-card,
+html[data-theme="light"] .profile-collab-empty,
+html[data-theme="light"] .profile-collab-error {
+  background: rgba(17, 24, 39, 0.04) !important;
+  color: #242838 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+}
+
+html[data-theme="light"] .profile-collab-error {
+  color: #9f174a !important;
+  border-color: rgba(255, 79, 149, 0.22) !important;
+}
+
+html[data-theme="light"] .profile-collab-secondary-button,
+html[data-theme="light"] .profile-collab-status-pill {
+  background: rgba(255, 255, 255, 0.68) !important;
+  color: #4b556d !important;
+}
+
+html[data-theme="light"] .profile-collab-secondary-button:hover {
+  background: rgba(17, 24, 39, 0.07) !important;
+  color: #161924 !important;
+}
+
+html[data-theme="light"] .profile-collab-approve-button {
+  color: #fff !important;
+  background: var(--pink) !important;
+  border-color: rgba(255, 255, 255, 0.66) !important;
+  box-shadow:
+    0 10px 24px rgba(255, 79, 149, 0.18),
+    var(--shadow-pink) !important;
 }
 
 html[data-theme="light"] .post-action-bar {

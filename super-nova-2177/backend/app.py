@@ -5040,26 +5040,27 @@ def list_proposals(
             from sqlalchemy import func, case
             query = db.query(Proposal)
             clean_author = (author or "").strip()
-            author_collab_user = (
-                _find_harmonizer_by_username(db, clean_author)
-                if include_collabs and clean_author and ProposalCollab is not None
-                else None
-            )
+            author_collab_user_id = None
+            if include_collabs and clean_author and ProposalCollab is not None and Harmonizer is not None:
+                try:
+                    author_collab_user_id = getattr(_find_harmonizer_by_username(db, clean_author), "id", None)
+                except Exception:
+                    author_collab_user_id = None
 
             def apply_author_scope(base_query):
                 if not clean_author:
                     return base_query
                 author_conditions = [func.lower(Proposal.userName) == clean_author.lower()]
-                if author_collab_user is not None and ProposalCollab is not None:
+                if author_collab_user_id is not None and ProposalCollab is not None:
                     base_query = base_query.outerjoin(
                         ProposalCollab,
                         and_(
                             ProposalCollab.proposal_id == Proposal.id,
                             ProposalCollab.status == "approved",
-                            ProposalCollab.collaborator_user_id == getattr(author_collab_user, "id", None),
+                            ProposalCollab.collaborator_user_id == author_collab_user_id,
                         ),
                     )
-                    author_conditions.append(Proposal.author_id == getattr(author_collab_user, "id", None))
+                    author_conditions.append(Proposal.author_id == author_collab_user_id)
                     author_conditions.append(ProposalCollab.id.isnot(None))
                     return base_query.filter(or_(*author_conditions)).distinct()
                 return base_query.filter(or_(*author_conditions))

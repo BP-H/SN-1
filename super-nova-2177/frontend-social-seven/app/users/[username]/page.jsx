@@ -12,6 +12,7 @@ import {
   IoGlobeOutline,
   IoGridOutline,
   IoLinkOutline,
+  IoPeopleOutline,
   IoPersonAddOutline,
   IoPersonRemoveOutline,
   IoTextOutline,
@@ -20,7 +21,7 @@ import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
@@ -177,6 +178,58 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
+function collabUserLabel(user) {
+  const username = String(user?.username || "").trim();
+  return username ? `@${username}` : "Unknown user";
+}
+
+function CollabUserAvatar({ user }) {
+  const [failed, setFailed] = useState(false);
+  const avatar = failed ? "" : avatarUrl(user?.avatar || user?.avatar_url || user?.profile_pic);
+  const initials = String(user?.username || "SN").slice(0, 2).toUpperCase();
+
+  return avatar ? (
+    <img
+      src={avatar}
+      alt=""
+      className="h-9 w-9 rounded-full border border-white/10 object-cover"
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.08] text-[0.72rem] font-black text-[var(--text-black)]">
+      {initials}
+    </span>
+  );
+}
+
+async function fetchProfilePostsPage(username, pageParam) {
+  const baseUrl = `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}`;
+  let withCollabs = null;
+  try {
+    withCollabs = await fetch(`${baseUrl}&include_collabs=true`);
+  } catch {
+    withCollabs = null;
+  }
+  if (withCollabs?.ok) {
+    const payload = await withCollabs.json().catch(() => []);
+    return Array.isArray(payload) ? payload : [];
+  }
+
+  let authorOnly = null;
+  try {
+    authorOnly = await fetch(baseUrl);
+  } catch {
+    throw new Error("Failed to load posts");
+  }
+  if (authorOnly.ok) {
+    const payload = await authorOnly.json().catch(() => []);
+    return Array.isArray(payload) ? payload : [];
+  }
+
+  const errorPayload = await authorOnly.json().catch(() => ({}));
+  throw new Error(errorPayload?.detail || "Failed to load posts");
+}
+
 export default function UserPostsPage() {
   const params = useParams();
   const router = useRouter();
@@ -192,6 +245,8 @@ export default function UserPostsPage() {
   const [domainDraft, setDomainDraft] = useState("");
   const [domainAsProfileDraft, setDomainAsProfileDraft] = useState(false);
   const [activeTab, setActiveTab] = useState("visuals");
+  const [collabPanelOpen, setCollabPanelOpen] = useState(false);
+  const [collabReviewBusyId, setCollabReviewBusyId] = useState("");
   const currentUsername = userData?.name || "";
   const isOwnProfile = Boolean(
     currentUsername && username && currentUsername.toLowerCase() === username.toLowerCase()
@@ -211,11 +266,7 @@ export default function UserPostsPage() {
     queryKey: ["user-posts", username, "include-collabs"],
     enabled: Boolean(username),
     queryFn: async ({ pageParam = 0 }) => {
-      const response = await fetch(
-        `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&include_collabs=true&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}`
-      );
-      if (!response.ok) throw new Error("Failed to load posts");
-      return response.json();
+      return fetchProfilePostsPage(username, pageParam);
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
@@ -245,6 +296,25 @@ export default function UserPostsPage() {
       if (!response.ok) throw new Error("Failed to load follow status");
       return response.json();
     },
+  });
+
+  const collabRequestsQuery = useQuery({
+    queryKey: ["proposal-collabs", currentUsername, "pending"],
+    enabled: Boolean(isAuthenticated && currentUsername),
+    queryFn: async () => {
+      requireBackendAuthSession();
+      const fetchRole = async (role) => {
+        const response = await fetch(`${API_BASE_URL}/proposal-collabs?role=${role}&status=pending&limit=50`, {
+          headers: authHeaders(),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload?.detail || "Unable to load collab requests.");
+        return Array.isArray(payload?.collabs) ? payload.collabs : [];
+      };
+      const [incoming, outgoing] = await Promise.all([fetchRole("collaborator"), fetchRole("author")]);
+      return { incoming, outgoing };
+    },
+    staleTime: 30000,
   });
 
   const posts = useMemo(() => {
@@ -285,6 +355,9 @@ export default function UserPostsPage() {
   const profileTargetUrl = domainAsProfile ? normalizeLinkHref(publicDomain) : "";
   const following = Boolean(followQuery.data?.following);
   const harmonyScore = Math.round(Number(profile.harmony_score ?? profile.karma ?? 0) || 0);
+  const collabIncoming = collabRequestsQuery.data?.incoming || [];
+  const collabOutgoing = collabRequestsQuery.data?.outgoing || [];
+  const pendingCollabCount = collabIncoming.length + collabOutgoing.length;
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -400,6 +473,106 @@ export default function UserPostsPage() {
     router.push(`/proposals/${encodeURIComponent(proposalId)}`);
   };
 
+  const handleReviewCollabRequest = async (collab, reviewAction) => {
+    if (!collab?.id || collabReviewBusyId) return;
+    setCollabReviewBusyId(`${reviewAction}:${collab.id}`);
+    setErrorMsg([]);
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/proposal-collabs/${collab.id}/${reviewAction}`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Unable to update collab request.");
+      }
+      const labels = {
+        approve: "Collab request approved.",
+        decline: "Collab request declined.",
+        remove: "Collab request removed.",
+      };
+      setNotify([labels[reviewAction] || "Collab request updated."]);
+      queryClient.invalidateQueries({ queryKey: ["proposal-collabs"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+    } catch (error) {
+      setErrorMsg([error?.message || BACKEND_AUTH_MISSING_MESSAGE]);
+    } finally {
+      setCollabReviewBusyId("");
+    }
+  };
+
+  const renderCollabRequestCard = (collab, direction) => {
+    const isIncoming = direction === "incoming";
+    const person = isIncoming ? collab.author : collab.collaborator;
+    const busyKey = collabReviewBusyId || "";
+    const proposalLabel = collab.proposal_title || `Proposal #${collab.proposal_id}`;
+
+    return (
+      <article key={`${direction}-${collab.id}`} className="profile-collab-request-card rounded-[1rem] p-3">
+        <div className="flex items-start gap-3">
+          <CollabUserAvatar user={person} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-[0.82rem] font-black text-[var(--text-black)]">
+                  {isIncoming ? "Incoming collab" : "Outgoing collab"}
+                </p>
+                <p className="truncate text-[0.72rem] text-[var(--text-gray-light)]">
+                  {isIncoming
+                    ? `${collabUserLabel(person)} invited you`
+                    : `Waiting on ${collabUserLabel(person)}`}
+                </p>
+              </div>
+              <span className="profile-collab-status-pill shrink-0 rounded-full px-2 py-1 text-[0.6rem] font-black uppercase tracking-[0.1em]">
+                {collab.status || "pending"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => openProposal(collab.proposal_id)}
+              className="mt-2 max-w-full truncate text-left text-[0.78rem] font-semibold text-[var(--pink)] hover:underline"
+            >
+              {proposalLabel}
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          {isIncoming && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleReviewCollabRequest(collab, "approve")}
+                disabled={Boolean(collabReviewBusyId)}
+                className="profile-collab-approve-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+              >
+                {busyKey === `approve:${collab.id}` ? "Approving..." : "Approve"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReviewCollabRequest(collab, "decline")}
+                disabled={Boolean(collabReviewBusyId)}
+                className="profile-collab-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+              >
+                {busyKey === `decline:${collab.id}` ? "Declining..." : "Decline"}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => handleReviewCollabRequest(collab, "remove")}
+            disabled={Boolean(collabReviewBusyId)}
+            className="profile-collab-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-bold disabled:opacity-55"
+          >
+            {busyKey === `remove:${collab.id}` ? "Removing..." : isIncoming ? "Remove" : "Cancel"}
+          </button>
+        </div>
+      </article>
+    );
+  };
+
   const isProfileCollabPost = (post) => {
     const profileKey = username.toLowerCase();
     const authorKey = String(post?.userName || "").toLowerCase();
@@ -484,6 +657,24 @@ export default function UserPostsPage() {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCollabPanelOpen((value) => !value)}
+              className={`profile-collab-entry-button relative flex h-10 w-10 items-center justify-center rounded-full ${
+                collabPanelOpen
+                  ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                  : "bg-white/[0.06] text-[var(--text-gray-light)] hover:text-[var(--pink)]"
+              }`}
+              aria-label="Review collab requests"
+              title="Collab requests"
+            >
+              <IoPeopleOutline />
+              {pendingCollabCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--pink)] px-1 text-[0.62rem] font-black text-white shadow-[var(--shadow-pink)]">
+                  {pendingCollabCount > 9 ? "9+" : pendingCollabCount}
+                </span>
+              )}
+            </button>
             {isOwnProfile ? (
               <button
                 type="button"
@@ -623,8 +814,73 @@ export default function UserPostsPage() {
               <p className="text-[0.86rem] font-bold text-[var(--text-black)]">{value}</p>
               <p className="text-[0.62rem] uppercase tracking-[0.14em] text-[var(--text-gray-light)]">{label}</p>
             </div>
-          ))}
+            ))}
         </div>
+
+        {collabPanelOpen && (
+          <div className="profile-collab-panel mt-4 rounded-[1rem] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[0.9rem] font-black text-[var(--text-black)]">Collab requests</p>
+                <p className="mt-1 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                  Review incoming invites and outgoing pending requests.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCollabPanelOpen(false)}
+                className="profile-collab-secondary-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                aria-label="Close collab requests"
+              >
+                <IoClose />
+              </button>
+            </div>
+
+            {!isAuthenticated || !currentUsername ? (
+              <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
+                Finish account setup or sign in again to review collab requests.
+              </div>
+            ) : collabRequestsQuery.isLoading ? (
+              <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
+                Loading collab requests...
+              </div>
+            ) : collabRequestsQuery.isError ? (
+              <div className="profile-collab-error mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem]">
+                <p>{collabRequestsQuery.error?.message || "Unable to load collab requests."}</p>
+                <button
+                  type="button"
+                  onClick={() => collabRequestsQuery.refetch()}
+                  className="profile-collab-secondary-button mt-3 rounded-full px-3 py-1.5 text-[0.7rem] font-bold"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : pendingCollabCount === 0 ? (
+              <div className="profile-collab-empty mt-3 rounded-[0.9rem] px-3 py-4 text-[0.8rem] text-[var(--text-gray-light)]">
+                No pending collab requests.
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-3">
+                {collabIncoming.length > 0 && (
+                  <div className="grid gap-2">
+                    <p className="px-1 text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                      Incoming
+                    </p>
+                    {collabIncoming.map((collab) => renderCollabRequestCard(collab, "incoming"))}
+                  </div>
+                )}
+                {collabOutgoing.length > 0 && (
+                  <div className="grid gap-2">
+                    <p className="px-1 text-[0.66rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                      Outgoing
+                    </p>
+                    {collabOutgoing.map((collab) => renderCollabRequestCard(collab, "outgoing"))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <div className="mt-2.5 flex flex-col gap-2.5">

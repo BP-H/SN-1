@@ -108,11 +108,27 @@ def seed_context():
             species="company",
             profile_pic="cara.png",
         )
-        db.add_all([alice, bob, cara])
+        dana = backend_app.Harmonizer(
+            username="dana",
+            email="dana@example.test",
+            hashed_password="test",
+            species="human",
+            profile_pic="dana.png",
+        )
+        empty = backend_app.Harmonizer(
+            username="empty",
+            email="empty@example.test",
+            hashed_password="test",
+            species="ai",
+            profile_pic="empty.png",
+        )
+        db.add_all([alice, bob, cara, dana, empty])
         db.commit()
         db.refresh(alice)
         db.refresh(bob)
         db.refresh(cara)
+        db.refresh(dana)
+        db.refresh(empty)
 
         alice_post = backend_app.Proposal(
             title="Alice approved collab post",
@@ -144,11 +160,22 @@ def seed_context():
             created_at=datetime.datetime(2026, 1, 2, 12, 2, 0),
             voting_deadline=datetime.datetime(2026, 1, 9, 12, 2, 0),
         )
-        db.add_all([alice_post, bob_post, cara_pending_post])
+        dana_post = backend_app.Proposal(
+            title="Dana authored post",
+            description="Author has no collabs but should still load.",
+            userName="dana",
+            userInitials="DA",
+            author_type="human",
+            author_id=dana.id,
+            created_at=datetime.datetime(2026, 1, 2, 12, 3, 0),
+            voting_deadline=datetime.datetime(2026, 1, 9, 12, 3, 0),
+        )
+        db.add_all([alice_post, bob_post, cara_pending_post, dana_post])
         db.commit()
         db.refresh(alice_post)
         db.refresh(bob_post)
         db.refresh(cara_pending_post)
+        db.refresh(dana_post)
 
         db.add_all(
             [
@@ -190,6 +217,7 @@ def seed_context():
             "alice_post_id": alice_post.id,
             "bob_post_id": bob_post.id,
             "cara_pending_post_id": cara_pending_post.id,
+            "dana_post_id": dana_post.id,
         }
     finally:
         db.close()
@@ -200,6 +228,9 @@ detail = client.get(f"/proposals/{seeded['alice_post_id']}")
 bob_author_only = client.get("/proposals?filter=latest&author=bob&limit=20&offset=0")
 bob_with_collabs = client.get("/proposals?filter=latest&author=bob&include_collabs=true&limit=20&offset=0")
 cara_with_collabs = client.get("/proposals?filter=latest&author=cara&include_collabs=true&limit=20&offset=0")
+dana_with_collabs = client.get("/proposals?filter=latest&author=dana&include_collabs=true&limit=20&offset=0")
+empty_with_collabs = client.get("/proposals?filter=latest&author=empty&include_collabs=true&limit=20&offset=0")
+unknown_with_collabs = client.get("/proposals?filter=latest&author=unknown&include_collabs=true&limit=20&offset=0")
 
 print(
     "PROPOSAL_COLLAB_VISIBILITY_RESULT="
@@ -214,6 +245,12 @@ print(
             "bob_with_collabs": bob_with_collabs.json(),
             "cara_with_collabs_status": cara_with_collabs.status_code,
             "cara_with_collabs": cara_with_collabs.json(),
+            "dana_with_collabs_status": dana_with_collabs.status_code,
+            "dana_with_collabs": dana_with_collabs.json(),
+            "empty_with_collabs_status": empty_with_collabs.status_code,
+            "empty_with_collabs": empty_with_collabs.json(),
+            "unknown_with_collabs_status": unknown_with_collabs.status_code,
+            "unknown_with_collabs": unknown_with_collabs.json(),
         },
         sort_keys=True,
     )
@@ -265,6 +302,17 @@ class ProposalCollabVisibilityTests(unittest.TestCase):
         ids = {item["id"] for item in self.result["cara_with_collabs"]}
         self.assertNotIn(self.result["seeded"]["alice_post_id"], ids)
         self.assertNotIn(self.result["seeded"]["cara_pending_post_id"], ids)
+
+    def test_include_collabs_handles_profiles_without_collabs_or_posts(self):
+        self.assertEqual(self.result["dana_with_collabs_status"], 200)
+        dana_ids = {item["id"] for item in self.result["dana_with_collabs"]}
+        self.assertEqual(dana_ids, {self.result["seeded"]["dana_post_id"]})
+
+        self.assertEqual(self.result["empty_with_collabs_status"], 200)
+        self.assertEqual(self.result["empty_with_collabs"], [])
+
+        self.assertEqual(self.result["unknown_with_collabs_status"], 200)
+        self.assertEqual(self.result["unknown_with_collabs"], [])
 
 
 if __name__ == "__main__":
