@@ -50,6 +50,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 - Added profile visual grid and content tabs assessment for future FE7 profile polish.
 - Added FE7 public profile tabs with a read-only visual grid using existing post media.
 - Polished FE7 profile tab counts and visual-grid thumbnail fallback behavior.
+- Added sleeker FE7 profile visual tabs with video previews and read-only vote meters.
 - Added guest write policy assessment for proposal and comment creation routes.
 - Required bearer-token ownership checks for profile updates and direct-message routes.
 - Required bearer-token ownership checks for upload-image profile sync.
