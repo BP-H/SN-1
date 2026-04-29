@@ -543,6 +543,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   }}
                   text={post.text}
                   comments={post.comments}
+                  collabs={post.collabs}
                   likes={post.likes}
                   dislikes={post.dislikes}
                   profileUrl={post.profile_url}

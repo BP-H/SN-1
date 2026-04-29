@@ -66,6 +66,7 @@ export default function ProposalClient({ id }) {
         likes={proposal.likes}
         dislikes={proposal.dislikes}
         comments={proposal.comments}
+        collabs={proposal.collabs}
         profileUrl={proposal.profile_url}
         domainAsProfile={proposal.domain_as_profile}
         specie={proposal.author_type}

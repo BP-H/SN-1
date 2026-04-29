@@ -2,7 +2,8 @@
 
 This project is a dev-testable SuperNova MCP connector prototype. The first
 version is public read-only: it exposes SuperNova public proposal, comment,
-profile, and connector-spec reads through a separate MCP server surface.
+profile, vote-summary, and connector-spec reads through a separate MCP server
+surface.
 
 It is intentionally separate from the active FE7 frontend and active backend.
 It does not implement OAuth, private reads, draft actions, approve/cancel
@@ -25,6 +26,9 @@ https://YOUR-SUPERNOVA-MCP-DEPLOYMENT.vercel.app/mcp
 - `get_proposal_comments`
   - Calls `GET {SUPERNOVA_API_BASE_URL}/connector/proposals/{id}/comments`
   - Args: `id` required, `limit` optional, `offset` optional
+- `get_proposal_vote_summary`
+  - Calls `GET {SUPERNOVA_API_BASE_URL}/connector/proposals/{id}/votes`
+  - Args: `id` required
 - `get_profile`
   - Calls `GET {SUPERNOVA_API_BASE_URL}/connector/profiles/{username}`
   - Args: `username` required
@@ -34,6 +38,8 @@ https://YOUR-SUPERNOVA-MCP-DEPLOYMENT.vercel.app/mcp
 All tools use public connector endpoints only. Limits are clamped, offsets are
 normalized, and upstream failures return clear tool errors without exposing
 secrets, environment values, backend internals, or protected core internals.
+Voting still happens only inside SuperNova through the existing hardened and
+approval-required flows. This MCP server cannot cast votes silently.
 
 ## Environment
 
@@ -105,6 +111,7 @@ After deployment:
    - `search_proposals`
    - `get_proposal`
    - `get_proposal_comments`
+   - `get_proposal_vote_summary`
    - `get_profile`
    - `get_supernova_connector_spec`
 
@@ -176,6 +183,7 @@ workspace, and rollout.
 - draft actions
 - approve/cancel actions
 - writes
+- voting
 - connector secrets
 - token storage
 

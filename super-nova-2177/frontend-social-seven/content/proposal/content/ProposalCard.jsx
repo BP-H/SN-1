@@ -87,6 +87,7 @@ function ProposalCard({
   likes = [],
   dislikes = [],
   comments = [],
+  collabs = [],
   profileUrl = "",
   domainAsProfile = false,
   specie = "human",
@@ -128,6 +129,28 @@ function ProposalCard({
   const queryClient = useQueryClient();
   const router = useRouter();
   const authorName = localUserName || userName || "";
+  const approvedCollabs = useMemo(() => {
+    if (!Array.isArray(collabs)) return [];
+    const seen = new Set();
+    return collabs
+      .filter((collab) => collab?.status === "approved" && collab?.username)
+      .map((collab) => {
+        const username = String(collab.username || "").trim();
+        const key = username.toLowerCase();
+        return {
+          ...collab,
+          username,
+          key,
+          avatar: avatarDisplayUrl(collab.avatar || collab.avatar_url || collab.profile_pic || "", ""),
+          species: collab.species || "human",
+        };
+      })
+      .filter((collab) => {
+        if (!collab.username || seen.has(collab.key)) return false;
+        seen.add(collab.key);
+        return true;
+      });
+  }, [collabs]);
   const isOwner = Boolean(authorName && userData?.name && authorName.toLowerCase() === userData.name.toLowerCase());
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
@@ -812,6 +835,44 @@ function ProposalCard({
           )}
         </div>
       </div>
+
+      {approvedCollabs.length > 0 && (
+        <div className="proposal-collab-row mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+            with
+          </span>
+          {approvedCollabs.slice(0, 3).map((collab) => (
+            <Link
+              key={collab.key}
+              href={`/users/${encodeURIComponent(collab.username)}`}
+              scroll
+              onClick={(event) => event.stopPropagation()}
+              className="proposal-collab-chip inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-[0.68rem] font-bold"
+              title={`Approved collaborator @${collab.username}`}
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase">
+                {collab.avatar ? (
+                  <img
+                    src={collab.avatar}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  collab.username.slice(0, 2).toUpperCase()
+                )}
+              </span>
+              <span className="truncate">@{collab.username}</span>
+            </Link>
+          ))}
+          {approvedCollabs.length > 3 && (
+            <span className="proposal-collab-chip rounded-full px-2 py-1 text-[0.68rem] font-bold">
+              +{approvedCollabs.length - 3}
+            </span>
+          )}
+        </div>
+      )}
 
       {isOwner && collabInviteOpen && (
         <div
