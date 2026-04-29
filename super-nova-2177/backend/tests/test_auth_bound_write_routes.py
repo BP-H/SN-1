@@ -248,12 +248,14 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
             missing = client.patch("/profile/alice", json={"bio": "missing token"})
             invalid = client.patch("/profile/alice", json={"bio": "invalid token"}, headers=invalid_headers)
             wrong = client.patch("/profile/alice", json={"bio": "wrong token"}, headers=bob_headers)
+            after_failed = client.get("/profile/alice")
             matching = client.patch("/profile/alice", json={"bio": "updated bio"}, headers=alice_headers)
             public_read = client.get("/profile/alice")
             result = {
                 "missing_status": missing.status_code,
                 "invalid_status": invalid.status_code,
                 "wrong_status": wrong.status_code,
+                "after_failed_bio": after_failed.json().get("bio"),
                 "matching_status": matching.status_code,
                 "matching_username": matching.json().get("username"),
                 "matching_bio": matching.json().get("bio"),
@@ -268,6 +270,7 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["missing_status"], 401)
         self.assertEqual(result["invalid_status"], 401)
         self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["after_failed_bio"], "original")
         self.assertEqual(result["matching_status"], 200)
         self.assertEqual(result["matching_username"], "alice")
         self.assertEqual(result["matching_bio"], "updated bio")
@@ -280,17 +283,28 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
             invalid = client.get("/messages?user=alice", headers=invalid_headers)
             wrong = client.get("/messages?user=alice", headers=bob_headers)
             matching = client.get("/messages?user=alice", headers=alice_headers)
+            peer_missing = client.get("/messages?user=alice&peer=bob")
+            peer_invalid = client.get("/messages?user=alice&peer=bob", headers=invalid_headers)
+            peer_wrong = client.get("/messages?user=alice&peer=bob", headers=bob_headers)
+            peer_matching = client.get("/messages?user=alice&peer=bob", headers=alice_headers)
             payload = matching.json()
             conversations = payload.get("conversations", [])
+            peer_payload = peer_matching.json()
             result = {
                 "missing_status": missing.status_code,
                 "invalid_status": invalid.status_code,
                 "wrong_status": wrong.status_code,
                 "matching_status": matching.status_code,
+                "peer_missing_status": peer_missing.status_code,
+                "peer_invalid_status": peer_invalid.status_code,
+                "peer_wrong_status": peer_wrong.status_code,
+                "peer_matching_status": peer_matching.status_code,
                 "keys": sorted(payload.keys()),
                 "conversation_count": len(conversations),
                 "first_peer": conversations[0].get("peer") if conversations else "",
                 "last_message_keys": sorted(conversations[0].get("last_message", {}).keys()) if conversations else [],
+                "peer_keys": sorted(peer_payload.keys()),
+                "peer_count": len(peer_payload.get("messages", [])),
             }
             print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -302,6 +316,10 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["invalid_status"], 401)
         self.assertEqual(result["wrong_status"], 403)
         self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(result["peer_missing_status"], 401)
+        self.assertEqual(result["peer_invalid_status"], 401)
+        self.assertEqual(result["peer_wrong_status"], 403)
+        self.assertEqual(result["peer_matching_status"], 200)
         self.assertEqual(result["keys"], ["conversations"])
         self.assertEqual(result["conversation_count"], 1)
         self.assertEqual(result["first_peer"], "bob")
@@ -309,6 +327,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
             set(result["last_message_keys"]),
             {"body", "conversation_id", "created_at", "id", "recipient", "sender"},
         )
+        self.assertEqual(set(result["peer_keys"]), {"messages", "peer"})
+        self.assertEqual(result["peer_count"], 2)
 
     def test_message_writes_require_matching_bearer_identity(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -317,13 +337,17 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
             missing = client.post("/messages", json=body)
             invalid = client.post("/messages", json=body, headers=invalid_headers)
             wrong = client.post("/messages", json=body, headers=bob_headers)
+            after_failed_read = client.get("/messages?user=alice&peer=bob", headers=alice_headers)
             matching = client.post("/messages", json=body, headers=alice_headers)
+            after_matching_read = client.get("/messages?user=alice&peer=bob", headers=alice_headers)
             payload = matching.json()
             result = {
                 "missing_status": missing.status_code,
                 "invalid_status": invalid.status_code,
                 "wrong_status": wrong.status_code,
+                "after_failed_count": len(after_failed_read.json().get("messages", [])),
                 "matching_status": matching.status_code,
+                "after_matching_count": len(after_matching_read.json().get("messages", [])),
                 "keys": sorted(payload.keys()),
                 "sender": payload.get("sender"),
                 "recipient": payload.get("recipient"),
@@ -338,7 +362,9 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["missing_status"], 401)
         self.assertEqual(result["invalid_status"], 401)
         self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["after_failed_count"], 2)
         self.assertEqual(result["matching_status"], 200)
+        self.assertEqual(result["after_matching_count"], 3)
         self.assertEqual(
             set(result["keys"]),
             {"body", "conversation_id", "created_at", "id", "recipient", "sender"},
@@ -399,6 +425,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 files={"file": ("wrong.png", b"small-image", "image/png")},
                 headers=bob_headers,
             )
+            failed_profile_pic = profile_pic_for("alice")
+            failed_files = uploaded_files()
             matching = client.post(
                 "/upload-image",
                 data={"username": "alice"},
@@ -410,6 +438,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "missing_status": missing.status_code,
                 "invalid_status": invalid.status_code,
                 "wrong_status": wrong.status_code,
+                "failed_profile_pic": failed_profile_pic,
+                "failed_files": failed_files,
                 "matching_status": matching.status_code,
                 "keys": sorted(payload.keys()),
                 "profile_synced": payload.get("profile_synced"),
@@ -426,6 +456,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["missing_status"], 401)
         self.assertEqual(result["invalid_status"], 401)
         self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["failed_profile_pic"], "default.jpg")
+        self.assertEqual(result["failed_files"], [])
         self.assertEqual(result["matching_status"], 200)
         self.assertEqual(
             set(result["keys"]),
@@ -456,6 +488,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 files={"file": ("wrong.png", b"small-image", "image/png")},
                 headers=bob_headers,
             )
+            failed_profile_pic = profile_pic_for("alice")
+            failed_files = uploaded_files()
             matching = client.post(
                 "/upload-image",
                 data={"user_id": str(alice_id)},
@@ -467,6 +501,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "missing_status": missing.status_code,
                 "invalid_status": invalid.status_code,
                 "wrong_status": wrong.status_code,
+                "failed_profile_pic": failed_profile_pic,
+                "failed_files": failed_files,
                 "matching_status": matching.status_code,
                 "profile_synced": payload.get("profile_synced"),
                 "url": payload.get("url"),
@@ -482,6 +518,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["missing_status"], 401)
         self.assertEqual(result["invalid_status"], 401)
         self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["failed_profile_pic"], "default.jpg")
+        self.assertEqual(result["failed_files"], [])
         self.assertEqual(result["matching_status"], 200)
         self.assertTrue(result["profile_synced"])
         self.assertEqual(result["profile_pic"], result["url"])
