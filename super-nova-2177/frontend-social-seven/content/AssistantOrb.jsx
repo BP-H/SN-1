@@ -620,7 +620,7 @@ export default function AssistantOrb() {
       {dragging && hoverTarget && (
         <div
           data-ai-cursor-root
-          className="pointer-events-none fixed z-[2147482502] max-w-[15rem] rounded-full bg-[#0b1017]/88 px-3 py-2 text-[0.72rem] font-semibold text-white shadow-[0_0_18px_rgba(255,79,143,0.18)] ring-1 ring-white/10 backdrop-blur-xl"
+          className="ai-cursor-tooltip pointer-events-none fixed z-[2147482502] max-w-[15rem] rounded-full px-3 py-2 text-[0.72rem] font-semibold backdrop-blur-xl"
           style={{
             left: clamp(pos.x - 82, 8, window.innerWidth - 248),
             top: Math.max(80, pos.y - 44),
@@ -647,16 +647,6 @@ export default function AssistantOrb() {
             const centerX = pos.x + ORB_SIZE / 2;
             const centerY = pos.y + ORB_SIZE / 2;
             const signalActive = item.action === lastSignal;
-            const colorClass =
-              signalActive && item.tone === "blue"
-                ? "bg-[var(--blue)] text-white shadow-[var(--shadow-blue)] ring-[rgba(94,141,250,0.42)]"
-                : signalActive && item.tone === "pink"
-                ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] ring-[rgba(255,79,143,0.36)]"
-                : item.tone === "blue"
-                ? "text-[var(--blue)] shadow-[0_0_18px_rgba(94,141,250,0.22)]"
-                : item.tone === "pink"
-                ? "text-[var(--pink)] shadow-[0_0_18px_rgba(255,79,143,0.2)]"
-                : "text-[var(--text-gray-light)] shadow-[0_0_14px_rgba(255,79,143,0.12)]";
             return (
               <button
                 key={item.action}
@@ -665,7 +655,7 @@ export default function AssistantOrb() {
                 data-tone={item.tone || "neutral"}
                 type="button"
                 onClick={() => runAction(item.action)}
-                className={`ai-cursor-action-button fixed z-[2147482502] flex items-center justify-center rounded-full bg-[#0b1017]/95 ring-1 ring-white/10 backdrop-blur-xl transition-transform active:scale-95 ${colorClass}`}
+                className="ai-cursor-action-button fixed z-[2147482502] flex items-center justify-center rounded-full backdrop-blur-xl transition-transform active:scale-95"
                 style={{
                   left: clamp(centerX + item.dx - buttonSize / 2, 8, window.innerWidth - buttonSize - 8),
                   top: clamp(centerY + item.dy - buttonSize / 2, 72, window.innerHeight - buttonSize - 8),
@@ -685,7 +675,7 @@ export default function AssistantOrb() {
       {(settingsOpen || commentOpen || busy || reply) && (
         <div
           data-ai-cursor-root
-          className="ai-cursor-panel fixed z-[2147482503] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-[1rem] bg-[#0b1017]/95 p-3 text-[var(--text-black)] shadow-[0_18px_52px_rgba(0,0,0,0.42)] ring-1 ring-white/10 backdrop-blur-xl"
+          className="ai-cursor-panel fixed z-[2147482503] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-[1rem] p-3 backdrop-blur-xl"
           style={floatingPanelStyle}
         >
           <div className="flex items-center justify-between gap-3">
@@ -700,7 +690,7 @@ export default function AssistantOrb() {
             <button
               type="button"
               onClick={closeActivePanel}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-[0.9rem] font-semibold text-[var(--text-gray-light)]"
+              className="ai-cursor-panel-icon-button flex h-8 w-8 items-center justify-center rounded-full text-[0.9rem] font-semibold"
               aria-label="Close popup"
               title="Close popup"
             >
@@ -714,7 +704,7 @@ export default function AssistantOrb() {
               onChange={(event) => persistKey(event.target.value)}
               type="password"
               placeholder="OpenAI API key for local testing"
-              className="mt-3 w-full rounded-[0.8rem] border border-white/10 bg-black/20 px-3 py-2 text-[0.78rem] outline-none placeholder:text-[var(--text-gray-light)]"
+              className="ai-cursor-field mt-3 w-full rounded-[0.8rem] px-3 py-2 text-[0.78rem] outline-none"
             />
           )}
 
@@ -732,7 +722,7 @@ export default function AssistantOrb() {
                   onKeyDown={mentionAutocomplete.handleKeyDown}
                   onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
                   placeholder="Write a comment..."
-                  className="min-h-24 w-full rounded-[0.85rem] border border-white/10 bg-black/20 px-3 py-2 text-[0.84rem] outline-none placeholder:text-[var(--text-gray-light)]"
+                  className="ai-cursor-field min-h-24 w-full rounded-[0.85rem] px-3 py-2 text-[0.84rem] outline-none"
                 />
                 <MentionAutocomplete controller={mentionAutocomplete} withinAiCursor />
               </div>
@@ -740,7 +730,7 @@ export default function AssistantOrb() {
                 <button
                   type="button"
                   onClick={closeActivePanel}
-                  className="rounded-full bg-white/[0.06] px-3 py-2 text-[0.76rem] font-semibold text-[var(--text-gray-light)]"
+                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.76rem] font-semibold"
                 >
                   Cancel
                 </button>
@@ -757,7 +747,7 @@ export default function AssistantOrb() {
           )}
 
           {(busy || reply) && (
-            <div className="mt-3 max-h-36 overflow-y-auto rounded-[0.85rem] bg-black/20 p-3 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
+            <div className="ai-cursor-result-box mt-3 max-h-36 overflow-y-auto rounded-[0.85rem] p-3 text-[0.78rem] leading-5">
               {busy ? "Thinking..." : reply}
             </div>
           )}
