@@ -2618,6 +2618,287 @@ def _profile_identity_payload(db: Session, username: str) -> Dict[str, Any]:
     }
 
 
+def _connector_public_web_url(path: str) -> str:
+    return f"{PUBLIC_BASE_URL}{path}"
+
+
+def _connector_author_context(db: Session, proposal) -> Dict[str, Any]:
+    user_name = ""
+    author_obj = None
+    if CRUD_MODELS_AVAILABLE and getattr(proposal, "author_id", None):
+        author_obj = db.query(Harmonizer).filter(Harmonizer.id == proposal.author_id).first()
+        if author_obj and getattr(author_obj, "username", None):
+            user_name = author_obj.username
+
+    if not user_name:
+        user_name = (
+            getattr(proposal, "userName", None)
+            or getattr(proposal, "author_username", None)
+            or getattr(proposal, "author", None)
+            or "Unknown"
+        )
+    if author_obj is None:
+        author_obj = _find_harmonizer_by_username(db, user_name)
+
+    avatar_value = getattr(proposal, "author_img", "")
+    if author_obj is not None:
+        avatar_value = getattr(author_obj, "profile_pic", None) or avatar_value
+
+    return {
+        "username": str(user_name),
+        "species": getattr(author_obj, "species", None)
+        or getattr(proposal, "author_type", "human")
+        or "human",
+        "avatar_url": _social_avatar(avatar_value),
+        "profile_url": _connector_public_web_url(f"/users/{user_name}"),
+    }
+
+
+def _connector_vote_summary(db: Session, proposal_id: int) -> Dict[str, int]:
+    totals = _compute_vote_totals(db, proposal_id)
+    support = int(totals.get("up", 0) or 0)
+    oppose = int(totals.get("down", 0) or 0)
+    return {
+        "support": support,
+        "oppose": oppose,
+        "total": support + oppose,
+    }
+
+
+def _connector_proposal_payload(db: Session, proposal, include_text: bool = True) -> Dict[str, Any]:
+    proposal_id = getattr(proposal, "id", None)
+    author = _connector_author_context(db, proposal)
+    payload = {
+        "id": proposal_id,
+        "type": "proposal",
+        "title": getattr(proposal, "title", "") or "",
+        "author": author,
+        "created_at": _format_timestamp(
+            getattr(proposal, "created_at", None) or getattr(proposal, "date", None)
+        ),
+        "web_url": _connector_public_web_url(f"/proposals/{proposal_id}"),
+        "vote_summary": _connector_vote_summary(db, proposal_id),
+        "media": _media_payload(
+            getattr(proposal, "image", ""),
+            getattr(proposal, "video", ""),
+            getattr(proposal, "link", ""),
+            getattr(proposal, "file", ""),
+            getattr(proposal, "payload", None),
+            getattr(proposal, "voting_deadline", None),
+        ),
+    }
+    if include_text:
+        payload["text"] = (
+            getattr(proposal, "description", None)
+            or getattr(proposal, "body", None)
+            or ""
+        )
+    return payload
+
+
+def _connector_get_proposal_or_404(db: Session, proposal_id: int):
+    if CRUD_MODELS_AVAILABLE:
+        proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    else:
+        proposal = db.execute(
+            text("SELECT * FROM proposals WHERE id = :proposal_id"),
+            {"proposal_id": proposal_id},
+        ).fetchone()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    return proposal
+
+
+def _connector_profile_payload(db: Session, username: str) -> Dict[str, Any]:
+    clean_username = (username or "").strip()
+    if not clean_username:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    user = None
+    latest_post = None
+    post_count = 0
+    if CRUD_MODELS_AVAILABLE:
+        user = (
+            db.query(Harmonizer)
+            .filter(func.lower(Harmonizer.username) == clean_username.lower())
+            .first()
+        )
+        latest_post = (
+            db.query(Proposal)
+            .filter(func.lower(Proposal.userName) == clean_username.lower())
+            .order_by(desc(Proposal.id))
+            .first()
+        )
+        post_count = (
+            db.query(Proposal)
+            .filter(func.lower(Proposal.userName) == clean_username.lower())
+            .count()
+        )
+    else:
+        latest_post = db.execute(
+            text(
+                "SELECT * FROM proposals WHERE lower(userName) = lower(:username) "
+                "ORDER BY id DESC LIMIT 1"
+            ),
+            {"username": clean_username},
+        ).fetchone()
+        post_count = int(
+            db.execute(
+                text("SELECT COUNT(*) FROM proposals WHERE lower(userName) = lower(:username)"),
+                {"username": clean_username},
+            ).scalar()
+            or 0
+        )
+
+    if user is None and latest_post is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    resolved_username = getattr(user, "username", None) or clean_username
+    avatar_value = getattr(user, "profile_pic", None) or getattr(latest_post, "author_img", "") or ""
+    species = getattr(user, "species", None) or getattr(latest_post, "author_type", None) or "human"
+    follow_counts = _follow_counts(resolved_username)
+
+    return {
+        "username": resolved_username,
+        "type": "profile",
+        "species": species,
+        "bio": getattr(user, "bio", "") if user is not None else "",
+        "avatar_url": _social_avatar(avatar_value),
+        "web_url": _connector_public_web_url(f"/users/{resolved_username}"),
+        "post_count": post_count,
+        "followers": follow_counts["followers"],
+        "following": follow_counts["following"],
+    }
+
+
+@app.get("/connector/supernova", summary="Describe the public read-only SuperNova connector facade")
+def connector_supernova_discovery():
+    return {
+        "name": "SuperNova",
+        "mode": "public_read_only",
+        "description": "Prototype SuperNova-owned public read facade for future connector surfaces.",
+        "resources": ["profiles", "proposals", "comments", "vote_summaries", "public_protocol_docs"],
+        "endpoints": {
+            "proposals": "/connector/proposals?search=&limit=&offset=",
+            "proposal": "/connector/proposals/{id}",
+            "proposal_comments": "/connector/proposals/{id}/comments?limit=&offset=",
+            "profile": "/connector/profiles/{username}",
+        },
+        "write_tools_enabled": False,
+        "private_user_state_exposed": False,
+        "action_tools": [],
+        "safety": {
+            "read_only": True,
+            "public_only": True,
+            "requires_auth": False,
+            "no_private_notifications": True,
+            "no_pending_collab_requests": True,
+            "no_protected_core_internals": True,
+        },
+    }
+
+
+@app.get("/connector/proposals", summary="Search public proposals through the read-only connector facade")
+def connector_list_proposals(
+    search: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    if CRUD_MODELS_AVAILABLE:
+        query = db.query(Proposal)
+        if search and search.strip():
+            search_filter = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    Proposal.title.ilike(search_filter),
+                    Proposal.description.ilike(search_filter),
+                    Proposal.userName.ilike(search_filter),
+                )
+            )
+        proposals = query.order_by(desc(Proposal.created_at), desc(Proposal.id)).offset(offset).limit(limit).all()
+    else:
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        where_clause = ""
+        if search and search.strip():
+            where_clause = (
+                "WHERE lower(title) LIKE lower(:search) "
+                "OR lower(description) LIKE lower(:search) "
+                "OR lower(userName) LIKE lower(:search)"
+            )
+            params["search"] = f"%{search.strip()}%"
+        proposals = db.execute(
+            text(
+                f"SELECT * FROM proposals {where_clause} "
+                "ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset"
+            ),
+            params,
+        ).fetchall()
+
+    return {
+        "mode": "public_read_only",
+        "resource": "proposals",
+        "limit": limit,
+        "offset": offset,
+        "items": [_connector_proposal_payload(db, proposal, include_text=True) for proposal in proposals],
+    }
+
+
+@app.get("/connector/proposals/{proposal_id}", summary="Read one public proposal through the connector facade")
+def connector_get_proposal(proposal_id: int, db: Session = Depends(get_db)):
+    proposal = _connector_get_proposal_or_404(db, proposal_id)
+    return {
+        "mode": "public_read_only",
+        "resource": "proposal",
+        "item": _connector_proposal_payload(db, proposal, include_text=True),
+    }
+
+
+@app.get("/connector/proposals/{proposal_id}/comments", summary="Read public proposal comments through the connector facade")
+def connector_get_proposal_comments(
+    proposal_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    _connector_get_proposal_or_404(db, proposal_id)
+    if CRUD_MODELS_AVAILABLE:
+        comments = (
+            db.query(Comment)
+            .filter(Comment.proposal_id == proposal_id)
+            .order_by(Comment.id.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+    else:
+        comments = db.execute(
+            text(
+                "SELECT * FROM comments WHERE proposal_id = :proposal_id "
+                "ORDER BY id ASC LIMIT :limit OFFSET :offset"
+            ),
+            {"proposal_id": proposal_id, "limit": limit, "offset": offset},
+        ).fetchall()
+
+    return {
+        "mode": "public_read_only",
+        "resource": "comments",
+        "proposal_id": proposal_id,
+        "limit": limit,
+        "offset": offset,
+        "items": [_serialize_comment_record(db, comment) for comment in comments],
+    }
+
+
+@app.get("/connector/profiles/{username}", summary="Read one public profile through the connector facade")
+def connector_get_profile(username: str, db: Session = Depends(get_db)):
+    return {
+        "mode": "public_read_only",
+        "resource": "profile",
+        "item": _connector_profile_payload(db, username),
+    }
+
+
 @app.get("/.well-known/webfinger", summary="Discover a public SuperNova profile")
 def webfinger(resource: str = Query(...), db: Session = Depends(get_db)):
     username = _username_from_webfinger_resource(resource)
