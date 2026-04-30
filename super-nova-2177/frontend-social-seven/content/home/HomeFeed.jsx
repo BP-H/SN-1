@@ -43,24 +43,6 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
-const SLIDER_BLUE = "#5e8dfa";
-const SLIDER_PINK = "#ff4f8f";
-
-function mixHex(start, end, ratio) {
-  const t = Math.min(Math.max(ratio, 0), 1);
-  const parse = (hex) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
-  const [sr, sg, sb] = parse(start);
-  const [er, eg, eb] = parse(end);
-  const toHex = (value) => Math.round(value).toString(16).padStart(2, "0");
-  return `#${toHex(sr + (er - sr) * t)}${toHex(sg + (eg - sg) * t)}${toHex(sb + (eb - sb) * t)}`;
-}
-
-/* Color interpolation for slider (matches LikesDeslikes). Old blue start: hsl(230,80%,75%). */
-function getSliderColor(ratio) {
-  const t = Math.min(Math.max(ratio / 100, 0), 1);
-  return mixHex(SLIDER_BLUE, SLIDER_PINK, t);
-}
-
 // Backend can override these via /system-vote so live deployments avoid stale UI.
 const SYSTEM_VOTE_CONFIG = {
   question: "Should SuperNova prioritize AI rights as the next major research focus?",
@@ -272,6 +254,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       if (isToggle) {
         const response = await fetch(`${backendUrl}/system-vote?username=${encodeURIComponent(userData.name)}`, {
           method: "DELETE",
+          headers: authHeaders(),
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
@@ -282,7 +265,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
         const voteChoice = choice === "like" ? "yes" : "no";
         const response = await fetch(`${backendUrl}/system-vote`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({
             username: userData.name,
             choice: voteChoice,
@@ -316,7 +299,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   }, [showSystemVoteInfo]);
 
   const pct = Math.max(systemVote.weighted.supportPercent || 0, 0);
-  const knobColor = getSliderColor(pct);
+  const voteAccentColor = "var(--pink)";
   const systemVoteModal =
     showSystemVoteInfo && typeof document !== "undefined"
       ? createPortal(
@@ -337,7 +320,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     <div className="social-shell px-0 pb-5">
       <CreatePost discard={discard} setDiscard={setDiscard} />
 
-      <div className="space-y-2.5 pt-2">
+      <div className="space-y-2.5">
         {/* ── System Vote ── */}
         <section className="mobile-feed-panel social-panel rounded-[1.35rem] px-4 py-4">
           <div className="mb-2 flex items-center justify-between">
@@ -374,7 +357,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             <div className="relative flex-1 py-1">
               <span
                 className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[0.6rem] font-bold tabular-nums"
-                style={{ color: knobColor }}
+                style={{ color: voteAccentColor }}
               >
                 {systemVote.yesRatio}% yes
               </span>
@@ -383,7 +366,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${pct}%`,
-                    background: `linear-gradient(90deg, ${SLIDER_BLUE} 0%, ${knobColor} 100%)`,
+                    background: voteAccentColor,
                   }}
                 />
                 <div
@@ -393,8 +376,8 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   <div
                     className="h-3.5 w-3.5 rounded-full border-2 border-[rgba(255,255,255,0.9)]"
                     style={{
-                      background: knobColor,
-                      boxShadow: `0 0 6px ${knobColor}, 0 0 14px ${knobColor}40`,
+                      background: voteAccentColor,
+                      boxShadow: "0 0 6px rgba(255, 79, 143, 0.38), 0 0 14px rgba(255, 79, 143, 0.18)",
                     }}
                   />
                 </div>
