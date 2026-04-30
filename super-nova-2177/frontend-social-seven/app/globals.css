@@ -3094,7 +3094,10 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   background: rgba(255, 79, 143, 0.1);
 }
 
-.profile-tab-button-selected {
+.profile-tab-button-selected,
+.profile-tab-button-selected:hover,
+.profile-tab-button-selected:focus-visible,
+.profile-tab-button-selected:active {
   color: #fff;
   background: var(--pink);
   box-shadow: none;
@@ -3276,7 +3279,10 @@ html[data-theme="light"] .profile-tab-button:hover {
   background: rgba(255, 79, 143, 0.09);
 }
 
-html[data-theme="light"] .profile-tab-button-selected {
+html[data-theme="light"] .profile-tab-button-selected,
+html[data-theme="light"] .profile-tab-button-selected:hover,
+html[data-theme="light"] .profile-tab-button-selected:focus-visible,
+html[data-theme="light"] .profile-tab-button-selected:active {
   color: #fff;
   background: var(--pink);
   box-shadow: none;
