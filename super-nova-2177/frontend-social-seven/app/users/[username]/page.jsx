@@ -36,6 +36,7 @@ import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
+const PROFILE_COLLAB_SWEEP_LIMIT = 200;
 const PROFILE_TABS = [
   { key: "all", label: "All", title: "All posts", icon: IoHomeOutline },
   { key: "visuals", label: "Visuals", title: "Visual posts", icon: IoGridOutline },
@@ -152,6 +153,18 @@ function isDecisionProfilePost(post) {
       || governance.execution_mode
       || governance.execution
   );
+}
+
+function isApprovedCollabForProfile(post, profileKey) {
+  const normalizedProfileKey = String(profileKey || "").toLowerCase();
+  if (!normalizedProfileKey) return false;
+  const authorKey = String(post?.userName || "").toLowerCase();
+  if (!authorKey || authorKey === normalizedProfileKey) return false;
+  return Array.isArray(post?.collabs)
+    && post.collabs.some(
+      (collab) => collab?.status === "approved"
+        && String(collab?.username || "").toLowerCase() === normalizedProfileKey
+    );
 }
 
 function ProfileVisualTile({ post, visual, onOpen, isCollab = false }) {
@@ -302,6 +315,22 @@ async function fetchProfilePostsPage(username, pageParam) {
   throw new Error(errorPayload?.detail || "Failed to load posts");
 }
 
+async function fetchPublicProfileCollabPosts(username) {
+  const profileKey = String(username || "").toLowerCase();
+  if (!profileKey) return [];
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${PROFILE_COLLAB_SWEEP_LIMIT}&offset=0&include_collabs=true`
+    );
+    if (!response.ok) return [];
+    const payload = await response.json().catch(() => []);
+    if (!Array.isArray(payload)) return [];
+    return payload.filter((post) => isApprovedCollabForProfile(post, profileKey));
+  } catch {
+    return [];
+  }
+}
+
 async function fetchApprovedCollabPostsForCurrentUser() {
   const response = await fetch(`${API_BASE_URL}/proposal-collabs?role=collaborator&status=approved&limit=50`, {
     headers: authHeaders(),
@@ -426,11 +455,19 @@ export default function UserPostsPage() {
     staleTime: 30000,
   });
 
+  const publicApprovedCollabPostsQuery = useQuery({
+    queryKey: ["user-posts", username, "public-approved-collab-sweep"],
+    enabled: Boolean(username),
+    queryFn: () => fetchPublicProfileCollabPosts(username),
+    staleTime: 30000,
+  });
+
   const posts = useMemo(() => {
     const seen = new Set();
     const feedPosts = postsQuery.data?.pages?.flat() || [];
+    const publicCollabPosts = publicApprovedCollabPostsQuery.data || [];
     const approvedFallbackPosts = approvedCollabPostsQuery.data || [];
-    return [...feedPosts, ...approvedFallbackPosts].filter((post) => {
+    return [...feedPosts, ...publicCollabPosts, ...approvedFallbackPosts].filter((post) => {
       const key = post?.id ?? `${post?.userName || "post"}-${post?.title || ""}-${post?.time || ""}`;
       if (seen.has(key)) return false;
       seen.add(key);
@@ -445,7 +482,7 @@ export default function UserPostsPage() {
       const rightId = Number(right?.id || 0);
       return (Number.isFinite(rightId) ? rightId : 0) - (Number.isFinite(leftId) ? leftId : 0);
     });
-  }, [approvedCollabPostsQuery.data, postsQuery.data]);
+  }, [approvedCollabPostsQuery.data, postsQuery.data, publicApprovedCollabPostsQuery.data]);
   const visualPosts = useMemo(
     () => posts.map((post) => ({ post, visual: getVisualMeta(post) })).filter((item) => item.visual),
     [posts]
@@ -481,15 +518,7 @@ export default function UserPostsPage() {
   );
   const approvedCollabPosts = useMemo(() => {
     if (!profileKey) return [];
-    return posts.filter((post) => {
-      const authorKey = String(post?.userName || "").toLowerCase();
-      if (!authorKey || authorKey === profileKey) return false;
-      return Array.isArray(post?.collabs)
-        && post.collabs.some(
-          (collab) => collab?.status === "approved"
-            && String(collab?.username || "").toLowerCase() === profileKey
-        );
-    });
+    return posts.filter((post) => isApprovedCollabForProfile(post, profileKey));
   }, [posts, profileKey]);
   const approvedCollabPostIds = useMemo(
     () => new Set(approvedCollabPosts.map((post) => String(post.id))),
