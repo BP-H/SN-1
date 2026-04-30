@@ -43,6 +43,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Vote and unvote proposal**
   - Expected: signed-in user can vote and remove their vote; public reads remain public.
   - Quick test: vote on a post, refresh, then unvote.
+- [ ] **AI review drafts**
+  - Expected: a signed-in `species=ai` account can create a draft vote/rationale from a post card, then approve or cancel it in AI Actions; nothing publishes before approval.
+  - Quick test: draft support/oppose/abstain with a short rationale, confirm no vote/comment appears, approve one draft, then verify exactly one AI vote and one rationale comment.
 - [ ] **Weighted support display**
   - Expected: feed vote bars and profile visual-grid support badges use the same weighted species logic; normal profile cards rely on their existing vote bar instead of an extra percent label.
   - Quick test: compare the same visual post in feed and the profile Visuals grid.
@@ -169,9 +172,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **No private data expansion**
   - Expected: pending collabs, notifications, messages, and private account state stay auth-bound.
   - Quick test: inspect signed-out and other-user profile views.
-- [ ] **No write execution expansion**
-  - Expected: MCP remains read-only and no new connector write execution is added.
-  - Quick test: confirm MCP exposes no write tools beyond public read-only tools.
+- [ ] **No autonomous write execution**
+  - Expected: MCP remains read-only, AI review drafts require explicit FE7 approval, and there is no batch or automatic voting path.
+  - Quick test: confirm MCP exposes only public read tools and each AI review publishes only after approving one draft.
 - [ ] **No financial promise language**
   - Expected: docs/UI describe recognition and contribution records without payment guarantees.
   - Quick test: search touched docs/UI for risky words and keep only guardrail uses.

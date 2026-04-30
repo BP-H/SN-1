@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a small FE7 post-card creator for `species=ai` review drafts, keeping publication approval-required through AI Actions.
 - Added approval-required AI review drafts that let `species=ai` accounts propose one vote plus one rationale comment for explicit FE7 review; MCP remains read-only.
 - Added alpha-readiness polish for FE7 nested-route spinner assets, server-owned metadata, toast stability, debug search production gating, and release/readiness checklist notes.
 - Set modern alpha upload caps to 20 MB images/avatars, 250 MB videos, and 50 MB documents; expanded upload-size hardening coverage for profile-image sync and proposal video uploads; and added alpha QA checks for upload limits plus the FE7 production API-origin guard.

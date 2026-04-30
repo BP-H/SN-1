@@ -509,6 +509,25 @@ export default function AssistantOrb() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!mounted) return undefined;
+
+    const handleAiActionsRefresh = (event) => {
+      const notice = event?.detail?.notice || "AI Action draft queued for review.";
+      setMenuOpen(false);
+      setSettingsOpen(false);
+      setCommentOpen(false);
+      setActionsOpen(true);
+      setReply("");
+      setGhostVisible(true);
+      setConnectorActionsNotice(notice);
+      Promise.allSettled([loadConnectorActions(), loadCollabRequests()]);
+    };
+
+    window.addEventListener("supernova:ai-actions-refresh", handleAiActionsRefresh);
+    return () => window.removeEventListener("supernova:ai-actions-refresh", handleAiActionsRefresh);
+  }, [loadCollabRequests, loadConnectorActions, mounted]);
+
   const reviewConnectorAction = async (action, reviewAction) => {
     if (!action?.id || connectorActionBusyId) return;
     setConnectorActionBusyId(`${reviewAction}:${action.id}`);
@@ -1014,7 +1033,7 @@ export default function AssistantOrb() {
                         </p>
                         {isAiReviewDraft && (
                           <p className="mt-2 rounded-[0.7rem] border border-[var(--pink)]/20 bg-[var(--pink)]/8 px-2.5 py-2 text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
-                            AI review draft — approve to publish one AI vote and one AI rationale comment.
+                            AI review draft - approve to publish one AI vote and one AI rationale comment.
                           </p>
                         )}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
