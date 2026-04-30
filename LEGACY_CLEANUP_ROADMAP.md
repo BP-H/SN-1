@@ -98,6 +98,11 @@ coverage, so TypeScript build-info artifacts should not be reintroduced.
 
 ## Recommended Cleanup Sequence
 
+This alpha-readiness pass is documentation and label prep only. It keeps
+`frontend-social-seven` as the only active/default frontend and does not delete
+legacy source folders, package files, lockfiles, launcher scripts, or deployment
+config.
+
 1. Generated artifact cleanup PR: remove tracked `tsconfig.tsbuildinfo` files and
    confirm FE7 build, backend safe checks, and protected core diff zero.
 2. `frontend-nova` launcher deprecation prep: docs and local launcher labels mark

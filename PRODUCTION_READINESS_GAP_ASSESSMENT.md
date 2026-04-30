@@ -23,6 +23,33 @@ production-readiness work should stay small and sequenced. The safest order is:
 None of these steps should touch `supernovacore.py`. Any future core semantic
 change must follow `CORE_CHANGE_PROTOCOL.md`.
 
+## Alpha Readiness Update
+
+Current alpha progress after the recent guardrail PRs:
+
+- Auth-bound write guardrails now have focused coverage for profile mutation,
+  messages, profile-image sync, follows, comments, system-vote writes, and
+  proposal create/edit/delete.
+- Collab request routes, delete-with-collabs behavior, approved-collab profile
+  visibility, and public connector read behavior have focused coverage.
+- MCP backend-origin documentation now calls out that `SUPERNOVA_API_BASE_URL`
+  must point to the backend JSON API origin that serves `/connector/supernova`.
+- A PR-triggered `local-safe-pr-gates.yml` workflow now covers deterministic
+  backend tests, `check_safe.py --local-only`, FE7 lint/build, and protected
+  core zero-diff checks.
+- `BACKUP_RESTORE_RUNBOOK.md` now exists and is referenced by
+  `RELEASE_CHECKLIST.md`.
+
+Remaining production gaps should stay explicit:
+
+- rate limiting and abuse controls;
+- CI becoming required branch protection after the PR gates are proven stable;
+- backup/restore verification drills against the real production process;
+- dependency split and dependency update hardening;
+- router split and `/v1` route versioning;
+- staged legacy frontend cleanup with reference checks and no protected-core
+  changes.
+
 ## Priority Table
 
 | Priority | Future PR | Risk | Allowed files | Recommendation |
@@ -150,26 +177,23 @@ Current workflow coverage:
 
 | Check | Documented in release checklist | Existing workflow coverage | Gap |
 | --- | --- | --- | --- |
-| `python scripts/check_safe.py --local-only` | Yes | Manual `workflow_dispatch` in `safe-check.yml` | Not PR-triggered. |
+| `python scripts/check_safe.py --local-only` | Yes | PR-triggered in `local-safe-pr-gates.yml`; manual `workflow_dispatch` in `safe-check.yml` | Branch protection can require it later after stability is proven. |
 | `python scripts/check_safe.py` | Yes | Not directly enforced; protocol smoke workflow covers live protocol separately | Full live check remains manual/local. |
-| Backend federation/safety tests | Yes | Included inside local safe-check workflow | Not separately visible as a PR check. |
+| Backend deterministic tests | Yes | Focused backend tests run in `local-safe-pr-gates.yml` | Broader backend suites remain manual per PR scope. |
 | Public protocol smoke | Yes | Scheduled and manual workflow | Not PR-triggered and live target should remain non-blocking until stable. |
 | Social/backend smoke | Yes | No GitHub Actions workflow found | Manual/local only. |
-| FE7 lint | Yes | No workflow found | Manual/local only. |
-| FE7 build | Yes | Vercel preview builds FE7; no GitHub Actions lint/build workflow found | Build exists through Vercel, lint not explicitly gated. |
-| Protected `supernovacore.py` zero diff | Yes | Included in local safe-check workflow | Not PR-triggered. |
+| FE7 lint | Yes | PR-triggered in `local-safe-pr-gates.yml` | Branch protection can require it later after stability is proven. |
+| FE7 build | Yes | PR-triggered in `local-safe-pr-gates.yml`; Vercel preview also builds FE7 | Keep package changes out of unrelated PRs. |
+| Protected `supernovacore.py` zero diff | Yes | PR-triggered in `local-safe-pr-gates.yml` and local safe-check | Keep as a required manual line item until branch protection is finalized. |
 
-Smallest safe future GitHub Actions PR:
+Smallest safe future CI/branch-protection PR:
 
-- Add a PR-triggered workflow that runs only local deterministic checks:
-  - install backend requirements;
-  - run backend federation tests;
-  - run secret/db/read-pagination tests;
-  - run `python scripts/check_safe.py --local-only`;
-  - run FE7 `npm ci`, `npm run lint`, `npm run build`.
 - Keep live `python scripts/check_safe.py` and social/backend smoke as manual or
   scheduled until the backend API origin is known and stable.
-- Do not enable required branch protection in the same PR.
+- After several clean PRs, make the existing local safe PR gates required in
+  branch protection.
+- Do not combine branch-protection enforcement with dependency updates or
+  runtime refactors.
 
 Rollback plan:
 
@@ -195,7 +219,8 @@ Files/docs inspected:
 
 Current behavior observed:
 
-- No dedicated `BACKUP_RESTORE_RUNBOOK.md` was found.
+- `BACKUP_RESTORE_RUNBOOK.md` exists and is linked from
+  `RELEASE_CHECKLIST.md`.
 - Existing docs mention rollback plans and note that `DATABASE_URL` should be
   provided by Railway.
 - `super-nova-2177/REPO_STATUS.md` treats local DB files, logs, uploads, and
@@ -205,17 +230,9 @@ Current behavior observed:
 
 Smallest safe future runbook PR:
 
-- Create `BACKUP_RESTORE_RUNBOOK.md`.
-- Cover:
-  - what not to commit: DB URLs, dumps, secrets, tokens, cookies;
-  - Railway DB backup/export responsibility;
-  - uploads backup responsibility;
-  - pre-release backup checklist;
-  - restore drill checklist;
-  - rollback decision tree;
-  - how to verify after restore using safe checks and smoke checks.
-- Update `RELEASE_CHECKLIST.md` with a pre-release backup/restore confirmation.
-- Add CODEOWNERS coverage for the runbook.
+- Run a no-secrets restore drill using the runbook and record the outcome.
+- Keep actual DB exports, credentials, and upload archives out of the repo.
+- Add or adjust CODEOWNERS coverage for the runbook only if ownership changes.
 
 Rollback plan:
 
@@ -246,16 +263,17 @@ Do not combine with:
    - Required checks: FE7 lint/build, safe checks, social smoke, protected core
      zero diff, Vercel preview.
 
-3. `ci/add-local-safe-pr-gates`
+3. `ci/require-local-safe-pr-gates`
    - Risk: low-medium.
-   - Allowed files: `.github/workflows/*`, optional release checklist/changelog.
-   - Required checks: run the new workflow or equivalent commands locally; keep
-     branch protection off until stable.
+   - Allowed files: branch-protection docs/status only unless workflow tuning is
+     proven necessary.
+   - Required checks: run the existing workflow or equivalent commands locally;
+     enable required branch protection only after stability is proven.
 
-4. `docs/add-backup-restore-runbook`
+4. `ops/run-backup-restore-drill`
    - Risk: low.
    - Allowed files: `BACKUP_RESTORE_RUNBOOK.md`, `RELEASE_CHECKLIST.md`,
-     `.github/CODEOWNERS`, optional changelog.
+     optional drill notes/changelog.
    - Required checks: safe checks and protected core zero diff.
 
 5. `scalability/add-read-compatible-feed-pagination-params`

@@ -73,7 +73,7 @@ approval-required flows. This MCP server cannot cast votes silently.
 ## Environment
 
 ```txt
-SUPERNOVA_API_BASE_URL=https://2177.tech
+SUPERNOVA_API_BASE_URL=https://YOUR-BACKEND-API-ORIGIN
 ```
 
 If `SUPERNOVA_API_BASE_URL` is not set, the server defaults to
@@ -109,8 +109,12 @@ ChatGPT/Codex or another MCP client because those clients POST MCP requests.
 3. Add this environment variable:
 
    ```txt
-   SUPERNOVA_API_BASE_URL=https://2177.tech
+   SUPERNOVA_API_BASE_URL=https://YOUR-BACKEND-API-ORIGIN
    ```
+
+   Use the backend API origin that returns JSON for `/connector/supernova`.
+   Do not use the FE7/frontend domain if it returns HTML, blank content, or a
+   `404` for that path.
 
 4. Deploy.
 5. Copy the deployment URL and append `/mcp`.

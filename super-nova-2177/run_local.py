@@ -27,6 +27,7 @@ FRONTENDS = {
         "port": 5173,
         "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"],
         "type": "vite",
+        "status": "legacy/off-path",
     },
     "vite-basic": {
         "dir": ROOT / "frontend-vite-basic",
@@ -34,6 +35,7 @@ FRONTENDS = {
         "port": 5174,
         "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5174"],
         "type": "vite",
+        "status": "legacy/off-path",
     },
     "vite-3d": {
         "dir": ROOT / "frontend-vite-3d",
@@ -41,6 +43,7 @@ FRONTENDS = {
         "port": 5175,
         "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5175"],
         "type": "vite",
+        "status": "legacy/off-path",
     },
     "nova": {
         "dir": ROOT / "frontend-nova",
@@ -56,6 +59,7 @@ FRONTENDS = {
         "port": 3001,
         "command": ["npm", "run", "dev"],
         "type": "next",
+        "status": "legacy/off-path",
     },
     "social-seven": {
         "dir": ROOT / "frontend-social-seven",
