@@ -2994,7 +2994,8 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   background: rgba(17, 24, 39, 0.055) !important;
 }
 
-.collab-invite-panel {
+.collab-invite-panel,
+.ai-review-draft-panel {
   background: rgba(9, 13, 20, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow:
@@ -3003,19 +3004,49 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .collab-invite-input,
-.collab-mini-button {
+.collab-mini-button,
+.ai-review-rationale {
   background: rgba(255, 255, 255, 0.065);
   color: var(--transparent-black);
   border: 1px solid rgba(255, 255, 255, 0.09);
 }
 
-.collab-invite-input::placeholder {
+.collab-invite-input::placeholder,
+.ai-review-rationale::placeholder {
   color: var(--text-gray-light);
 }
 
-.collab-invite-input:focus {
+.collab-invite-input:focus,
+.ai-review-rationale:focus {
   border-color: rgba(255, 79, 143, 0.42);
   box-shadow: 0 0 0 3px rgba(255, 79, 143, 0.12);
+}
+
+.ai-review-choice {
+  color: var(--text-gray-light);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.ai-review-choice:hover,
+.ai-review-choice:focus-visible {
+  color: var(--pink);
+  border-color: rgba(255, 79, 143, 0.3);
+  outline: none;
+}
+
+.ai-review-choice.is-selected,
+.ai-review-submit {
+  color: #fff;
+  background: var(--pink);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: var(--shadow-pink);
+}
+
+.ai-review-submit:not(:disabled):hover,
+.ai-review-choice.is-selected:hover {
+  transform: translateY(-1px);
 }
 
 .collab-mini-button:hover,
@@ -3203,7 +3234,8 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
 }
 
-html[data-theme="light"] .collab-invite-panel {
+html[data-theme="light"] .collab-invite-panel,
+html[data-theme="light"] .ai-review-draft-panel {
   background: rgba(255, 255, 255, 0.96) !important;
   border-color: rgba(17, 24, 39, 0.08) !important;
   box-shadow:
@@ -3212,10 +3244,31 @@ html[data-theme="light"] .collab-invite-panel {
 }
 
 html[data-theme="light"] .collab-invite-input,
-html[data-theme="light"] .collab-mini-button {
+html[data-theme="light"] .collab-mini-button,
+html[data-theme="light"] .ai-review-rationale {
   background: rgba(17, 24, 39, 0.045) !important;
   color: #242838 !important;
   border-color: rgba(17, 24, 39, 0.09) !important;
+}
+
+html[data-theme="light"] .ai-review-choice {
+  color: #5f687d !important;
+  background: rgba(17, 24, 39, 0.045) !important;
+  border-color: rgba(17, 24, 39, 0.08) !important;
+}
+
+html[data-theme="light"] .ai-review-choice:hover,
+html[data-theme="light"] .ai-review-choice:focus-visible {
+  color: var(--pink) !important;
+  border-color: rgba(255, 79, 143, 0.26) !important;
+}
+
+html[data-theme="light"] .ai-review-choice.is-selected,
+html[data-theme="light"] .ai-review-submit {
+  color: #fff !important;
+  background: var(--pink) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: var(--shadow-pink) !important;
 }
 
 html[data-theme="light"] .collab-user-suggestion {

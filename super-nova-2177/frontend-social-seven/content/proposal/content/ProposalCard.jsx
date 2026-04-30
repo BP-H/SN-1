@@ -26,6 +26,7 @@ import {
   IoFlashOutline,
   IoHandLeftOutline,
   IoShieldCheckmarkOutline,
+  IoSparklesOutline,
   IoTimeOutline,
   IoTrashOutline,
 } from "react-icons/io5";
@@ -154,6 +155,12 @@ function ProposalCard({
   const [collabBusy, setCollabBusy] = useState(false);
   const [collabStatus, setCollabStatus] = useState("");
   const [collabError, setCollabError] = useState("");
+  const [aiReviewOpen, setAiReviewOpen] = useState(false);
+  const [aiReviewChoice, setAiReviewChoice] = useState("support");
+  const [aiReviewRationale, setAiReviewRationale] = useState("");
+  const [aiReviewBusy, setAiReviewBusy] = useState(false);
+  const [aiReviewStatus, setAiReviewStatus] = useState("");
+  const [aiReviewError, setAiReviewError] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
 
@@ -191,6 +198,8 @@ function ProposalCard({
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
   const authorAvatarStyle = speciesAvatarStyle(authorSpecies);
+  const currentUserSpecies = String(userData?.species || "").trim().toLowerCase();
+  const isAiActor = Boolean(userData?.name && currentUserSpecies === "ai");
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
   const governance = media?.governance || null;
@@ -504,6 +513,86 @@ function ProposalCard({
       setErrorMsg?.([message]);
     } finally {
       setCollabBusy(false);
+    }
+  };
+
+  const aiReviewErrorMessage = (detail) => {
+    const message = formatBackendAuthErrorMessage(detail, "Unable to draft AI review.");
+    if (/AI review drafts require an AI actor|AI review approval requires an AI actor/i.test(message)) {
+      return "Only AI accounts can create AI review drafts.";
+    }
+    if (/Invalid vote choice/i.test(message)) {
+      return "Choose support, oppose, or abstain.";
+    }
+    if (/rationale is required/i.test(message)) {
+      return "Add one short rationale before creating the draft.";
+    }
+    if (/800 characters/i.test(message)) {
+      return "Keep the rationale to 800 characters or fewer.";
+    }
+    if (/proposal.*not found|unknown proposal/i.test(message)) {
+      return "That post is no longer available for review.";
+    }
+    return message;
+  };
+
+  const handleDraftAiReview = async () => {
+    if (aiReviewBusy) return;
+    const rationale = aiReviewRationale.trim();
+    if (!id) {
+      setAiReviewError("That post is missing a proposal id.");
+      return;
+    }
+    if (!userData?.name) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (!isAiActor) {
+      setAiReviewError("Only AI accounts can create AI review drafts.");
+      return;
+    }
+    if (!rationale) {
+      setAiReviewError("Add one short rationale before creating the draft.");
+      return;
+    }
+    if (rationale.length > 800) {
+      setAiReviewError("Keep the rationale to 800 characters or fewer.");
+      return;
+    }
+
+    setAiReviewBusy(true);
+    setAiReviewError("");
+    setAiReviewStatus("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-review`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          username: userData.name,
+          proposal_id: Number(id),
+          choice: aiReviewChoice,
+          rationale,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(aiReviewErrorMessage(payload?.detail));
+      }
+      setAiReviewRationale("");
+      setAiReviewStatus("AI review draft saved. Approve it in AI Actions before anything is published.");
+      setNotify?.(["AI review draft saved for approval."]);
+      window.dispatchEvent(
+        new CustomEvent("supernova:ai-actions-refresh", {
+          detail: { notice: "AI review draft created. Approve it here before publishing." },
+        })
+      );
+    } catch (error) {
+      const message = aiReviewErrorMessage(error);
+      setAiReviewError(message);
+      setErrorMsg?.([message]);
+    } finally {
+      setAiReviewBusy(false);
     }
   };
 
@@ -1222,6 +1311,26 @@ function ProposalCard({
 
           {/* Right: comment and share */}
           <div className="flex shrink-0 items-center gap-1.5">
+            {isAiActor && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAiReviewOpen((value) => !value);
+                  setAiReviewStatus("");
+                  setAiReviewError("");
+                }}
+                className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors ${
+                  aiReviewOpen
+                    ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                    : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
+                }`}
+                title="Draft AI review"
+                aria-expanded={aiReviewOpen}
+              >
+                <IoSparklesOutline className="text-[0.82rem]" />
+                <span className="hidden text-[0.72rem] font-semibold sm:inline">AI</span>
+              </button>
+            )}
             {/* Comment toggle */}
             <button
               type="button"
@@ -1281,6 +1390,81 @@ function ProposalCard({
             </div>
           </div>
         </div>
+
+        {isAiActor && aiReviewOpen && (
+          <div
+            className="ai-review-draft-panel rounded-[1rem] p-3"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Draft AI review</p>
+                <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                  Creates a draft only. Approve in AI Actions to publish one AI vote and one rationale comment.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiReviewOpen(false)}
+                className="collab-mini-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                aria-label="Close AI review draft"
+              >
+                <IoClose />
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                ["support", "Support"],
+                ["oppose", "Oppose"],
+                ["abstain", "Abstain"],
+              ].map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  onClick={() => setAiReviewChoice(value)}
+                  className={`ai-review-choice rounded-full px-3 py-1.5 text-[0.72rem] font-semibold ${
+                    aiReviewChoice === value ? "is-selected" : ""
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={aiReviewRationale}
+              onChange={(event) => {
+                setAiReviewRationale(event.target.value.slice(0, 800));
+                setAiReviewError("");
+                setAiReviewStatus("");
+              }}
+              maxLength={800}
+              placeholder="Short rationale for this AI review..."
+              className="ai-review-rationale mt-3 min-h-24 w-full resize-y rounded-[0.85rem] px-3 py-2 text-[0.84rem] outline-none"
+            />
+
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[0.68rem] text-[var(--text-gray-light)]">
+                {aiReviewRationale.trim().length}/800
+              </span>
+              <button
+                type="button"
+                onClick={handleDraftAiReview}
+                disabled={aiReviewBusy || !aiReviewRationale.trim()}
+                className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
+              >
+                {aiReviewBusy ? "Saving..." : "Create draft"}
+              </button>
+            </div>
+
+            {aiReviewStatus && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--neon-blue)]">{aiReviewStatus}</p>}
+            {aiReviewError && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--pink)]">{aiReviewError}</p>}
+          </div>
+        )}
 
         {/* Comments section */}
         {(showComments || isDetailPage) && (
