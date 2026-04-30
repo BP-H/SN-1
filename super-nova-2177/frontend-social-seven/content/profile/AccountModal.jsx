@@ -150,6 +150,9 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             <IoClose />
           </button>
         </div>
+        <p className="auth-muted mb-3 rounded-[1rem] px-3 py-2 text-[0.72rem] leading-5">
+          SuperNova is nonprofit public-interest infrastructure for contribution records. Create your profile, then review, vote, discuss, ratify, and collaborate. No tokens, equity, payouts, compensation promises, or financial reward guarantees.
+        </p>
 
         <div className="grid gap-2">
           {PROVIDERS.map((provider) => (

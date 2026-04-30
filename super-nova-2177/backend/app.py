@@ -424,10 +424,10 @@ def _upload_limit_from_env(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-UPLOAD_IMAGE_MAX_BYTES = _upload_limit_from_env("UPLOAD_IMAGE_MAX_BYTES", 10 * 1024 * 1024)
+UPLOAD_IMAGE_MAX_BYTES = _upload_limit_from_env("UPLOAD_IMAGE_MAX_BYTES", 20 * 1024 * 1024)
 UPLOAD_AVATAR_MAX_BYTES = _upload_limit_from_env("UPLOAD_AVATAR_MAX_BYTES", UPLOAD_IMAGE_MAX_BYTES)
-UPLOAD_VIDEO_MAX_BYTES = _upload_limit_from_env("UPLOAD_VIDEO_MAX_BYTES", 100 * 1024 * 1024)
-UPLOAD_DOCUMENT_MAX_BYTES = _upload_limit_from_env("UPLOAD_DOCUMENT_MAX_BYTES", 25 * 1024 * 1024)
+UPLOAD_VIDEO_MAX_BYTES = _upload_limit_from_env("UPLOAD_VIDEO_MAX_BYTES", 250 * 1024 * 1024)
+UPLOAD_DOCUMENT_MAX_BYTES = _upload_limit_from_env("UPLOAD_DOCUMENT_MAX_BYTES", 50 * 1024 * 1024)
 UPLOAD_COPY_CHUNK_BYTES = 1024 * 1024
 
 

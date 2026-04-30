@@ -31,6 +31,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Create media post**
   - Expected: accepted media uploads attach to the post and render without overflow.
   - Quick test: post a small supported image and inspect feed/profile/mobile.
+- [ ] **Upload size rejection**
+  - Expected: oversized image, video, and document uploads fail clearly without leaving partial files.
+  - Quick test: try a deliberately oversized media/document upload in a staging or local environment.
 - [ ] **Edit/delete own post**
   - Expected: author can edit/delete own post; wrong user cannot.
   - Quick test: edit then delete a test post from the author account.
@@ -175,3 +178,6 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Deleted legacy frontend fallout**
   - Expected: `frontend-nova` remains deleted, no local launcher offers a broken runnable Nova path, cleanup inventory no longer lists it as a current source candidate, and no package/deployment config points to it.
   - Quick test: run `python -m py_compile super-nova-2177/run_local.py`, inspect `start_supernova.ps1`, and search package/deployment files for `frontend-nova`.
+- [ ] **Production API-origin guard**
+  - Expected: production FE7 requires `NEXT_PUBLIC_API_URL` to point at a non-local backend API origin while local/dev still falls back to `http://127.0.0.1:8000`.
+  - Quick test: confirm production env settings use the backend API origin and local dev still works without extra config.
