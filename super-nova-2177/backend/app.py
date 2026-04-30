@@ -6548,7 +6548,7 @@ def update_proposal(
         raise HTTPException(status_code=400, detail="author is required")
     if not next_body and not next_title:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    _enforce_token_identity_match(authorization, db, author)
+    _require_token_identity_match(authorization, db, author)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -6598,7 +6598,7 @@ def delete_proposal(
     clean_author = (author or "").strip()
     if not clean_author:
         raise HTTPException(status_code=400, detail="author is required")
-    _enforce_token_identity_match(authorization, db, clean_author)
+    _require_token_identity_match(authorization, db, clean_author)
     try:
         if CRUD_MODELS_AVAILABLE:
             row = db.query(Proposal).filter(Proposal.id == pid).first()
