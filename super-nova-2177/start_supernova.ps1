@@ -3,12 +3,12 @@ Write-Host "      SuperNova 2177 Unified Launcher     " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Which Frontend would you like to launch?"
-Write-Host "  1. Next.js (Legacy)" -ForegroundColor Green
-Write-Host "  2. Vite Professional" -ForegroundColor Yellow
-Write-Host "  3. Vite 3D" -ForegroundColor Magenta
-Write-Host "  4. Vite Basic" -ForegroundColor White
+Write-Host "  1. Next.js (legacy/off-path)" -ForegroundColor Green
+Write-Host "  2. Vite Professional (legacy/off-path)" -ForegroundColor Yellow
+Write-Host "  3. Vite 3D (legacy/off-path)" -ForegroundColor Magenta
+Write-Host "  4. Vite Basic (legacy/off-path)" -ForegroundColor White
 Write-Host "  5. Frontend Nova (legacy / retired candidate)" -ForegroundColor Cyan
-Write-Host "  6. Social Six (Next.js + Social Login)" -ForegroundColor Blue
+Write-Host "  6. Social Six (legacy/off-path)" -ForegroundColor Blue
 Write-Host "  7. Social Seven (Active/default FE7)" -ForegroundColor Magenta
 Write-Host ""
 

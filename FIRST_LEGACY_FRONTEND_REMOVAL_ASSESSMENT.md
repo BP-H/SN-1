@@ -9,6 +9,11 @@ Current master commit inspected: `349414d`
 
 ## Summary
 
+Alpha-readiness update: this assessment remains docs-only guidance. No legacy
+source folder should be deleted until local launcher references are retired in a
+separate, explicit cleanup PR. `frontend-social-seven` remains the only
+active/default frontend.
+
 The single smallest and least deployment-sensitive top-level legacy frontend is:
 
 `super-nova-2177/frontend-nova`
