@@ -21,7 +21,12 @@ import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
@@ -399,7 +404,9 @@ export default function UserPostsPage() {
           headers: authHeaders(),
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload?.detail || "Unable to load collab requests.");
+        if (!response.ok) {
+          throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to load collab requests."));
+        }
         return Array.isArray(payload?.collabs) ? payload.collabs : [];
       };
       const [incoming, outgoing] = await Promise.all([fetchRole("collaborator"), fetchRole("author")]);
@@ -559,7 +566,7 @@ export default function UserPostsPage() {
         }
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Follow action failed."));
       setNotify([payload.following ? `Following ${username}.` : `Unfollowed ${username}.`]);
       queryClient.invalidateQueries({ queryKey: ["profile-follow-status", currentUsername, username] });
       queryClient.invalidateQueries({ queryKey: ["public-profile", username] });
@@ -567,7 +574,7 @@ export default function UserPostsPage() {
       queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
       queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
     } catch (error) {
-      setErrorMsg([error.message || "Follow action failed."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Follow action failed.")]);
     } finally {
       setFollowBusy(false);
     }
@@ -588,7 +595,7 @@ export default function UserPostsPage() {
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Unable to update profile.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update profile."));
       setNotify(["Profile details updated."]);
       setEditOpen(false);
       queryClient.invalidateQueries({ queryKey: ["public-profile", username] });
@@ -596,7 +603,7 @@ export default function UserPostsPage() {
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
     } catch (error) {
-      setErrorMsg([error.message || "Unable to update profile."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Unable to update profile.")]);
     } finally {
       setProfileSaveBusy(false);
     }
@@ -628,7 +635,7 @@ export default function UserPostsPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.detail || "Unable to update collab request.");
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update collab request."));
       }
       const labels = {
         approve: "Collab request approved.",
@@ -644,7 +651,7 @@ export default function UserPostsPage() {
       queryClient.invalidateQueries({ queryKey: ["header-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["header-notification-count"] });
     } catch (error) {
-      setCollabPanelError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
+      setCollabPanelError(formatBackendAuthErrorMessage(error, BACKEND_AUTH_MISSING_MESSAGE));
     } finally {
       setCollabReviewBusyId("");
     }

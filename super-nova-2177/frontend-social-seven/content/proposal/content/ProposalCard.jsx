@@ -8,7 +8,12 @@ import { IoMdBookmark } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import {
   IoCheckmark,
   IoClose,
@@ -426,14 +431,14 @@ function ProposalCard({
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Unable to edit post.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to edit post."));
       setLocalText(payload.text || editText.trim());
       setEditing(false);
       setMenuOpen(false);
       setNotify?.(["Post updated."]);
       refreshFeeds();
     } catch (error) {
-      setErrorMsg?.([error.message || "Unable to edit post."]);
+      setErrorMsg?.([formatBackendAuthErrorMessage(error, "Unable to edit post.")]);
     } finally {
       setOwnerBusy(false);
     }
@@ -448,12 +453,12 @@ function ProposalCard({
         { method: "DELETE", headers: authHeaders() }
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Unable to delete post.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to delete post."));
       setDeleted(true);
       setNotify?.(["Post deleted."]);
       refreshFeeds();
     } catch (error) {
-      setErrorMsg?.([error.message || "Unable to delete post."]);
+      setErrorMsg?.([formatBackendAuthErrorMessage(error, "Unable to delete post.")]);
     } finally {
       setOwnerBusy(false);
     }
@@ -486,7 +491,7 @@ function ProposalCard({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.detail || "Unable to invite collaborator.");
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to invite collaborator."));
       }
       setCollabStatus(`Invite sent to @${payload?.collab?.collaborator?.username || collaboratorUsername}.`);
       setNotify?.([`Collab invite sent to ${payload?.collab?.collaborator?.username || collaboratorUsername}.`]);
@@ -494,7 +499,7 @@ function ProposalCard({
       setCollabSuggestions([]);
       queryClient.invalidateQueries({ queryKey: ["proposal-collabs"] });
     } catch (error) {
-      const message = error?.message || BACKEND_AUTH_MISSING_MESSAGE;
+      const message = formatBackendAuthErrorMessage(error, BACKEND_AUTH_MISSING_MESSAGE);
       setCollabError(message);
       setErrorMsg?.([message]);
     } finally {
@@ -533,14 +538,14 @@ function ProposalCard({
         }
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Follow action failed."));
       setFollowingAuthor(Boolean(payload.following));
       setNotify?.([payload.following ? `Following ${authorName}.` : `Unfollowed ${authorName}.`]);
       queryClient.invalidateQueries({ queryKey: ["home-following"] });
       queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
       queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
     } catch (error) {
-      setErrorMsg?.([error.message || "Follow action failed."]);
+      setErrorMsg?.([formatBackendAuthErrorMessage(error, "Follow action failed.")]);
     } finally {
       setFollowBusy(false);
       setMenuOpen(false);
@@ -556,7 +561,7 @@ function ProposalCard({
         { method: "DELETE", headers: authHeaders() }
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Unable to delete comment.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to delete comment."));
       setLocalComments((prevComments) => {
         const prunedIds = new Set((payload?.pruned_comment_ids || []).map((item) => String(item)));
         if (payload?.tombstone && payload?.comment) {
@@ -578,7 +583,7 @@ function ProposalCard({
       setNotify?.([payload?.tombstone ? "Comment removed, replies preserved." : "Comment deleted."]);
       refreshFeeds();
     } catch (error) {
-      setErrorMsg?.([error.message || "Unable to delete comment."]);
+      setErrorMsg?.([formatBackendAuthErrorMessage(error, "Unable to delete comment.")]);
     } finally {
       setDeletingCommentId(null);
     }
@@ -595,7 +600,7 @@ function ProposalCard({
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload?.detail || "Unable to edit comment.");
+    if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to edit comment."));
     const updatedComment = payload?.comment ? payload : payload?.comments?.[0] || null;
     setLocalComments((prevComments) =>
       prevComments.map((comment) =>

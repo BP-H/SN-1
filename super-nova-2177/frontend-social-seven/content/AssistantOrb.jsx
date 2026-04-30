@@ -16,7 +16,12 @@ import {
 import { RiVoiceAiFill } from "react-icons/ri";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 
@@ -450,12 +455,12 @@ export default function AssistantOrb() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.detail || "Unable to load AI Actions.");
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to load AI Actions."));
       }
       setConnectorActions(Array.isArray(payload?.actions) ? payload.actions : []);
     } catch (error) {
       setConnectorActions([]);
-      setConnectorActionsError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
+      setConnectorActionsError(formatBackendAuthErrorMessage(error, BACKEND_AUTH_MISSING_MESSAGE));
     } finally {
       setConnectorActionsLoading(false);
     }
@@ -471,7 +476,9 @@ export default function AssistantOrb() {
           headers: authHeaders(),
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload?.detail || "Unable to load collab requests.");
+        if (!response.ok) {
+          throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to load collab requests."));
+        }
         return Array.isArray(payload?.collabs) ? payload.collabs : [];
       };
       const [incoming, outgoing] = await Promise.all([fetchRole("collaborator"), fetchRole("author")]);
@@ -480,7 +487,7 @@ export default function AssistantOrb() {
     } catch (error) {
       setCollabIncoming([]);
       setCollabOutgoing([]);
-      setCollabRequestsError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
+      setCollabRequestsError(formatBackendAuthErrorMessage(error, BACKEND_AUTH_MISSING_MESSAGE));
     } finally {
       setCollabRequestsLoading(false);
     }
@@ -503,12 +510,12 @@ export default function AssistantOrb() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.detail || "Unable to update AI Action.");
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update AI Action."));
       }
       setConnectorActions((items) => items.filter((item) => item.id !== action.id));
       setConnectorActionsNotice(reviewAction === "approve" ? "Vote action approved." : "Draft action canceled.");
     } catch (error) {
-      setConnectorActionsError(error?.message || "Unable to update AI Action.");
+      setConnectorActionsError(formatBackendAuthErrorMessage(error, "Unable to update AI Action."));
     } finally {
       setConnectorActionBusyId(null);
     }
@@ -673,7 +680,7 @@ export default function AssistantOrb() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.detail || "Comment failed.");
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Comment failed."));
       }
 
       const payload = await response.json().catch(() => ({}));
@@ -694,7 +701,7 @@ export default function AssistantOrb() {
       setReply("Comment posted.");
       setMenuOpen(true);
     } catch (error) {
-      setReply(error.message || "Comment failed.");
+      setReply(formatBackendAuthErrorMessage(error, "Comment failed."));
     } finally {
       setCommentSending(false);
     }

@@ -13,7 +13,7 @@ import {
 } from "react-icons/io5";
 import { BiSolidLike, BiSolidDislike } from "react-icons/bi";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { authHeaders, formatBackendAuthErrorMessage } from "@/utils/authSession";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
@@ -258,7 +258,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.detail || "Unable to remove system vote.");
+          throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to remove system vote."));
         }
         setSystemVoteClicked(null);
       } else {
@@ -274,7 +274,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.detail || "Unable to cast system vote.");
+          throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to cast system vote."));
         }
         setSystemVoteClicked(choice);
       }
@@ -284,7 +284,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
     } catch (err) {
-      setErrorMsg([`System vote failed: ${err.message}`]);
+      setErrorMsg([formatBackendAuthErrorMessage(err, "System vote failed.")]);
     }
   };
 

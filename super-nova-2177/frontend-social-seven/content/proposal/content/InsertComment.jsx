@@ -3,7 +3,12 @@ import { useRef, useState } from "react";
 import { IoClose } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { speciesAvatarStyle } from "@/utils/species";
@@ -79,7 +84,7 @@ function InsertComment({
             message = `${message} - ${errorBody}`;
           }
         }
-        setErrorMsg([message]);
+        setErrorMsg([formatBackendAuthErrorMessage(message, "Failed to post comment.")]);
         return;
       }
 
@@ -98,7 +103,7 @@ function InsertComment({
       setLocalComments((prevComments) => [...prevComments, newComment]);
       onCancelReply();
     } catch (err) {
-      setErrorMsg([`Error sending comment: ${err.message}`]);
+      setErrorMsg([formatBackendAuthErrorMessage(err, "Error sending comment.")]);
     } finally {
       setLoading(false);
     }

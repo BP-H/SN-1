@@ -22,7 +22,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "./UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { authHeaders, formatBackendAuthErrorMessage } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 
@@ -132,7 +132,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       await loginWithProvider(provider);
       setNotify([`Redirecting to ${provider} for login...`]);
     } catch (error) {
-      setErrorMsg([error.message || `Unable to start ${provider} login.`]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, `Unable to start ${provider} login.`)]);
     } finally {
       setAuthBusy("");
     }
@@ -177,7 +177,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       setAccountPassword("");
       setAuthOpen(false);
     } catch (error) {
-      setErrorMsg([error.message || "Account action failed."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Account action failed.")]);
     } finally {
       setAuthBusy("");
     }
@@ -260,7 +260,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
       setNotify(["Profile photo updated."]);
     } catch (error) {
-      setErrorMsg([error.message || "Avatar upload failed."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Avatar upload failed.")]);
     } finally {
       setSaveBusy(false);
       event.target.value = "";
@@ -309,7 +309,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
       setNotify(["Profile updated."]);
     } catch (error) {
-      setErrorMsg([error.message || "Profile update failed."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Profile update failed.")]);
     } finally {
       setIdentityBusy(false);
     }
@@ -321,7 +321,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       await signOut();
       setNotify(["Signed out successfully."]);
     } catch (error) {
-      setErrorMsg([error.message || "Sign out failed."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Sign out failed.")]);
     } finally {
       setAuthBusy("");
     }

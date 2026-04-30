@@ -15,7 +15,7 @@ import {
   IoTrashOutline,
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { authHeaders } from "@/utils/authSession";
+import { authHeaders, formatBackendAuthErrorMessage } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
 import { speciesAvatarStyle } from "@/utils/species";
@@ -180,14 +180,14 @@ function DisplayComments({
         }
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.detail || "Follow action failed.");
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Follow action failed."));
       setFollowingAuthor(Boolean(payload.following));
       setNotify([payload.following ? `Following ${name}.` : `Unfollowed ${name}.`]);
       queryClient.invalidateQueries({ queryKey: ["home-following"] });
       queryClient.invalidateQueries({ queryKey: ["desktop-social-graph"] });
       queryClient.invalidateQueries({ queryKey: ["universe-social-graph"] });
     } catch (error) {
-      setErrorMsg([error.message || "Follow action failed."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Follow action failed.")]);
     } finally {
       setFollowBusy(false);
       setMenuOpen(false);
@@ -207,7 +207,7 @@ function DisplayComments({
       setMenuOpen(false);
       setNotify(["Comment updated."]);
     } catch (error) {
-      setErrorMsg([error.message || "Unable to edit comment."]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Unable to edit comment.")]);
     } finally {
       setEditBusy(false);
     }
