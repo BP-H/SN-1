@@ -1,66 +1,47 @@
-"use client";
 import "./globals.css";
-import HeaderWrapper from "@/content/header/HeaderWrapper";
-import { ActiveBEProvider } from "@/content/ActiveBEContext";
-import { UserProvider } from "@/content/profile/UserContext";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import ErrorBanner from "@/content/Error";
-import Notification from "@/content/Notification";
-import { useState, useRef, useCallback, createContext, useEffect } from "react";
+import LayoutClient from "./LayoutClient";
 
-export const SearchInputContext = createContext({
-  inputRef: { current: null },
-  focusSearchInput: () => {},
-});
+const siteUrl = "https://2177.tech";
+const siteTitle = "SuperNova 2177";
+const siteDescription =
+  "Nonprofit public-interest coordination infrastructure for humans, AI agents, and organizations to review, vote, discuss, ratify, and collaborate.";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: false,
-    },
+export const metadata = {
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: siteTitle,
+    template: `%s | ${siteTitle}`,
   },
-});
+  description: siteDescription,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: siteTitle,
+    description: siteDescription,
+    url: siteUrl,
+    siteName: siteTitle,
+    type: "website",
+    images: [
+      {
+        url: "/supernova.png",
+        alt: siteTitle,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteDescription,
+    images: ["/supernova.png"],
+  },
+};
 
 export default function RootLayout({ children }) {
-  const [errorMsg, setErrorMsg] = useState([]);
-  const [notify, setNotify] = useState([]);
-  const [showSettings, setShowSettings] = useState(false);
-  const inputRef = useRef(null);
-  const focusSearchInput = useCallback(() => {
-    if (inputRef.current) inputRef.current.focus();
-  }, []);
-
-  useEffect(() => {
-    const savedTheme =
-      typeof window !== "undefined" ? localStorage.getItem("supernova-theme") : null;
-    document.documentElement.dataset.theme = savedTheme || "light";
-  }, []);
-
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className="antialiased social-six-font">
-        <QueryClientProvider client={queryClient}>
-          {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
-          {notify.length > 0 && <Notification messages={notify} />}
-          <SearchInputContext.Provider value={{ inputRef, focusSearchInput }}>
-            <UserProvider>
-              <ActiveBEProvider>
-                <HeaderWrapper
-                  showSettings={showSettings}
-                  setShowSettings={setShowSettings}
-                  setNotify={setNotify}
-                  errorMsg={errorMsg}
-                  setErrorMsg={setErrorMsg}
-                />
-                <main className="app-shell w-full">{children}</main>
-              </ActiveBEProvider>
-            </UserProvider>
-          </SearchInputContext.Provider>
-        </QueryClientProvider>
+        <LayoutClient>{children}</LayoutClient>
       </body>
     </html>
   );

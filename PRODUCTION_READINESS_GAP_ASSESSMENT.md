@@ -6,7 +6,7 @@ Mode: docs-only assessment. This pass does not change runtime code, frontend
 behavior, workflows, package files, lockfiles, database files, migrations,
 uploads, deployment settings, environment files, secrets, or protected core.
 
-Current master commit inspected: `ebd8326`
+Current master commit inspected: `6065045` (post PR #123)
 
 ## Summary
 
@@ -34,6 +34,12 @@ Current alpha progress after the recent guardrail PRs:
   visibility, and public connector read behavior have focused coverage.
 - MCP backend-origin documentation now calls out that `SUPERNOVA_API_BASE_URL`
   must point to the backend JSON API origin that serves `/connector/supernova`.
+- Upload hardening is now implemented with bounded streaming writes, 20 MB
+  image/avatar caps, 250 MB video caps, 50 MB document caps, focused tests,
+  and partial-file cleanup assertions.
+- FE7 production API-origin fail-fast is implemented in
+  `frontend-social-seven/utils/apiBase.js`; local/dev fallback remains
+  `http://127.0.0.1:8000`.
 - A PR-triggered `local-safe-pr-gates.yml` workflow now covers deterministic
   backend tests, `check_safe.py --local-only`, FE7 lint/build, and protected
   core zero-diff checks.
@@ -45,10 +51,23 @@ Remaining production gaps should stay explicit:
 - rate limiting and abuse controls;
 - CI becoming required branch protection after the PR gates are proven stable;
 - backup/restore verification drills against the real production process;
-- dependency split and dependency update hardening;
+- dependency split, cold-start audit, and dependency update hardening;
 - router split and `/v1` route versioning;
 - staged legacy frontend cleanup with reference checks and no protected-core
   changes.
+
+Audit-only notes for future dedicated PRs:
+
+- Rate limiting and abuse controls should be the next security-focused backend
+  PR. Do not add new packages or broad middleware in mixed product polish work.
+- `backend/requirements.txt` still includes heavy analysis/ML packages such as
+  `pandas`, `torch`, `matplotlib`, and `scipy` while `requirements-ml.txt`
+  also tracks optional heavier packages. Keep dependency/cold-start cleanup as
+  its own audit PR with startup/import verification.
+- Infinite-scroll sentinel polish belongs in a product UX PR, separate from
+  backend hardening.
+- ActivityPub, constellation, and governance surfacing should remain explicit
+  product/innovation follow-ups, not alpha-release hardening work.
 
 ## Priority Table
 

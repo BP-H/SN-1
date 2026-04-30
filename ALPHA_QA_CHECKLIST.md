@@ -181,3 +181,6 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Production API-origin guard**
   - Expected: production FE7 requires `NEXT_PUBLIC_API_URL` to point at a non-local backend API origin while local/dev still falls back to `http://127.0.0.1:8000`.
   - Quick test: confirm production env settings use the backend API origin and local dev still works without extra config.
+- [ ] **FE7 metadata and nested-route assets**
+  - Expected: production pages expose SuperNova title/description/social metadata and nested routes load shared assets from absolute paths such as `/spinner.svg`.
+  - Quick test: open a proposal/profile nested route, trigger a loading state if practical, and inspect page metadata/source in a preview build.

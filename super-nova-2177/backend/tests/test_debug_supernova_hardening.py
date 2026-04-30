@@ -93,6 +93,23 @@ PRODUCTION_PROBE = PROBE_PREAMBLE + textwrap.dedent(
 )
 
 
+SEARCH_TEST_PRODUCTION_PROBE = PROBE_PREAMBLE + textwrap.dedent(
+    """
+    response = client.get("/debug/search-test", params={"search": "alpha"})
+    body_text = response.text
+    result = {
+        "status_code": response.status_code,
+        "json": response.json(),
+        "body_text": body_text,
+        "contains_search_term": "alpha" in body_text,
+        "contains_results": "results" in body_text,
+        "contains_secret": "strong-test-secret-for-debug-supernova-hardening" in body_text,
+    }
+    print("DEBUG_SUPERNOVA_HARDENING_RESULT=" + json.dumps(result, sort_keys=True))
+    """
+)
+
+
 class DebugSupernovaHardeningTests(unittest.TestCase):
     def test_debug_supernova_blocked_by_supernova_env_production(self):
         result = run_debug_probe(
@@ -147,6 +164,24 @@ class DebugSupernovaHardeningTests(unittest.TestCase):
         self.assertFalse(result["contains_current_dir"])
         self.assertFalse(result["contains_dir_contents"])
         self.assertFalse(result["contains_supernova_dir"])
+
+    def test_debug_search_test_blocked_by_shared_production_markers(self):
+        production_markers = [
+            {"SUPERNOVA_ENV": "production"},
+            {"APP_ENV": "production"},
+            {"ENV": "prod"},
+            {"RAILWAY_ENVIRONMENT": "production"},
+        ]
+
+        for marker in production_markers:
+            with self.subTest(marker=marker):
+                result = run_debug_probe(SEARCH_TEST_PRODUCTION_PROBE, marker)
+
+                self.assertEqual(result["status_code"], 404)
+                self.assertEqual(result["json"], {"detail": "Not found"})
+                self.assertFalse(result["contains_search_term"])
+                self.assertFalse(result["contains_results"])
+                self.assertFalse(result["contains_secret"])
 
     def test_debug_supernova_development_response_is_minimal_and_useful(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(

@@ -2538,7 +2538,7 @@ def debug_supernova():
 
 @app.get("/debug/search-test")
 def debug_search(search: str = Query(...), db: Session = Depends(get_db)):
-    if os.environ.get("SUPERNOVA_ENV", "development") == "production":
+    if _is_explicit_production_environment():
         raise HTTPException(status_code=404, detail="Not found")
     try:
         if CRUD_MODELS_AVAILABLE:
