@@ -9,7 +9,7 @@ import LiquidGlass from "../liquid glass/LiquidGlass";
 import AssistantOrb from "../AssistantOrb";
 import NotificationsPanel from "./content/NotificationsPanel";
 import SupernovaMenu from "./content/SupernovaMenu";
-import { SearchInputContext } from "@/app/layout";
+import { SearchInputContext } from "@/app/LayoutClient";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";

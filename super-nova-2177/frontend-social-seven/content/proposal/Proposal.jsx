@@ -10,7 +10,7 @@ import {
   IoSend,
   IoVideocamOutline,
 } from "react-icons/io5";
-import { SearchInputContext } from "@/app/layout";
+import { SearchInputContext } from "@/app/LayoutClient";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";

@@ -3,7 +3,7 @@
 import { useContext } from "react";
 import Filters from "./Filters";
 import Input from "./Input";
-import { SearchInputContext } from "@/app/layout";
+import { SearchInputContext } from "@/app/LayoutClient";
 
 export default function FilterHeader({ filter, setFilter, setSearch, search }) {
   const { inputRef } = useContext(SearchInputContext);

@@ -11,11 +11,13 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] Backend federation/safety tests pass.
 - [ ] FE7 lint passes.
 - [ ] FE7 production build passes.
+- [ ] FE7 metadata and nested-route asset smoke passes: title/description/social metadata are present and shared assets such as `/spinner.svg` load from nested routes.
 - [ ] Protected core diff is zero unless the release explicitly includes reviewed core work.
 - [ ] Public protocol smoke reports zero failures.
 - [ ] Read-only social/backend smoke passes or records auth-gated social reads as skipped.
 - [ ] Optional until the API origin is known and stable: direct backend API smoke passes with `python scripts/smoke_social_backend.py "$env:NEXT_PUBLIC_API_URL" --strict-backend` in PowerShell.
 - [ ] Live smoke checks remain manual/scheduled and are not required PR gates yet.
+- [ ] Upload-size rejection and production API-origin guard items in `ALPHA_QA_CHECKLIST.md` were reviewed for the target environment.
 
 ## Governance And Protocol Review
 

@@ -1137,7 +1137,7 @@ function ProposalCard({
                 <>
                   {!videoLoaded && (
                     <div className="mobile-media-bleed flex h-52 w-full items-center justify-center rounded-[18px] bg-[var(--gray)] shadow-sm">
-                      <img src="./spinner.svg" alt="loading" />
+                      <img src="/spinner.svg" alt="loading" />
                     </div>
                   )}
                   <div className={`mobile-media-bleed aspect-video w-full overflow-hidden rounded-[18px] bg-[var(--gray)] shadow-sm ${videoLoaded ? "" : "hidden"}`}>
