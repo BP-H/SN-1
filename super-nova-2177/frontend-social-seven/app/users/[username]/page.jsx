@@ -927,7 +927,6 @@ export default function UserPostsPage() {
           likes={post.likes}
           dislikes={post.dislikes}
           voteSummary={post.vote_summary}
-          showSupportSummary
           profileUrl={post.profile_url}
           domainAsProfile={post.domain_as_profile}
           specie={post.author_type}

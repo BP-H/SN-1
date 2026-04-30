@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Limited profile support percentage badges to visual grid tiles, leaving normal profile cards to rely on their existing vote bars.
+- Stabilized public approved-collab profile feeds so collaborator pages include approved collaboration posts for other viewers.
+- Retired `frontend-nova` local launcher paths as prep for a future explicit source-folder deletion PR.
 - Added a bounded profile collab sweep so public approved collaborator posts are merged into collaborator profiles and tabs more reliably.
 - Ran alpha QA verification and documented remaining `frontend-nova` retirement blockers after reference checks.
 - Added a profile All tab that keeps authored and approved-collab posts visible across the full profile feed and matching tabs.

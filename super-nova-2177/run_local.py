@@ -45,14 +45,6 @@ FRONTENDS = {
         "type": "vite",
         "status": "legacy/off-path",
     },
-    "nova": {
-        "dir": ROOT / "frontend-nova",
-        "env_key": "VITE_API_URL",
-        "port": 5176,
-        "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5176"],
-        "type": "vite",
-        "status": "legacy / retired candidate",
-    },
     "social-six": {
         "dir": ROOT / "frontend-social-six",
         "env_key": "NEXT_PUBLIC_API_URL",

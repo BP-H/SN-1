@@ -5086,28 +5086,35 @@ def list_proposals(
             query = db.query(Proposal)
             clean_author = (author or "").strip()
             author_collab_user_id = None
+            approved_collab_proposal_ids: List[int] = []
             if include_collabs and clean_author and ProposalCollab is not None and Harmonizer is not None:
                 try:
                     author_collab_user_id = getattr(_find_harmonizer_by_username(db, clean_author), "id", None)
                 except Exception:
                     author_collab_user_id = None
+                if author_collab_user_id is not None:
+                    try:
+                        approved_collab_proposal_ids = [
+                            int(row[0])
+                            for row in (
+                                db.query(ProposalCollab.proposal_id)
+                                .filter(ProposalCollab.status == "approved")
+                                .filter(ProposalCollab.collaborator_user_id == author_collab_user_id)
+                                .all()
+                            )
+                            if row and row[0] is not None
+                        ]
+                    except Exception:
+                        approved_collab_proposal_ids = []
 
             def apply_author_scope(base_query):
                 if not clean_author:
                     return base_query
                 author_conditions = [func.lower(Proposal.userName) == clean_author.lower()]
-                if author_collab_user_id is not None and ProposalCollab is not None:
-                    base_query = base_query.outerjoin(
-                        ProposalCollab,
-                        and_(
-                            ProposalCollab.proposal_id == Proposal.id,
-                            ProposalCollab.status == "approved",
-                            ProposalCollab.collaborator_user_id == author_collab_user_id,
-                        ),
-                    )
+                if author_collab_user_id is not None:
                     author_conditions.append(Proposal.author_id == author_collab_user_id)
-                    author_conditions.append(ProposalCollab.id.isnot(None))
-                    return base_query.filter(or_(*author_conditions)).distinct()
+                if approved_collab_proposal_ids:
+                    author_conditions.append(Proposal.id.in_(approved_collab_proposal_ids))
                 return base_query.filter(or_(*author_conditions))
 
             # SEARCH
@@ -5202,7 +5209,19 @@ def list_proposals(
                 )
                 params["search"] = f"%{search}%"
             if author and author.strip():
-                where_clauses.append("LOWER(userName) = LOWER(:author)")
+                if include_collabs and "proposal_collabs" in existing_tables and "harmonizers" in existing_tables:
+                    where_clauses.append(
+                        "("
+                        "LOWER(userName) = LOWER(:author) "
+                        "OR id IN ("
+                        "SELECT pc.proposal_id FROM proposal_collabs pc "
+                        "JOIN harmonizers h ON h.id = pc.collaborator_user_id "
+                        "WHERE pc.status = 'approved' AND LOWER(h.username) = LOWER(:author)"
+                        ")"
+                        ")"
+                    )
+                else:
+                    where_clauses.append("LOWER(userName) = LOWER(:author)")
                 params["author"] = author.strip()
             if before_id:
                 where_clauses.append("id < :before_id")

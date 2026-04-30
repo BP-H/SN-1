@@ -16,6 +16,12 @@ source folder should be deleted until local launcher references are retired in a
 separate, explicit cleanup PR. `frontend-social-seven` remains the only
 active/default frontend.
 
+Launcher-retirement update: `frontend-nova` source remains present, but its
+local launcher paths are now retired/disabled. `run_local.py` no longer offers a
+`nova` frontend option, `start_supernova.ps1` option 5 exits with a retired
+message, and `start_frontend_nova.ps1` is a retired stub that points to
+`frontend-social-seven`.
+
 The single smallest and least deployment-sensitive top-level legacy frontend is:
 
 `super-nova-2177/frontend-nova`
@@ -24,23 +30,23 @@ It has 26 tracked files, no `Dockerfile`, and no `vercel.json`. It is not the
 active frontend, and production documentation identifies
 `super-nova-2177/frontend-social-seven` as the active web surface.
 
-However, `frontend-nova` is still referenced by local launcher tooling:
+Before this launcher-retirement step, `frontend-nova` was still referenced by
+local launcher tooling:
 
 - `super-nova-2177/run_local.py`
 - `super-nova-2177/start_supernova.ps1`
 - `super-nova-2177/start_frontend_nova.ps1`
 
-Because those references are not docs-only, this assessment does not recommend a
-deletion PR yet. The safest future path is a tiny launcher/deprecation assessment
-or a deletion PR that deliberately updates local launcher choices in the same
-branch after review.
+Those runnable paths are now retired/disabled, but this branch still does not
+delete source. The safest future path is a fresh reference-check PR that decides
+whether source deletion is now docs-only/self-reference-safe.
 
 ## Alpha Follow-Up Reference Check
 
 Decision: do not delete `super-nova-2177/frontend-nova` in the alpha
 stabilization pass after PR #118.
 
-Reference checks still find active local launcher blockers:
+The PR #119 reference checks found active local launcher blockers:
 
 - `super-nova-2177/run_local.py` still contains the `nova` frontend entry and
   can launch `frontend-nova` on port `5176`.
@@ -49,7 +55,8 @@ Reference checks still find active local launcher blockers:
 - `super-nova-2177/start_frontend_nova.ps1` directly changes into
   `frontend-nova` and runs its Vite dev server.
 
-Other references are docs/inventory or self-references:
+After this launcher-retirement step, remaining expected references are
+docs/inventory, retired stubs, or source self-references:
 
 - cleanup/status docs and candidate inventory list `frontend-nova` as a legacy
   cleanup candidate;
@@ -61,23 +68,21 @@ Package/deployment check:
 
 - `frontend-nova` has `package.json` and `package-lock.json`;
 - no `Dockerfile` or `vercel.json` was found in `frontend-nova`;
-- the folder is still launcher-sensitive because of the active local launcher
-  references above.
+- the folder remains source-present but its local launcher paths are retired in
+  this cleanup step.
 
 Next smallest safe prep step:
 
-1. Open a focused launcher-retirement PR that removes or hides the `nova`
-   option from `run_local.py`, `start_supernova.ps1`, and
-   `start_frontend_nova.ps1`.
-2. Re-run reference checks.
-3. If remaining references are docs-only or source self-references, delete
+1. Re-run reference checks after this launcher-retirement PR is merged.
+2. If remaining references are docs-only, inventory-only, retired-stub-only, or
+   source self-references, delete
    `frontend-nova` in a separate explicit PR with rollback notes.
 
 ## Candidate Table
 
 | Candidate | Tracked files | Package/deploy markers | Reference findings | Classification |
 | --- | ---: | --- | --- | --- |
-| `super-nova-2177/frontend-nova` | 26 | `package.json`; no `Dockerfile`; no `vercel.json` | Listed in cleanup docs, repo status, `run_local.py`, `start_supernova.ps1`, and `start_frontend_nova.ps1`; package self-references only otherwise. | Least risky future deletion candidate, but not safe to delete until launcher references are handled. |
+| `super-nova-2177/frontend-nova` | 26 | `package.json`; no `Dockerfile`; no `vercel.json` | Source remains. Local launchers no longer run it: `run_local.py` omits `nova`, `start_supernova.ps1` disables option 5, and `start_frontend_nova.ps1` is a retired stub; package self-references otherwise. | Least risky future deletion candidate after a fresh post-retirement reference check. |
 | `super-nova-2177/frontend-professional` | 31 | `package.json`; no `Dockerfile`; no `vercel.json` | Listed in cleanup docs, repo status, `run_local.py`, `start_supernova.ps1`, and `start_frontend_professional.ps1`; package self-references only otherwise. | Possible later candidate after `frontend-nova`; launcher-sensitive. |
 | `super-nova-2177/frontend-vite-basic` | 31 | `package.json`; no `Dockerfile`; no `vercel.json`; contains `supernovacore.py` | Listed in cleanup docs and local launchers; protected `supernovacore.py` diff is watched by safe checks. | Do not touch yet; protected-core-sensitive. |
 | `super-nova-2177/frontend-next` | 61 | `package.json`, `Dockerfile`, `yarn.lock`; no `vercel.json` | Listed in cleanup docs, repo status, local launchers, and RSC/Next security assessment. | Deployment/security-sensitive; do not touch until separate legacy Next assessment. |
@@ -119,20 +124,22 @@ Searches excluded `node_modules`, `.next`, `.venv`, and `__pycache__`.
 
 ### Local Launcher References
 
-The following local launcher surfaces still enumerate top-level legacy
+The following local launcher surfaces still enumerate some top-level legacy
 frontends:
 
 - `super-nova-2177/run_local.py`
 - `super-nova-2177/start_supernova.ps1`
 - individual `start_frontend_*.ps1` launchers, including:
-  - `start_frontend_nova.ps1`
+  - `start_frontend_nova.ps1` (retired stub; does not launch npm)
   - `start_frontend_professional.ps1`
   - `start_frontend_vite_basic.ps1`
   - `start_frontend_vite_3d.ps1`
   - `start_frontend_next.ps1`
   - `start_frontend_social_six.ps1`
 
-These references mean deletion is not purely docs-only.
+These references mean deletion candidates still need one-at-a-time launcher
+review. For `frontend-nova`, the runnable launcher paths are retired in this
+cleanup step.
 
 ### Imports
 
@@ -141,7 +148,8 @@ These references mean deletion is not purely docs-only.
 - `transcendental_resonance_frontend` is imported by tests, utilities, docs, and
   compatibility wrappers; it is not a safe deletion candidate.
 - Top-level JavaScript frontend folders do not appear to be imported by active
-  backend Python code, but they are still exposed through local launchers.
+  backend Python code. Most remain exposed through local launchers; `frontend-nova`
+  is now retired from the runnable launcher paths.
 
 ## Deployment And Config Risk
 
@@ -151,14 +159,15 @@ These references mean deletion is not purely docs-only.
 | `frontend-vite-3d` | High cleanup risk because it has `vercel.json` and `api/` route files. |
 | `frontend-next` and `frontend-social-six` | Medium-to-high cleanup risk because they are legacy Next apps with Dockerfiles and prior RSC/Next security findings. |
 | `frontend-vite-basic` | Medium-to-high cleanup risk because it contains a protected `supernovacore.py` copy tracked by safe-check zero-diff rules. |
-| `frontend-nova` | Lowest deployment risk among top-level legacy apps, but launcher-sensitive. |
+| `frontend-nova` | Lowest deployment risk among top-level legacy apps; runnable launcher paths are now retired, but source deletion still needs a fresh reference check. |
 | `nova-web` | Nested/deployment-sensitive; should remain under the nested backend/lockfile cleanup plan. |
 | Python UI packages | Import-sensitive; should not be treated as disposable frontend folders. |
 
 ## Recommended First Deletion Candidate
 
-No deletion PR should be opened yet because even the safest candidate has
-non-doc local launcher references.
+No deletion PR should be opened in this branch. The safest candidate has now had
+its local launcher paths retired, but deletion should wait for a fresh
+post-retirement reference check in a separate explicit PR.
 
 Safest later candidate:
 
@@ -168,14 +177,9 @@ Suggested next branch before deletion:
 
 `cleanup/prepare-frontend-nova-removal`
 
-That future branch should either:
-
-- update local launcher choices and docs to remove or deprecate `frontend-nova`,
-  then delete `frontend-nova` in the same reviewed PR; or
-- document why launcher support should be retained and defer deletion again.
-
-Do not delete `frontend-nova` in isolation while `run_local.py`,
-`start_supernova.ps1`, and `start_frontend_nova.ps1` still reference it.
+That future branch should confirm remaining references are docs-only,
+inventory-only, retired-stub-only, or source self-references, then delete
+`frontend-nova` with rollback notes if the check is clean.
 
 ## Exact Files And Folders Not To Touch Yet
 
@@ -208,10 +212,10 @@ Do not delete `frontend-nova` in isolation while `run_local.py`,
 - Search references again with `rg`, excluding generated dependency/build
   folders.
 - Confirm active FE7 remains untouched.
-- If deleting `frontend-nova`, update or remove:
-  - `super-nova-2177/run_local.py` entries for `nova`
-  - `super-nova-2177/start_supernova.ps1` option for `frontend-nova`
-  - `super-nova-2177/start_frontend_nova.ps1`
+- If deleting `frontend-nova`, confirm:
+  - `super-nova-2177/run_local.py` has no `nova` runnable entry
+  - `super-nova-2177/start_supernova.ps1` does not launch `frontend-nova`
+  - `super-nova-2177/start_frontend_nova.ps1` is either removed in the deletion PR or remains only as a retired stub
   - cleanup/status docs that mention the folder
 - Run:
   - `python -m unittest super-nova-2177/backend/tests/test_db_utils_fallback.py`
@@ -227,9 +231,10 @@ Do not delete `frontend-nova` in isolation while `run_local.py`,
 
 ## Rollback Plan
 
-For this assessment PR:
+For this assessment or launcher-retirement PR:
 
-- Revert the assessment commit. No runtime behavior changes are present.
+- Revert the assessment/launcher commit to restore the prior launcher entries
+  and docs wording.
 
 For a future deletion PR:
 
@@ -242,7 +247,6 @@ For a future deletion PR:
 ## Bottom Line
 
 `frontend-nova` is the smallest and least deployment-sensitive top-level legacy
-frontend. It is the likely first future removal candidate, but not yet safe for
-deletion because local launcher tooling still references it. The next safe step
-is a focused `frontend-nova` removal preparation PR, not deletion in this
-assessment.
+frontend. It is the likely first future removal candidate, but source deletion
+should wait for a fresh post-retirement reference check. This branch retires
+runnable launcher paths only.

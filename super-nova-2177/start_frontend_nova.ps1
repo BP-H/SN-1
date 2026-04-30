@@ -1,5 +1,3 @@
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-$repo = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location (Join-Path $repo "frontend-nova")
-$env:VITE_API_URL = "http://127.0.0.1:8000"
-& "C:\Program Files\nodejs\npm.cmd" run dev -- --host 0.0.0.0 --port 5176
+Write-Host "frontend-nova is retired/off-path. Use frontend-social-seven." -ForegroundColor Yellow
+Write-Host "Run .\start_frontend_social_seven.ps1 or choose Social Seven from .\start_supernova.ps1." -ForegroundColor Cyan
+exit 0
