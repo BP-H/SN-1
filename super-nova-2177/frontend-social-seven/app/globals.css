@@ -3060,6 +3060,47 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
 }
 
+.profile-tab-strip {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.profile-tab-button {
+  color: var(--text-gray-light);
+  background: transparent;
+}
+
+.profile-tab-button:hover {
+  color: var(--text-black);
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.profile-tab-button-selected {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
+  box-shadow: var(--shadow-pink);
+}
+
+.profile-tab-badge {
+  min-width: 1rem;
+  color: #fff;
+  background: var(--pink);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.22);
+}
+
+.profile-tab-button-selected .profile-tab-badge {
+  color: var(--pink);
+  background: #fff;
+  border-color: rgba(255, 255, 255, 0.95);
+}
+
+.notification-action-hint {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 79, 143, 0.92), rgba(63, 184, 214, 0.76));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
 .profile-collab-entry-button,
 .profile-collab-panel,
 .profile-collab-request-card,
@@ -3185,6 +3226,46 @@ html[data-theme="light"] .proposal-inline-collab-link:focus-visible {
 
 html[data-theme="light"] .profile-visual-collab-badge {
   box-shadow: 0 8px 18px rgba(25, 30, 48, 0.18);
+}
+
+html[data-theme="light"] .profile-tab-strip {
+  background: rgba(255, 255, 255, 0.76);
+  border-color: rgba(17, 24, 39, 0.075);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 10px 22px rgba(25, 30, 48, 0.055);
+}
+
+html[data-theme="light"] .profile-tab-button {
+  color: #6a7283;
+}
+
+html[data-theme="light"] .profile-tab-button:hover {
+  color: #242838;
+  background: rgba(17, 24, 39, 0.055);
+}
+
+html[data-theme="light"] .profile-tab-button-selected {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(230, 45, 116, 0.96), rgba(32, 137, 166, 0.86));
+  box-shadow: 0 12px 24px rgba(201, 45, 112, 0.22);
+}
+
+html[data-theme="light"] .profile-tab-badge {
+  background: #c92d70;
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 16px rgba(25, 30, 48, 0.16);
+}
+
+html[data-theme="light"] .profile-tab-button-selected .profile-tab-badge {
+  color: #c92d70;
+  background: #fff;
+}
+
+html[data-theme="light"] .notification-action-hint {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(230, 45, 116, 0.95), rgba(32, 137, 166, 0.82));
+  box-shadow: 0 8px 18px rgba(25, 30, 48, 0.13);
 }
 
 html[data-theme="light"] .profile-collab-entry-button,

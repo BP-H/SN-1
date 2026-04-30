@@ -27,7 +27,10 @@ function actorLabel(value) {
   return clean ? `@${clean}` : "Someone";
 }
 
-function notificationHref(item) {
+function notificationHref(item, currentUsername = "") {
+  if (item?.type === "collab_request" && currentUsername) {
+    return `/users/${encodeURIComponent(currentUsername)}?tab=collabs`;
+  }
   if (item?.proposal_id || item?.id) {
     return `/proposals/${encodeURIComponent(item.proposal_id || item.id)}`;
   }
@@ -35,6 +38,11 @@ function notificationHref(item) {
     return `/users/${encodeURIComponent(item.actor)}`;
   }
   return "/proposals";
+}
+
+function notificationActionHint(item) {
+  if (item?.type === "collab_request") return "Review invite";
+  return "";
 }
 
 function notificationLabel(item) {
@@ -75,9 +83,10 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
 
   const items = (data || []).slice(0, 3).map((post) => ({
     id: post.id || post.comment_id || post.proposal_id,
-    href: notificationHref(post),
+    href: notificationHref(post, userData?.name || ""),
     label: notificationLabel(post),
     title: notificationTitle(post),
+    actionHint: notificationActionHint(post),
     time: formatRelativeTime(post.time),
   }));
 
@@ -114,6 +123,11 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
               <p className="line-clamp-2 text-[0.84rem] font-medium text-[var(--text-black)]">
                 {item.title}
               </p>
+              {item.actionHint && (
+                <span className="notification-action-hint mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase tracking-[0.1em]">
+                  {item.actionHint}
+                </span>
+              )}
             </Link>
           ))
         )}
