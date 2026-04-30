@@ -226,10 +226,12 @@ class ConnectorActionProposalModelTests(unittest.TestCase):
             result["connector_action_routes"],
             [
                 "/connector/actions",
+                "/connector/actions/draft-ai-review",
                 "/connector/actions/draft-collab-request",
                 "/connector/actions/draft-comment",
                 "/connector/actions/draft-proposal",
                 "/connector/actions/draft-vote",
+                "/connector/actions/{action_id}/approve-ai-review",
                 "/connector/actions/{action_id}/approve-vote",
                 "/connector/actions/{action_id}/cancel",
             ],
@@ -240,7 +242,10 @@ class ConnectorActionProposalModelTests(unittest.TestCase):
                 for route in result["connector_action_routes"]
                 if "approve" in route or "execute" in route
             ],
-            ["/connector/actions/{action_id}/approve-vote"],
+            [
+                "/connector/actions/{action_id}/approve-ai-review",
+                "/connector/actions/{action_id}/approve-vote",
+            ],
         )
 
 

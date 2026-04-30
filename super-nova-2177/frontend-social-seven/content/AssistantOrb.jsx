@@ -67,6 +67,7 @@ function buildPrompt(action, target) {
 
 function connectorActionLabel(actionType = "") {
   const labels = {
+    draft_ai_review: "AI review draft",
     draft_vote: "Vote draft",
     draft_comment: "Comment draft",
     draft_proposal: "Post draft",
@@ -85,6 +86,13 @@ function connectorActionTargetLabel(action = {}) {
 
 function connectorActionPreview(action = {}) {
   const payload = action.draft_payload || {};
+  if (action.action_type === "draft_ai_review") {
+    const vote = payload.intended_choice || payload.normalized_vote || "review";
+    const rationale = payload.rationale || payload.comment || payload.body || "";
+    const cleanRationale = String(rationale || "").replace(/\s+/g, " ").trim();
+    const preview = `${vote}: ${cleanRationale || "AI review draft"}`;
+    return preview.length > 120 ? `${preview.slice(0, 120)}...` : preview;
+  }
   const text =
     payload.body ||
     payload.comment ||
@@ -95,6 +103,14 @@ function connectorActionPreview(action = {}) {
     "Awaiting review";
   const cleanText = String(text || "").replace(/\s+/g, " ").trim();
   return cleanText.length > 96 ? `${cleanText.slice(0, 96)}...` : cleanText;
+}
+
+function connectorActionConfidence(action = {}) {
+  const value = action?.draft_payload?.confidence;
+  if (value === null || value === undefined || value === "") return "";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "";
+  return `${Math.round(Math.max(0, Math.min(number, 1)) * 100)}% confidence`;
 }
 
 function connectorActionCreatedAt(action = {}) {
@@ -500,9 +516,13 @@ export default function AssistantOrb() {
     setConnectorActionsNotice("");
     try {
       requireBackendAuthSession();
+      const approveEndpoint =
+        action.action_type === "draft_ai_review"
+          ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-review`
+          : `${API_BASE_URL}/connector/actions/${action.id}/approve-vote`;
       const endpoint =
         reviewAction === "approve"
-          ? `${API_BASE_URL}/connector/actions/${action.id}/approve-vote`
+          ? approveEndpoint
           : `${API_BASE_URL}/connector/actions/${action.id}/cancel`;
       const response = await fetch(endpoint, {
         method: "POST",
@@ -513,7 +533,13 @@ export default function AssistantOrb() {
         throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update AI Action."));
       }
       setConnectorActions((items) => items.filter((item) => item.id !== action.id));
-      setConnectorActionsNotice(reviewAction === "approve" ? "Vote action approved." : "Draft action canceled.");
+      setConnectorActionsNotice(
+        reviewAction === "approve"
+          ? action.action_type === "draft_ai_review"
+            ? "AI review published."
+            : "Vote action approved."
+          : "Draft action canceled."
+      );
     } catch (error) {
       setConnectorActionsError(formatBackendAuthErrorMessage(error, "Unable to update AI Action."));
     } finally {
@@ -965,6 +991,9 @@ export default function AssistantOrb() {
                     const isApproving = busyKey === `approve:${action.id}`;
                     const isCanceling = busyKey === `cancel:${action.id}`;
                     const isVoteDraft = action.action_type === "draft_vote";
+                    const isAiReviewDraft = action.action_type === "draft_ai_review";
+                    const isApprovableDraft = isVoteDraft || isAiReviewDraft;
+                    const confidenceLabel = connectorActionConfidence(action);
                     return (
                       <article key={action.id} className="ai-action-card rounded-[0.9rem] p-3">
                         <div className="flex items-start justify-between gap-2">
@@ -983,12 +1012,17 @@ export default function AssistantOrb() {
                         <p className="mt-2 line-clamp-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
                           {connectorActionPreview(action)}
                         </p>
+                        {isAiReviewDraft && (
+                          <p className="mt-2 rounded-[0.7rem] border border-[var(--pink)]/20 bg-[var(--pink)]/8 px-2.5 py-2 text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
+                            AI review draft — approve to publish one AI vote and one AI rationale comment.
+                          </p>
+                        )}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                            {connectorActionCreatedAt(action)}
+                            {[connectorActionCreatedAt(action), confidenceLabel].filter(Boolean).join(" · ")}
                           </span>
                           <div className="flex items-center gap-2">
-                            {isVoteDraft ? (
+                            {isApprovableDraft ? (
                               <button
                                 type="button"
                                 onClick={() => reviewConnectorAction(action, "approve")}

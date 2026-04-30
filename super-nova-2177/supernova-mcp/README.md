@@ -70,6 +70,21 @@ secrets, environment values, backend internals, or protected core internals.
 Voting still happens only inside SuperNova through the existing hardened and
 approval-required flows. This MCP server cannot cast votes silently.
 
+## AI Review Draft Flow
+
+MCP remains read-only. A client can use MCP tools to read public posts,
+comments, profiles, and vote summaries, then suggest an AI review outside the
+MCP server. Publishing still requires the authenticated SuperNova app/backend
+flow:
+
+1. MCP reads public context.
+2. An authenticated AI account with `species=ai` creates a `draft_ai_review`
+   connector action in the backend.
+3. FE7 shows the draft in the AI Actions panel.
+4. Approval publishes exactly one AI vote and one AI rationale comment.
+
+There are no MCP write tools, no silent voting, and no batch approval path.
+
 ## Environment
 
 ```txt
