@@ -115,6 +115,13 @@ def seed_context():
             species="human",
             profile_pic="dana.png",
         )
+        erin = backend_app.Harmonizer(
+            username="erin",
+            email="erin@example.test",
+            hashed_password="test",
+            species="ai",
+            profile_pic="erin.png",
+        )
         empty = backend_app.Harmonizer(
             username="empty",
             email="empty@example.test",
@@ -122,12 +129,13 @@ def seed_context():
             species="ai",
             profile_pic="empty.png",
         )
-        db.add_all([alice, bob, cara, dana, empty])
+        db.add_all([alice, bob, cara, dana, erin, empty])
         db.commit()
         db.refresh(alice)
         db.refresh(bob)
         db.refresh(cara)
         db.refresh(dana)
+        db.refresh(erin)
         db.refresh(empty)
 
         alice_post = backend_app.Proposal(
@@ -170,12 +178,23 @@ def seed_context():
             created_at=datetime.datetime(2026, 1, 2, 12, 3, 0),
             voting_deadline=datetime.datetime(2026, 1, 9, 12, 3, 0),
         )
-        db.add_all([alice_post, bob_post, cara_pending_post, dana_post])
+        erin_collab_post = backend_app.Proposal(
+            title="Alice approved collab-only profile post",
+            description="Approved collab should appear on collaborator profile even without authored posts.",
+            userName="alice",
+            userInitials="AL",
+            author_type="human",
+            author_id=alice.id,
+            created_at=datetime.datetime(2026, 1, 2, 12, 4, 0),
+            voting_deadline=datetime.datetime(2026, 1, 9, 12, 4, 0),
+        )
+        db.add_all([alice_post, bob_post, cara_pending_post, dana_post, erin_collab_post])
         db.commit()
         db.refresh(alice_post)
         db.refresh(bob_post)
         db.refresh(cara_pending_post)
         db.refresh(dana_post)
+        db.refresh(erin_collab_post)
 
         db.add_all(
             [
@@ -210,6 +229,14 @@ def seed_context():
                     status="removed",
                     removed_at=datetime.datetime(2026, 1, 2, 12, 12, 0),
                 ),
+                ProposalCollab(
+                    proposal_id=erin_collab_post.id,
+                    author_user_id=alice.id,
+                    collaborator_user_id=erin.id,
+                    requested_by_user_id=alice.id,
+                    status="approved",
+                    responded_at=datetime.datetime(2026, 1, 2, 12, 13, 0),
+                ),
             ]
         )
         db.commit()
@@ -218,6 +245,7 @@ def seed_context():
             "bob_post_id": bob_post.id,
             "cara_pending_post_id": cara_pending_post.id,
             "dana_post_id": dana_post.id,
+            "erin_collab_post_id": erin_collab_post.id,
         }
     finally:
         db.close()
@@ -228,6 +256,8 @@ detail = client.get(f"/proposals/{seeded['alice_post_id']}")
 alice_with_collabs = client.get("/proposals?filter=latest&author=alice&include_collabs=true&limit=20&offset=0")
 bob_author_only = client.get("/proposals?filter=latest&author=bob&limit=20&offset=0")
 bob_with_collabs = client.get("/proposals?filter=latest&author=bob&include_collabs=true&limit=20&offset=0")
+erin_author_only = client.get("/proposals?filter=latest&author=erin&limit=20&offset=0")
+erin_with_collabs = client.get("/proposals?filter=latest&author=erin&include_collabs=true&limit=20&offset=0")
 cara_with_collabs = client.get("/proposals?filter=latest&author=cara&include_collabs=true&limit=20&offset=0")
 dana_with_collabs = client.get("/proposals?filter=latest&author=dana&include_collabs=true&limit=20&offset=0")
 empty_with_collabs = client.get("/proposals?filter=latest&author=empty&include_collabs=true&limit=20&offset=0")
@@ -260,6 +290,10 @@ print(
             "bob_author_only": bob_author_only.json(),
             "bob_with_collabs_status": bob_with_collabs.status_code,
             "bob_with_collabs": bob_with_collabs.json(),
+            "erin_author_only_status": erin_author_only.status_code,
+            "erin_author_only": erin_author_only.json(),
+            "erin_with_collabs_status": erin_with_collabs.status_code,
+            "erin_with_collabs": erin_with_collabs.json(),
             "cara_with_collabs_status": cara_with_collabs.status_code,
             "cara_with_collabs": cara_with_collabs.json(),
             "dana_with_collabs_status": dana_with_collabs.status_code,
@@ -317,6 +351,17 @@ class ProposalCollabVisibilityTests(unittest.TestCase):
         )
         self.assertEqual(collab_post["userName"], "alice")
         self.assertEqual(collab_post["collabs"][0]["username"], "bob")
+
+    def test_other_viewer_profile_includes_approved_collabs_for_collaborator_without_authored_posts(self):
+        self.assertEqual(self.result["erin_author_only_status"], 200)
+        self.assertEqual(self.result["erin_author_only"], [])
+
+        self.assertEqual(self.result["erin_with_collabs_status"], 200)
+        ids = {item["id"] for item in self.result["erin_with_collabs"]}
+        self.assertEqual(ids, {self.result["seeded"]["erin_collab_post_id"]})
+        collab_post = self.result["erin_with_collabs"][0]
+        self.assertEqual(collab_post["userName"], "alice")
+        self.assertEqual(collab_post["collabs"][0]["username"], "erin")
 
     def test_original_author_profile_still_includes_authored_approved_collab_post(self):
         self.assertEqual(self.result["alice_with_collabs_status"], 200)

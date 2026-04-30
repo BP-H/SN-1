@@ -7,7 +7,7 @@ Write-Host "  1. Next.js (legacy/off-path)" -ForegroundColor Green
 Write-Host "  2. Vite Professional (legacy/off-path)" -ForegroundColor Yellow
 Write-Host "  3. Vite 3D (legacy/off-path)" -ForegroundColor Magenta
 Write-Host "  4. Vite Basic (legacy/off-path)" -ForegroundColor White
-Write-Host "  5. Frontend Nova (legacy / retired candidate)" -ForegroundColor Cyan
+Write-Host "  5. Frontend Nova (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
 Write-Host "  6. Social Six (legacy/off-path)" -ForegroundColor Blue
 Write-Host "  7. Social Seven (Active/default FE7)" -ForegroundColor Magenta
 Write-Host ""
@@ -23,7 +23,7 @@ $frontendMap = @{
     "2" = "frontend-professional"
     "3" = "frontend-vite-3d"
     "4" = "frontend-vite-basic"
-    "5" = "frontend-nova"
+    "5" = "__retired_frontend_nova"
     "6" = "frontend-social-six"
     "7" = "frontend-social-seven"
 }
@@ -33,7 +33,6 @@ $frontendPorts = @{
     "frontend-professional" = 5173
     "frontend-vite-3d" = 5175
     "frontend-vite-basic" = 5174
-    "frontend-nova" = 5176
     "frontend-social-six" = 3001
     "frontend-social-seven" = 3007
 }
@@ -43,6 +42,12 @@ $frontendDir = $frontendMap[$choice]
 if ($null -eq $frontendDir) {
     Write-Host "Invalid choice. Exiting." -ForegroundColor Red
     exit 1
+}
+
+if ($frontendDir -eq "__retired_frontend_nova") {
+    Write-Host "`nfrontend-nova is retired/off-path. Use frontend-social-seven." -ForegroundColor Yellow
+    Write-Host "Run this launcher again and choose option 7 for Social Seven." -ForegroundColor Cyan
+    exit 0
 }
 
 Write-Host "`n[1/2] Starting Backend in a new window..." -ForegroundColor Cyan
