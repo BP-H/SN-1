@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IoChatbubbleEllipsesOutline,
@@ -35,6 +35,24 @@ const PROFILE_TABS = [
   { key: "text", label: "Posts", title: "Text posts", icon: IoTextOutline },
   { key: "collabs", label: "Collabs", title: "Collaborations", icon: IoPeopleOutline },
 ];
+const TAB_QUERY_TO_KEY = {
+  visuals: "visuals",
+  decisions: "proposals",
+  proposals: "proposals",
+  posts: "text",
+  text: "text",
+  collabs: "collabs",
+};
+const TAB_KEY_TO_QUERY = {
+  visuals: "visuals",
+  proposals: "decisions",
+  text: "posts",
+  collabs: "collabs",
+};
+
+function normalizeProfileTab(value) {
+  return TAB_QUERY_TO_KEY[String(value || "").toLowerCase()] || "visuals";
+}
 
 function supportPercentLabel(post, compact = false) {
   const voteSummary = post?.vote_summary || {};
@@ -261,6 +279,7 @@ async function fetchProfilePostsPage(username, pageParam) {
 export default function UserPostsPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const username = decodeURIComponent(params?.username || "");
   const { userData, isAuthenticated, defaultAvatar } = useUser();
@@ -276,6 +295,7 @@ export default function UserPostsPage() {
   const [collabReviewBusyId, setCollabReviewBusyId] = useState("");
   const [collabPanelNotice, setCollabPanelNotice] = useState("");
   const [collabPanelError, setCollabPanelError] = useState("");
+  const tabParam = searchParams?.get("tab") || "";
   const currentUsername = userData?.name || "";
   const isOwnProfile = Boolean(
     currentUsername && username && currentUsername.toLowerCase() === username.toLowerCase()
@@ -433,8 +453,8 @@ export default function UserPostsPage() {
   }, [username]);
 
   useEffect(() => {
-    setActiveTab("visuals");
-  }, [username]);
+    setActiveTab(normalizeProfileTab(tabParam));
+  }, [tabParam, username]);
 
   useEffect(() => {
     setAboutDraft(profile.bio || "");
@@ -444,6 +464,15 @@ export default function UserPostsPage() {
 
   const requireAccount = () => {
     window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+  };
+
+  const handleTabSelect = (tabKey) => {
+    const nextTab = PROFILE_TABS.some((tab) => tab.key === tabKey) ? tabKey : "visuals";
+    setActiveTab(nextTab);
+    if (!username) return;
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    params.set("tab", TAB_KEY_TO_QUERY[nextTab] || "visuals");
+    router.replace(`/users/${encodeURIComponent(username)}?${params.toString()}`, { scroll: false });
   };
 
   const handleMessage = () => {
@@ -557,6 +586,8 @@ export default function UserPostsPage() {
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
       queryClient.invalidateQueries({ queryKey: ["home-feed"] });
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["header-notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["header-notification-count"] });
     } catch (error) {
       setCollabPanelError(error?.message || BACKEND_AUTH_MISSING_MESSAGE);
     } finally {
@@ -1015,31 +1046,27 @@ export default function UserPostsPage() {
         ) : (
           <>
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
-              <div className="grid grid-cols-4 gap-1.5 rounded-[1rem] bg-white/[0.045] p-1">
+              <div className="profile-tab-strip grid grid-cols-4 gap-1.5 rounded-[1rem] p-1">
                 {PROFILE_TABS.map((tab) => {
                   const selected = activeTab === tab.key;
                   const TabIcon = tab.icon;
+                  const count = tabCounts[tab.key] || 0;
                   return (
                     <button
                       key={tab.key}
                       type="button"
-                      onClick={() => setActiveTab(tab.key)}
-                      aria-label={tab.title}
-                      title={tab.title}
+                      onClick={() => handleTabSelect(tab.key)}
+                      aria-label={`${tab.title}${count > 0 ? ` (${count})` : ""}`}
+                      title={`${tab.title}${count > 0 ? ` (${count})` : ""}`}
                       aria-pressed={selected}
-                      className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[0.85rem] px-1.5 text-[0.62rem] font-black transition-colors ${
-                        selected
-                          ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                          : "text-[var(--text-gray-light)] hover:bg-white/[0.055] hover:text-[var(--text-black)]"
-                      }`}
+                      className={`profile-tab-button ${selected ? "profile-tab-button-selected" : ""} relative flex min-h-12 min-w-0 items-center justify-center rounded-[0.85rem] px-1.5 transition-colors`}
                     >
-                      <TabIcon className="shrink-0 text-[1.05rem]" aria-hidden="true" />
-                      <span className="max-w-full truncate">{tab.label}</span>
-                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] ${
-                        selected ? "bg-white/20 text-white" : "bg-white/[0.055] text-[var(--text-gray-light)]"
-                      }`}>
-                        {tabCounts[tab.key]}
-                      </span>
+                      <TabIcon className="shrink-0 text-[1.18rem]" aria-hidden="true" />
+                      {count > 0 && (
+                        <span className="profile-tab-badge absolute right-1.5 top-1 rounded-full px-1.5 py-0.5 text-[0.55rem] font-black leading-none">
+                          {count > 99 ? "99+" : count}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1053,7 +1080,7 @@ export default function UserPostsPage() {
                   {posts.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setActiveTab(decisionPosts.length > 0 ? "proposals" : "text")}
+                      onClick={() => handleTabSelect(decisionPosts.length > 0 ? "proposals" : "text")}
                       className="mt-4 rounded-full bg-white/[0.065] px-4 py-2 text-[0.76rem] font-bold text-[var(--text-black)] hover:bg-white/[0.09]"
                     >
                       {decisionPosts.length > 0 ? "View decisions" : "View posts"}
