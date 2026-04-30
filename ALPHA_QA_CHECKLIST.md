@@ -41,8 +41,8 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Expected: signed-in user can vote and remove their vote; public reads remain public.
   - Quick test: vote on a post, refresh, then unvote.
 - [ ] **Weighted support display**
-  - Expected: feed and profile support percentages match the weighted species logic.
-  - Quick test: compare the same post in feed and profile.
+  - Expected: feed vote bars and profile visual-grid support badges use the same weighted species logic; normal profile cards rely on their existing vote bar instead of an extra percent label.
+  - Quick test: compare the same visual post in feed and the profile Visuals grid.
 - [ ] **System vote write auth**
   - Expected: signed-in user can cast/remove; missing or wrong token is rejected.
   - Quick test: cast/remove as the matching account.
@@ -172,3 +172,6 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **No financial promise language**
   - Expected: docs/UI describe recognition and contribution records without payment guarantees.
   - Quick test: search touched docs/UI for risky words and keep only guardrail uses.
+- [ ] **Deleted legacy frontend fallout**
+  - Expected: `frontend-nova` remains deleted, no local launcher offers a broken runnable Nova path, cleanup inventory no longer lists it as a current source candidate, and no package/deployment config points to it.
+  - Quick test: run `python -m py_compile super-nova-2177/run_local.py`, inspect `start_supernova.ps1`, and search package/deployment files for `frontend-nova`.

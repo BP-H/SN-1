@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Ran final alpha QA fixpack notes after `frontend-nova` deletion and verified active FE7/MCP/profile/collab checklist wording.
 - Deleted the retired `frontend-nova` source folder after launcher retirement and fresh reference checks.
 - Limited profile support percentage badges to visual grid tiles, leaving normal profile cards to rely on their existing vote bars.
 - Stabilized public approved-collab profile feeds so collaborator pages include approved collaboration posts for other viewers.
