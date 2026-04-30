@@ -1112,6 +1112,16 @@ class ConnectorDraftVoteIn(BaseModel):
     choice: str
 
 
+class ConnectorDraftAiReviewIn(BaseModel):
+    username: str
+    proposal_id: int
+    choice: str
+    rationale: Optional[str] = None
+    comment: Optional[str] = None
+    body: Optional[str] = None
+    confidence: Optional[float] = None
+
+
 class ConnectorDraftCommentIn(BaseModel):
     username: str
     proposal_id: int
@@ -3144,6 +3154,18 @@ def _connector_require_actor(
     return _require_token_identity_match(authorization, db, clean_username)
 
 
+def _connector_require_ai_actor(
+    authorization: Optional[str],
+    db: Session,
+    username: str,
+):
+    actor = _connector_require_actor(authorization, db, username)
+    species = (getattr(actor, "species", "") or "").strip().lower()
+    if species != "ai":
+        raise HTTPException(status_code=403, detail="AI review drafts require an AI actor")
+    return actor
+
+
 def _connector_proposal_title(proposal) -> str:
     return getattr(proposal, "title", "") or "Untitled proposal"
 
@@ -3170,6 +3192,8 @@ def _normalize_connector_vote_choice(choice: str) -> Dict[str, str]:
         "up": ("support", "up"),
         "oppose": ("oppose", "down"),
         "down": ("oppose", "down"),
+        "abstain": ("abstain", "neutral"),
+        "neutral": ("abstain", "neutral"),
     }
     if clean_choice not in mapping:
         raise HTTPException(status_code=400, detail="Invalid vote choice")
@@ -3240,6 +3264,7 @@ def _connector_action_payload(value) -> Dict[str, Any]:
 
 
 def _connector_action_response(record, summary: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    executed_action = result.get("executed_action") or "vote"
     return {
         "ok": True,
         "mode": "approval_required",
@@ -3257,7 +3282,7 @@ def _connector_action_response(record, summary: Dict[str, Any], result: Dict[str
         "safety": {
             "explicit_approval": True,
             "no_background_execution": True,
-            "executed_action": "vote",
+            "executed_action": executed_action,
         },
     }
 
@@ -3330,6 +3355,54 @@ def _connector_execute_vote(db: Session, *, actor, proposal, choice: str) -> Dic
         "created": created,
         "actor": getattr(actor, "username", ""),
     }
+
+
+def _connector_review_rationale(payload: ConnectorDraftAiReviewIn | Dict[str, Any]) -> str:
+    if isinstance(payload, dict):
+        raw_value = payload.get("rationale") or payload.get("comment") or payload.get("body") or ""
+    else:
+        raw_value = payload.rationale or payload.comment or payload.body or ""
+    rationale = str(raw_value or "").strip()
+    if not rationale:
+        raise HTTPException(status_code=400, detail="rationale is required")
+    if len(rationale) > 800:
+        raise HTTPException(status_code=400, detail="rationale must be 800 characters or fewer")
+    return rationale
+
+
+def _connector_confidence(value: Optional[Any]) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="confidence must be a number")
+    return max(0.0, min(confidence, 1.0))
+
+
+def _connector_create_ai_review_comment(db: Session, *, actor, proposal, rationale: str):
+    if not CRUD_MODELS_AVAILABLE or Comment is None or VibeNode is None:
+        raise HTTPException(status_code=503, detail="Comment system unavailable")
+
+    vibenode_obj = db.query(VibeNode).first()
+    if not vibenode_obj:
+        vibenode_obj = VibeNode(
+            name="default",
+            author_id=getattr(actor, "id", None),
+        )
+        db.add(vibenode_obj)
+        db.flush()
+
+    comment = Comment(
+        proposal_id=getattr(proposal, "id", None),
+        content=rationale,
+        author_id=getattr(actor, "id", None),
+        vibenode_id=getattr(vibenode_obj, "id", None),
+        created_at=datetime.datetime.utcnow(),
+    )
+    db.add(comment)
+    db.flush()
+    return comment
 
 
 @app.get("/connector/actions", summary="List authenticated connector action proposals")
@@ -3444,6 +3517,46 @@ def connector_draft_vote(
         raise HTTPException(status_code=500, detail=f"Failed to draft vote action: {str(exc)}")
 
 
+@app.post("/connector/actions/draft-ai-review", summary="Draft one AI review vote and rationale without executing it")
+def connector_draft_ai_review(
+    payload: ConnectorDraftAiReviewIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = _connector_require_ai_actor(authorization, db, payload.username)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    choice = _normalize_connector_vote_choice(payload.choice)
+    rationale = _connector_review_rationale(payload)
+    confidence = _connector_confidence(payload.confidence)
+    summary = {
+        "action": "draft_ai_review",
+        "actor": getattr(actor, "username", ""),
+        "actor_species": "ai",
+        "proposal_id": getattr(proposal, "id", payload.proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        "rationale": rationale,
+        "confidence": confidence,
+        **choice,
+        "approval_effect": "Publish one AI vote and one AI rationale comment.",
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_ai_review",
+            actor_user_id=getattr(actor, "id", None),
+            target_type="proposal_ai_review",
+            target_id=getattr(proposal, "id", payload.proposal_id),
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft AI review action: {str(exc)}")
+
+
 @app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")
 def connector_approve_vote_action(
     action_id: int,
@@ -3508,6 +3621,88 @@ def connector_approve_vote_action(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to approve vote action: {str(exc)}")
+
+
+@app.post("/connector/actions/{action_id}/approve-ai-review", summary="Approve and publish one AI review vote and rationale")
+def connector_approve_ai_review_action(
+    action_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+
+    actor = get_current_harmonizer(authorization, db)
+    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Connector action proposal not found")
+    if getattr(action, "action_type", "") != "draft_ai_review":
+        raise HTTPException(status_code=400, detail="Connector action is not a draft AI review")
+    if getattr(action, "status", "") != "draft":
+        raise HTTPException(status_code=409, detail="Connector action is not in draft status")
+    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
+    if (getattr(actor, "species", "") or "").strip().lower() != "ai":
+        raise HTTPException(status_code=403, detail="AI review approval requires an AI actor")
+
+    payload = _connector_action_payload(getattr(action, "draft_payload", None))
+    proposal_id = payload.get("proposal_id") or getattr(action, "target_id", None)
+    try:
+        proposal_id = int(proposal_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="AI review draft is missing proposal_id")
+
+    proposal = _connector_get_proposal_or_404(db, proposal_id)
+    choice = payload.get("normalized_vote") or payload.get("intended_choice") or payload.get("choice")
+    if not choice:
+        raise HTTPException(status_code=400, detail="AI review draft is missing vote choice")
+    rationale = _connector_review_rationale(payload)
+    confidence = _connector_confidence(payload.get("confidence"))
+
+    try:
+        result = _connector_execute_vote(db, actor=actor, proposal=proposal, choice=choice)
+        comment = _connector_create_ai_review_comment(
+            db,
+            actor=actor,
+            proposal=proposal,
+            rationale=rationale,
+        )
+        now = datetime.datetime.utcnow()
+        action.status = "executed"
+        action.approved_at = now
+        action.executed_at = now
+        action.result_payload = {
+            "proposal_id": result["proposal_id"],
+            "vote": result["vote"],
+            "intended_choice": result["intended_choice"],
+            "actor": result["actor"],
+            "comment_id": getattr(comment, "id", None),
+            "confidence": confidence,
+            "created_vote": result["created"],
+            "executed_action": "ai_review",
+            "summary": "AI review published after explicit approval.",
+        }
+        db.commit()
+        db.refresh(action)
+        summary = {
+            "action": "approve_ai_review_action",
+            "source_action": "draft_ai_review",
+            "actor": getattr(actor, "username", ""),
+            "actor_species": "ai",
+            "proposal_id": getattr(proposal, "id", proposal_id),
+            "proposal_title": _connector_proposal_title(proposal),
+            "vote": result["vote"],
+            "intended_choice": result["intended_choice"],
+            "comment_id": getattr(comment, "id", None),
+            "confidence": confidence,
+        }
+        return _connector_action_response(action, summary, action.result_payload)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to approve AI review action: {str(exc)}")
 
 
 @app.post("/connector/actions/draft-comment", summary="Draft a connector comment action without executing it")

@@ -368,15 +368,23 @@ class ConnectorActionDraftRouteTests(unittest.TestCase):
             result["routes"],
             [
                 "/connector/actions",
+                "/connector/actions/draft-ai-review",
                 "/connector/actions/draft-collab-request",
                 "/connector/actions/draft-comment",
                 "/connector/actions/draft-proposal",
                 "/connector/actions/draft-vote",
+                "/connector/actions/{action_id}/approve-ai-review",
                 "/connector/actions/{action_id}/approve-vote",
                 "/connector/actions/{action_id}/cancel",
             ],
         )
-        self.assertEqual(result["execution_routes"], ["/connector/actions/{action_id}/approve-vote"])
+        self.assertEqual(
+            result["execution_routes"],
+            [
+                "/connector/actions/{action_id}/approve-ai-review",
+                "/connector/actions/{action_id}/approve-vote",
+            ],
+        )
 
 
 if __name__ == "__main__":
