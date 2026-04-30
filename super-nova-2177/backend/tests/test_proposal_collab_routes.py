@@ -282,6 +282,46 @@ class ProposalCollabRouteTests(unittest.TestCase):
         self.assertEqual(result["ok_payload"]["collab"]["requested_by"], "alice")
         self.assertEqual(result["notifications"][0]["type"], "collab_request")
 
+    def test_social_user_suggestions_mark_real_collab_capable_accounts(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            db = backend_app.SessionLocal()
+            try:
+                legacy = backend_app.Proposal(
+                    title="Legacy Profile Only",
+                    description="A proposal-only legacy profile without a Harmonizer account.",
+                    userName="legacy_only",
+                    userInitials="LE",
+                    author_type="human",
+                    author_img="legacy.png",
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                db.add(legacy)
+                db.commit()
+            finally:
+                db.close()
+
+            real = client.get("/social-users?search=bob&limit=10")
+            legacy = client.get("/social-users?search=legacy_only&limit=10")
+            result = {
+                "real_status": real.status_code,
+                "legacy_status": legacy.status_code,
+                "real_users": real.json(),
+                "legacy_users": legacy.json(),
+            }
+            print("PROPOSAL_COLLAB_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_collab_probe(probe)
+
+        self.assertEqual(result["real_status"], 200)
+        self.assertEqual(result["legacy_status"], 200)
+        real_bob = next(item for item in result["real_users"] if item["username"] == "bob")
+        legacy_only = next(item for item in result["legacy_users"] if item["username"] == "legacy_only")
+        self.assertTrue(real_bob["can_collab"])
+        self.assertFalse(legacy_only["can_collab"])
+
     def test_list_collabs_is_scoped_by_actor_role_status_limit_and_offset(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """

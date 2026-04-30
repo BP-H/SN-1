@@ -61,7 +61,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   if (!mounted || !open) return null;
   const avatarStyle = speciesAvatarStyle(species || "human");
   const alternateMode = mode === "create" ? "login" : "create";
-  const switchPrompt = mode === "create" ? "Already have an account?" : "New to SuperNova?";
+  const switchPrompt = mode === "create" ? "Already have an account?" : "Need an account?";
   const switchLabel = mode === "create" ? "Sign in" : "Create account";
 
   const submit = async (event) => {

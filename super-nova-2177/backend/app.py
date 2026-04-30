@@ -1720,7 +1720,13 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
     search_term = (search or "").strip()
     search_filter = f"%{search_term}%" if search_term else ""
 
-    def add_user(username: str, species: str = "human", avatar: str = "", post_id: Optional[int] = None):
+    def add_user(
+        username: str,
+        species: str = "human",
+        avatar: str = "",
+        post_id: Optional[int] = None,
+        can_collab: bool = False,
+    ):
         name = (username or "").strip()
         if not name:
             return
@@ -1734,6 +1740,7 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
             "domain_as_profile": False,
             "post_count": 0,
             "latest_post_id": post_id or 0,
+            "can_collab": bool(can_collab),
         })
         if not current.get("domain_url"):
             metadata = _profile_metadata(db, name)
@@ -1745,6 +1752,8 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
             current["avatar"] = _social_avatar(avatar)
         if species and current.get("species") == "human":
             current["species"] = species
+        if can_collab:
+            current["can_collab"] = True
         users[key] = current
 
     try:
@@ -1758,6 +1767,7 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
                     getattr(user, "species", "human"),
                     getattr(user, "profile_pic", "") or getattr(user, "avatar_url", ""),
                     None,
+                    True,
                 )
     except Exception:
         pass
@@ -1774,6 +1784,7 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
                     getattr(row, "author_type", "human"),
                     getattr(row, "author_img", ""),
                     getattr(row, "id", 0),
+                    False,
                 )
     except Exception:
         try:
@@ -1791,6 +1802,7 @@ def _collect_social_users(db: Session, limit: int = 36, search: Optional[str] = 
                     getattr(row, "author_type", None) or mapping.get("author_type", "human"),
                     getattr(row, "author_img", None) or mapping.get("author_img", ""),
                     getattr(row, "id", None) or mapping.get("id", 0),
+                    False,
                 )
         except Exception:
             pass
@@ -4254,6 +4266,7 @@ def social_users(
             "domain_as_profile": bool(metadata.get("domain_as_profile", False)),
             "post_count": 0,
             "latest_post_id": 0,
+            "can_collab": False,
         })
     return users
 

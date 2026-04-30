@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Polished FE7 profile collab accents, tightened collab invite/sign-in UX, defaulted first-open theme to light, added focused comment auth regression coverage, and clarified MCP backend-origin setup docs.
 - Fixed approved-collab profile surfacing with fallback FE7 refresh and co-author avatar polish.
 - Polished FE7 profile tab badges, collab notification routing, and focused follows auth regression coverage.
 - Polished FE7 approved-collab presentation with inline co-author headers and profile tab classification.

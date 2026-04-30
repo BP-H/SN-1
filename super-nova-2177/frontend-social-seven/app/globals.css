@@ -613,9 +613,7 @@ html.messages-keyboard-open .mobile-bottom-shell {
 .composer-collab-prompt,
 .composer-collab-strip {
   border: 1px solid rgba(255, 255, 255, 0.075);
-  background:
-    radial-gradient(circle at 10% 12%, rgba(255, 79, 143, 0.12), transparent 42%),
-    rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.045);
   color: var(--transparent-black);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
@@ -623,7 +621,7 @@ html.messages-keyboard-open .mobile-bottom-shell {
 .composer-collab-prompt > div:first-child > span,
 .composer-collab-chip > span:first-child {
   color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
+  background: var(--pink);
 }
 
 .composer-collab-action,
@@ -707,9 +705,7 @@ html[data-theme="light"] .composer-governance-strip {
 html[data-theme="light"] .composer-collab-prompt,
 html[data-theme="light"] .composer-collab-strip {
   border-color: rgba(17, 24, 39, 0.08);
-  background:
-    radial-gradient(circle at 10% 12%, rgba(255, 79, 143, 0.09), transparent 42%),
-    rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.84);
   color: #242838;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.86),
@@ -3046,7 +3042,7 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .proposal-approved-collab-avatar {
   color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.96), rgba(63, 184, 214, 0.86));
+  background: rgba(255, 79, 143, 0.96);
   border: 2px solid rgba(15, 18, 28, 0.92);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
 }
@@ -3059,7 +3055,8 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .proposal-approved-collab-avatar-extra {
-  background: rgba(255, 255, 255, 0.12);
+  color: var(--pink);
+  background: rgba(255, 79, 143, 0.14);
 }
 
 .proposal-inline-collab-link,
@@ -3069,7 +3066,7 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .proposal-inline-collab-link:hover,
 .proposal-inline-collab-link:focus-visible {
-  color: var(--blue);
+  color: var(--pink);
   outline: none;
   text-decoration: underline;
   text-decoration-thickness: 2px;
@@ -3078,7 +3075,7 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .profile-visual-collab-badge {
   color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
+  background: rgba(255, 79, 143, 0.95);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
 }
 
@@ -3119,7 +3116,7 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .notification-action-hint {
   color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.92), rgba(63, 184, 214, 0.76));
+  background: rgba(255, 79, 143, 0.92);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
 }
 
@@ -3150,8 +3147,8 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 .profile-collab-error,
 .profile-collab-notice,
 .profile-collab-section {
-  background: rgba(255, 255, 255, 0.045);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .profile-collab-error {
@@ -3160,8 +3157,8 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .profile-collab-notice {
-  color: #dff2ff;
-  border-color: rgba(94, 141, 250, 0.22);
+  color: #ffd9e8;
+  border-color: rgba(255, 79, 143, 0.22);
 }
 
 .profile-collab-secondary-button,
@@ -3198,7 +3195,7 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 
 .profile-collab-list-label {
   color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
+  background: rgba(255, 79, 143, 0.95);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
 }
 
@@ -3253,10 +3250,11 @@ html[data-theme="light"] .proposal-inline-collab-extra {
 
 html[data-theme="light"] .proposal-inline-collab-link:hover,
 html[data-theme="light"] .proposal-inline-collab-link:focus-visible {
-  color: #176c89 !important;
+  color: #a91d5b !important;
 }
 
 html[data-theme="light"] .profile-visual-collab-badge {
+  background: #c92d70 !important;
   box-shadow: 0 8px 18px rgba(25, 30, 48, 0.18);
 }
 
@@ -3296,7 +3294,7 @@ html[data-theme="light"] .profile-tab-button-selected .profile-tab-badge {
 
 html[data-theme="light"] .notification-action-hint {
   color: #fff;
-  background: linear-gradient(135deg, rgba(230, 45, 116, 0.95), rgba(32, 137, 166, 0.82));
+  background: #c92d70;
   box-shadow: 0 8px 18px rgba(25, 30, 48, 0.13);
 }
 
@@ -3338,8 +3336,8 @@ html[data-theme="light"] .profile-collab-error {
 }
 
 html[data-theme="light"] .profile-collab-notice {
-  color: #234083 !important;
-  border-color: rgba(94, 141, 250, 0.22) !important;
+  color: #9f174a !important;
+  border-color: rgba(255, 79, 149, 0.22) !important;
 }
 
 html[data-theme="light"] .profile-collab-secondary-button,
@@ -3377,6 +3375,7 @@ html[data-theme="light"] .profile-collab-approve-button {
 }
 
 html[data-theme="light"] .profile-collab-list-label {
+  background: #c92d70 !important;
   box-shadow: 0 8px 18px rgba(25, 30, 48, 0.14) !important;
 }
 

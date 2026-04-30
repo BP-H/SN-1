@@ -32,7 +32,7 @@ import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
-import { speciesAvatarStyle } from "@/utils/species";
+import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
@@ -67,10 +67,11 @@ function normalizeCollabSuggestions(payload = []) {
         species: String(item?.species || "human").trim() || "human",
         avatar: avatarDisplayUrl(avatar, ""),
         initials: String(item?.initials || username || "SN").slice(0, 2).toUpperCase(),
+        canCollab: item?.can_collab ?? item?.canCollab ?? true,
       };
     })
     .filter((item) => {
-      if (!item.username || seen.has(item.key)) return false;
+      if (!item.username || item.canCollab === false || seen.has(item.key)) return false;
       seen.add(item.key);
       return true;
     });
@@ -767,6 +768,10 @@ function ProposalCard({
                     scroll
                     onClick={(event) => event.stopPropagation()}
                     className="proposal-approved-collab-avatar flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase"
+                    style={{
+                      ...speciesAvatarStyle(collab.species || "human"),
+                      backgroundColor: speciesAccentColor(collab.species || "human"),
+                    }}
                     title={`Approved collaborator @${collab.username}`}
                   >
                     {collab.avatar ? (
@@ -808,9 +813,9 @@ function ProposalCard({
                     scroll
                     onClick={(event) => event.stopPropagation()}
                     className="proposal-inline-collab-link ml-1 truncate font-semibold"
-                    title={`Approved collaborator @${collab.username}`}
+                    title={`Approved collaborator ${collab.username}`}
                   >
-                    @{collab.username}
+                    {collab.username}
                   </Link>
                 </span>
               ))}

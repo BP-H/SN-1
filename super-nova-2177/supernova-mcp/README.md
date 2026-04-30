@@ -24,6 +24,26 @@ Current behavior:
   `SUPERNOVA_API_BASE_URL` to the backend API origin that returns JSON for
   `/connector/supernova`
 
+Current production connector URLs:
+
+```txt
+ChatGPT/Codex connector URL: https://sn-1-anls.vercel.app/mcp
+Browser health test:        https://sn-1-anls.vercel.app/health
+```
+
+For the Vercel project, `SUPERNOVA_API_BASE_URL` must be the backend API
+origin that returns JSON for:
+
+```txt
+<SUPERNOVA_API_BASE_URL>/connector/supernova
+```
+
+If `https://2177.tech/connector/supernova` returns `404`, blank content, or
+HTML, then `2177.tech` is acting as the frontend origin and should not be used
+as `SUPERNOVA_API_BASE_URL` for the MCP deployment. Copy the real backend API
+origin from the `sn-1` deployment settings, the FE7 `NEXT_PUBLIC_API_URL`, or
+the Railway backend deployment URL.
+
 ## Tools
 
 - `search_proposals`
@@ -57,7 +77,8 @@ SUPERNOVA_API_BASE_URL=https://2177.tech
 ```
 
 If `SUPERNOVA_API_BASE_URL` is not set, the server defaults to
-`https://2177.tech`.
+`https://2177.tech`. For production Vercel deployments, override that default
+with the backend API origin that returns JSON for `/connector/supernova`.
 
 ## Run Locally
 
