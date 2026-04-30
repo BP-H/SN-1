@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a profile All tab that keeps authored and approved-collab posts visible across the full profile feed and matching tabs.
 - Updated alpha release checklist, production readiness notes, and legacy frontend cleanup prep.
 - Ran an alpha QA fixpack for account, posting, voting, collab, public-read, and contribution-copy guardrails.
 - Added reviewing-is-the-new-contribution thesis framing, nonprofit contribution-record guardrails, and alpha QA checklist/docs.

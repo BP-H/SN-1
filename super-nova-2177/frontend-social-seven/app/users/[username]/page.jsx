@@ -11,6 +11,7 @@ import {
   IoCreateOutline,
   IoGlobeOutline,
   IoGridOutline,
+  IoHomeOutline,
   IoLinkOutline,
   IoPeopleOutline,
   IoPersonAddOutline,
@@ -36,12 +37,14 @@ import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
 const PROFILE_TABS = [
+  { key: "all", label: "All", title: "All posts", icon: IoHomeOutline },
   { key: "visuals", label: "Visuals", title: "Visual posts", icon: IoGridOutline },
   { key: "proposals", label: "Decisions", title: "Decisions and proposals", icon: IoCheckboxOutline },
   { key: "text", label: "Posts", title: "Text posts", icon: IoTextOutline },
   { key: "collabs", label: "Collabs", title: "Collaborations", icon: IoPeopleOutline },
 ];
 const TAB_QUERY_TO_KEY = {
+  all: "all",
   visuals: "visuals",
   decisions: "proposals",
   proposals: "proposals",
@@ -50,6 +53,7 @@ const TAB_QUERY_TO_KEY = {
   collabs: "collabs",
 };
 const TAB_KEY_TO_QUERY = {
+  all: "all",
   visuals: "visuals",
   proposals: "decisions",
   text: "posts",
@@ -57,7 +61,7 @@ const TAB_KEY_TO_QUERY = {
 };
 
 function normalizeProfileTab(value) {
-  return TAB_QUERY_TO_KEY[String(value || "").toLowerCase()] || "visuals";
+  return TAB_QUERY_TO_KEY[String(value || "").toLowerCase()] || "all";
 }
 
 function supportPercentLabel(post, compact = false) {
@@ -338,7 +342,7 @@ export default function UserPostsPage() {
   const [aboutDraft, setAboutDraft] = useState("");
   const [domainDraft, setDomainDraft] = useState("");
   const [domainAsProfileDraft, setDomainAsProfileDraft] = useState(false);
-  const [activeTab, setActiveTab] = useState("visuals");
+  const [activeTab, setActiveTab] = useState("all");
   const [collabReviewBusyId, setCollabReviewBusyId] = useState("");
   const [collabPanelNotice, setCollabPanelNotice] = useState("");
   const [collabPanelError, setCollabPanelError] = useState("");
@@ -431,6 +435,15 @@ export default function UserPostsPage() {
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
+    }).sort((left, right) => {
+      const leftTime = Date.parse(left?.time || "");
+      const rightTime = Date.parse(right?.time || "");
+      const leftRank = Number.isFinite(leftTime) ? leftTime : 0;
+      const rightRank = Number.isFinite(rightTime) ? rightTime : 0;
+      if (rightRank !== leftRank) return rightRank - leftRank;
+      const leftId = Number(left?.id || 0);
+      const rightId = Number(right?.id || 0);
+      return (Number.isFinite(rightId) ? rightId : 0) - (Number.isFinite(leftId) ? leftId : 0);
     });
   }, [approvedCollabPostsQuery.data, postsQuery.data]);
   const visualPosts = useMemo(
@@ -484,6 +497,7 @@ export default function UserPostsPage() {
   );
   const tabCounts = useMemo(
     () => ({
+      all: posts.length,
       visuals: visualPosts.length,
       proposals: decisionPosts.length,
       text: textPosts.length,
@@ -494,6 +508,7 @@ export default function UserPostsPage() {
       decisionPosts.length,
       isOwnProfile,
       pendingCollabCount,
+      posts.length,
       textPosts.length,
       visualPosts.length,
     ]
@@ -529,11 +544,11 @@ export default function UserPostsPage() {
   };
 
   const handleTabSelect = (tabKey) => {
-    const nextTab = PROFILE_TABS.some((tab) => tab.key === tabKey) ? tabKey : "visuals";
+    const nextTab = PROFILE_TABS.some((tab) => tab.key === tabKey) ? tabKey : "all";
     setActiveTab(nextTab);
     if (!username) return;
     const params = new URLSearchParams(searchParams?.toString() || "");
-    params.set("tab", TAB_KEY_TO_QUERY[nextTab] || "visuals");
+    params.set("tab", TAB_KEY_TO_QUERY[nextTab] || "all");
     router.replace(`/users/${encodeURIComponent(username)}?${params.toString()}`, { scroll: false });
   };
 
@@ -1134,7 +1149,7 @@ export default function UserPostsPage() {
         ) : (
           <>
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
-              <div className="profile-tab-strip grid grid-cols-4 gap-1.5 rounded-[1rem] p-1">
+              <div className="profile-tab-strip grid grid-cols-5 gap-1 rounded-[1rem] p-1">
                 {PROFILE_TABS.map((tab) => {
                   const selected = activeTab === tab.key;
                   const TabIcon = tab.icon;
@@ -1147,11 +1162,11 @@ export default function UserPostsPage() {
                       aria-label={`${tab.title}${count > 0 ? ` (${count})` : ""}`}
                       title={`${tab.title}${count > 0 ? ` (${count})` : ""}`}
                       aria-pressed={selected}
-                      className={`profile-tab-button ${selected ? "profile-tab-button-selected" : ""} relative flex min-h-12 min-w-0 items-center justify-center rounded-[0.85rem] px-1.5 transition-colors`}
+                      className={`profile-tab-button ${selected ? "profile-tab-button-selected" : ""} relative flex min-h-11 min-w-0 items-center justify-center rounded-[0.85rem] px-1 transition-colors`}
                     >
-                      <TabIcon className="shrink-0 text-[1.18rem]" aria-hidden="true" />
+                      <TabIcon className="shrink-0 text-[1.12rem]" aria-hidden="true" />
                       {count > 0 && (
-                        <span className="profile-tab-badge absolute right-1.5 top-1 rounded-full px-1.5 py-0.5 text-[0.55rem] font-black leading-none">
+                        <span className="profile-tab-badge absolute right-1 top-0.5 rounded-full px-1.5 py-0.5 text-[0.55rem] font-black leading-none">
                           {count > 99 ? "99+" : count}
                         </span>
                       )}
@@ -1160,6 +1175,16 @@ export default function UserPostsPage() {
                 })}
               </div>
             </div>
+
+            {activeTab === "all" && (
+              posts.length === 0 ? (
+                <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
+                  No public posts yet.
+                </div>
+              ) : (
+                posts.map(renderPostCard)
+              )
+            )}
 
             {activeTab === "visuals" && (
               visualPosts.length === 0 ? (
