@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added reviewing-is-the-new-contribution thesis framing, nonprofit contribution-record guardrails, and alpha QA checklist/docs.
 - Aligned profile support percentages with weighted three-species vote math, made selected profile tabs solid SuperNova pink, and clarified backend API-origin config for FE7/MCP.
 - Hardened proposal edit/delete writes with strict bearer identity checks and added focused proposal create/edit/delete/bulk-delete auth guardrail tests.
 - Normalized FE7 top spacing, replaced standard pink/blue accents with solid SuperNova pink, and confirmed system-vote auth plus debug-supernova production gating coverage.

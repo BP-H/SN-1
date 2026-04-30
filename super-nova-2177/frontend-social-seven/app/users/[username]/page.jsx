@@ -454,8 +454,12 @@ export default function UserPostsPage() {
   const collabIncoming = collabRequestsQuery.data?.incoming || [];
   const collabOutgoing = collabRequestsQuery.data?.outgoing || [];
   const pendingCollabCount = collabIncoming.length + collabOutgoing.length;
+  const profileKey = String(username || "").toLowerCase();
+  const authoredPosts = useMemo(
+    () => posts.filter((post) => String(post?.userName || "").toLowerCase() === profileKey),
+    [posts, profileKey]
+  );
   const approvedCollabPosts = useMemo(() => {
-    const profileKey = username.toLowerCase();
     if (!profileKey) return [];
     return posts.filter((post) => {
       const authorKey = String(post?.userName || "").toLowerCase();
@@ -466,7 +470,7 @@ export default function UserPostsPage() {
             && String(collab?.username || "").toLowerCase() === profileKey
         );
     });
-  }, [posts, username]);
+  }, [posts, profileKey]);
   const approvedCollabPostIds = useMemo(
     () => new Set(approvedCollabPosts.map((post) => String(post.id))),
     [approvedCollabPosts]
@@ -1073,6 +1077,32 @@ export default function UserPostsPage() {
               <p className="text-[0.62rem] uppercase tracking-[0.14em] text-[var(--text-gray-light)]">{label}</p>
             </div>
             ))}
+        </div>
+
+        <div className="mt-3 rounded-[0.9rem] bg-white/[0.04] px-3 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[0.76rem] font-black uppercase tracking-[0.14em] text-[var(--text-black)]">
+                Contribution record
+              </p>
+              <p className="mt-1 text-[0.72rem] leading-4 text-[var(--text-gray-light)]">
+                Public signals from proposals, reviews, votes, and collabs.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-[var(--pink)] px-2.5 py-1 text-[0.62rem] font-black uppercase tracking-[0.12em] text-white">
+              Public
+            </span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+            <div className="rounded-[0.75rem] bg-white/[0.045] px-2 py-2">
+              <p className="text-[0.84rem] font-bold text-[var(--text-black)]">{authoredPosts.length}</p>
+              <p className="text-[0.58rem] uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Authored</p>
+            </div>
+            <div className="rounded-[0.75rem] bg-white/[0.045] px-2 py-2">
+              <p className="text-[0.84rem] font-bold text-[var(--text-black)]">{approvedCollabPosts.length}</p>
+              <p className="text-[0.58rem] uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Approved collabs</p>
+            </div>
+          </div>
         </div>
 
       </section>

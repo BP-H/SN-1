@@ -504,6 +504,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                 <p className="auth-muted mt-0.5 text-[0.7rem]">
                   {passwordMode === "create" ? "Choose your username and species." : "Sign in to sync across devices."}
                 </p>
+                <p className="auth-muted mt-2 max-w-[18rem] text-[0.68rem] leading-4">
+                  Reviewing is contribution: SuperNova records proposals, votes, reviews, and ratifications without tokens or speculation.
+                </p>
               </div>
               <button
                 type="button"
