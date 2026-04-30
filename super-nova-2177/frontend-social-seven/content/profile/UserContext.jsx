@@ -649,15 +649,23 @@ export function UserProvider({ children }) {
   const signOut = useCallback(async () => {
     clearBackendAuthSession();
     setPasswordAuth(null);
-    if (!supabase || !isSupabaseConfigured) {
-      setSession(null);
-      setStoredProfile(readStorage(GUEST_STORAGE_KEY) || {});
-      return;
+    let signOutError = null;
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.auth.signOut();
+        signOutError = error;
+      } catch (error) {
+        signOutError = error;
+      }
     }
 
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw error;
+    setSession(null);
+    setStoredProfile(readStorage(GUEST_STORAGE_KEY) || {});
+    setSocialProfileLookup({ key: "", status: "idle" });
+
+    if (signOutError) {
+      console.warn("SuperNova sign out cleared local session after provider sign-out failed.", signOutError);
     }
   }, []);
 

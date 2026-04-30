@@ -37,7 +37,7 @@ export default function RootLayout({ children }) {
   useEffect(() => {
     const savedTheme =
       typeof window !== "undefined" ? localStorage.getItem("supernova-theme") : null;
-    document.documentElement.dataset.theme = savedTheme || "dark";
+    document.documentElement.dataset.theme = savedTheme || "light";
   }, []);
 
   return (

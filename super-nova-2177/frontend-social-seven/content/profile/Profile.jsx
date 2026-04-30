@@ -59,7 +59,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
   const [authBusy, setAuthBusy] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [identityBusy, setIdentityBusy] = useState(false);
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
   const [authOpen, setAuthOpen] = useState(false);
   const [passwordMode, setPasswordMode] = useState("login");
   const [accountName, setAccountName] = useState("");
@@ -80,7 +80,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const savedTheme = localStorage.getItem("supernova-theme") || "dark";
+    const savedTheme = localStorage.getItem("supernova-theme") || "light";
     setTheme(savedTheme);
   }, []);
 
@@ -121,7 +121,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
     setAuthOpen(true);
   };
   const alternatePasswordMode = passwordMode === "create" ? "login" : "create";
-  const passwordSwitchPrompt = passwordMode === "create" ? "Already have an account?" : "New to SuperNova?";
+  const passwordSwitchPrompt = passwordMode === "create" ? "Already have an account?" : "Need an account?";
   const passwordSwitchLabel = passwordMode === "create" ? "Sign in" : "Create account";
 
   async function handleProviderLogin(provider) {

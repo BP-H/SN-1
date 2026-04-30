@@ -28,7 +28,7 @@ import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
-import { speciesAvatarStyle } from "@/utils/species";
+import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 
 function InputFields({
   setDiscard,
@@ -88,12 +88,18 @@ function InputFields({
       species: String(user?.species || "human").trim() || "human",
       avatar: avatarDisplayUrl(rawAvatar, ""),
       initials: String(user?.initials || username || "SN").slice(0, 2).toUpperCase(),
+      canCollab: user?.can_collab ?? user?.canCollab ?? true,
     };
   }, []);
   const handleMentionUserSelected = useCallback(
     (user) => {
       const selected = normalizeComposerCollabUser(user);
       if (!selected) return;
+      if (selected.canCollab === false) {
+        setCollabPromptUser(null);
+        setCollabNotice(`@${selected.username} can be mentioned, but cannot receive collab invites yet.`);
+        return;
+      }
       if (userData?.name && selected.key === userData.name.toLowerCase()) {
         setCollabPromptUser(null);
         setCollabNotice("You cannot invite yourself as a collaborator.");
@@ -771,7 +777,13 @@ function InputFields({
       {collabPromptUser && (
         <div className="composer-collab-prompt flex flex-wrap items-center justify-between gap-2 rounded-[1rem] px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.64rem] font-black uppercase">
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.64rem] font-black uppercase text-white"
+              style={{
+                ...speciesAvatarStyle(collabPromptUser.species || "human"),
+                backgroundColor: speciesAccentColor(collabPromptUser.species || "human"),
+              }}
+            >
               {collabPromptUser.avatar ? (
                 <img
                   src={collabPromptUser.avatar}
@@ -823,7 +835,13 @@ function InputFields({
                   className="composer-collab-chip inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-[0.68rem] font-bold"
                   title={`Remove @${invitee.username}`}
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase">
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase text-white"
+                    style={{
+                      ...speciesAvatarStyle(invitee.species || "human"),
+                      backgroundColor: speciesAccentColor(invitee.species || "human"),
+                    }}
+                  >
                     {invitee.avatar ? (
                       <img
                         src={invitee.avatar}

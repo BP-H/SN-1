@@ -50,6 +50,7 @@ function normalizeUsers(payload) {
         species: String(item?.species || "human").trim() || "human",
         initials: String(item?.initials || item?.username || "SN").slice(0, 2).toUpperCase(),
         avatar,
+        can_collab: item?.can_collab ?? item?.canCollab ?? true,
       };
     })
     .filter((item) => {

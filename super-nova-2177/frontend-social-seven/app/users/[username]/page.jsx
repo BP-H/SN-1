@@ -24,7 +24,7 @@ import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
-import { speciesAvatarStyle } from "@/utils/species";
+import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { useUser } from "@/content/profile/UserContext";
 
@@ -233,16 +233,24 @@ function CollabUserAvatar({ user }) {
   const [failed, setFailed] = useState(false);
   const avatar = failed ? "" : avatarUrl(user?.avatar || user?.avatar_url || user?.profile_pic);
   const initials = String(user?.username || "SN").slice(0, 2).toUpperCase();
+  const style = speciesAvatarStyle(user?.species || "human");
 
   return avatar ? (
     <img
       src={avatar}
       alt=""
-      className="h-9 w-9 rounded-full border border-white/10 object-cover"
+      className="h-9 w-9 rounded-full border object-cover"
+      style={style}
       onError={() => setFailed(true)}
     />
   ) : (
-    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.08] text-[0.72rem] font-black text-[var(--text-black)]">
+    <span
+      className="flex h-9 w-9 items-center justify-center rounded-full border text-[0.72rem] font-black text-white"
+      style={{
+        ...style,
+        backgroundColor: speciesAccentColor(user?.species || "human"),
+      }}
+    >
       {initials}
     </span>
   );
