@@ -75,7 +75,7 @@ Additional checks:
 
 | Legacy surface | Reference findings | Risk classification | Future cleanup direction |
 | --- | --- | --- | --- |
-| `super-nova-2177/frontend-nova` | Source remains present. Local launcher paths are retired: `run_local.py` no longer offers `nova`, `start_supernova.ps1` disables option 5 with a retired message, and `start_frontend_nova.ps1` is a retired stub. Remaining references should be docs/inventory or source self-references after a fresh check. | First planned source-folder deletion candidate after launcher references are retired. | Next cleanup PR may consider deleting `frontend-nova` only after a fresh reference check proves remaining references are docs-only, inventory-only, source self-references, or the retired stub. |
+| `super-nova-2177/frontend-nova` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, or runtime references. `start_frontend_nova.ps1` was removed with the source folder. | Completed first explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
 | `super-nova-2177/frontend-professional` | Referenced by cleanup docs, `REPO_STATUS.md`, `scripts/list_cleanup_candidates.py`, `run_local.py`, `start_supernova.ps1`, and `start_frontend_professional.ps1`; package self-reference. | Launcher-sensitive. | Consider after `frontend-nova` cleanup pattern is proven. |
 | `super-nova-2177/frontend-next` | Referenced by cleanup/security docs, `REPO_STATUS.md`, `run_local.py`, `start_supernova.ps1`, `start_frontend_next.ps1`, and `frontend-social-six` docs; has `Dockerfile` and package files. | Deployment/security-sensitive legacy Next app. | Do not delete until a legacy Next deployment assessment confirms it is unused. |
 | `super-nova-2177/frontend-social-six` | Referenced by auth/security docs, cleanup docs, RSC/Next assessment, `REPO_STATUS.md`, launchers, `Dockerfile`, and social auth setup docs. | Auth-history-sensitive legacy social frontend. | Defer until a dedicated social-six retirement assessment. |
@@ -105,13 +105,10 @@ config.
 
 1. Generated artifact cleanup PR: remove tracked `tsconfig.tsbuildinfo` files and
    confirm FE7 build, backend safe checks, and protected core diff zero.
-2. `frontend-nova` launcher deprecation prep: docs and local launcher labels mark
-   `frontend-nova` as the first `legacy / retired candidate`; source remains.
-3. `frontend-nova` launcher retirement PR: remove or hide remaining local launcher
-   references if they are still only developer convenience paths. This step now
-   keeps the source folder but retires the runnable launcher paths.
-4. `frontend-nova` deletion PR: only if the previous PR leaves references absent
-   or docs-only.
+2. `frontend-nova` launcher deprecation prep: completed.
+3. `frontend-nova` launcher retirement PR: completed.
+4. `frontend-nova` deletion PR: completed after fresh reference checks found no
+   active package, deployment, workflow, or runtime references.
 5. Repeat the same pattern for `frontend-professional`.
 6. Separate assessments for `frontend-next`, `frontend-social-six`,
    `frontend-vite-3d`, nested `nova-web`, and nested `nova-api`.

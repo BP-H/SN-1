@@ -17,7 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 LEGACY_FRONTEND_DIRS = {
     "super-nova-2177/frontend-next",
-    "super-nova-2177/frontend-nova",
     "super-nova-2177/frontend-professional",
     "super-nova-2177/frontend-social-six",
     "super-nova-2177/frontend-vite-3d",

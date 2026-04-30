@@ -15,11 +15,13 @@ This is a read-only inventory. It is not approval to delete anything from `maste
 - Reference search found no runtime imports or deployment references.
 - Full checks passed before merge.
 - Four tracked backup Python files were removed in PR #10 after reference checks and full safety checks.
+- `super-nova-2177/frontend-nova` was deleted after launcher retirement and
+  fresh reference checks found no active package, deployment, workflow, or
+  runtime references.
 
 ## Legacy Or Experimental Frontend Trees
 
 - `super-nova-2177/frontend-next`
-- `super-nova-2177/frontend-nova`
 - `super-nova-2177/frontend-professional`
 - `super-nova-2177/frontend-social-six`
 - `super-nova-2177/frontend-vite-3d`

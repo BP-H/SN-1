@@ -36,12 +36,15 @@ Keep these compatible unless a dedicated migration plan exists:
 These may be useful references or future branches, but should not be deleted from `master` without branch-tested proof:
 
 - `super-nova-2177/frontend-next/`
-- `super-nova-2177/frontend-nova/`
 - `super-nova-2177/frontend-professional/`
 - `super-nova-2177/frontend-social-six/`
 - `super-nova-2177/frontend-vite-3d/`
 - `super-nova-2177/frontend-vite-basic/`
 - nested or duplicate backend experiments under `super-nova-2177/backend/supernova_2177_ui_weighted/`
+
+`super-nova-2177/frontend-nova/` was deleted after its local launchers were
+retired and fresh reference checks confirmed no active package, deployment,
+workflow, or runtime dependency.
 
 ## Generated Or Local Artifact Candidates
 
