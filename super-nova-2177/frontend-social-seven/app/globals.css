@@ -3095,9 +3095,9 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .profile-tab-button-selected {
-  color: var(--pink);
-  background: rgba(255, 79, 143, 0.14);
-  box-shadow: 0 12px 24px rgba(255, 79, 143, 0.2);
+  color: #fff;
+  background: var(--pink);
+  box-shadow: none;
 }
 
 .profile-tab-badge {
@@ -3109,9 +3109,10 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .profile-tab-button-selected .profile-tab-badge {
-  color: #fff;
-  background: var(--pink);
-  border-color: rgba(255, 255, 255, 0.8);
+  color: var(--pink);
+  background: #fff;
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: none;
 }
 
 .notification-action-hint {
@@ -3276,9 +3277,9 @@ html[data-theme="light"] .profile-tab-button:hover {
 }
 
 html[data-theme="light"] .profile-tab-button-selected {
-  color: var(--pink);
-  background: rgba(255, 79, 143, 0.12);
-  box-shadow: 0 12px 24px rgba(255, 79, 143, 0.16);
+  color: #fff;
+  background: var(--pink);
+  box-shadow: none;
 }
 
 html[data-theme="light"] .profile-tab-badge {
@@ -3288,8 +3289,9 @@ html[data-theme="light"] .profile-tab-badge {
 }
 
 html[data-theme="light"] .profile-tab-button-selected .profile-tab-badge {
-  color: #fff;
-  background: var(--pink);
+  color: var(--pink);
+  background: #fff;
+  box-shadow: none;
 }
 
 html[data-theme="light"] .notification-action-hint {

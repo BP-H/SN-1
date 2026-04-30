@@ -34,6 +34,7 @@ import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/uti
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
+import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -78,11 +79,19 @@ function normalizeCollabSuggestions(payload = []) {
 }
 
 function supportSummaryLabel(likes = [], dislikes = [], voteSummary = null) {
+  const likeList = Array.isArray(likes) ? likes : [];
+  const dislikeList = Array.isArray(dislikes) ? dislikes : [];
+  if (likeList.length + dislikeList.length > 0) {
+    const weighted = buildWeightedVoteSummary(likeList, dislikeList);
+    const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
+    return `${percent}% support`;
+  }
+
   const summary = voteSummary || {};
   const summaryUp = Number(summary.up ?? summary.likes ?? summary.support);
   const summaryDown = Number(summary.down ?? summary.dislikes ?? summary.oppose);
-  const up = Number.isFinite(summaryUp) ? summaryUp : Array.isArray(likes) ? likes.length : 0;
-  const down = Number.isFinite(summaryDown) ? summaryDown : Array.isArray(dislikes) ? dislikes.length : 0;
+  const up = Number.isFinite(summaryUp) ? summaryUp : 0;
+  const down = Number.isFinite(summaryDown) ? summaryDown : 0;
   const summaryTotal = Number(summary.total);
   const total = Number.isFinite(summaryTotal) && summaryTotal > 0 ? summaryTotal : up + down;
   if (total <= 0) return "";
