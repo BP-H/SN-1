@@ -12,6 +12,7 @@ import {
 } from "react-icons/io5";
 import { useUser } from "./UserContext";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { formatBackendAuthErrorMessage } from "@/utils/authSession";
 import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 
 const SPECIES = [
@@ -102,7 +103,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
       setPassword("");
       onClose();
     } catch (err) {
-      setError(err.message || "Account action failed.");
+      setError(formatBackendAuthErrorMessage(err, "Account action failed."));
     } finally {
       setBusy("");
     }
@@ -114,7 +115,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
     try {
       await loginWithProvider(provider);
     } catch (err) {
-      setError(err.message || `Unable to start ${provider} login.`);
+      setError(formatBackendAuthErrorMessage(err, `Unable to start ${provider} login.`));
       setBusy("");
     }
   };
@@ -304,7 +305,7 @@ export function ProfileSetupModal({ open }) {
         avatar: userData?.avatar || "",
       });
     } catch (err) {
-      setError(err.message || "Unable to finish account setup.");
+      setError(formatBackendAuthErrorMessage(err, "Unable to finish account setup."));
     } finally {
       setBusy(false);
     }

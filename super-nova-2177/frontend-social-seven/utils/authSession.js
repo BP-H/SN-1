@@ -84,6 +84,22 @@ export function requireBackendAuthSession() {
   return session;
 }
 
+export function formatBackendAuthErrorMessage(errorOrMessage, fallback = BACKEND_AUTH_MISSING_MESSAGE) {
+  const message = String(
+    typeof errorOrMessage === "string" ? errorOrMessage : errorOrMessage?.message || ""
+  ).trim();
+
+  if (/invalid token|expired token|missing bearer|bearer token|not authenticated|unauthorized/i.test(message)) {
+    return "Session expired - sign in again.";
+  }
+
+  if (/forbidden|wrong user|does not match|cannot access/i.test(message)) {
+    return "Sign in again with the correct account.";
+  }
+
+  return message || fallback;
+}
+
 export function authHeaders(headers = {}) {
   const token = readPasswordAuthSession()?.token;
   if (!token) return headers;

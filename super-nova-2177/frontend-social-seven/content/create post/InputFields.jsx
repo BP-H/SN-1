@@ -25,7 +25,12 @@ import ErrorMessage from "../Error";
 import MediaInput from "./Media";
 import PdfPager from "../proposal/content/PdfPager";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
@@ -281,11 +286,11 @@ function InputFields({
   const getApiError = async (response, fallback) => {
     try {
       const payload = await response.json();
-      return payload?.detail || payload?.message || fallback;
+      return formatBackendAuthErrorMessage(payload?.detail || payload?.message, fallback);
     } catch {
       try {
         const textResponse = await response.text();
-        return textResponse || fallback;
+        return formatBackendAuthErrorMessage(textResponse, fallback);
       } catch {
         return fallback;
       }
@@ -425,7 +430,7 @@ function InputFields({
       setCollabPromptUser(null);
       setCollabNotice("");
     },
-    onError: (error) => setErrorMsg([error.message]),
+    onError: (error) => setErrorMsg([formatBackendAuthErrorMessage(error, "Failed to create post.")]),
   });
 
   const publish = () => {

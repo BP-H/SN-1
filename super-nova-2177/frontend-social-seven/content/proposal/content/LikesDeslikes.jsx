@@ -6,7 +6,12 @@ import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { IoChevronUp } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 
@@ -119,9 +124,9 @@ function LikesDeslikes({
   async function getApiError(response, fallback) {
     try {
       const payload = await response.json();
-      return payload?.detail || payload?.message || fallback;
+      return formatBackendAuthErrorMessage(payload?.detail || payload?.message, fallback);
     } catch {
-      try { return (await response.text()) || fallback; } catch { return fallback; }
+      try { return formatBackendAuthErrorMessage(await response.text(), fallback); } catch { return fallback; }
     }
   }
 
@@ -157,7 +162,7 @@ function LikesDeslikes({
       });
       if (!response.ok) { setErrorMsg([await getApiError(response, `Vote failed: ${response.status}`)]); return false; }
       return true;
-    } catch (err) { setErrorMsg([`Vote failed: ${err.message}`]); return false; }
+    } catch (err) { setErrorMsg([formatBackendAuthErrorMessage(err, "Vote failed.")]); return false; }
   }
 
   async function removeVote() {
@@ -172,7 +177,7 @@ function LikesDeslikes({
       });
       if (!response.ok) { setErrorMsg([await getApiError(response, `Remove failed: ${response.status}`)]); return false; }
       return true;
-    } catch (err) { setErrorMsg([`Remove failed: ${err.message}`]); return false; }
+    } catch (err) { setErrorMsg([formatBackendAuthErrorMessage(err, "Remove failed.")]); return false; }
   }
 
   const handleLikeClick = async ({ allowToggle = true } = {}) => {

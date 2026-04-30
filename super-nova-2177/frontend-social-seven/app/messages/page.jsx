@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IoLockClosedOutline, IoPaperPlaneOutline, IoSearchOutline } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
-import { BACKEND_AUTH_MISSING_MESSAGE, authHeaders, requireBackendAuthSession } from "@/utils/authSession";
+import {
+  BACKEND_AUTH_MISSING_MESSAGE,
+  authHeaders,
+  formatBackendAuthErrorMessage,
+  requireBackendAuthSession,
+} from "@/utils/authSession";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText from "@/utils/linkify";
 import { usePageVisible } from "@/utils/pageVisibility";
@@ -142,7 +147,10 @@ export default function MessagesPage() {
         headers: authHeaders(),
         signal,
       });
-      if (!response.ok) throw new Error("Failed to load conversations");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Failed to load conversations"));
+      }
       return response.json();
     },
     refetchInterval: pageVisible ? 4000 : false,
@@ -238,7 +246,10 @@ export default function MessagesPage() {
           signal,
         }
       );
-      if (!response.ok) throw new Error("Failed to load thread");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Failed to load thread"));
+      }
       return response.json();
     },
     refetchInterval: pageVisible && selectedPeer ? 4000 : false,
@@ -314,7 +325,7 @@ export default function MessagesPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.detail || "Message failed");
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Message failed"));
       }
       return response.json();
     },
@@ -445,7 +456,11 @@ export default function MessagesPage() {
           <div
             className="messages-user-rail hide-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1"
           >
-            {usersQuery.isLoading
+            {conversationsQuery.isError ? (
+              <div className="w-full rounded-[0.9rem] bg-white/[0.045] px-3 py-3 text-[0.76rem] font-semibold text-[var(--pink)]">
+                {formatBackendAuthErrorMessage(conversationsQuery.error, "Failed to load conversations")}
+              </div>
+            ) : usersQuery.isLoading
               ? Array.from({ length: 5 }).map((_, index) => (
                   <span key={index} className="load h-14 w-36 shrink-0 rounded-full" />
                 ))
@@ -545,6 +560,10 @@ export default function MessagesPage() {
                   Array.from({ length: 5 }).map((_, index) => (
                     <span key={index} className="load h-10 w-3/4 rounded-[1rem]" />
                   ))
+                ) : threadQuery.isError ? (
+                  <div className="m-auto max-w-[18rem] text-center text-[0.84rem] font-semibold leading-5 text-[var(--pink)]">
+                    {formatBackendAuthErrorMessage(threadQuery.error, "Failed to load thread")}
+                  </div>
                 ) : messages.length === 0 ? (
                   <div className="m-auto max-w-[18rem] text-center text-[0.84rem] leading-5 text-[var(--text-gray-light)]">
                     Start the thread. Messages are saved by the SuperNova backend.
