@@ -7,6 +7,8 @@ change runtime behavior.
 
 Current master commit inspected: `349414d`
 
+Alpha follow-up reference check after PR #118: `656d8f5`
+
 ## Summary
 
 Alpha-readiness update: this assessment remains docs-only guidance. No legacy
@@ -32,6 +34,44 @@ Because those references are not docs-only, this assessment does not recommend a
 deletion PR yet. The safest future path is a tiny launcher/deprecation assessment
 or a deletion PR that deliberately updates local launcher choices in the same
 branch after review.
+
+## Alpha Follow-Up Reference Check
+
+Decision: do not delete `super-nova-2177/frontend-nova` in the alpha
+stabilization pass after PR #118.
+
+Reference checks still find active local launcher blockers:
+
+- `super-nova-2177/run_local.py` still contains the `nova` frontend entry and
+  can launch `frontend-nova` on port `5176`.
+- `super-nova-2177/start_supernova.ps1` still exposes option `5` mapped to
+  `frontend-nova` and includes the `frontend-nova` port mapping.
+- `super-nova-2177/start_frontend_nova.ps1` directly changes into
+  `frontend-nova` and runs its Vite dev server.
+
+Other references are docs/inventory or self-references:
+
+- cleanup/status docs and candidate inventory list `frontend-nova` as a legacy
+  cleanup candidate;
+- `scripts/list_cleanup_candidates.py` lists it for assessment output;
+- `frontend-nova/package.json`, `package-lock.json`, and `index.html`
+  self-identify the package/app.
+
+Package/deployment check:
+
+- `frontend-nova` has `package.json` and `package-lock.json`;
+- no `Dockerfile` or `vercel.json` was found in `frontend-nova`;
+- the folder is still launcher-sensitive because of the active local launcher
+  references above.
+
+Next smallest safe prep step:
+
+1. Open a focused launcher-retirement PR that removes or hides the `nova`
+   option from `run_local.py`, `start_supernova.ps1`, and
+   `start_frontend_nova.ps1`.
+2. Re-run reference checks.
+3. If remaining references are docs-only or source self-references, delete
+   `frontend-nova` in a separate explicit PR with rollback notes.
 
 ## Candidate Table
 

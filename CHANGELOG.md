@@ -4,6 +4,8 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a bounded profile collab sweep so public approved collaborator posts are merged into collaborator profiles and tabs more reliably.
+- Ran alpha QA verification and documented remaining `frontend-nova` retirement blockers after reference checks.
 - Added a profile All tab that keeps authored and approved-collab posts visible across the full profile feed and matching tabs.
 - Updated alpha release checklist, production readiness notes, and legacy frontend cleanup prep.
 - Ran an alpha QA fixpack for account, posting, voting, collab, public-read, and contribution-copy guardrails.

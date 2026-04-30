@@ -101,10 +101,13 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 ## Profile Tabs / Contribution Record
 
 - [ ] **Tab deep links**
-  - Expected: `?tab=visuals`, `?tab=decisions`, `?tab=posts`, and `?tab=collabs` open safely.
-  - Quick test: open each query URL directly.
+  - Expected: `/users/<username>` defaults to All; `?tab=all`, `?tab=visuals`,
+    `?tab=decisions`, `?tab=posts`, and `?tab=collabs` open safely; invalid
+    tabs fall back to All.
+  - Quick test: open the default profile URL, each tab query URL, and one
+    invalid tab query directly.
 - [ ] **Tab badges**
-  - Expected: icon-only tabs show readable selected state and non-cluttering badges.
+  - Expected: five icon-only tabs show readable selected state and non-cluttering badges.
   - Quick test: inspect light, dark, and mobile widths.
 - [ ] **Contribution record wording**
   - Expected: copy uses public contribution-record language only.
