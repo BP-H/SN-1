@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Hardened proposal edit/delete writes with strict bearer identity checks and added focused proposal create/edit/delete/bulk-delete auth guardrail tests.
 - Normalized FE7 top spacing, replaced standard pink/blue accents with solid SuperNova pink, and confirmed system-vote auth plus debug-supernova production gating coverage.
 - Polished FE7 profile collab accents, tightened collab invite/sign-in UX, defaulted first-open theme to light, added focused comment auth regression coverage, and clarified MCP backend-origin setup docs.
 - Fixed approved-collab profile surfacing with fallback FE7 refresh and co-author avatar polish.
