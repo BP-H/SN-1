@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Set modern alpha upload caps to 20 MB images/avatars, 250 MB videos, and 50 MB documents; expanded upload-size hardening coverage for profile-image sync and proposal video uploads; and added alpha QA checks for upload limits plus the FE7 production API-origin guard.
 - Ran final alpha QA fixpack notes after `frontend-nova` deletion and verified active FE7/MCP/profile/collab checklist wording.
 - Deleted the retired `frontend-nova` source folder after launcher retirement and fresh reference checks.
 - Limited profile support percentage badges to visual grid tiles, leaving normal profile cards to rely on their existing vote bars.

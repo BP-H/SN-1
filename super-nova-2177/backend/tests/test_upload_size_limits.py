@@ -83,6 +83,43 @@ def uploaded_files():
     if not upload_dir.exists():
         return []
     return sorted(item.name for item in upload_dir.iterdir() if item.is_file())
+
+
+def seed_user(username="alice"):
+    db = backend_app.SessionLocal()
+    try:
+        user = backend_app.Harmonizer(
+            username=username,
+            email=f"{username}@example.test",
+            hashed_password="test",
+            species="human",
+            profile_pic="default.jpg",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user.id
+    finally:
+        db.close()
+
+
+def profile_pic_for(username):
+    db = backend_app.SessionLocal()
+    try:
+        user = db.query(backend_app.Harmonizer).filter(
+            backend_app.func.lower(backend_app.Harmonizer.username) == username.lower()
+        ).first()
+        return getattr(user, "profile_pic", "") if user else ""
+    finally:
+        db.close()
+
+
+def proposal_count():
+    db = backend_app.SessionLocal()
+    try:
+        return db.query(backend_app.Proposal).count()
+    finally:
+        db.close()
 """
 
 
@@ -144,6 +181,39 @@ class UploadSizeLimitTests(unittest.TestCase):
         self.assertEqual(result["status_code"], 200)
         self.assertTrue(result["filename"].endswith(".jpg"))
         self.assertEqual(result["url"], f"/uploads/{result['filename']}")
+        self.assertEqual(result["files"], [result["filename"]])
+
+    def test_profile_image_sync_with_matching_token_remains_compatible(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seed_user("alice")
+            headers = {"Authorization": f"Bearer {backend_app._create_wrapper_access_token('alice')}"}
+            response = client.post(
+                "/upload-image",
+                data={"username": "alice"},
+                files={"file": ("avatar.png", b"small-avatar", "image/png")},
+                headers=headers,
+            )
+            payload = response.json()
+            result = {
+                "status_code": response.status_code,
+                "filename": payload.get("filename", ""),
+                "url": payload.get("url", ""),
+                "profile_synced": payload.get("profile_synced"),
+                "profile_pic": profile_pic_for("alice"),
+                "files": uploaded_files(),
+            }
+            print("UPLOAD_SIZE_LIMIT_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_upload_probe(probe)
+
+        self.assertEqual(result["status_code"], 200)
+        self.assertTrue(result["filename"].endswith(".png"))
+        self.assertEqual(result["url"], f"/uploads/{result['filename']}")
+        self.assertTrue(result["profile_synced"])
+        self.assertEqual(result["profile_pic"], result["url"])
         self.assertEqual(result["files"], [result["filename"]])
 
     def test_unsupported_image_extension_still_fails_without_file(self):
@@ -238,6 +308,39 @@ class UploadSizeLimitTests(unittest.TestCase):
         self.assertEqual(result["status_code"], 413)
         self.assertEqual(result["detail"], "Uploaded file is too large")
         self.assertEqual(result["files"], [])
+
+    def test_oversized_proposal_video_fails_and_removes_partial_file(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seed_user("alice")
+            headers = {"Authorization": f"Bearer {backend_app._create_wrapper_access_token('alice')}"}
+            response = client.post(
+                "/proposals",
+                data={
+                    "title": "Large video",
+                    "body": "Video should fail before proposal creation.",
+                    "author": "alice",
+                    "author_type": "human",
+                },
+                files={"video_file": ("too-large.mp4", b"x" * 33, "video/mp4")},
+                headers=headers,
+            )
+            result = {
+                "status_code": response.status_code,
+                "detail": response.json().get("detail"),
+                "files": uploaded_files(),
+                "proposal_count": proposal_count(),
+            }
+            print("UPLOAD_SIZE_LIMIT_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_upload_probe(probe)
+
+        self.assertEqual(result["status_code"], 413)
+        self.assertEqual(result["detail"], "Uploaded file is too large")
+        self.assertEqual(result["files"], [])
+        self.assertEqual(result["proposal_count"], 0)
 
 
 if __name__ == "__main__":
