@@ -91,7 +91,7 @@ export default function BookmarksPage() {
   }, [loadSavedPosts]);
 
   return (
-    <main className="social-shell mx-auto flex min-h-screen w-full max-w-[44rem] flex-col gap-4 px-3 pb-28 pt-4 text-[var(--text-black)] md:px-5">
+    <main className="social-shell mx-auto flex min-h-screen w-full max-w-[44rem] flex-col gap-2.5 px-3 pb-28 text-[var(--text-black)] md:px-5">
       {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
 
