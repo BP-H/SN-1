@@ -276,6 +276,31 @@ async function fetchProfilePostsPage(username, pageParam) {
   throw new Error(errorPayload?.detail || "Failed to load posts");
 }
 
+async function fetchApprovedCollabPostsForCurrentUser() {
+  const response = await fetch(`${API_BASE_URL}/proposal-collabs?role=collaborator&status=approved&limit=50`, {
+    headers: authHeaders(),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) return [];
+
+  const proposalIds = [
+    ...new Set(
+      (Array.isArray(payload?.collabs) ? payload.collabs : [])
+        .map((collab) => Number(collab?.proposal_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    ),
+  ];
+  const posts = await Promise.all(
+    proposalIds.map(async (proposalId) => {
+      const detail = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(proposalId)}`);
+      if (!detail.ok) return null;
+      const post = await detail.json().catch(() => null);
+      return post && typeof post === "object" ? post : null;
+    })
+  );
+  return posts.filter(Boolean);
+}
+
 export default function UserPostsPage() {
   const params = useParams();
   const router = useRouter();
@@ -366,15 +391,24 @@ export default function UserPostsPage() {
     staleTime: 30000,
   });
 
+  const approvedCollabPostsQuery = useQuery({
+    queryKey: ["proposal-collabs", currentUsername, "approved-posts"],
+    enabled: Boolean(isAuthenticated && currentUsername && isOwnProfile),
+    queryFn: fetchApprovedCollabPostsForCurrentUser,
+    staleTime: 30000,
+  });
+
   const posts = useMemo(() => {
     const seen = new Set();
-    return (postsQuery.data?.pages?.flat() || []).filter((post) => {
+    const feedPosts = postsQuery.data?.pages?.flat() || [];
+    const approvedFallbackPosts = approvedCollabPostsQuery.data || [];
+    return [...feedPosts, ...approvedFallbackPosts].filter((post) => {
       const key = post?.id ?? `${post?.userName || "post"}-${post?.title || ""}-${post?.time || ""}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [postsQuery.data]);
+  }, [approvedCollabPostsQuery.data, postsQuery.data]);
   const visualPosts = useMemo(
     () => posts.map((post) => ({ post, visual: getVisualMeta(post) })).filter((item) => item.visual),
     [posts]
