@@ -43,6 +43,7 @@ npm run build
 - Deploy `frontend-social-seven` on Vercel.
 - Deploy the FastAPI backend on Railway.
 - Set `NEXT_PUBLIC_API_URL` in Vercel to the Railway backend URL with no trailing slash.
+- Keep FE7 `NEXT_PUBLIC_API_URL` and MCP `SUPERNOVA_API_BASE_URL` pointed at the backend API origin that returns JSON for `/connector/supernova`, not the frontend domain.
 - Set `DATABASE_URL` in Railway for production persistence.
 - Optional Supabase OAuth uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - Public protocol smoke checks run daily and can be triggered manually from GitHub Actions.
