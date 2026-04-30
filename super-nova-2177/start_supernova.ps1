@@ -7,7 +7,7 @@ Write-Host "  1. Next.js (legacy/off-path)" -ForegroundColor Green
 Write-Host "  2. Vite Professional (legacy/off-path)" -ForegroundColor Yellow
 Write-Host "  3. Vite 3D (legacy/off-path)" -ForegroundColor Magenta
 Write-Host "  4. Vite Basic (legacy/off-path)" -ForegroundColor White
-Write-Host "  5. Frontend Nova (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
+Write-Host "  5. Frontend Nova (deleted/off-path; use Social Seven)" -ForegroundColor DarkGray
 Write-Host "  6. Social Six (legacy/off-path)" -ForegroundColor Blue
 Write-Host "  7. Social Seven (Active/default FE7)" -ForegroundColor Magenta
 Write-Host ""
@@ -45,7 +45,7 @@ if ($null -eq $frontendDir) {
 }
 
 if ($frontendDir -eq "__retired_frontend_nova") {
-    Write-Host "`nfrontend-nova is retired/off-path. Use frontend-social-seven." -ForegroundColor Yellow
+    Write-Host "`nfrontend-nova was deleted after retirement. Use frontend-social-seven." -ForegroundColor Yellow
     Write-Host "Run this launcher again and choose option 7 for Social Seven." -ForegroundColor Cyan
     exit 0
 }
