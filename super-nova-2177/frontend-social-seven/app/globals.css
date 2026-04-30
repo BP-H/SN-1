@@ -3040,6 +3040,28 @@ html[data-theme="light"] .proposal-options-menu button:hover {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
+.proposal-approved-collab-avatars {
+  margin-left: -0.45rem;
+}
+
+.proposal-approved-collab-avatar {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255, 79, 143, 0.96), rgba(63, 184, 214, 0.86));
+  border: 2px solid rgba(15, 18, 28, 0.92);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+}
+
+.proposal-approved-collab-avatar:hover,
+.proposal-approved-collab-avatar:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+  border-color: rgba(255, 79, 143, 0.78);
+}
+
+.proposal-approved-collab-avatar-extra {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .proposal-inline-collab-link,
 .proposal-inline-collab-extra {
   color: var(--pink);
@@ -3071,14 +3093,14 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .profile-tab-button:hover {
-  color: var(--text-black);
-  background: rgba(255, 255, 255, 0.065);
+  color: var(--pink);
+  background: rgba(255, 79, 143, 0.1);
 }
 
 .profile-tab-button-selected {
-  color: #fff;
-  background: linear-gradient(135deg, rgba(255, 79, 143, 0.95), rgba(63, 184, 214, 0.82));
-  box-shadow: var(--shadow-pink);
+  color: var(--pink);
+  background: rgba(255, 79, 143, 0.14);
+  box-shadow: 0 12px 24px rgba(255, 79, 143, 0.2);
 }
 
 .profile-tab-badge {
@@ -3090,9 +3112,9 @@ html[data-theme="light"] .proposal-options-menu button:hover {
 }
 
 .profile-tab-button-selected .profile-tab-badge {
-  color: var(--pink);
-  background: #fff;
-  border-color: rgba(255, 255, 255, 0.95);
+  color: #fff;
+  background: var(--pink);
+  border-color: rgba(255, 255, 255, 0.8);
 }
 
 .notification-action-hint {
@@ -3214,6 +3236,16 @@ html[data-theme="light"] .proposal-support-summary {
     0 8px 18px rgba(25, 30, 48, 0.055) !important;
 }
 
+html[data-theme="light"] .proposal-approved-collab-avatar {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 18px rgba(25, 30, 48, 0.14);
+}
+
+html[data-theme="light"] .proposal-approved-collab-avatar-extra {
+  color: #c92d70;
+  background: rgba(255, 255, 255, 0.92);
+}
+
 html[data-theme="light"] .proposal-inline-collab-link,
 html[data-theme="light"] .proposal-inline-collab-extra {
   color: #c92d70 !important;
@@ -3241,14 +3273,14 @@ html[data-theme="light"] .profile-tab-button {
 }
 
 html[data-theme="light"] .profile-tab-button:hover {
-  color: #242838;
-  background: rgba(17, 24, 39, 0.055);
+  color: #c92d70;
+  background: rgba(255, 79, 143, 0.09);
 }
 
 html[data-theme="light"] .profile-tab-button-selected {
-  color: #fff;
-  background: linear-gradient(135deg, rgba(230, 45, 116, 0.96), rgba(32, 137, 166, 0.86));
-  box-shadow: 0 12px 24px rgba(201, 45, 112, 0.22);
+  color: #c92d70;
+  background: rgba(255, 79, 143, 0.12);
+  box-shadow: 0 12px 24px rgba(201, 45, 112, 0.16);
 }
 
 html[data-theme="light"] .profile-tab-badge {
@@ -3258,8 +3290,8 @@ html[data-theme="light"] .profile-tab-badge {
 }
 
 html[data-theme="light"] .profile-tab-button-selected .profile-tab-badge {
-  color: #c92d70;
-  background: #fff;
+  color: #fff;
+  background: #c92d70;
 }
 
 html[data-theme="light"] .notification-action-hint {

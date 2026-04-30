@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Fixed approved-collab profile surfacing with fallback FE7 refresh and co-author avatar polish.
 - Polished FE7 profile tab badges, collab notification routing, and focused follows auth regression coverage.
 - Polished FE7 approved-collab presentation with inline co-author headers and profile tab classification.
 - Added account-bound auth regression coverage for profile, message, and profile-image sync routes.

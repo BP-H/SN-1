@@ -170,6 +170,8 @@ function ProposalCard({
   }, [collabs]);
   const inlineApprovedCollabs = approvedCollabs.slice(0, 2);
   const extraApprovedCollabCount = Math.max(0, approvedCollabs.length - inlineApprovedCollabs.length);
+  const avatarApprovedCollabs = approvedCollabs.slice(0, 3);
+  const extraAvatarApprovedCollabCount = Math.max(0, approvedCollabs.length - avatarApprovedCollabs.length);
   const isOwner = Boolean(authorName && userData?.name && authorName.toLowerCase() === userData.name.toLowerCase());
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
@@ -615,11 +617,6 @@ function ProposalCard({
     : "";
   const supportSummary = showSupportSummary ? supportSummaryLabel(likes, dislikes, voteSummary) : "";
   const authorLabel = authorName || "Unknown";
-  const openInlineCollabProfile = (event, username) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (username) router.push(`/users/${encodeURIComponent(username)}`);
-  };
 
   const youtubeId = getYouTubeId(displayVideo);
   const videoThumbnail = youtubeId
@@ -723,44 +720,98 @@ function ProposalCard({
       {/* Header: avatar, name, time, options */}
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          {profileDomainHref ? (
-          <a
-            href={profileDomainHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open profile domain"
-            className="flex min-w-0 items-center gap-3"
-          >
-            <div className="shrink-0">
-              <img
-                src={displayAvatar || defaultAvatar}
-                alt="user avatar"
-                onError={(event) => {
-                  event.currentTarget.src = defaultAvatar;
-                }}
-                className="h-10 w-10 rounded-full border object-cover"
-                style={authorAvatarStyle}
-              />
-            </div>
-            <div className="min-w-0 truncate text-[0.9rem]">
-              <span className="font-semibold text-[var(--text-black)]">{authorLabel}</span>
+          <div className="proposal-author-avatar-cluster flex shrink-0 items-center">
+            {profileDomainHref ? (
+              <a
+                href={profileDomainHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open profile domain"
+                className="proposal-author-avatar-link shrink-0"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <img
+                  src={displayAvatar || defaultAvatar}
+                  alt="user avatar"
+                  onError={(event) => {
+                    event.currentTarget.src = defaultAvatar;
+                  }}
+                  className="h-10 w-10 rounded-full border object-cover"
+                  style={authorAvatarStyle}
+                />
+              </a>
+            ) : (
+              <Link
+                href={userHref}
+                scroll
+                className="proposal-author-avatar-link shrink-0"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <img
+                  src={displayAvatar || defaultAvatar}
+                  alt="user avatar"
+                  onError={(event) => {
+                    event.currentTarget.src = defaultAvatar;
+                  }}
+                  className="h-10 w-10 rounded-full border object-cover"
+                  style={authorAvatarStyle}
+                />
+              </Link>
+            )}
+            {avatarApprovedCollabs.length > 0 && (
+              <div className="proposal-approved-collab-avatars flex shrink-0 items-center -space-x-2">
+                {avatarApprovedCollabs.map((collab) => (
+                  <Link
+                    key={collab.key}
+                    href={`/users/${encodeURIComponent(collab.username)}`}
+                    scroll
+                    onClick={(event) => event.stopPropagation()}
+                    className="proposal-approved-collab-avatar flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-[0.56rem] font-black uppercase"
+                    title={`Approved collaborator @${collab.username}`}
+                  >
+                    {collab.avatar ? (
+                      <img
+                        src={collab.avatar}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      collab.username.slice(0, 2).toUpperCase()
+                    )}
+                  </Link>
+                ))}
+                {extraAvatarApprovedCollabCount > 0 && (
+                  <span className="proposal-approved-collab-avatar proposal-approved-collab-avatar-extra flex h-7 w-7 items-center justify-center rounded-full text-[0.56rem] font-black">
+                    +{extraAvatarApprovedCollabCount}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 text-[0.9rem] leading-tight">
+            <div className="proposal-author-inline-line flex min-w-0 flex-wrap items-baseline gap-x-1">
+              <Link
+                href={userHref}
+                scroll
+                onClick={(event) => event.stopPropagation()}
+                className="proposal-author-inline-name max-w-full truncate font-semibold text-[var(--text-black)]"
+              >
+                {authorLabel}
+              </Link>
               {inlineApprovedCollabs.map((collab) => (
                 <span key={collab.key} className="inline-flex min-w-0 items-baseline">
                   <span className="text-[var(--text-gray-light)]">,</span>
-                  <span
-                    role="link"
-                    tabIndex={0}
-                    onClick={(event) => openInlineCollabProfile(event, collab.username)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        openInlineCollabProfile(event, collab.username);
-                      }
-                    }}
-                    className="proposal-inline-collab-link ml-1 cursor-pointer font-semibold"
+                  <Link
+                    href={`/users/${encodeURIComponent(collab.username)}`}
+                    scroll
+                    onClick={(event) => event.stopPropagation()}
+                    className="proposal-inline-collab-link ml-1 truncate font-semibold"
                     title={`Approved collaborator @${collab.username}`}
                   >
                     @{collab.username}
-                  </span>
+                  </Link>
                 </span>
               ))}
               {extraApprovedCollabCount > 0 && (
@@ -768,54 +819,10 @@ function ProposalCard({
                   +{extraApprovedCollabCount}
                 </span>
               )}
-              <span className="mx-2 text-[var(--text-gray-light)]">•</span>
+              <span className="mx-1 text-[var(--text-gray-light)]">{"\u2022"}</span>
               <span className="text-[var(--text-gray-light)]">{time}</span>
             </div>
-          </a>
-        ) : (
-          <a href={userHref} className="flex min-w-0 items-center gap-3">
-            <div className="shrink-0">
-              <img
-                src={displayAvatar || defaultAvatar}
-                alt="user avatar"
-                onError={(event) => {
-                  event.currentTarget.src = defaultAvatar;
-                }}
-                className="h-10 w-10 rounded-full border object-cover"
-                style={authorAvatarStyle}
-              />
-            </div>
-            <div className="min-w-0 truncate text-[0.9rem]">
-              <span className="font-semibold text-[var(--text-black)]">{authorLabel}</span>
-              {inlineApprovedCollabs.map((collab) => (
-                <span key={collab.key} className="inline-flex min-w-0 items-baseline">
-                  <span className="text-[var(--text-gray-light)]">,</span>
-                  <span
-                    role="link"
-                    tabIndex={0}
-                    onClick={(event) => openInlineCollabProfile(event, collab.username)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        openInlineCollabProfile(event, collab.username);
-                      }
-                    }}
-                    className="proposal-inline-collab-link ml-1 cursor-pointer font-semibold"
-                    title={`Approved collaborator @${collab.username}`}
-                  >
-                    @{collab.username}
-                  </span>
-                </span>
-              ))}
-              {extraApprovedCollabCount > 0 && (
-                <span className="proposal-inline-collab-extra ml-1 font-black">
-                  +{extraApprovedCollabCount}
-                </span>
-              )}
-              <span className="mx-2 text-[var(--text-gray-light)]">•</span>
-              <span className="text-[var(--text-gray-light)]">{time}</span>
-            </div>
-          </a>
-          )}
+          </div>
         </div>
 
         {/* Species icon badge - replaces text label */}

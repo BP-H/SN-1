@@ -225,12 +225,27 @@ def seed_context():
 
 seeded = seed_context()
 detail = client.get(f"/proposals/{seeded['alice_post_id']}")
+alice_with_collabs = client.get("/proposals?filter=latest&author=alice&include_collabs=true&limit=20&offset=0")
 bob_author_only = client.get("/proposals?filter=latest&author=bob&limit=20&offset=0")
 bob_with_collabs = client.get("/proposals?filter=latest&author=bob&include_collabs=true&limit=20&offset=0")
 cara_with_collabs = client.get("/proposals?filter=latest&author=cara&include_collabs=true&limit=20&offset=0")
 dana_with_collabs = client.get("/proposals?filter=latest&author=dana&include_collabs=true&limit=20&offset=0")
 empty_with_collabs = client.get("/proposals?filter=latest&author=empty&include_collabs=true&limit=20&offset=0")
 unknown_with_collabs = client.get("/proposals?filter=latest&author=unknown&include_collabs=true&limit=20&offset=0")
+
+dana_token = backend_app._create_wrapper_access_token("dana")
+bob_token = backend_app._create_wrapper_access_token("bob")
+request_via_route = client.post(
+    "/proposal-collabs/request",
+    json={"proposal_id": seeded["dana_post_id"], "collaborator_username": "bob"},
+    headers={"Authorization": f"Bearer {dana_token}"},
+)
+request_payload = request_via_route.json()
+approve_via_route = client.post(
+    f"/proposal-collabs/{request_payload.get('collab', {}).get('id')}/approve",
+    headers={"Authorization": f"Bearer {bob_token}"},
+)
+bob_after_route_approve = client.get("/proposals?filter=latest&author=bob&include_collabs=true&limit=20&offset=0")
 
 print(
     "PROPOSAL_COLLAB_VISIBILITY_RESULT="
@@ -239,6 +254,8 @@ print(
             "seeded": seeded,
             "detail_status": detail.status_code,
             "detail": detail.json(),
+            "alice_with_collabs_status": alice_with_collabs.status_code,
+            "alice_with_collabs": alice_with_collabs.json(),
             "bob_author_only_status": bob_author_only.status_code,
             "bob_author_only": bob_author_only.json(),
             "bob_with_collabs_status": bob_with_collabs.status_code,
@@ -251,6 +268,10 @@ print(
             "empty_with_collabs": empty_with_collabs.json(),
             "unknown_with_collabs_status": unknown_with_collabs.status_code,
             "unknown_with_collabs": unknown_with_collabs.json(),
+            "request_via_route_status": request_via_route.status_code,
+            "approve_via_route_status": approve_via_route.status_code,
+            "bob_after_route_approve_status": bob_after_route_approve.status_code,
+            "bob_after_route_approve": bob_after_route_approve.json(),
         },
         sort_keys=True,
     )
@@ -296,6 +317,25 @@ class ProposalCollabVisibilityTests(unittest.TestCase):
         )
         self.assertEqual(collab_post["userName"], "alice")
         self.assertEqual(collab_post["collabs"][0]["username"], "bob")
+
+    def test_original_author_profile_still_includes_authored_approved_collab_post(self):
+        self.assertEqual(self.result["alice_with_collabs_status"], 200)
+        ids = {item["id"] for item in self.result["alice_with_collabs"]}
+        self.assertIn(self.result["seeded"]["alice_post_id"], ids)
+
+    def test_request_approve_route_flow_expands_collaborator_profile(self):
+        self.assertEqual(self.result["request_via_route_status"], 200)
+        self.assertEqual(self.result["approve_via_route_status"], 200)
+        self.assertEqual(self.result["bob_after_route_approve_status"], 200)
+        ids = {item["id"] for item in self.result["bob_after_route_approve"]}
+        self.assertIn(self.result["seeded"]["dana_post_id"], ids)
+
+        route_post = next(
+            item for item in self.result["bob_after_route_approve"]
+            if item["id"] == self.result["seeded"]["dana_post_id"]
+        )
+        self.assertEqual(route_post["userName"], "dana")
+        self.assertEqual(route_post["collabs"][0]["username"], "bob")
 
     def test_declined_pending_removed_collabs_do_not_expand_public_profile(self):
         self.assertEqual(self.result["cara_with_collabs_status"], 200)
