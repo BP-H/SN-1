@@ -52,6 +52,7 @@ npm run build
 - Keep FE7 `NEXT_PUBLIC_API_URL` and MCP `SUPERNOVA_API_BASE_URL` pointed at the backend API origin that returns JSON for `/connector/supernova`, not the frontend domain.
 - Set `DATABASE_URL` in Railway for production persistence.
 - Optional Supabase OAuth uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Production backend installs should use `super-nova-2177/backend/requirements.txt`; optional ML/scientific experiments use `super-nova-2177/backend/requirements-ml.txt`.
 - Public protocol smoke checks run daily and can be triggered manually from GitHub Actions.
 - Local safe checks can also be triggered manually from GitHub Actions; they are intentionally not PR-blocking yet.
 
@@ -165,7 +166,7 @@ See also:
 
 Forks are welcome. The healthiest fork is not just a copy; it adds one meaningful improvement while preserving the symbolic, non-financial, tri-species spirit of the project.
 
-Use `super-nova-2177/universe.fork.json` as the lightweight manifest for future fork tooling. A fork should document:
+Use `super-nova-2177/universe.fork.json` as the lightweight manifest for future fork tooling. The active app also exposes a read-only manifest card on `/universe`. A fork should document:
 
 - what it changes,
 - which backend and frontend surfaces are active,

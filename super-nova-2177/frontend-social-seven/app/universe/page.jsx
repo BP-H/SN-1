@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   IoArrowBack,
+  IoGitBranchOutline,
   IoRefreshOutline,
   IoSparklesOutline,
 } from "react-icons/io5";
@@ -11,6 +12,9 @@ import { API_BASE_URL } from "@/utils/apiBase";
 import { useUser } from "@/content/profile/UserContext";
 import { SocialConstellation } from "@/content/header/DesktopRightRail";
 import AmbientConstellationCanvas from "@/content/universe/AmbientConstellationCanvas";
+
+const UNIVERSE_MANIFEST_URL = "https://github.com/BP-H/SN-1/blob/master/super-nova-2177/universe.fork.json";
+const UNIVERSE_SPECIES = ["human", "ai", "company"];
 
 function compactNumber(value) {
   const number = Number(value || 0);
@@ -87,6 +91,25 @@ export default function UniversePage() {
             <div className="universe-stat-row">
               <span>Current</span>
               <b>{currentUser || "Guest"}</b>
+            </div>
+            <div className="universe-fork-card">
+              <div className="universe-fork-icon">
+                <IoGitBranchOutline />
+              </div>
+              <p className="universe-kicker">Universe manifest</p>
+              <h2>Fork this universe</h2>
+              <p>
+                A universe fork is a compatible copy of the governance/social protocol. Forks can evolve while
+                preserving the three-species contract.
+              </p>
+              <div className="universe-species-row" aria-label="Compatible species">
+                {UNIVERSE_SPECIES.map((species) => (
+                  <span key={species}>{species}</span>
+                ))}
+              </div>
+              <a href={UNIVERSE_MANIFEST_URL} target="_blank" rel="noopener noreferrer">
+                Read universe.fork.json
+              </a>
             </div>
           </aside>
         </div>

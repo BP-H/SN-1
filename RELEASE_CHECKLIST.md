@@ -41,6 +41,7 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 ## Dependency Review
 
 - [ ] No unreviewed major dependency updates are included.
+- [ ] Backend production requirements remain focused on active runtime needs; optional ML/science packages stay in `super-nova-2177/backend/requirements-ml.txt` unless a dedicated audit proves they are required at startup.
 - [ ] Dependabot PRs passed FE7 lint/build or were deferred when frontend dependencies changed.
 - [ ] Dependabot PRs passed backend federation/safety tests or were deferred when backend dependencies changed.
 - [ ] GitHub Actions updates passed the relevant workflow before release.

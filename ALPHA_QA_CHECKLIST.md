@@ -48,6 +48,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Vote and unvote proposal**
   - Expected: signed-in user can vote and remove their vote; public reads remain public.
   - Quick test: vote on a post, refresh, then unvote.
+- [ ] **AI cursor settings and fallback**
+  - Expected: AI Settings explains server-key vs local-key modes, Test AI reports a clear status, and Brief/Draft show a fallback notice when AI is unavailable.
+  - Quick test: open AI Settings with no key, test with local keys disabled, then drag the cursor onto a post and try Brief and Draft.
 - [ ] **AI review drafts**
   - Expected: a signed-in `species=ai` account can create a draft vote/rationale from a post card, then approve or cancel it in AI Actions; nothing publishes before approval.
   - Quick test: draft support/oppose/abstain with a short rationale, confirm no vote/comment appears, approve one draft, then verify exactly one AI vote and one rationale comment.
@@ -171,6 +174,12 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Dark theme**
   - Expected: dark surfaces remain readable and no selected state turns muddy or gradient-like.
   - Quick test: scan the same surfaces in dark theme.
+
+## Universe / Fork Manifest
+
+- [ ] **Universe manifest visibility**
+  - Expected: `/universe` shows the read-only universe manifest/fork section with the `human`, `ai`, and `company` compatibility contract.
+  - Quick test: open `/universe`, confirm the manifest link is visible, and verify the copy does not claim live federation or verified organizations.
 
 ## Safety Guardrails
 

@@ -65,6 +65,18 @@ function buildPrompt(action, target) {
   return `Summarize this SuperNova social post in two short bullets and name one useful next action.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
 }
 
+function aiConfigMessage(payload = {}) {
+  const code = payload?.error_code || "";
+  if (code === "server_key_missing") return "Server AI key missing. Set OPENAI_API_KEY in Vercel.";
+  if (code === "client_keys_disabled") return "Local keys are disabled on this deployment.";
+  if (code === "openai_request_failed") return "OpenAI request failed.";
+  return "AI unavailable; fallback text will be used.";
+}
+
+function hasUsableAiReply(response, payload = {}) {
+  return Boolean(response?.ok && payload?.ai_configured === true && payload?.reply);
+}
+
 function connectorActionLabel(actionType = "") {
   const labels = {
     draft_ai_review: "AI review draft",
@@ -158,6 +170,8 @@ export default function AssistantOrb() {
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [aiSettingsNotice, setAiSettingsNotice] = useState("");
+  const [aiTesting, setAiTesting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -447,8 +461,31 @@ export default function AssistantOrb() {
 
   const persistKey = (value) => {
     setApiKey(value);
+    setAiSettingsNotice("");
     if (value.trim()) localStorage.setItem(KEY_STORAGE, value.trim());
     else localStorage.removeItem(KEY_STORAGE);
+  };
+
+  const testAi = async () => {
+    if (aiTesting) return;
+    setAiTesting(true);
+    setAiSettingsNotice("");
+    try {
+      const response = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: "Reply with: SuperNova AI ready.",
+          apiKey: apiKey.trim() || undefined,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      setAiSettingsNotice(hasUsableAiReply(response, data) ? "AI is working." : aiConfigMessage(data));
+    } catch {
+      setAiSettingsNotice("AI unavailable; fallback text will be used.");
+    } finally {
+      setAiTesting(false);
+    }
   };
 
   const closeActivePanel = () => {
@@ -638,12 +675,33 @@ export default function AssistantOrb() {
         }
         return;
       }
-      setCommentText(fallbackFor("comment", target));
-      setCommentOpen(true);
+      setBusy(true);
       setSettingsOpen(false);
       setActionsOpen(false);
+      setCommentOpen(false);
       setReply("");
-      setMenuOpen(true);
+      try {
+        const response = await fetch("/api/ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: buildPrompt("comment", target), apiKey: apiKey.trim() || undefined }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (hasUsableAiReply(response, data)) {
+          setCommentText(data.reply);
+          setReply("");
+        } else {
+          setCommentText(fallbackFor("comment", target));
+          setReply("AI was unavailable, so fallback text was used.");
+        }
+      } catch {
+        setCommentText(fallbackFor("comment", target));
+        setReply("AI was unavailable, so fallback text was used.");
+      } finally {
+        setBusy(false);
+        setCommentOpen(true);
+        setMenuOpen(true);
+      }
       return;
     }
 
@@ -685,14 +743,13 @@ export default function AssistantOrb() {
         body: JSON.stringify({ prompt: buildPrompt(action, target), apiKey: apiKey.trim() || undefined }),
       });
       const data = await response.json().catch(() => ({}));
-      const aiReply =
-        response.ok && data?.reply && !String(data.reply).includes("Missing OPENAI_API_KEY")
-          ? data.reply
-          : fallbackFor(action, target);
+      const aiReply = hasUsableAiReply(response, data)
+        ? data.reply
+        : `AI was unavailable, so fallback text was used.\n\n${fallbackFor(action, target)}`;
       setReply(aiReply);
       setMenuOpen(true);
     } catch {
-      setReply(fallbackFor(action, target));
+      setReply(`AI was unavailable, so fallback text was used.\n\n${fallbackFor(action, target)}`);
       setMenuOpen(true);
     } finally {
       setBusy(false);
@@ -761,7 +818,7 @@ export default function AssistantOrb() {
     { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
     { action: "share", label: "Share", icon: FaShare, dx: 90, dy: 48 },
     { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
-    { action: "key", label: "AI key", icon: IoKeyOutline, dx: 34, dy: 96 },
+    { action: "key", label: "AI Settings", icon: IoKeyOutline, dx: 34, dy: 96 },
   ];
   const dockHidden = dragging || ghostVisible || menuOpen || settingsOpen || commentOpen || actionsOpen || Boolean(reply);
   const floatingPanelStyle =
@@ -771,7 +828,7 @@ export default function AssistantOrb() {
           const viewport = window.visualViewport;
           const viewportTop = viewport?.offsetTop || 0;
           const viewportHeight = viewport?.height || window.innerHeight;
-          const panelHeight = actionsOpen ? 488 : commentOpen ? 246 : settingsOpen ? 184 : 168;
+          const panelHeight = actionsOpen ? 488 : commentOpen ? 246 : settingsOpen ? 330 : 168;
           const rightRoom = window.innerWidth - (pos.x + ORB_SIZE + 12);
           const leftRoom = pos.x - 12;
           const canUseSide = Math.max(rightRoom, leftRoom) >= width;
@@ -885,10 +942,16 @@ export default function AssistantOrb() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--pink)]">
-                {settingsOpen ? "AI Key" : commentOpen ? "Comment" : actionsOpen ? "AI Actions" : "AI Cursor"}
+                {settingsOpen ? "AI Settings" : commentOpen ? "Comment" : actionsOpen ? "AI Actions" : "AI Cursor"}
               </p>
               <p className="truncate text-[0.82rem] text-[var(--text-gray-light)]">
-                {actionsOpen ? "Review connector drafts" : target ? target.title : "Local mode is active"}
+                {settingsOpen
+                  ? "Drag onto a post, then choose Brief or Draft"
+                  : actionsOpen
+                  ? "Review connector drafts"
+                  : target
+                  ? target.title
+                  : "Drag onto a post first"}
               </p>
             </div>
             <button
@@ -904,6 +967,11 @@ export default function AssistantOrb() {
 
           {settingsOpen && (
             <div className="mt-3 flex flex-col gap-2">
+              <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
+                Drag the AI cursor onto a post, then choose Brief or Draft. A server key uses OPENAI_API_KEY in Vercel.
+                A local browser key only works when ALLOW_CLIENT_AI_KEY=true. Saving a key does not automatically
+                generate anything.
+              </div>
               <input
                 value={apiKey}
                 onChange={(event) => persistKey(event.target.value)}
@@ -911,6 +979,31 @@ export default function AssistantOrb() {
                 placeholder="OpenAI API key for local testing"
                 className="ai-cursor-field w-full rounded-[0.8rem] px-3 py-2 text-[0.78rem] outline-none"
               />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    persistKey(apiKey);
+                    setAiSettingsNotice("Key saved locally. Drag onto a post and choose Brief or Draft.");
+                  }}
+                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
+                >
+                  Save local key
+                </button>
+                <button
+                  type="button"
+                  onClick={testAi}
+                  disabled={aiTesting}
+                  className="rounded-full bg-[var(--pink)] px-3 py-2 text-[0.74rem] font-semibold text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
+                >
+                  {aiTesting ? "Testing..." : "Test AI"}
+                </button>
+              </div>
+              {aiSettingsNotice && (
+                <div className="ai-action-notice rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
+                  {aiSettingsNotice}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1001,7 +1094,7 @@ export default function AssistantOrb() {
                 </div>
               ) : connectorActions.length === 0 ? (
                 <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.78rem]">
-                  No draft AI Actions waiting for review.
+                  No draft actions waiting. AI review drafts, vote drafts, and collab requests will appear here before anything publishes.
                 </div>
               ) : (
                 <div className="ai-actions-list flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
@@ -1033,7 +1126,7 @@ export default function AssistantOrb() {
                         </p>
                         {isAiReviewDraft && (
                           <p className="mt-2 rounded-[0.7rem] border border-[var(--pink)]/20 bg-[var(--pink)]/8 px-2.5 py-2 text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
-                            AI review draft - approve to publish one AI vote and one AI rationale comment.
+                            Approval publishes exactly one AI vote and one rationale comment.
                           </p>
                         )}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -1060,6 +1153,7 @@ export default function AssistantOrb() {
                               onClick={() => reviewConnectorAction(action, "cancel")}
                               disabled={Boolean(connectorActionBusyId)}
                               className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                              title="Cancel prevents publication."
                             >
                               {isCanceling ? "Canceling..." : "Cancel"}
                             </button>

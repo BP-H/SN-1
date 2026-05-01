@@ -51,7 +51,7 @@ Remaining production gaps should stay explicit:
 - rate limiting and abuse controls;
 - CI becoming required branch protection after the PR gates are proven stable;
 - backup/restore verification drills against the real production process;
-- dependency split, cold-start audit, and dependency update hardening;
+- continued dependency update hardening after the initial cold-start audit;
 - router split and `/v1` route versioning;
 - staged legacy frontend cleanup with reference checks and no protected-core
   changes.
@@ -60,10 +60,9 @@ Audit-only notes for future dedicated PRs:
 
 - Rate limiting and abuse controls should be the next security-focused backend
   PR. Do not add new packages or broad middleware in mixed product polish work.
-- `backend/requirements.txt` still includes heavy analysis/ML packages such as
-  `pandas`, `torch`, `matplotlib`, and `scipy` while `requirements-ml.txt`
-  also tracks optional heavier packages. Keep dependency/cold-start cleanup as
-  its own audit PR with startup/import verification.
+- The initial backend dependency/cold-start audit moved duplicate optional
+  analysis/ML packages out of `backend/requirements.txt`; keep future
+  dependency changes in dedicated PRs with startup/import verification.
 - Infinite-scroll sentinel polish belongs in a product UX PR, separate from
   backend hardening.
 - ActivityPub, constellation, and governance surfacing should remain explicit
