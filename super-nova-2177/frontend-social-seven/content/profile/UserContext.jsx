@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
+import { createContext, useState, useContext, useEffect, useCallback, useMemo, useRef } from "react";
 import supabase, { isSupabaseConfigured } from "@/supabaseClient";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { FALLBACK_AVATAR, isUploadedAvatarValue, normalizeAvatarValue } from "@/utils/avatar";
@@ -170,6 +170,7 @@ export function UserProvider({ children }) {
   const [storedProfile, setStoredProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [socialProfileLookup, setSocialProfileLookup] = useState({ key: "", status: "idle" });
+  const authEpochRef = useRef(0);
 
   const authUser = session?.user ?? null;
   const providerProfile = useMemo(
@@ -336,6 +337,8 @@ export function UserProvider({ children }) {
       syncPayload.species = explicitSpecies;
     }
 
+    const authEpoch = authEpochRef.current;
+
     fetch(`${API_BASE_URL}/auth/social/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,7 +346,7 @@ export function UserProvider({ children }) {
     })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
-        if (cancelled || !payload?.username) return;
+        if (cancelled || authEpoch !== authEpochRef.current || !payload?.username) return;
         const responseSpecies = normalizeSpecies(payload.species);
         const responseAvatar = normalizeAvatarValue(payload.avatar_url || "");
         const localAvatar = normalizeAvatarValue(storedProfile?.customAvatar || "");
@@ -647,6 +650,7 @@ export function UserProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    authEpochRef.current += 1;
     clearBackendAuthSession();
     setPasswordAuth(null);
     let signOutError = null;
