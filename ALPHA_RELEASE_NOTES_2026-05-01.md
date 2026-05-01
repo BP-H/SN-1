@@ -31,6 +31,8 @@ promises, payment promises, or automatic value distribution.
   rationale comment, but publication requires explicit approval in FE7.
 - AI cursor/settings clarity: users can understand server-key and local-key
   modes, test AI availability, and see when fallback text is used.
+- Sign-out stability: logout now ignores stale in-flight social-sync responses
+  so one sign-out action clears the session instead of needing a second click.
 - Read-only MCP connector for public proposal/profile/comment/spec/vote-summary
   reads.
 - `/universe` read-only fork manifest visibility for the three-species
@@ -64,6 +66,8 @@ promises, payment promises, or automatic value distribution.
 - Release-owner manual QA: `PASS` across account/session, posting/media,
   voting, comments, follows, messages, collabs, AI review drafts, universe,
   public signed-out reads, MCP, mobile, light, and dark smoke.
+- Sign-out release-blocker fix: `PASS` via FE7 lint/build after adding the
+  stale-sync guard.
 
 ## Known Non-Blocking Exceptions
 

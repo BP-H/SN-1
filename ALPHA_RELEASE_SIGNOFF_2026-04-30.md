@@ -20,6 +20,10 @@ ready for review.
 - Manual QA completion update: release owner reported completed production
   manual QA on 2026-05-01 UTC / 2026-04-30 Pacific, with no release-blocking
   issues reported.
+- Release-blocker follow-up: sign-out sometimes required a second click because
+  an in-flight social-profile sync could restore backend auth state after the
+  first sign-out. This PR adds a tiny FE7 logout-generation guard so stale sync
+  responses are ignored after sign-out.
 
 ## Deployment Evidence
 
@@ -42,6 +46,7 @@ ready for review.
 
 - FE7 lint result: `PASS` (`npm run lint`)
 - FE7 build result: `PASS` (`npm run build`)
+- FE7 sign-out fix validation: `PASS` (`npm run lint`, `npm run build`)
 - Backend compile result: `PASS`
   (`python -m py_compile super-nova-2177/backend/app.py`)
 - Backend focused test result: `PASS`
@@ -126,6 +131,9 @@ production-mutating flows that Codex intentionally did not run directly:
 - Browser `GET /mcp` returns 405. This is expected because ChatGPT/Codex MCP
   clients use POST transport.
 - No release-blocking manual QA exceptions were reported by the release owner.
+- Sign-out double-click issue was identified as a tiny release blocker and
+  fixed in FE7 by preventing stale social-sync responses from restoring auth
+  after sign-out.
 
 ## Release Decision
 
