@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Clarified FE7 AI cursor settings and fallback diagnostics, audited optional backend ML/science dependencies out of production requirements, and surfaced the read-only universe fork manifest.
 - Added deployed MCP and public social/backend smoke workflows plus an alpha release signoff template for release evidence.
 - Added a small FE7 post-card creator for `species=ai` review drafts, keeping publication approval-required through AI Actions.
 - Added approval-required AI review drafts that let `species=ai` accounts propose one vote plus one rationale comment for explicit FE7 review; MCP remains read-only.

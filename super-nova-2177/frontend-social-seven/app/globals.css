@@ -2644,6 +2644,71 @@ html[data-theme="light"] .mention-autocomplete-panel {
   white-space: nowrap;
 }
 
+.universe-fork-card {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0.85rem;
+}
+
+.universe-fork-icon {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.8rem;
+  background: rgba(255, 79, 143, 0.14);
+  color: var(--pink);
+}
+
+.universe-fork-card h2 {
+  margin: 0;
+  color: var(--text-black);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.universe-fork-card p {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.universe-species-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.universe-species-row span,
+.universe-fork-card a {
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.universe-species-row span {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.35rem 0.5rem;
+  color: var(--text-gray-light);
+}
+
+.universe-fork-card a {
+  width: fit-content;
+  background: var(--pink);
+  color: #fff;
+  padding: 0.5rem 0.7rem;
+  box-shadow: var(--shadow-pink);
+}
+
 .universe-page .desktop-constellation {
   display: grid;
   position: relative;
@@ -2933,6 +2998,17 @@ html[data-theme="light"] .universe-stats-card {
     linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(245, 248, 253, 0.66)),
     rgba(255, 255, 255, 0.82);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme="light"] .universe-fork-card {
+  border-color: rgba(17, 24, 39, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+html[data-theme="light"] .universe-species-row span {
+  border-color: rgba(17, 24, 39, 0.08);
+  background: rgba(17, 24, 39, 0.045);
+  color: #5f687d;
 }
 
 html[data-theme="light"] .universe-page .desktop-node-label {
