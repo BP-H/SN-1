@@ -1,0 +1,55 @@
+name: Deployed MCP Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "MCP deployment base URL"
+        required: false
+        default: "https://sn-1-anls.vercel.app"
+  schedule:
+    - cron: "37 12 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployed-mcp-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Smoke deployed read-only MCP
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: super-nova-2177/supernova-mcp/package-lock.json
+
+      - name: Install MCP dependencies
+        working-directory: super-nova-2177/supernova-mcp
+        run: npm ci
+
+      - name: Build MCP project
+        working-directory: super-nova-2177/supernova-mcp
+        run: npm run build
+
+      - name: Run MCP unit tests
+        working-directory: super-nova-2177/supernova-mcp
+        run: npm test
+
+      - name: Smoke deployed MCP
+        working-directory: super-nova-2177/supernova-mcp
+        env:
+          DEFAULT_BASE_URL: "https://sn-1-anls.vercel.app"
+          INPUT_BASE_URL: ${{ github.event.inputs.base_url }}
+        run: |
+          BASE_URL="${INPUT_BASE_URL:-$DEFAULT_BASE_URL}"
+          npm run smoke -- "$BASE_URL"

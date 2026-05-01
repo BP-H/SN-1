@@ -4,6 +4,9 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 
 ## Required Checks
 
+- [ ] A copy of `ALPHA_RELEASE_SIGNOFF_TEMPLATE.md` is completed for this
+  candidate with commit SHA, FE7 URL, MCP URLs, smoke results, rollback target,
+  known exceptions, owner, and date.
 - [ ] PRs pass the local safe PR gates workflow for deterministic backend tests, `check_safe.py --local-only`, FE7 `npm ci`/lint/build, and protected core zero diff.
 - [ ] Backup/restore readiness is confirmed using `BACKUP_RESTORE_RUNBOOK.md` (inventory, backup path, restore drill plan, and rollback path).
 - [ ] `python scripts/check_safe.py --local-only`
@@ -15,6 +18,11 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] Protected core diff is zero unless the release explicitly includes reviewed core work.
 - [ ] Public protocol smoke reports zero failures.
 - [ ] Read-only social/backend smoke passes or records auth-gated social reads as skipped.
+- [ ] Deployed MCP smoke passes from the `Deployed MCP Smoke` workflow or an
+  equivalent local run of `npm run smoke -- https://sn-1-anls.vercel.app`.
+- [ ] Public social/backend smoke passes from the `Public Social Backend Smoke`
+  workflow or an equivalent local run of `python scripts/smoke_social_backend.py
+  https://2177.tech`.
 - [ ] Optional until the API origin is known and stable: direct backend API smoke passes with `python scripts/smoke_social_backend.py "$env:NEXT_PUBLIC_API_URL" --strict-backend` in PowerShell.
 - [ ] Live smoke checks remain manual/scheduled and are not required PR gates yet.
 - [ ] Upload-size rejection and production API-origin guard items in `ALPHA_QA_CHECKLIST.md` were reviewed for the target environment.

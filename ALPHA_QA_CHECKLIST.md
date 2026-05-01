@@ -5,6 +5,11 @@ Keep the pass practical and observational. SuperNova is nonprofit
 public-interest infrastructure; this checklist must not introduce payment,
 token, equity, crypto, or automatic value-distribution expectations.
 
+Before promoting an alpha candidate, complete one copy of
+`ALPHA_RELEASE_SIGNOFF_TEMPLATE.md` with the candidate commit SHA, FE7 URL, MCP
+URLs, deployed smoke results, rollback target, known exceptions, owner, and
+date.
+
 Each checklist box is the pass marker. Mark it only when the expected behavior
 passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 
@@ -144,6 +149,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Expected: ChatGPT/Codex uses `https://sn-1-anls.vercel.app/mcp`.
   - Quick test: paste `/mcp` into an MCP-capable client; browser `GET /mcp`
     may say the endpoint expects POST requests.
+- [ ] **Deployed MCP smoke**
+  - Expected: the `Deployed MCP Smoke` workflow or local `npm run smoke -- https://sn-1-anls.vercel.app` validates `/health` and read-only MCP tools.
+  - Quick test: record the workflow run or command result in the release signoff.
 - [ ] **Backend API origin**
   - Expected: if tools list but calls fail, `SUPERNOVA_API_BASE_URL` points to
     the backend JSON API origin, not the frontend domain.
@@ -175,6 +183,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **No autonomous write execution**
   - Expected: MCP remains read-only, AI review drafts require explicit FE7 approval, and there is no batch or automatic voting path.
   - Quick test: confirm MCP exposes only public read tools and each AI review publishes only after approving one draft.
+- [ ] **Release evidence captured**
+  - Expected: social/backend smoke, MCP smoke, FE7 lint/build, focused backend tests, `check_safe`, protected core zero diff, rollback target, known exceptions, owner, and date are recorded.
+  - Quick test: review the completed signoff copy before promoting the candidate.
 - [ ] **No financial promise language**
   - Expected: docs/UI describe recognition and contribution records without payment guarantees.
   - Quick test: search touched docs/UI for risky words and keep only guardrail uses.

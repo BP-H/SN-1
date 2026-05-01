@@ -1,0 +1,50 @@
+name: Public Social Backend Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Public social/backend base URL"
+        required: false
+        default: "https://2177.tech"
+      strict_backend:
+        description: "Require direct backend health/status JSON responses"
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: "52 12 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-social-backend-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Smoke public social/backend reads
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run public social/backend smoke check
+        env:
+          DEFAULT_BASE_URL: "https://2177.tech"
+          INPUT_BASE_URL: ${{ github.event.inputs.base_url }}
+          STRICT_BACKEND: ${{ github.event.inputs.strict_backend }}
+        run: |
+          BASE_URL="${INPUT_BASE_URL:-$DEFAULT_BASE_URL}"
+          STRICT_FLAG=""
+          if [ "$STRICT_BACKEND" = "true" ]; then
+            STRICT_FLAG="--strict-backend"
+          fi
+          python scripts/smoke_social_backend.py "$BASE_URL" $STRICT_FLAG
