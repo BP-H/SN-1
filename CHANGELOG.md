@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added final alpha release notes and updated release signoff with completed release-owner manual QA results.
 - Added alpha release candidate signoff evidence for the post-PR #128 deployment, smoke checks, deterministic test matrix, and pending manual QA exceptions.
 - Clarified FE7 AI cursor settings and fallback diagnostics, audited optional backend ML/science dependencies out of production requirements, and surfaced the read-only universe fork manifest.
 - Added deployed MCP and public social/backend smoke workflows plus an alpha release signoff template for release evidence.

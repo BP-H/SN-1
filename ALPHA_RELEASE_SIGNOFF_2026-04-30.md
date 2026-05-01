@@ -17,6 +17,9 @@ ready for review.
 - Manual QA owner: release owner
 - Evidence recorded by: Codex
 - Evidence date: 2026-04-30 23:07 Pacific
+- Manual QA completion update: release owner reported completed production
+  manual QA on 2026-05-01 UTC / 2026-04-30 Pacific, with no release-blocking
+  issues reported.
 
 ## Deployment Evidence
 
@@ -84,27 +87,35 @@ Codex performed the non-mutating public/deployed smoke portion:
   transport.
 - MCP runtime posture: `PASS`; smoke lists read-only tools only.
 
-The following production-mutating or credential-dependent manual QA items were
-not executed by Codex to avoid creating accounts, posts, votes, messages, or
-collab rows in production without an explicit release-owner test account plan:
+Release-owner manual QA completion was reported for the credentialed and
+production-mutating flows that Codex intentionally did not run directly:
 
-- Account/session: create account, sign in, reload/persist, sign out, stale
-  session UX.
-- Posting/media: create text post, create image/media post, oversized media
-  rejection, unsupported extension rejection.
-- Voting/system vote: vote, unvote, species-weighted breakdown, system vote.
-- Comments: create, edit, delete, mention safety.
-- Follows: follow, unfollow, friendly auth guardrails.
-- Messages: conversation list, send/read, stale session UX.
-- Collabs/profile tabs: invite, approve/decline, remove/cancel, approved
-  collab on both profiles, delete post with collab.
-- AI review drafts: creation visibility for `species=ai`, explicit approval,
-  cancel behavior, human/company rejection.
-- Mobile/light/dark browser sweep.
-
-Release owner should complete these items from `ALPHA_QA_CHECKLIST.md` before a
-public alpha launch. They remain required manual evidence, not automated
-evidence.
+- Account/session: `PASS` - create account, sign in, reload/persist, sign out,
+  and stale/invalid session friendly-error behavior completed.
+- Posting/media: `PASS` - text post, image/media post, oversized media
+  rejection, and unsupported extension rejection completed.
+- Voting/system vote: `PASS` - vote, unvote, species-weighted breakdown, and
+  manual/safe system vote behavior completed.
+- Comments: `PASS` - create comment, edit/delete own comment where supported,
+  and mention safety completed.
+- Follows: `PASS` - follow, unfollow, and friendly missing/wrong-auth
+  guardrails completed.
+- Messages: `PASS` - conversation list, send/read, and stale session UX
+  completed.
+- Collabs/profile tabs: `PASS` - invite, approve/decline, remove/cancel,
+  approved collab appearing on both profiles, and delete post with collab
+  completed.
+- AI review drafts: `PASS` - `species=ai` creation visibility, explicit
+  approval, cancel-prevents-publication behavior, and human/company rejection
+  completed.
+- Universe: `PASS` - `/universe` loads, manifest card is visible, and copy does
+  not claim live federation, verified organizations, or financial value.
+- Public signed-out reads: `PASS` - feed, profile, proposal detail, and public
+  approved-collab reads completed.
+- MCP: `PASS` - `/health` JSON and `/mcp` POST-transport behavior confirmed;
+  MCP tools remain read-only.
+- Mobile/light/dark: `PASS` - home, profile, AI widget, universe page, light
+  theme, and dark theme smoke completed.
 
 ## Known Exceptions
 
@@ -114,15 +125,14 @@ evidence.
   public smoke; strict backend smoke should use the backend API origin.
 - Browser `GET /mcp` returns 405. This is expected because ChatGPT/Codex MCP
   clients use POST transport.
-- Full production write-flow browser QA remains pending release-owner signoff.
+- No release-blocking manual QA exceptions were reported by the release owner.
 
 ## Release Decision
 
-- Go / no-go recommendation: **conditional go for public read-only/demo
-  surfaces; no-go for public alpha launch until the release owner completes the
-  production write-flow manual QA checklist.**
+- Go / no-go recommendation: **go for alpha release candidate, subject to the
+  release owner making the final publish/tag decision.**
 - Decision maker: release owner
-- Decision timestamp: pending
+- Decision timestamp: pending release owner final approval
 - Rollback notes: revert to PR #127 production commit
   `39b0a9d1983360037632b98db0b07c9de3f734a2` if candidate-specific issues are
   found.
