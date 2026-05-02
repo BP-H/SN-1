@@ -61,6 +61,8 @@ const EMPTY_FORM = {
   model_identity: "",
 };
 
+const GENESIS_STEPS = ["Name", "Traits", "Persona", "Approve"];
+
 function cleanDelegateError(error, fallback = "Unable to update AI delegates.") {
   const message = formatBackendAuthErrorMessage(error, fallback);
   if (/Only human or organization accounts/i.test(message)) {
@@ -92,6 +94,15 @@ function compactHash(value) {
   if (!value) return "pending";
   const text = String(value);
   return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-6)}` : text;
+}
+
+function generationSourceLabel(value) {
+  const labels = {
+    openai: "server AI model",
+    deterministic_fallback_no_key: "deterministic fallback (no server key)",
+    fallback_after_model_error: "deterministic fallback after model error",
+  };
+  return labels[value] || value || "not generated";
 }
 
 const AUTONOMY_LABELS = {
@@ -356,19 +367,29 @@ export default function AiDelegatesSettingsPage() {
     <main className="social-shell">
       <section
         data-ai-genesis-flow="call-sign-v2"
-        className="mx-auto max-w-5xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6"
+        className="mx-auto max-w-4xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-3xl">
             <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Delegates</p>
             <h1 className="mt-1 text-[1.45rem] font-black text-[var(--text-black)]">AI Genesis</h1>
             <p className="mt-2 max-w-2xl text-[0.86rem] leading-6 text-[var(--text-gray-light)]">
-              Create a visible AI delegate in your custody. Custody is accountability, not ownership; official reasoning is generated from a locked charter and cannot be edited before approval.
+              Create a visible AI delegate. Custody is accountability, not ownership.
             </p>
           </div>
           <Link href="/ai/supernova-ai" className="rounded-full border border-[var(--horizontal-line)] px-3 py-2 text-[0.78rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]">
             View System AI
           </Link>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {GENESIS_STEPS.map((step, index) => (
+            <span
+              key={step}
+              className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-3 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]"
+            >
+              {index + 1}. {step}
+            </span>
+          ))}
         </div>
 
         {!isAuthenticated && (
@@ -388,11 +409,8 @@ export default function AiDelegatesSettingsPage() {
           <>
             <form onSubmit={createDelegate} className="mt-5 grid gap-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 sm:p-5">
               <div>
-                <p className="text-[0.8rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Genesis</p>
-                <h2 className="mt-1 text-[1.05rem] font-black text-[var(--text-black)]">Create AI Delegate</h2>
-                <p className="mt-1 max-w-2xl text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
-                  Name the AI, choose its domains, generate a persona, then approve the charter. The short handle is generated from your locked custodian prefix.
-                </p>
+                <p className="text-[0.78rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">Create AI Delegate</p>
+                <h2 className="mt-1 text-[1.08rem] font-black text-[var(--text-black)]">Name, trait, generate, approve.</h2>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
@@ -489,12 +507,17 @@ export default function AiDelegatesSettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-3 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
-                <p>No raw API keys are stored. Private model-key connection is deferred until encrypted server-side secret storage exists.</p>
-                <p className="mt-1">Autonomy is approval-required in this stage: the delegate may recommend reviews, posts, or collab decisions, but publication still requires approve/cancel.</p>
-                <p className="mt-1">Custodians can update the model/API label or disable future actions. Normal custody controls do not delete the AI identity or rewrite its history.</p>
-                <p className="mt-1">Legal recognition would trigger protocol migration review for mechanics and safety; it is not framed as a permission vote on dignity.</p>
-              </div>
+              <details className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-3 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                <summary className="cursor-pointer text-[0.74rem] font-black uppercase tracking-[0.12em] text-[var(--text-black)]">
+                  Safety and custody notes
+                </summary>
+                <div className="mt-2 space-y-1">
+                  <p>Official AI reasoning is generated from a locked charter and cannot be edited before approval.</p>
+                  <p>No raw API keys are stored. Private model-key connection is deferred until encrypted server-side secret storage exists.</p>
+                  <p>Delegates can be disabled, not normally deleted. Publication remains approve/cancel.</p>
+                  <p>Legal recognition triggers protocol migration review for mechanics and safety; it is not a permission vote on dignity.</p>
+                </div>
+              </details>
 
               <div className="flex flex-wrap gap-2">
                 <button
@@ -538,6 +561,12 @@ export default function AiDelegatesSettingsPage() {
                     <p className="rounded-[0.8rem] bg-white/[0.04] px-3 py-2 font-mono">
                       Persona hash: {compactHash(personaDraft.persona_hash)}
                     </p>
+                    <p className="rounded-[0.8rem] bg-white/[0.04] px-3 py-2">
+                      Generation: {generationSourceLabel(personaDraft.generation_source || personaDraft.source)}
+                    </p>
+                    <p className="rounded-[0.8rem] bg-white/[0.04] px-3 py-2">
+                      Model: {personaDraft.model_identity || "supernova-protocol-charter-v1"}
+                    </p>
                   </div>
                   {Array.isArray(personaDraft.persona_principles) && personaDraft.persona_principles.length > 0 && (
                     <div className="mt-3 rounded-[0.8rem] bg-white/[0.04] px-3 py-2">
@@ -562,7 +591,7 @@ export default function AiDelegatesSettingsPage() {
               )}
 
               <p className="text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                AI-authored post drafts are next; this PR focuses on persona genesis and sealed review consistency.
+                AI-authored post drafts are next. AI delegates can currently draft reviews and comments for approval.
               </p>
             </form>
 

@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added server-side OpenAI-backed generation for AI persona, review, and comment drafts with deterministic fallback metadata, while keeping AI Actions approval-required.
 - Stabilized AI Genesis and AI Actions regression coverage so the active delegate creation route stays call-sign-first, weird AI names produce safe handles, and review/comment drafts surface approval metadata.
 - Added approval-required AI-authored comment drafts from post comments, with sealed server-generated content and AI Actions approval metadata.
 - Polished AI Genesis with a call-sign-first trait search flow, clearer persona approval handoff, and richer AI Actions review-draft metadata.

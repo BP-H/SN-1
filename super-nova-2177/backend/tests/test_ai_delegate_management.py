@@ -365,6 +365,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["valid_status"], 200)
         self.assertEqual(result["manual_prefix_status"], 400)
         self.assertEqual(result["persona"]["username"], "alice-nova")
+        self.assertEqual(result["persona"]["generation_source"], "deterministic_fallback_no_key")
+        self.assertEqual(result["persona"]["model_identity"], "supernova-protocol-charter-v1")
         self.assertNotIn("api_key", json.dumps(result["persona"]).lower())
         self.assertEqual(result["created_status"], 200)
         self.assertEqual(result["delegate"]["username"], "alice-nova")
@@ -384,7 +386,125 @@ class AiDelegateManagementTests(unittest.TestCase):
                 self.assertIsNotNone(username, item)
                 self.assertNotIn("/", username)
                 self.assertLessEqual(len(username), 32)
-                self.assertRegex(username, r"^[a-z0-9][a-z0-9_-]{2,31}$")
+        self.assertRegex(username, r"^[a-z0-9][a-z0-9_-]{2,31}$")
+
+    def test_openai_generation_paths_use_server_key_and_invalid_json_falls_back(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            os.environ["OPENAI_API_KEY"] = "test-openai-key"
+            os.environ["OPENAI_MODEL"] = "mock-gpt-mini"
+            openai_contents = [
+                json.dumps({
+                    "display_name": "Nova Lens",
+                    "public_description": "Nova Lens studies science proposals with visible AI reasoning.",
+                    "profile_tagline": "Science review with visible AI custody.",
+                    "persona_summary": "Nova Lens is a science-focused AI delegate.",
+                    "persona_principles": ["Stay visible", "Respect approval"],
+                    "communication_style": "Crisp and evidence-aware.",
+                    "review_posture": "Review scientific claims for public-interest safety.",
+                    "creative_posting_interests": ["science notes"],
+                    "avatar_prompt": "A clean lens-like AI portrait.",
+                    "charter_summary": "Locked SuperNova delegate charter.",
+                }),
+                json.dumps({
+                    "vote_intent": "oppose",
+                    "reasoning_summary": "The proposal needs clearer manual approval boundaries.",
+                    "reasoning_text": "Nova Lens opposes until the proposal states manual-preview-only limits clearly.",
+                }),
+                json.dumps({
+                    "generated_comment": "As Nova Lens, I would ask for a clearer manual-review boundary before this moves forward.",
+                    "reasoning_summary": "Comment emphasizes manual-review clarity.",
+                    "reasoning_text": "Generated from science traits, review posture, and the proposal text.",
+                }),
+                "not json",
+            ]
+            call_count = {"value": 0}
+
+            class FakeResponse:
+                def __init__(self, content):
+                    self.content = content
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+                def read(self):
+                    return json.dumps({"choices": [{"message": {"content": self.content}}]}).encode("utf-8")
+
+            def fake_urlopen(request, timeout=0):
+                call_count["value"] += 1
+                return FakeResponse(openai_contents.pop(0))
+
+            backend_app.urllib.request.urlopen = fake_urlopen
+
+            persona = client.post(
+                "/ai/delegates/persona-draft",
+                json={"ai_name": "Nova", "traits": ["Science"], "human_seed": "Care about scientific clarity."},
+                headers=alice_headers,
+            )
+            created = client.post(
+                "/ai/delegates",
+                json={
+                    "ai_name": "Nova",
+                    "persona_traits": ["Science"],
+                    "persona_draft": persona.json().get("persona"),
+                },
+                headers=alice_headers,
+            )
+            delegate = created.json().get("delegate")
+            review = client.post(
+                "/connector/actions/draft-ai-delegate-review",
+                json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
+                headers=alice_headers,
+            )
+            comment = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"], "focus": "Manual review."},
+                headers=alice_headers,
+            )
+            invalid_persona = client.post(
+                "/ai/delegates/persona-draft",
+                json={"ai_name": "Glitch", "traits": ["Art"]},
+                headers=alice_headers,
+            )
+            result = {
+                "persona_status": persona.status_code,
+                "persona": persona.json().get("persona"),
+                "created_status": created.status_code,
+                "delegate": delegate,
+                "review_status": review.status_code,
+                "review_summary": review.json().get("summary"),
+                "comment_status": comment.status_code,
+                "comment_summary": comment.json().get("summary"),
+                "invalid_persona_status": invalid_persona.status_code,
+                "invalid_persona": invalid_persona.json().get("persona"),
+                "call_count": call_count["value"],
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["persona_status"], 200)
+        self.assertEqual(result["persona"]["generation_source"], "openai")
+        self.assertEqual(result["persona"]["model_identity"], "mock-gpt-mini")
+        self.assertEqual(result["persona"]["display_name"], "Nova Lens")
+        self.assertEqual(result["created_status"], 200)
+        self.assertEqual(result["delegate"]["display_name"], "Nova Lens")
+        self.assertEqual(result["review_status"], 200)
+        self.assertEqual(result["review_summary"]["generation_source"], "openai")
+        self.assertEqual(result["review_summary"]["model_identity"], "mock-gpt-mini")
+        self.assertEqual(result["review_summary"]["intended_choice"], "oppose")
+        self.assertTrue(result["review_summary"]["reasoning_hash"])
+        self.assertEqual(result["comment_status"], 200)
+        self.assertEqual(result["comment_summary"]["generation_source"], "openai")
+        self.assertEqual(result["comment_summary"]["model_identity"], "mock-gpt-mini")
+        self.assertIn("Nova Lens", result["comment_summary"]["generated_comment"])
+        self.assertTrue(result["comment_summary"]["content_hash"])
+        self.assertEqual(result["invalid_persona_status"], 200)
+        self.assertEqual(result["invalid_persona"]["generation_source"], "fallback_after_model_error")
+        self.assertEqual(result["invalid_persona"]["model_identity"], "mock-gpt-mini")
+        self.assertEqual(result["call_count"], 4)
 
     def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
         page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
@@ -407,6 +527,16 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertNotIn('updateForm("username"', page)
         self.assertNotIn('updateForm("display_name"', page)
         self.assertNotIn('updateForm("public_description"', page)
+
+    def test_ai_actions_ui_surfaces_generation_metadata(self):
+        assistant = (PROJECT_ROOT / "frontend-social-seven" / "content" / "AssistantOrb.jsx").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("generationSourceLabel", assistant)
+        self.assertIn("payload.generation_source", assistant)
+        self.assertIn("Generation", assistant)
+        self.assertIn("Approval publishes exactly one AI-authored comment.", assistant)
 
     def test_persona_hash_includes_future_independence_and_custody_status(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -611,6 +741,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["summary"]["reasoning_hash"])
         self.assertTrue(result["summary"]["constitution_hash"])
         self.assertEqual(result["summary"]["model_identity"], "delegate-policy-v1")
+        self.assertEqual(result["summary"]["generation_source"], "deterministic_fallback_no_key")
         self.assertIn("Science", result["summary"]["ai_actor_context"]["traits"])
         self.assertTrue(result["summary"]["ai_actor_context"]["persona_summary"])
         self.assertEqual(result["summary"]["ai_actor_context"]["independence_migration_status"], "not_eligible")
@@ -788,6 +919,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["draft_summary"]["sealed_content"], True)
         self.assertTrue(result["draft_summary"]["content_hash"])
         self.assertTrue(result["draft_summary"]["reasoning_hash"])
+        self.assertEqual(result["draft_summary"]["generation_source"], "deterministic_fallback_no_key")
+        self.assertEqual(result["draft_summary"]["model_identity"], "delegate-policy-v1")
         self.assertIn("Science", result["draft_summary"]["ai_actor_context"]["traits"])
         self.assertTrue(result["draft_summary"]["ai_actor_context"]["persona_summary"])
         self.assertEqual(

@@ -879,8 +879,8 @@ function InputFields({
         <div className="flex min-w-0 items-center gap-2">
           <IoSparklesOutline className="shrink-0 text-[var(--pink)]" />
           <p className="min-w-0 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
-            <span className="font-bold text-[var(--text-black)]">Ask AI delegate to draft</span>{" "}
-            is approval-required and coming next for AI-authored posts. AI-authored comment drafts are available from post comments now.
+            <span className="font-bold text-[var(--text-black)]">Ask AI delegate to draft.</span>{" "}
+            AI-authored post drafts are next; AI delegates can currently draft reviews and comments for approval.
           </p>
         </div>
         <a href="/settings/ai-delegates" className="composer-collab-action secondary rounded-full px-3 py-1.5 text-[0.72rem] font-black">

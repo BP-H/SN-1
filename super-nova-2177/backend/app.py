@@ -917,6 +917,15 @@ SUPERNOVA_AI_CONSTITUTION_HASH = hashlib.sha256(
 ).hexdigest()
 
 
+def _ai_generation_model() -> str:
+    model = (
+        os.getenv("OPENAI_MODEL")
+        or os.getenv("OPENAI_PERSONA_MODEL")
+        or "gpt-4o-mini"
+    )
+    return str(model or "gpt-4o-mini").strip()[:120] or "gpt-4o-mini"
+
+
 def _hash_text(value: str) -> str:
     return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
 
@@ -1103,6 +1112,23 @@ def _json_loads(value: Any, fallback: Any):
         return fallback
 
 
+def _extract_json_object(value: str) -> Dict[str, Any]:
+    text_value = str(value or "").strip()
+    if text_value.startswith("```"):
+        text_value = re.sub(r"^```(?:json)?", "", text_value, flags=re.IGNORECASE).strip()
+        text_value = re.sub(r"```$", "", text_value).strip()
+    try:
+        parsed = json.loads(text_value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        start = text_value.find("{")
+        end = text_value.rfind("}")
+        if start >= 0 and end > start:
+            parsed = json.loads(text_value[start : end + 1])
+            return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
 def _ai_persona_hash(persona: Dict[str, Any]) -> str:
     stable = {
         "ai_name": persona.get("ai_name"),
@@ -1143,6 +1169,72 @@ def _persona_text_list(value: Any, fallback: List[str]) -> List[str]:
     if not isinstance(parsed, list):
         return fallback
     return [str(item).strip() for item in parsed if str(item or "").strip()]
+
+
+def _with_generation_metadata(payload: Dict[str, Any], *, generation_source: str, model_identity: str) -> Dict[str, Any]:
+    result = dict(payload or {})
+    source = generation_source or "deterministic_fallback_no_key"
+    model = str(model_identity or result.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY).strip()
+    result["generation_source"] = source
+    result["source"] = source
+    result["model_identity"] = model[:160] or SUPERNOVA_AI_MODEL_IDENTITY
+    return result
+
+
+def _generate_with_openai_or_fallback(
+    *,
+    prompt_payload: Dict[str, Any],
+    fallback: Dict[str, Any],
+    coerce,
+    system_prompt: str,
+    temperature: float = 0.35,
+) -> Dict[str, Any]:
+    fallback_model = str(fallback.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY)
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        return _with_generation_metadata(
+            fallback,
+            generation_source="deterministic_fallback_no_key",
+            model_identity=fallback_model,
+        )
+
+    model = _ai_generation_model()
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": _json_dumps_compact(prompt_payload)},
+        ],
+        "temperature": temperature,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=12) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+        content = response_payload.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+        candidate = _extract_json_object(content)
+        if not candidate:
+            raise ValueError("OpenAI response did not contain a JSON object")
+        return _with_generation_metadata(
+            coerce(candidate, fallback),
+            generation_source="openai",
+            model_identity=model,
+        )
+    except Exception:
+        return _with_generation_metadata(
+            fallback,
+            generation_source="fallback_after_model_error",
+            model_identity=model,
+        )
 
 
 def _ensure_ai_actors_table(db: Session) -> None:
@@ -1480,7 +1572,9 @@ def _fallback_persona_draft(
         },
         "manual_preview_only": True,
         "no_automatic_execution": True,
-        "source": "deterministic_fallback",
+        "generation_source": "deterministic_fallback_no_key",
+        "source": "deterministic_fallback_no_key",
+        "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
     }
     persona["persona_hash"] = _ai_persona_hash(persona)
     return persona
@@ -1503,7 +1597,9 @@ def _coerce_persona_draft(payload: Dict[str, Any], fallback: Dict[str, Any]) -> 
         "avatar_prompt": str(candidate.get("avatar_prompt") or fallback["avatar_prompt"]).strip()[:600],
         "charter_summary": str(candidate.get("charter_summary") or fallback["charter_summary"]).strip()[:700],
         "autonomy_preferences": fallback["autonomy_preferences"],
-        "source": "openai" if candidate else fallback.get("source", "deterministic_fallback"),
+        "generation_source": fallback.get("generation_source", "deterministic_fallback_no_key"),
+        "source": fallback.get("source", fallback.get("generation_source", "deterministic_fallback_no_key")),
+        "model_identity": fallback.get("model_identity", SUPERNOVA_AI_MODEL_IDENTITY),
     }
     persona["persona_hash"] = _ai_persona_hash(persona)
     return persona
@@ -1518,9 +1614,6 @@ def _try_openai_persona_draft(
     username: str,
     fallback: Dict[str, Any],
 ) -> Dict[str, Any]:
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not api_key:
-        return fallback
     prompt = {
         "task": "Create a SuperNova AI delegate persona draft as JSON only.",
         "ai_name": ai_name,
@@ -1552,34 +1645,16 @@ def _try_openai_persona_draft(
             "charter_summary",
         ],
     }
-    body = {
-        "model": os.getenv("OPENAI_PERSONA_MODEL", "gpt-4o-mini"),
-        "messages": [
-            {
-                "role": "system",
-                "content": "Return compact JSON only. Do not include financial promise language.",
-            },
-            {"role": "user", "content": _json_dumps_compact(prompt)},
-        ],
-        "temperature": 0.4,
-        "response_format": {"type": "json_object"},
-    }
-    try:
-        request = urllib.request.Request(
-            "https://api.openai.com/v1/chat/completions",
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=10) as response:
-            response_payload = json.loads(response.read().decode("utf-8"))
-        content = response_payload.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-        return _coerce_persona_draft(json.loads(content), fallback)
-    except Exception:
-        return fallback
+    return _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_persona_draft,
+        system_prompt=(
+            "Return compact JSON only for an AI delegate persona. "
+            "Do not include token, payout, compensation, reward, equity, or financial-return promise language."
+        ),
+        temperature=0.4,
+    )
 
 
 def _generate_ai_persona_draft(
@@ -1661,6 +1736,34 @@ def _build_ai_actor_context(db: Session, actor_payload: Dict[str, Any]) -> Dict[
     return context
 
 
+def _coerce_ai_review_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    payload = candidate if isinstance(candidate, dict) else {}
+    allowed = set(fallback.get("allowed_vote_choices") or ["support", "oppose", "abstain"])
+    raw_stance = str(payload.get("vote_intent") or payload.get("stance") or fallback.get("vote_intent") or "abstain")
+    stance = raw_stance.strip().lower()
+    if stance in {"up", "yes", "like"}:
+        stance = "support"
+    elif stance in {"down", "no", "dislike"}:
+        stance = "oppose"
+    if stance == "caution" and "caution" not in allowed:
+        stance = "abstain"
+    if stance not in allowed:
+        stance = fallback.get("vote_intent") or "abstain"
+    reasoning_summary = " ".join(str(payload.get("reasoning_summary") or fallback.get("reasoning_summary") or "").split())
+    reasoning_text = str(payload.get("reasoning_text") or fallback.get("reasoning_text") or "").strip()
+    if not reasoning_text:
+        reasoning_text = reasoning_summary
+    result = {
+        **fallback,
+        "stance": stance,
+        "vote_intent": "abstain" if stance == "caution" else stance,
+        "reasoning_summary": reasoning_summary[:700],
+        "reasoning_text": reasoning_text[:3200],
+    }
+    result["reasoning_hash"] = _hash_text(result["reasoning_text"])
+    return result
+
+
 def _generate_locked_ai_review(
     *,
     proposal,
@@ -1709,7 +1812,7 @@ def _generate_locked_ai_review(
         "Manual-preview-only: this review does not execute real-world actions."
     )
     reasoning_hash = _hash_text(reasoning_text)
-    return {
+    fallback = {
         "proposal_id": proposal_id,
         "proposal_title": title,
         "stance": stance,
@@ -1726,7 +1829,47 @@ def _generate_locked_ai_review(
         "ai_actor_context": context,
         "manual_preview_only": True,
         "no_automatic_execution": True,
+        "allowed_vote_choices": ["support", "oppose", "abstain", "caution"] if allow_caution else ["support", "oppose", "abstain"],
     }
+    prompt = {
+        "task": "Generate a locked-charter AI delegate proposal review as JSON only.",
+        "proposal": {
+            "id": proposal_id,
+            "title": title,
+            "body": _proposal_review_text(proposal)[:2200],
+            "risk_flags": flags,
+        },
+        "ai_actor": {
+            "display_name": actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name"),
+            "username": actor_payload.get("ai_actor_username"),
+            "custody_label": actor_payload.get("custody_label") or "",
+            "traits": context.get("traits") or [],
+            "persona_summary": context.get("persona_summary") or "",
+            "review_posture": context.get("review_posture") or "",
+            "recent_public_actions": context.get("recent_public_actions") or [],
+        },
+        "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
+        "allowed_vote_choices": fallback["allowed_vote_choices"],
+        "rules": [
+            "Return vote_intent as support, oppose, or abstain.",
+            "Return reasoning_summary and reasoning_text.",
+            "Do not claim automatic execution or real-world authority.",
+            "Do not include token, payout, compensation, reward, equity, or financial-return promise language.",
+            "Do not pretend the AI is human.",
+        ],
+    }
+    review = _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_ai_review_generation,
+        system_prompt=(
+            "Return compact JSON only for an approval-required AI proposal review. "
+            "Required keys: vote_intent, reasoning_summary, reasoning_text."
+        ),
+        temperature=0.25,
+    )
+    review.pop("allowed_vote_choices", None)
+    return review
 
 
 def _normalize_ai_comment_focus(value: Optional[str]) -> str:
@@ -1734,6 +1877,29 @@ def _normalize_ai_comment_focus(value: Optional[str]) -> str:
     if len(focus) > 240:
         raise HTTPException(status_code=400, detail="AI comment focus must be 240 characters or fewer")
     return focus
+
+
+def _coerce_ai_comment_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    payload = candidate if isinstance(candidate, dict) else {}
+    generated_comment = " ".join(
+        str(payload.get("generated_comment") or payload.get("comment") or payload.get("body") or fallback.get("generated_comment") or "").split()
+    )
+    if len(generated_comment) > 700:
+        generated_comment = generated_comment[:697].rstrip() + "..."
+    reasoning_summary = " ".join(str(payload.get("reasoning_summary") or fallback.get("reasoning_summary") or "").split())
+    reasoning_text = str(payload.get("reasoning_text") or fallback.get("reasoning_text") or "").strip()
+    if not reasoning_text:
+        reasoning_text = reasoning_summary or generated_comment
+    result = {
+        **fallback,
+        "generated_comment": generated_comment,
+        "body": generated_comment,
+        "reasoning_summary": reasoning_summary[:700],
+        "reasoning_text": reasoning_text[:3200],
+    }
+    result["content_hash"] = _hash_text(result["generated_comment"])
+    result["reasoning_hash"] = _hash_text(result["reasoning_text"])
+    return result
 
 
 def _generate_locked_ai_delegate_comment(
@@ -1771,7 +1937,7 @@ def _generate_locked_ai_delegate_comment(
         f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
         "Manual-preview-only: this comment draft does not publish until explicit custodian approval."
     )
-    return {
+    fallback = {
         "proposal_id": getattr(proposal, "id", None),
         "proposal_title": proposal_title,
         "generated_comment": comment_text,
@@ -1791,6 +1957,43 @@ def _generate_locked_ai_delegate_comment(
         "manual_preview_only": True,
         "no_automatic_execution": True,
     }
+    prompt = {
+        "task": "Generate an AI-authored comment draft as JSON only.",
+        "proposal": {
+            "id": getattr(proposal, "id", None),
+            "title": proposal_title,
+            "body": proposal_text[:2200],
+        },
+        "ai_actor": {
+            "display_name": display_name,
+            "username": actor_payload.get("ai_actor_username"),
+            "custody_label": actor_payload.get("custody_label") or "",
+            "traits": traits,
+            "persona_summary": persona_summary,
+            "communication_style": context.get("communication_style") or actor_payload.get("communication_style") or "",
+            "review_posture": review_posture,
+            "recent_public_actions": context.get("recent_public_actions") or [],
+        },
+        "custodian_focus": focus,
+        "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
+        "rules": [
+            "Return generated_comment, reasoning_summary, and reasoning_text.",
+            "The comment must be visibly AI-authored and should not pretend to be human.",
+            "No automatic execution claims.",
+            "No token, payout, compensation, reward, equity, or financial-return promise language.",
+            "Keep the public comment concise, specific, and grounded in the AI persona.",
+        ],
+    }
+    return _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_ai_comment_generation,
+        system_prompt=(
+            "Return compact JSON only for an approval-required AI-authored comment draft. "
+            "Required keys: generated_comment, reasoning_summary, reasoning_text."
+        ),
+        temperature=0.35,
+    )
 
 
 def _normalize_system_vote_choice(choice: str) -> str:
@@ -4157,21 +4360,32 @@ def create_ai_delegate(
     display_name = (payload.display_name or persona_draft.get("display_name") or ai_name).strip()[:80]
     if not display_name:
         raise HTTPException(status_code=400, detail="display_name is required")
-    persona = _generate_ai_persona_draft(
-        db=db,
-        custodian=principal,
-        ai_name=ai_name,
-        traits=traits,
-        human_seed=payload.human_seed or "",
-        username=username,
-    )
     if persona_draft:
-        persona = _coerce_persona_draft(persona_draft, persona)
+        base_persona = _fallback_persona_draft(
+            ai_name=ai_name,
+            traits=traits,
+            custodian=principal,
+            human_seed=payload.human_seed or "",
+            username=username,
+        )
+        persona = _coerce_persona_draft(persona_draft, base_persona)
         persona["username"] = username
         persona["traits"] = traits
         persona["ai_name"] = ai_name
         persona["display_name"] = display_name
+        persona["generation_source"] = persona_draft.get("generation_source") or persona.get("generation_source")
+        persona["source"] = persona_draft.get("source") or persona.get("generation_source")
+        persona["model_identity"] = persona_draft.get("model_identity") or persona.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY
         persona["persona_hash"] = _ai_persona_hash(persona)
+    else:
+        persona = _generate_ai_persona_draft(
+            db=db,
+            custodian=principal,
+            ai_name=ai_name,
+            traits=traits,
+            human_seed=payload.human_seed or "",
+            username=username,
+        )
     public_description = (payload.public_description or persona.get("public_description") or "").strip()[:800]
     model_provider = (payload.model_provider or "supernova").strip()[:80] or "supernova"
     model_identity = (payload.model_identity or persona_draft.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY).strip()[:160] or SUPERNOVA_AI_MODEL_IDENTITY
@@ -5083,6 +5297,8 @@ def connector_draft_ai_delegate_review(
         "reasoning_hash": review["reasoning_hash"],
         "risk_flags": review["risk_flags"],
         "ai_actor_context": review.get("ai_actor_context", {}),
+        "generation_source": review.get("generation_source", "deterministic_fallback_no_key"),
+        "model_identity": review.get("model_identity") or actor_metadata.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
         "confidence": confidence,
         **choice,
         "sealed_reasoning": True,
@@ -5159,6 +5375,8 @@ def connector_draft_ai_delegate_comment(
         "reasoning_text": comment_draft["reasoning_text"],
         "reasoning_hash": comment_draft["reasoning_hash"],
         "ai_actor_context": comment_draft.get("ai_actor_context", {}),
+        "generation_source": comment_draft.get("generation_source", "deterministic_fallback_no_key"),
+        "model_identity": comment_draft.get("model_identity") or actor_metadata.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
         "sealed_content": True,
         "content_source": "locked_server_charter",
         "approval_effect": "Publish one AI-authored comment.",
@@ -5323,6 +5541,7 @@ def connector_approve_ai_review_action(
             "ai_actor_type": payload.get("ai_actor_type", "principal_delegate"),
             "custody_label": payload.get("custody_label"),
             "model_identity": payload.get("model_identity"),
+            "generation_source": payload.get("generation_source"),
             "constitution_hash": payload.get("constitution_hash"),
             "prompt_policy_version": payload.get("prompt_policy_version"),
             "reasoning_hash": payload.get("reasoning_hash") or _hash_text(rationale),
@@ -5348,6 +5567,7 @@ def connector_approve_ai_review_action(
             "confidence": confidence,
             "ai_actor_type": action.result_payload.get("ai_actor_type"),
             "reasoning_hash": action.result_payload.get("reasoning_hash"),
+            "generation_source": action.result_payload.get("generation_source"),
             "sealed_reasoning": action.result_payload.get("sealed_reasoning"),
         }
         return _connector_action_response(action, summary, action.result_payload)
@@ -5425,6 +5645,7 @@ def connector_approve_ai_comment_action(
             "ai_actor_type": payload.get("ai_actor_type", "principal_delegate"),
             "custody_label": payload.get("custody_label"),
             "model_identity": payload.get("model_identity"),
+            "generation_source": payload.get("generation_source"),
             "constitution_hash": payload.get("constitution_hash"),
             "prompt_policy_version": payload.get("prompt_policy_version"),
             "reasoning_hash": payload.get("reasoning_hash") or _hash_text(body),
@@ -5448,6 +5669,7 @@ def connector_approve_ai_comment_action(
             "comment_id": getattr(comment, "id", None),
             "content_hash": content_hash,
             "reasoning_hash": action.result_payload.get("reasoning_hash"),
+            "generation_source": action.result_payload.get("generation_source"),
             "sealed_content": action.result_payload.get("sealed_content"),
             "comment": serialized_comment,
         }
