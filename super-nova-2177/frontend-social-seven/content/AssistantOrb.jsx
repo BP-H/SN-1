@@ -137,6 +137,15 @@ function compactActionHash(value) {
   return text.length > 14 ? `${text.slice(0, 7)}...${text.slice(-5)}` : text;
 }
 
+function generationSourceLabel(value) {
+  const labels = {
+    openai: "server AI model",
+    deterministic_fallback_no_key: "deterministic fallback (no server key)",
+    fallback_after_model_error: "deterministic fallback after model error",
+  };
+  return labels[value] || value || "";
+}
+
 function aiReviewDetailRows(action = {}) {
   const payload = action.draft_payload || {};
   if (action.action_type !== "draft_ai_review" && action.action_type !== "draft_ai_comment") return [];
@@ -147,6 +156,7 @@ function aiReviewDetailRows(action = {}) {
     payload.custody_label && ["Custody", payload.custody_label],
     payload.intended_choice && ["Intended vote", payload.intended_choice],
     payload.model_identity && ["Model/policy", payload.model_identity],
+    payload.generation_source && ["Generation", generationSourceLabel(payload.generation_source)],
     payload.content_hash && ["Content hash", compactActionHash(payload.content_hash)],
     payload.reasoning_hash && ["Reasoning hash", compactActionHash(payload.reasoning_hash)],
     action.action_type === "draft_ai_comment" && prefs.posts && ["Autonomy", "AI-authored content requires custodian approval"],
