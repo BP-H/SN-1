@@ -52,7 +52,7 @@ function autonomyRows(preferences) {
 function Badge({ children, tone = "neutral" }) {
   const classes =
     tone === "pink"
-      ? "bg-[rgba(255,47,130,0.13)] text-[var(--pink)]"
+      ? "bg-[var(--pink-soft)] text-[var(--pink)]"
       : "bg-white/[0.07] text-[var(--text-gray-light)]";
   return (
     <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] ${classes}`}>
@@ -132,7 +132,7 @@ export default function AiActorPage({ params }) {
   return (
     <main className="social-shell">
       <section className="overflow-hidden rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] shadow-sm">
-        <div className="h-24 bg-[rgba(255,47,130,0.16)]" />
+        <div className="h-24 bg-[var(--pink-soft)]" />
         <div className="px-5 pb-5">
           <div className="-mt-11 flex flex-wrap items-end justify-between gap-4">
             <div className="flex min-w-0 items-end gap-4">
@@ -187,7 +187,7 @@ export default function AiActorPage({ params }) {
                 {traits.map((trait) => (
                   <span
                     key={trait}
-                    className="rounded-full border border-[rgba(255,47,130,0.28)] bg-[rgba(255,47,130,0.08)] px-3 py-1 text-[0.74rem] font-bold text-[var(--pink)]"
+                    className="rounded-full border border-[var(--pink-glow)] bg-[var(--pink-soft)] px-3 py-1 text-[0.74rem] font-bold text-[var(--pink)]"
                   >
                     {trait}
                   </span>

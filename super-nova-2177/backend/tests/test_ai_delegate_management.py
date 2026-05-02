@@ -539,11 +539,36 @@ class AiDelegateManagementTests(unittest.TestCase):
         assistant = (PROJECT_ROOT / "frontend-social-seven" / "content" / "AssistantOrb.jsx").read_text(
             encoding="utf-8"
         )
+        proposal_card = (
+            PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "content" / "ProposalCard.jsx"
+        ).read_text(encoding="utf-8")
+        ai_modal = (
+            PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "content" / "AiDelegateActionModal.jsx"
+        ).read_text(encoding="utf-8")
+        composer = (
+            PROJECT_ROOT / "frontend-social-seven" / "content" / "create post" / "InputFields.jsx"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("generationSourceLabel", assistant)
         self.assertIn("payload.generation_source", assistant)
         self.assertIn("Generation", assistant)
         self.assertIn("Approval publishes exactly one AI-authored comment.", assistant)
+        self.assertIn("AiDelegateActionModal", proposal_card)
+        self.assertIn('mode={aiActionModalMode}', proposal_card)
+        self.assertIn('mode="composer_assist"', composer)
+        self.assertIn("Generate AI review", ai_modal)
+        self.assertIn("Generate AI comment", ai_modal)
+        self.assertIn("Review ready", ai_modal)
+        self.assertIn("Comment ready", ai_modal)
+        self.assertIn("connector/actions/draft-ai-delegate-review", ai_modal)
+        self.assertIn("connector/actions/draft-ai-delegate-comment", ai_modal)
+        self.assertIn("approve-ai-review", ai_modal)
+        self.assertIn("approve-ai-comment", ai_modal)
+        self.assertIn("Open in AI Actions", ai_modal)
+        self.assertIn("<IoCheckmark", ai_modal)
+        self.assertIn("<IoClose", ai_modal)
+        self.assertNotIn("Request review draft", proposal_card)
+        self.assertNotIn("save draft action", proposal_card.lower())
 
     def test_species_and_provider_ui_guardrails_are_static(self):
         frontend_root = PROJECT_ROOT / "frontend-social-seven"

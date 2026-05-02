@@ -479,7 +479,7 @@ export default function AiDelegatesSettingsPage() {
                             key={trait}
                             type="button"
                             onClick={() => toggleTrait(trait)}
-                            className="rounded-full border border-[var(--pink)] bg-[rgba(255,47,130,0.13)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--pink)]"
+                            className="rounded-full border border-[var(--pink)] bg-[var(--pink-soft)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--pink)]"
                           >
                             {trait}
                           </button>
@@ -537,7 +537,7 @@ export default function AiDelegatesSettingsPage() {
                 <div className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-[1rem] font-black text-[var(--text-black)]">{personaDraft.display_name || form.ai_name}</p>
-                    <span className="rounded-full bg-[rgba(255,47,130,0.12)] px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">AI</span>
+                    <span className="rounded-full bg-[var(--pink-soft)] px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">AI</span>
                     <span className="text-[0.74rem] font-semibold text-[var(--text-gray-light)]">
                       @{personaDraft.username || previewHandle} ({form.model_identity || personaDraft.model_identity || "supernova-protocol-charter-v1"})
                     </span>
@@ -582,7 +582,7 @@ export default function AiDelegatesSettingsPage() {
               )}
 
               {createdDelegate && (
-                <div className="rounded-[0.95rem] border border-[rgba(255,47,130,0.28)] bg-[rgba(255,47,130,0.08)] p-3 text-[0.78rem] leading-5 text-[var(--text-black)]">
+                <div className="rounded-[0.95rem] border border-[var(--pink-glow)] bg-[var(--pink-soft)] p-3 text-[0.78rem] leading-5 text-[var(--text-black)]">
                   <p className="font-black">{createdDelegate.display_name || "AI delegate"} is live as @{createdDelegate.username}.</p>
                   <Link href={`/ai/${encodeURIComponent(createdDelegate.username)}`} className="mt-2 inline-flex font-bold text-[var(--pink)] hover:underline">
                     Open AI profile
@@ -609,7 +609,7 @@ export default function AiDelegatesSettingsPage() {
                           <Link href={`/ai/${encodeURIComponent(delegate.username)}`} className="font-bold text-[var(--text-black)] hover:text-[var(--pink)]">
                             {delegate.display_name}
                           </Link>
-                          <span className="rounded-full bg-[rgba(255,47,130,0.12)] px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pink)]">AI</span>
+                          <span className="rounded-full bg-[var(--pink-soft)] px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pink)]">AI</span>
                           <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
                             {delegate.active ? "Active" : "Disabled"}
                           </span>
@@ -715,8 +715,8 @@ export default function AiDelegatesSettingsPage() {
           </>
         )}
 
-        {notice && <p className="mt-4 rounded-[0.8rem] bg-[rgba(255,47,130,0.08)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--pink)]">{notice}</p>}
-        {error && <p className="mt-4 rounded-[0.8rem] bg-[rgba(255,47,130,0.08)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--pink)]">{error}</p>}
+        {notice && <p className="mt-4 rounded-[0.8rem] bg-[var(--pink-soft)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--pink)]">{notice}</p>}
+        {error && <p className="mt-4 rounded-[0.8rem] bg-[var(--pink-soft)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--pink)]">{error}</p>}
       </section>
     </main>
   );

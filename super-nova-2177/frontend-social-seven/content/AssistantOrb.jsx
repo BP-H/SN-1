@@ -7,6 +7,7 @@ import { normalizeAvatarValue } from "@/utils/avatar";
 import { FaCommentAlt, FaShare } from "react-icons/fa";
 import {
   IoChatbubbleEllipsesOutline,
+  IoCheckmark,
   IoClose,
   IoKeyOutline,
   IoListCircleOutline,
@@ -92,7 +93,7 @@ function connectorActionTargetLabel(action = {}) {
   if (payload.proposal_title) return payload.proposal_title;
   if (payload.title) return payload.title;
   if (action.target_type && action.target_id) return `${action.target_type} #${action.target_id}`;
-  return "Connector action";
+  return "Draft target";
 }
 
 function connectorActionPreview(action = {}) {
@@ -623,7 +624,7 @@ export default function AssistantOrb() {
             : action.action_type === "draft_ai_comment"
             ? "AI-authored comment published."
             : "Vote action approved."
-          : "Draft action canceled."
+          : "Draft canceled."
       );
     } catch (error) {
       setConnectorActionsError(formatBackendAuthErrorMessage(error, "Unable to update AI Action."));
@@ -977,7 +978,7 @@ export default function AssistantOrb() {
                 {settingsOpen
                   ? "Drag onto a post, then choose Brief or Draft"
                   : actionsOpen
-                  ? "Review connector drafts"
+                  ? "Approve or cancel drafts"
                   : target
                   ? target.title
                   : "Drag onto a post first"}
@@ -1029,6 +1030,42 @@ export default function AssistantOrb() {
               >
                 Review AI Actions
               </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!target?.id) {
+                      setReply("Drag the AI cursor onto a post first.");
+                      return;
+                    }
+                    window.dispatchEvent(
+                      new CustomEvent("supernova:open-ai-delegate-action", {
+                        detail: { proposalId: target.id, mode: "review" },
+                      })
+                    );
+                    setSettingsOpen(false);
+                    setMenuOpen(false);
+                    setGhostVisible(false);
+                    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
+                  }}
+                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
+                >
+                  Use AI delegate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setMenuOpen(false);
+                    setGhostVisible(false);
+                    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
+                    router.push("/settings/ai-delegates");
+                  }}
+                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
+                >
+                  Open AI Genesis
+                </button>
+              </div>
             </div>
           )}
 
@@ -1167,8 +1204,9 @@ export default function AssistantOrb() {
                                 type="button"
                                 onClick={() => reviewConnectorAction(action, "approve")}
                                 disabled={Boolean(connectorActionBusyId)}
-                                className="ai-action-approve-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                                className="ai-action-approve-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
                               >
+                                <IoCheckmark className="text-[0.85rem]" />
                                 {isApproving ? "Approving..." : "Approve"}
                               </button>
                             ) : (
@@ -1180,9 +1218,10 @@ export default function AssistantOrb() {
                               type="button"
                               onClick={() => reviewConnectorAction(action, "cancel")}
                               disabled={Boolean(connectorActionBusyId)}
-                              className="ai-cursor-secondary-button rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
+                              className="ai-cursor-secondary-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
                               title="Cancel prevents publication."
                             >
+                              <IoClose className="text-[0.85rem]" />
                               {isCanceling ? "Canceling..." : "Cancel"}
                             </button>
                           </div>
