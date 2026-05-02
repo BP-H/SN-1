@@ -25,6 +25,7 @@ import { useUser } from "../profile/UserContext";
 import ErrorMessage from "../Error";
 import MediaInput from "./Media";
 import PdfPager from "../proposal/content/PdfPager";
+import AiDelegateActionModal from "../proposal/content/AiDelegateActionModal";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import {
   BACKEND_AUTH_MISSING_MESSAGE,
@@ -63,6 +64,7 @@ function InputFields({
   const [collabPromptUser, setCollabPromptUser] = useState(null);
   const [pendingCollabInvitees, setPendingCollabInvitees] = useState([]);
   const [collabNotice, setCollabNotice] = useState("");
+  const [aiComposerOpen, setAiComposerOpen] = useState(false);
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -883,10 +885,21 @@ function InputFields({
             AI-authored post drafts are next; AI delegates can currently draft reviews and comments for approval.
           </p>
         </div>
-        <a href="/settings/ai-delegates" className="composer-collab-action secondary rounded-full px-3 py-1.5 text-[0.72rem] font-black">
-          AI delegates
-        </a>
+        <button
+          type="button"
+          onClick={() => setAiComposerOpen(true)}
+          className="composer-collab-action secondary rounded-full px-3 py-1.5 text-[0.72rem] font-black"
+        >
+          Ask AI
+        </button>
       </div>
+
+      <AiDelegateActionModal
+        open={aiComposerOpen}
+        mode="composer_assist"
+        target={{ title: proposalMode === "decision" ? "Decision composer" : "Post composer", text }}
+        onClose={() => setAiComposerOpen(false)}
+      />
 
       {renderMediaPreview()}
 

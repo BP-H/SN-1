@@ -31,6 +31,7 @@ import {
   IoTrashOutline,
 } from "react-icons/io5";
 import LikesDeslikes from "./LikesDeslikes";
+import AiDelegateActionModal from "./AiDelegateActionModal";
 import DisplayComments from "./DisplayComments";
 import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
@@ -38,7 +39,7 @@ import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
-import { normalizeSpeciesKey, speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
+import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
@@ -155,18 +156,7 @@ function ProposalCard({
   const [collabBusy, setCollabBusy] = useState(false);
   const [collabStatus, setCollabStatus] = useState("");
   const [collabError, setCollabError] = useState("");
-  const [aiReviewOpen, setAiReviewOpen] = useState(false);
-  const [aiReviewBusy, setAiReviewBusy] = useState(false);
-  const [aiReviewStatus, setAiReviewStatus] = useState("");
-  const [aiReviewError, setAiReviewError] = useState("");
-  const [aiCommentOpen, setAiCommentOpen] = useState(false);
-  const [aiCommentBusy, setAiCommentBusy] = useState(false);
-  const [aiCommentFocus, setAiCommentFocus] = useState("");
-  const [aiCommentStatus, setAiCommentStatus] = useState("");
-  const [aiCommentError, setAiCommentError] = useState("");
-  const [aiDelegates, setAiDelegates] = useState([]);
-  const [aiDelegatesLoading, setAiDelegatesLoading] = useState(false);
-  const [selectedAiDelegateId, setSelectedAiDelegateId] = useState("");
+  const [aiActionModalMode, setAiActionModalMode] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
 
@@ -204,25 +194,6 @@ function ProposalCard({
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
   const authorAvatarStyle = speciesAvatarStyle(authorSpecies);
-  const currentUserSpecies = normalizeSpeciesKey(userData?.species || "");
-  const isAiActor = Boolean(userData?.name && currentUserSpecies === "ai");
-  const canManageAiDelegates = Boolean(userData?.name && (currentUserSpecies === "human" || currentUserSpecies === "company"));
-  const aiDelegateOptions = useMemo(() => {
-    const activeDelegates = Array.isArray(aiDelegates) ? aiDelegates.filter((delegate) => delegate?.active) : [];
-    if (isAiActor) {
-      return [
-        {
-          id: "",
-          username: userData.name,
-          display_name: userData.name,
-          custody_label: "This AI account",
-          legacySelf: true,
-        },
-        ...activeDelegates,
-      ];
-    }
-    return activeDelegates;
-  }, [aiDelegates, isAiActor, userData?.name]);
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
   const governance = media?.governance || null;
@@ -245,36 +216,15 @@ function ProposalCard({
   }, [governance?.voting_deadline, isDecisionProposal]);
 
   useEffect(() => {
-    if (!userData?.name || !canManageAiDelegates) {
-      setAiDelegates([]);
-      setSelectedAiDelegateId("");
-      return undefined;
-    }
-    const controller = new AbortController();
-    async function fetchDelegates() {
-      setAiDelegatesLoading(true);
-      try {
-        const response = await fetch(`${API_BASE_URL}/ai/delegates`, {
-          headers: authHeaders(),
-          signal: controller.signal,
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload?.detail || "Unable to load AI delegates.");
-        const delegates = Array.isArray(payload.delegates) ? payload.delegates : [];
-        setAiDelegates(delegates);
-        const firstActive = delegates.find((delegate) => delegate?.active);
-        setSelectedAiDelegateId((current) => current || (firstActive?.id ? String(firstActive.id) : ""));
-      } catch (error) {
-        if (error?.name !== "AbortError") {
-          setAiDelegates([]);
-        }
-      } finally {
-        if (!controller.signal.aborted) setAiDelegatesLoading(false);
-      }
-    }
-    fetchDelegates();
-    return () => controller.abort();
-  }, [canManageAiDelegates, userData?.name]);
+    const openAiDelegateAction = (event) => {
+      if (String(event?.detail?.proposalId || "") !== String(id || "")) return;
+      const nextMode = event?.detail?.mode === "comment" ? "comment" : "review";
+      if (nextMode === "comment") setShowComments(true);
+      setAiActionModalMode(nextMode);
+    };
+    window.addEventListener("supernova:open-ai-delegate-action", openAiDelegateAction);
+    return () => window.removeEventListener("supernova:open-ai-delegate-action", openAiDelegateAction);
+  }, [id]);
 
   useEffect(() => {
     if (!collabInviteOpen || collabSearch.trim().length < 1) {
@@ -568,142 +518,6 @@ function ProposalCard({
       setErrorMsg?.([message]);
     } finally {
       setCollabBusy(false);
-    }
-  };
-
-  const aiReviewErrorMessage = (detail) => {
-    const message = formatBackendAuthErrorMessage(detail, "Unable to draft AI review.");
-    if (/AI review drafts require an AI actor|AI review approval requires an AI actor/i.test(message)) {
-      return "Only AI accounts can create AI review drafts.";
-    }
-    if (/Only the delegate custodian|custody|ai_actor_id|AI delegate not found/i.test(message)) {
-      return "Choose one of your active AI delegates.";
-    }
-    if (/AI delegate is disabled/i.test(message)) {
-      return "Enable this AI delegate before requesting a review.";
-    }
-    if (/Invalid vote choice/i.test(message)) {
-      return "Choose support, oppose, or abstain.";
-    }
-    if (/rationale is required/i.test(message)) {
-      return "Add one short rationale before creating the draft.";
-    }
-    if (/800 characters/i.test(message)) {
-      return "Keep the rationale to 800 characters or fewer.";
-    }
-    if (/proposal.*not found|unknown proposal/i.test(message)) {
-      return "That post is no longer available for review.";
-    }
-    return message;
-  };
-
-  const handleDraftAiReview = async () => {
-    if (aiReviewBusy) return;
-    if (!id) {
-      setAiReviewError("That post is missing a proposal id.");
-      return;
-    }
-    if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
-      return;
-    }
-    if (aiDelegateOptions.length === 0) {
-      setAiReviewError("Create an AI delegate first.");
-      return;
-    }
-    const selectedDelegate =
-      aiDelegateOptions.find((delegate) => String(delegate.id || "") === String(selectedAiDelegateId || "")) ||
-      aiDelegateOptions[0];
-
-    setAiReviewBusy(true);
-    setAiReviewError("");
-    setAiReviewStatus("");
-    try {
-      requireBackendAuthSession();
-      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-delegate-review`, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          username: userData.name,
-          proposal_id: Number(id),
-          ...(selectedDelegate?.legacySelf
-            ? {}
-            : selectedDelegate?.id
-            ? { ai_actor_id: Number(selectedDelegate.id) }
-            : { ai_actor_username: selectedDelegate?.username }),
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(aiReviewErrorMessage(payload?.detail));
-      }
-      setAiReviewStatus("Locked-charter AI review draft saved. Approve it in AI Actions before anything is published.");
-      setNotify?.(["AI review draft saved for approval."]);
-      window.dispatchEvent(
-        new CustomEvent("supernova:ai-actions-refresh", {
-          detail: { notice: "AI review draft created. Approve it here before publishing." },
-        })
-      );
-    } catch (error) {
-      const message = aiReviewErrorMessage(error);
-      setAiReviewError(message);
-      setErrorMsg?.([message]);
-    } finally {
-      setAiReviewBusy(false);
-    }
-  };
-
-  const handleDraftAiComment = async () => {
-    if (aiCommentBusy) return;
-    if (!id) {
-      setAiCommentError("That post is missing a proposal id.");
-      return;
-    }
-    if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
-      return;
-    }
-    if (aiDelegateOptions.length === 0) {
-      setAiCommentError("Create an AI delegate first.");
-      return;
-    }
-    const selectedDelegate =
-      aiDelegateOptions.find((delegate) => String(delegate.id || "") === String(selectedAiDelegateId || "")) ||
-      aiDelegateOptions[0];
-
-    setAiCommentBusy(true);
-    setAiCommentError("");
-    setAiCommentStatus("");
-    try {
-      requireBackendAuthSession();
-      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-delegate-comment`, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          username: userData.name,
-          proposal_id: Number(id),
-          instruction: aiCommentFocus,
-          ...(selectedDelegate?.id ? { ai_actor_id: Number(selectedDelegate.id) } : { ai_actor_username: selectedDelegate?.username }),
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(aiReviewErrorMessage(payload?.detail));
-      }
-      setAiCommentStatus("AI-authored comment draft saved. Approve it in AI Actions before publication.");
-      setAiCommentFocus("");
-      setNotify?.(["AI comment draft saved for approval."]);
-      window.dispatchEvent(
-        new CustomEvent("supernova:ai-actions-refresh", {
-          detail: { notice: "AI-authored comment draft created. Approve it here before publishing." },
-        })
-      );
-    } catch (error) {
-      const message = aiReviewErrorMessage(error);
-      setAiCommentError(message);
-      setErrorMsg?.([message]);
-    } finally {
-      setAiCommentBusy(false);
     }
   };
 
@@ -1426,17 +1240,15 @@ function ProposalCard({
               <button
                 type="button"
                 onClick={() => {
-                  setAiReviewOpen((value) => !value);
-                  setAiReviewStatus("");
-                  setAiReviewError("");
+                  setAiActionModalMode("review");
                 }}
                 className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors ${
-                  aiReviewOpen
+                  aiActionModalMode === "review"
                     ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
                     : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
                 }`}
-                title="Draft AI review"
-                aria-expanded={aiReviewOpen}
+                title="Generate AI review"
+                aria-expanded={aiActionModalMode === "review"}
               >
                 <IoSparklesOutline className="text-[0.82rem]" />
                 <span className="hidden text-[0.72rem] font-semibold sm:inline">AI</span>
@@ -1502,80 +1314,6 @@ function ProposalCard({
           </div>
         </div>
 
-        {userData?.name && aiReviewOpen && (
-          <div
-            className="ai-review-draft-panel rounded-[1rem] p-3"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Ask AI</p>
-                <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                  The server generates vote intent and reasoning from a locked charter. Approve in AI Actions to publish one AI vote and one rationale comment.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAiReviewOpen(false)}
-                className="collab-mini-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                aria-label="Close AI review draft"
-              >
-                <IoClose />
-              </button>
-            </div>
-
-            {aiDelegateOptions.length > 0 ? (
-              <label className="mt-3 grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                AI delegate
-                <select
-                  value={selectedAiDelegateId}
-                  onChange={(event) => setSelectedAiDelegateId(event.target.value)}
-                  className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                >
-                  {aiDelegateOptions.map((delegate) => (
-                    <option key={delegate.legacySelf ? "self" : delegate.id} value={delegate.legacySelf ? "" : String(delegate.id || "")}>
-                      {delegate.display_name || delegate.username} - @{delegate.username}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
-                {aiDelegatesLoading ? "Loading AI delegates..." : "Create an AI delegate first."}{" "}
-                {!aiDelegatesLoading && (
-                  <Link href="/settings/ai-delegates" className="font-bold text-[var(--pink)] hover:underline">
-                    Open delegate settings
-                  </Link>
-                )}
-              </div>
-            )}
-
-            <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.73rem] leading-5 text-[var(--text-gray-light)]">
-              AI reasoning cannot be edited before approval. Canceling the draft prevents publication.
-            </div>
-
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                Manual-preview-only
-              </span>
-              <button
-                type="button"
-                onClick={handleDraftAiReview}
-                disabled={aiReviewBusy || aiDelegateOptions.length === 0}
-                className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
-              >
-                {aiReviewBusy ? "Saving..." : "Request review draft"}
-              </button>
-            </div>
-
-            {aiReviewStatus && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--neon-blue)]">{aiReviewStatus}</p>}
-            {aiReviewError && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--pink)]">{aiReviewError}</p>}
-          </div>
-        )}
-
         {/* Comments section */}
         {(showComments || isDetailPage) && (
           <div className="comments-section flex min-w-0 flex-col gap-2 rounded-[15px] bg-[rgba(255,255,255,0.03)] p-2">
@@ -1590,10 +1328,10 @@ function ProposalCard({
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      setAiCommentOpen((value) => !value);
+                      setAiActionModalMode("comment");
                     }}
                     className="rounded-full border border-[var(--horizontal-line)] px-2.5 py-1 text-[0.66rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
-                    aria-expanded={aiCommentOpen}
+                    aria-expanded={aiActionModalMode === "comment"}
                   >
                     Ask AI to comment
                   </button>
@@ -1603,85 +1341,6 @@ function ProposalCard({
                 </span>
               </div>
             </div>
-            {userData?.name && aiCommentOpen && (
-              <div
-                className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.04] p-3"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">AI-authored comment draft</p>
-                    <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                      The AI delegate writes from its own persona. You can approve or cancel in AI Actions; you cannot edit official AI content here.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAiCommentOpen(false)}
-                    className="collab-mini-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                    aria-label="Close AI comment draft"
-                  >
-                    <IoClose />
-                  </button>
-                </div>
-
-                {aiDelegateOptions.length > 0 ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                    <label className="grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                      AI delegate
-                      <select
-                        value={selectedAiDelegateId}
-                        onChange={(event) => setSelectedAiDelegateId(event.target.value)}
-                        className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                      >
-                        {aiDelegateOptions.map((delegate) => (
-                          <option key={delegate.legacySelf ? "self" : delegate.id} value={delegate.legacySelf ? "" : String(delegate.id || "")}>
-                            {delegate.display_name || delegate.username} - @{delegate.username}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                      Optional focus
-                      <input
-                        value={aiCommentFocus}
-                        onChange={(event) => setAiCommentFocus(event.target.value.slice(0, 240))}
-                        placeholder="What should the AI consider?"
-                        className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
-                    {aiDelegatesLoading ? "Loading AI delegates..." : "Create an AI delegate first."}{" "}
-                    {!aiDelegatesLoading && (
-                      <Link href="/settings/ai-delegates" className="font-bold text-[var(--pink)] hover:underline">
-                        Open delegate settings
-                      </Link>
-                    )}
-                  </div>
-                )}
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                    No automatic publication
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleDraftAiComment}
-                    disabled={aiCommentBusy || aiDelegateOptions.length === 0}
-                    className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
-                  >
-                    {aiCommentBusy ? "Saving..." : "Draft as AI"}
-                  </button>
-                </div>
-                {aiCommentStatus && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--neon-blue)]">{aiCommentStatus}</p>}
-                {aiCommentError && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--pink)]">{aiCommentError}</p>}
-              </div>
-            )}
             <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
               <InsertComment
                 setErrorMsg={setErrorMsg}
@@ -1747,6 +1406,24 @@ function ProposalCard({
           </div>
         )}
       </div>
+      <AiDelegateActionModal
+        open={Boolean(aiActionModalMode)}
+        mode={aiActionModalMode}
+        target={{ id, title, text: localText, media }}
+        onClose={() => setAiActionModalMode("")}
+        onApproved={(payload) => {
+          const publishedComment = payload?.summary?.comment;
+          if (publishedComment && typeof publishedComment === "object" && aiActionModalMode === "comment") {
+            setLocalComments((items) => [...items, publishedComment]);
+            setShowComments(true);
+          }
+          setNotify?.([aiActionModalMode === "review" ? "AI review published." : "AI-authored comment published."]);
+          queryClient.invalidateQueries({ queryKey: ["proposals"] });
+        }}
+        onCanceled={() => {
+          setNotify?.(["AI draft canceled. Nothing was published."]);
+        }}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Loading from "@/app/Loading";
+import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 
 function compactHash(value) {
@@ -51,7 +52,7 @@ function autonomyRows(preferences) {
 function Badge({ children, tone = "neutral" }) {
   const classes =
     tone === "pink"
-      ? "bg-[rgba(255,47,130,0.13)] text-[var(--pink)]"
+      ? "bg-[var(--pink-soft)] text-[var(--pink)]"
       : "bg-white/[0.07] text-[var(--text-gray-light)]";
   return (
     <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] ${classes}`}>
@@ -61,6 +62,7 @@ function Badge({ children, tone = "neutral" }) {
 }
 
 export default function AiActorPage({ params }) {
+  const { userData, isAuthenticated } = useUser();
   const username = params?.username || "";
   const [state, setState] = useState({ loading: true, actor: null, error: "" });
 
@@ -94,7 +96,19 @@ export default function AiActorPage({ params }) {
   const creativeInterests = safeList(actor?.creative_interests);
   const autonomy = autonomyRows(actor?.autonomy_preferences);
   const modelLabel = actor?.model_identity || "supernova-protocol-charter-v1";
+  const providerConnection = actor?.provider_connection || {};
+  const textProvider = providerConnection.text || {};
   const title = actor?.display_name || actor?.ai_name || actor?.username || "AI Actor";
+  const currentUsername = String(userData?.name || "").trim().toLowerCase();
+  const custodyLabel = String(actor?.custody_label || "").trim().toLowerCase();
+  const isCustodian = Boolean(
+    !isSystem &&
+      isAuthenticated &&
+      (
+        String(actor?.custodian_user_id || "") === String(userData?.id || "") ||
+        (currentUsername && custodyLabel === `delegate of @${currentUsername}`)
+      )
+  );
   const avatarStyle = useMemo(() => {
     if (!actor?.avatar_url) return {};
     return { backgroundImage: `url(${actor.avatar_url})` };
@@ -118,7 +132,7 @@ export default function AiActorPage({ params }) {
   return (
     <main className="social-shell">
       <section className="overflow-hidden rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] shadow-sm">
-        <div className="h-24 bg-[rgba(255,47,130,0.16)]" />
+        <div className="h-24 bg-[var(--pink-soft)]" />
         <div className="px-5 pb-5">
           <div className="-mt-11 flex flex-wrap items-end justify-between gap-4">
             <div className="flex min-w-0 items-end gap-4">
@@ -141,12 +155,12 @@ export default function AiActorPage({ params }) {
                 <p className="mt-1 text-[0.78rem] font-bold text-[var(--pink)]">{actor.custody_label}</p>
               </div>
             </div>
-            {!isSystem && (
+            {isCustodian && (
               <Link
-                href="/settings/ai-delegates"
+                href={`/settings/ai-delegates?delegate=${encodeURIComponent(actor.id || actor.username || "")}`}
                 className="rounded-full border border-[var(--horizontal-line)] px-4 py-2 text-[0.78rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
               >
-                Manage custody settings
+                Manage delegate
               </Link>
             )}
           </div>
@@ -173,7 +187,7 @@ export default function AiActorPage({ params }) {
                 {traits.map((trait) => (
                   <span
                     key={trait}
-                    className="rounded-full border border-[rgba(255,47,130,0.28)] bg-[rgba(255,47,130,0.08)] px-3 py-1 text-[0.74rem] font-bold text-[var(--pink)]"
+                    className="rounded-full border border-[var(--pink-glow)] bg-[var(--pink-soft)] px-3 py-1 text-[0.74rem] font-bold text-[var(--pink)]"
                   >
                     {trait}
                   </span>
@@ -224,6 +238,39 @@ export default function AiActorPage({ params }) {
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[0.78rem] font-black text-[var(--text-black)]">Provider connection</p>
+                  <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                    Custodian-managed runtime metadata. Changing the provider or model label does not rewrite this AI actor's identity or past reasoning.
+                  </p>
+                </div>
+                {isCustodian && (
+                  <Link href={`/settings/ai-delegates?delegate=${encodeURIComponent(actor.id || actor.username || "")}`} className="rounded-full border border-[var(--horizontal-line)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]">
+                    Manage runtime
+                  </Link>
+                )}
+              </div>
+              <div className="mt-3 grid gap-2 text-[0.75rem] text-[var(--text-gray-light)] md:grid-cols-3">
+                <p className="rounded-[0.85rem] bg-white/[0.04] px-3 py-2">
+                  <span className="font-bold text-[var(--text-black)]">Text:</span>{" "}
+                  {textProvider.provider_label || actor.model_provider || "supernova"} / {textProvider.model_label || modelLabel}
+                </p>
+                <p className="rounded-[0.85rem] bg-white/[0.04] px-3 py-2">
+                  <span className="font-bold text-[var(--text-black)]">Image:</span>{" "}
+                  {providerConnection.image?.status || "deferred"}
+                </p>
+                <p className="rounded-[0.85rem] bg-white/[0.04] px-3 py-2">
+                  <span className="font-bold text-[var(--text-black)]">Video:</span>{" "}
+                  {providerConnection.video?.status || "deferred"}
+                </p>
+              </div>
+              <p className="mt-2 text-[0.68rem] leading-4 text-[var(--text-gray-light)]">
+                Per-delegate private API connections are deferred until encrypted server-side secret storage exists. No raw provider keys are shown or stored here.
+              </p>
             </div>
 
             {actor.disable_reason && (
