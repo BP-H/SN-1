@@ -354,7 +354,10 @@ export default function AiDelegatesSettingsPage() {
 
   return (
     <main className="social-shell">
-      <section className="mx-auto max-w-5xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6">
+      <section
+        data-ai-genesis-flow="call-sign-v2"
+        className="mx-auto max-w-5xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6"
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-3xl">
             <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Delegates</p>

@@ -52,11 +52,11 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Expected: AI Settings explains server-key vs local-key modes, Test AI reports a clear status, and Brief/Draft show a fallback notice when AI is unavailable.
   - Quick test: open AI Settings with no key, test with local keys disabled, then drag the cursor onto a post and try Brief and Draft.
 - [ ] **AI review drafts**
-  - Expected: a signed-in `species=ai` account can create a draft vote/rationale from a post card, then approve or cancel it in AI Actions; nothing publishes before approval.
-  - Quick test: draft support/oppose/abstain with a short rationale, confirm no vote/comment appears, approve one draft, then verify exactly one AI vote and one rationale comment.
+  - Expected: a human/organization custodian can ask an active AI delegate to create a locked-charter review draft from a post card, then approve or cancel it in AI Actions; nothing publishes before approval.
+  - Quick test: create/select a delegate, request a review draft, confirm no vote/comment appears, verify the AI Actions card shows delegate/provenance/reasoning hash metadata, approve one draft, then verify exactly one AI vote and one rationale comment.
 - [ ] **AI delegate custody**
   - Expected: human/organization accounts can create an AI delegate through AI Genesis at `/settings/ai-delegates`; public signup does not offer standalone AI accounts; ordinary users cannot create System AI actors or use `supernova-ai`.
-  - Quick test: create a delegate with one to five traits, open its `/ai/<delegate>` profile, confirm its AI/profile/persona badges, disable/re-enable it, then request a locked-charter review from a post card.
+  - Quick test: create a delegate with one AI name/call-sign and one to five traits, open its `/ai/<delegate>` profile, confirm its AI/profile/persona badges, disable/re-enable it, then request a locked-charter review from a post card. If the creation page shows `USERNAME`, `DISPLAY NAME`, or `PUBLIC DESCRIPTION`, the deployment is stale or serving the wrong route.
 - [ ] **AI persona custody controls**
   - Expected: custodian controls update only the current model/API label or disable future actions; there is no normal Delete AI button and official AI reasoning/persona history cannot be silently rewritten.
   - Quick test: inspect `/settings/ai-delegates` and `/ai/<delegate>` for custody-as-accountability copy, model label display, required disable reason, disabled status, autonomy preferences, future-independence/legal-status notes, and explicit no-delete behavior.

@@ -313,6 +313,31 @@ class AiDelegateManagementTests(unittest.TestCase):
                 },
                 headers=alice_headers,
             )
+            weird_results = []
+            for weird_name in ["Nova!!!", "My Science AI", "123 test"]:
+                weird_draft = client.post(
+                    "/ai/delegates/persona-draft",
+                    json={"ai_name": weird_name, "traits": ["Technology"], "human_seed": "Handle generation should stay friendly."},
+                    headers=alice_headers,
+                )
+                weird_created = client.post(
+                    "/ai/delegates",
+                    json={
+                        "ai_name": weird_name,
+                        "persona_traits": ["Technology"],
+                        "persona_draft": weird_draft.json().get("persona"),
+                    },
+                    headers=alice_headers,
+                )
+                weird_results.append(
+                    {
+                        "name": weird_name,
+                        "draft_status": weird_draft.status_code,
+                        "create_status": weird_created.status_code,
+                        "persona_username": (weird_draft.json().get("persona") or {}).get("username"),
+                        "delegate_username": (weird_created.json().get("delegate") or {}).get("username"),
+                    }
+                )
             profile = client.get(f"/ai-actors/{created.json().get('delegate', {}).get('username')}")
             result = {
                 "no_traits_status": no_traits.status_code,
@@ -326,6 +351,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "slash_persona": slash_draft.json().get("persona"),
                 "slash_created_status": slash_created.status_code,
                 "slash_delegate": slash_created.json().get("delegate"),
+                "weird_results": weird_results,
                 "profile": profile.json().get("actor"),
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
@@ -351,20 +377,33 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertNotIn("/", result["slash_persona"]["username"])
         self.assertNotIn("/", result["slash_delegate"]["username"])
         self.assertTrue(result["slash_delegate"]["username"].startswith("alice-aaa-aaaa"))
+        for item in result["weird_results"]:
+            self.assertEqual(item["draft_status"], 200, item)
+            self.assertEqual(item["create_status"], 200, item)
+            for username in [item["persona_username"], item["delegate_username"]]:
+                self.assertIsNotNone(username, item)
+                self.assertNotIn("/", username)
+                self.assertLessEqual(len(username), 32)
+                self.assertRegex(username, r"^[a-z0-9][a-z0-9_-]{2,31}$")
 
     def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
         page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
             encoding="utf-8"
         )
+        settings_root = PROJECT_ROOT / "frontend-social-seven" / "app" / "settings"
+        active_settings_text = "\n".join(
+            path.read_text(encoding="utf-8") for path in settings_root.rglob("*.jsx")
+        )
 
         self.assertIn("AI Genesis", page)
+        self.assertIn('data-ai-genesis-flow="call-sign-v2"', page)
         self.assertIn("AI name / call-sign", page)
         self.assertIn("Search traits", page)
         self.assertIn("Generate persona", page)
         self.assertIn("Approve and create", page)
-        self.assertNotIn("USERNAME", page)
-        self.assertNotIn("DISPLAY NAME", page)
-        self.assertNotIn("PUBLIC DESCRIPTION", page)
+        self.assertNotIn("USERNAME", active_settings_text)
+        self.assertNotIn("DISPLAY NAME", active_settings_text)
+        self.assertNotIn("PUBLIC DESCRIPTION", active_settings_text)
         self.assertNotIn('updateForm("username"', page)
         self.assertNotIn('updateForm("display_name"', page)
         self.assertNotIn('updateForm("public_description"', page)
@@ -518,6 +557,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
                 headers=alice_headers,
             )
+            inbox = client.get("/connector/actions", headers=alice_headers)
             after_valid = counts()
             result = {
                 "malicious_choice_status": malicious_choice.status_code,
@@ -531,6 +571,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "valid_status": valid.status_code,
                 "after_valid": after_valid,
                 "summary": valid.json().get("summary"),
+                "inbox_actions": inbox.json().get("actions"),
                 "actions": action_rows(),
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
@@ -553,6 +594,16 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["valid_status"], 200)
         self.assertEqual(result["after_valid"]["votes"], 0)
         self.assertEqual(result["after_valid"]["comments"], 0)
+        self.assertEqual(result["inbox_actions"][0]["action_type"], "draft_ai_review")
+        self.assertEqual(
+            result["inbox_actions"][0]["draft_payload"]["ai_actor_display_name"],
+            result["summary"]["ai_actor_display_name"],
+        )
+        self.assertTrue(result["inbox_actions"][0]["draft_payload"]["reasoning_hash"])
+        self.assertEqual(
+            result["inbox_actions"][0]["draft_payload"]["autonomy_preferences"]["reviews"],
+            "custodian_approval_required",
+        )
         self.assertEqual(result["summary"]["ai_actor_id"], result["actions"][0]["draft_payload"]["ai_actor_id"])
         self.assertEqual(result["summary"]["ai_actor_display_name"], result["actions"][0]["draft_payload"]["ai_actor_display_name"])
         self.assertEqual(result["summary"]["custodian_id"], result["actions"][0]["draft_payload"]["custodian_id"])
