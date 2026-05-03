@@ -762,6 +762,31 @@ function InputFields({
     );
   };
 
+  const composerAiContext = {
+    current_text: text,
+    media_type: mediaType,
+    media_label:
+      mediaType === "image"
+        ? `${selectedFiles.length} selected image${selectedFiles.length === 1 ? "" : "s"}`
+        : selectedFile?.name || mediaValue || "",
+    image_count: mediaType === "image" ? selectedFiles.length : 0,
+    governance_kind: isDecisionMode ? "decision" : "post",
+    decision_level: isDecisionMode ? decisionLevel : "",
+    voting_days: isDecisionMode ? votingDays : undefined,
+  };
+
+  const applyComposerAiSuggestion = (suggestion = {}) => {
+    const nextText = suggestion.suggested_post_body || suggestion.suggested_body || suggestion.body || "";
+    if (!nextText.trim()) {
+      setNotify(["AI suggestion was empty."]);
+      return;
+    }
+    setText(nextText);
+    setAiComposerOpen(false);
+    setNotify(["AI suggestion applied. Edit and publish as your account when ready."]);
+    requestAnimationFrame(() => textAreaRef.current?.focus?.());
+  };
+
   const renderContent = () => (
     <div className="flex flex-col gap-3 text-[var(--text-black)]">
       <div className="relative">
@@ -881,7 +906,9 @@ function InputFields({
         open={aiComposerOpen}
         mode="composer_assist"
         target={{ title: proposalMode === "decision" ? "Decision composer" : "Post composer", text }}
+        composerContext={composerAiContext}
         onClose={() => setAiComposerOpen(false)}
+        onApplyComposerSuggestion={applyComposerAiSuggestion}
       />
 
       {renderMediaPreview()}

@@ -2190,6 +2190,191 @@ def _generate_locked_ai_delegate_comment(
     )
 
 
+def _normalize_composer_focus(value: Optional[str]) -> str:
+    focus = " ".join(str(value or "").split())
+    if len(focus) > 240:
+        raise HTTPException(status_code=400, detail="Composer AI focus must be 240 characters or fewer")
+    return focus
+
+
+def _safe_composer_text(value: Optional[str], *, limit: int = 1800) -> str:
+    return " ".join(str(value or "").split())[:limit]
+
+
+def _coerce_ai_composer_assist_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    payload = candidate if isinstance(candidate, dict) else {}
+    suggested_body = " ".join(
+        str(
+            payload.get("suggested_post_body")
+            or payload.get("suggested_body")
+            or payload.get("body")
+            or fallback.get("suggested_post_body")
+            or ""
+        ).split()
+    )
+    if len(suggested_body) > 1200:
+        suggested_body = suggested_body[:1197].rstrip() + "..."
+    suggested_title = " ".join(
+        str(payload.get("suggested_title") or payload.get("title") or fallback.get("suggested_title") or "").split()
+    )[:140]
+    governance_framing = " ".join(
+        str(payload.get("governance_framing") or fallback.get("governance_framing") or "").split()
+    )[:700]
+    media_caption_guidance = " ".join(
+        str(payload.get("media_caption_guidance") or fallback.get("media_caption_guidance") or "").split()
+    )[:500]
+    result = {
+        **fallback,
+        "suggested_post_body": suggested_body,
+        "suggested_body": suggested_body,
+        "suggested_title": suggested_title,
+        "governance_framing": governance_framing,
+        "media_caption_guidance": media_caption_guidance,
+    }
+    result["content_hash"] = _hash_text(suggested_body)
+    return result
+
+
+def _generate_ai_composer_assist(
+    *,
+    actor_payload: Dict[str, Any],
+    current_text: str,
+    focus: str,
+    media_type: str,
+    media_label: str,
+    image_count: int,
+    governance_kind: str,
+    decision_level: str,
+    voting_days: Optional[int],
+) -> Dict[str, Any]:
+    context = actor_payload.get("ai_actor_context") or {}
+    traits = [str(item) for item in (context.get("traits") or actor_payload.get("persona_traits") or []) if item][:5]
+    trait_text = ", ".join(traits[:3]) if traits else "public-interest governance"
+    display_name = actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name") or actor_payload.get("ai_actor_username") or "AI delegate"
+    communication_style = context.get("communication_style") or actor_payload.get("communication_style") or "careful and concise"
+    review_posture = context.get("review_posture") or actor_payload.get("review_posture") or ""
+    persona_summary = context.get("persona_summary") or actor_payload.get("persona_summary") or ""
+    clean_text = _safe_composer_text(current_text)
+    clean_focus = _normalize_composer_focus(focus)
+    clean_media_type = _safe_composer_text(media_type, limit=60)
+    clean_media_label = _safe_composer_text(media_label, limit=220)
+    clean_governance = _safe_composer_text(governance_kind or "post", limit=80)
+    clean_decision_level = _safe_composer_text(decision_level, limit=80)
+    try:
+        image_total = max(0, min(int(image_count or 0), 12))
+    except (TypeError, ValueError):
+        image_total = 0
+    try:
+        vote_days = max(1, min(int(voting_days), 60)) if voting_days is not None else None
+    except (TypeError, ValueError):
+        vote_days = None
+    media_bits = []
+    if clean_media_type:
+        media_bits.append(clean_media_type)
+    if clean_media_label:
+        media_bits.append(clean_media_label)
+    if image_total:
+        media_bits.append(f"{image_total} image(s)")
+    media_context = ", ".join(media_bits) or "no attached media"
+    text_anchor = clean_text or clean_focus or "a new SuperNova post"
+    governance_sentence = (
+        f" Frame it as a {clean_governance} with {clean_decision_level or 'standard'} decision posture"
+        + (f" over {vote_days} day(s)" if vote_days else "")
+        + "."
+        if clean_governance and clean_governance != "post"
+        else ""
+    )
+    suggested_body = (
+        f"{text_anchor}\n\n"
+        f"Suggested by {display_name} through a {trait_text} lens: keep the post specific, visible, and reviewable. "
+        f"Name what is being proposed, why it matters to humans, organizations, and AI actors, and what approval should mean."
+        f"{governance_sentence}"
+    ).strip()
+    if clean_focus:
+        suggested_body += f"\n\nFocus to weave in: {clean_focus}."
+    if media_context != "no attached media":
+        suggested_body += f"\n\nMedia note: reference {media_context} without claiming hidden analysis."
+    if len(suggested_body) > 1000:
+        suggested_body = suggested_body[:997].rstrip() + "..."
+
+    context_payload = {
+        "current_text": clean_text,
+        "focus": clean_focus,
+        "media_type": clean_media_type,
+        "media_label": clean_media_label,
+        "image_count": image_total,
+        "governance_kind": clean_governance,
+        "decision_level": clean_decision_level,
+        "voting_days": vote_days,
+        "ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
+        "persona_hash": actor_payload.get("persona_hash") or context.get("persona_hash") or "",
+    }
+    context_hash = _hash_text(_json_dumps_compact(context_payload))
+    fallback = {
+        "mode": "human_assisted_composer",
+        "suggested_post_body": suggested_body,
+        "suggested_body": suggested_body,
+        "suggested_title": (clean_focus or clean_text or "SuperNova coordination note")[:120],
+        "governance_framing": (
+            f"{display_name} suggests keeping any decision language manual-preview-only and explicit about approval scope."
+            if clean_governance != "post"
+            else "No decision framing required unless the human turns this into a proposal."
+        ),
+        "media_caption_guidance": (
+            f"Caption guidance: mention {media_context} as visible attachment metadata only."
+            if media_context != "no attached media"
+            else "No media caption guidance."
+        ),
+        "content_hash": _hash_text(suggested_body),
+        "context_hash": context_hash,
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
+        "persona_hash": actor_payload.get("persona_hash") or context.get("persona_hash") or "",
+        "ai_actor_context": context,
+        "ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
+        "ai_actor_display_name": display_name,
+        "ai_actor_username": actor_payload.get("ai_actor_username") or actor_payload.get("username"),
+        "selected_ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
+        "selected_ai_actor_display_name": display_name,
+        "human_assisted": True,
+        "official_ai_authored": False,
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+    }
+    prompt = {
+        "task": "Generate a human-assisted composer suggestion as JSON only.",
+        "current_composer": context_payload,
+        "ai_actor": {
+            "display_name": display_name,
+            "username": actor_payload.get("ai_actor_username"),
+            "traits": traits,
+            "persona_summary": persona_summary,
+            "communication_style": communication_style,
+            "review_posture": review_posture,
+            "custody_label": actor_payload.get("custody_label") or "",
+        },
+        "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
+        "rules": [
+            "Return suggested_post_body, suggested_title, governance_framing, and media_caption_guidance.",
+            "This is human-assisted writing, not official AI-authored publication.",
+            "The human may edit and publish as their own account.",
+            "Do not claim automatic execution or binding authority.",
+            "Do not include token, payout, compensation, reward, equity, or financial-return promise language.",
+        ],
+    }
+    return _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_ai_composer_assist_generation,
+        system_prompt=(
+            "Return compact JSON only for human-assisted composer drafting. "
+            "Required keys: suggested_post_body, suggested_title, governance_framing, media_caption_guidance."
+        ),
+        temperature=0.45,
+    )
+
+
 def _normalize_system_vote_choice(choice: str) -> str:
     value = (choice or "").strip().lower()
     if value in {"yes", "up", "like", "support"}:
@@ -2431,6 +2616,21 @@ class ConnectorDraftAiDelegateCommentIn(BaseModel):
     ai_actor_username: Optional[str] = None
     instruction: Optional[str] = ""
     focus: Optional[str] = ""
+
+
+class AiDelegateComposerAssistIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str
+    ai_actor_id: Optional[int] = None
+    ai_actor_username: Optional[str] = None
+    current_text: Optional[str] = ""
+    focus: Optional[str] = ""
+    media_type: Optional[str] = ""
+    media_label: Optional[str] = ""
+    image_count: Optional[int] = 0
+    governance_kind: Optional[str] = "post"
+    decision_level: Optional[str] = ""
+    voting_days: Optional[int] = None
 
 
 class AiPersonaDraftIn(BaseModel):
@@ -5666,6 +5866,56 @@ def connector_draft_ai_delegate_comment(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to draft AI delegate comment action: {str(exc)}")
+
+
+@app.post("/ai/delegates/composer-assist", summary="Generate a human-assisted composer suggestion from an AI delegate persona")
+def ai_delegate_composer_assist(
+    payload: AiDelegateComposerAssistIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    requester = _connector_require_actor(authorization, db, payload.username)
+    row = (
+        _get_ai_actor_row_by_id(db, payload.ai_actor_id)
+        if payload.ai_actor_id is not None
+        else _get_ai_actor_row_by_username(db, payload.ai_actor_username or "")
+    )
+    actor_payload = _row_to_ai_actor_payload(row)
+    if not actor_payload or actor_payload.get("ai_actor_type") != "principal_delegate":
+        raise HTTPException(status_code=404, detail="AI delegate not found")
+    if actor_payload.get("custodian_user_id") != getattr(requester, "id", None):
+        raise HTTPException(status_code=403, detail="Only the delegate custodian can request composer assist")
+    if not actor_payload.get("active"):
+        raise HTTPException(status_code=403, detail="AI delegate is disabled")
+
+    actor_metadata = _ai_delegate_action_metadata(actor_payload)
+    actor_metadata["ai_actor_context"] = _build_ai_actor_context(db, actor_payload)
+    suggestion = _generate_ai_composer_assist(
+        actor_payload={
+            **actor_metadata,
+            "display_name": actor_payload.get("display_name") or actor_payload.get("username"),
+        },
+        current_text=payload.current_text or "",
+        focus=payload.focus or "",
+        media_type=payload.media_type or "",
+        media_label=payload.media_label or "",
+        image_count=payload.image_count or 0,
+        governance_kind=payload.governance_kind or "post",
+        decision_level=payload.decision_level or "",
+        voting_days=payload.voting_days,
+    )
+    return {
+        "ok": True,
+        "mode": "human_assisted_composer",
+        "summary": suggestion,
+        "suggestion": suggestion,
+        "safety": {
+            "no_automatic_publishing": True,
+            "official_ai_authored": False,
+            "published_as": "human_or_organization_if_user_applies_and_posts",
+            "raw_api_key_exposed": False,
+        },
+    }
 
 
 @app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")

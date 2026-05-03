@@ -50,18 +50,11 @@ function fallbackFor(action, target) {
     return `${title} by ${author}. Core signal: ${text.slice(0, 150)}${text.length > 150 ? "..." : ""}`;
   }
 
-  if (action === "comment") {
-    return "Strong signal. I would love to see the next step framed across humans, AI, and ORGs so the vote can turn into action.";
-  }
-
   return "Post selected. Comments are open so you can engage directly.";
 }
 
 function buildPrompt(action, target) {
   const text = target?.text || "";
-  if (action === "comment") {
-    return `Write one concise, thoughtful social-network comment for this SuperNova post. Keep it human, constructive, and not salesy.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
-  }
   return `Summarize this SuperNova social post in two short bullets and name one useful next action.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
 }
 
@@ -644,6 +637,33 @@ export default function AssistantOrb() {
     }
   };
 
+  const openDelegateAction = (mode = "review") => {
+    if (!target?.id) {
+      setReply("Drag the AI cursor onto a post first.");
+      setMenuOpen(true);
+      return;
+    }
+    if (!isAuthenticated) {
+      setMenuOpen(true);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      }
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("supernova:open-ai-delegate-action", {
+        detail: { proposalId: target.id, mode },
+      })
+    );
+    setSettingsOpen(false);
+    setCommentOpen(false);
+    setActionsOpen(false);
+    setMenuOpen(false);
+    setReply("");
+    setGhostVisible(false);
+    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
+  };
+
   const runAction = async (action) => {
     if (action === "universe") {
       setMenuOpen(false);
@@ -708,41 +728,13 @@ export default function AssistantOrb() {
       return;
     }
 
+    if (action === "delegate_review") {
+      openDelegateAction("review");
+      return;
+    }
+
     if (action === "engage") {
-      if (!isAuthenticated) {
-        setMenuOpen(true);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
-        }
-        return;
-      }
-      setBusy(true);
-      setSettingsOpen(false);
-      setActionsOpen(false);
-      setCommentOpen(false);
-      setReply("");
-      try {
-        const response = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: buildPrompt("comment", target) }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (hasUsableAiReply(response, data)) {
-          setCommentText(data.reply);
-          setReply("");
-        } else {
-          setCommentText(fallbackFor("comment", target));
-          setReply("AI was unavailable, so fallback text was used.");
-        }
-      } catch {
-        setCommentText(fallbackFor("comment", target));
-        setReply("AI was unavailable, so fallback text was used.");
-      } finally {
-        setBusy(false);
-        setCommentOpen(true);
-        setMenuOpen(true);
-      }
+      openDelegateAction("comment");
       return;
     }
 
@@ -855,8 +847,8 @@ export default function AssistantOrb() {
     { action: "like", label: "Support", icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
     { action: "actions", label: "AI Actions", icon: IoListCircleOutline, dx: 0, dy: -124, tone: "blue" },
     { action: "comment", label: "Comment", icon: FaCommentAlt, dx: -100, dy: -28 },
-    { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 100, dy: -28 },
-    { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
+    { action: "delegate_review", label: "AI Review", icon: IoSparklesOutline, dx: 100, dy: -28 },
+    { action: "engage", label: "AI Comment", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
     { action: "share", label: "Share", icon: FaShare, dx: 90, dy: 48 },
     { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
     { action: "key", label: "AI Settings", icon: IoKeyOutline, dx: 34, dy: 96 },
@@ -1009,9 +1001,9 @@ export default function AssistantOrb() {
           {settingsOpen && (
             <div className="mt-3 flex flex-col gap-2">
               <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
-                Drag the AI cursor onto a post, then choose Brief or Draft. The AI widget uses the server
-                OPENAI_API_KEY when configured; it does not store browser keys. AI delegate provider labels are managed
-                in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
+                Drag the AI cursor onto a post, then choose AI Review or AI Comment for official delegate actions.
+                Generic summarize/test utilities use the server OPENAI_API_KEY when configured; the AI widget does not store browser keys.
+                AI delegate provider labels are managed in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -1044,21 +1036,7 @@ export default function AssistantOrb() {
               <div className="grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!target?.id) {
-                      setReply("Drag the AI cursor onto a post first.");
-                      return;
-                    }
-                    window.dispatchEvent(
-                      new CustomEvent("supernova:open-ai-delegate-action", {
-                        detail: { proposalId: target.id, mode: "review" },
-                      })
-                    );
-                    setSettingsOpen(false);
-                    setMenuOpen(false);
-                    setGhostVisible(false);
-                    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
-                  }}
+                  onClick={() => openDelegateAction("review")}
                   className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
                 >
                   Use AI delegate
