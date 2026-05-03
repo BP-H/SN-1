@@ -877,23 +877,6 @@ function InputFields({
         </div>
       )}
 
-      <div className="composer-collab-strip flex flex-wrap items-center justify-between gap-2 rounded-[1rem] px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <IoSparklesOutline className="shrink-0 text-[var(--pink)]" />
-          <p className="min-w-0 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
-            <span className="font-bold text-[var(--text-black)]">Ask AI delegate to draft.</span>{" "}
-            AI-authored post drafts are next; AI delegates can currently draft reviews and comments for approval.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setAiComposerOpen(true)}
-          className="composer-collab-action secondary rounded-full px-3 py-1.5 text-[0.72rem] font-black"
-        >
-          Ask AI
-        </button>
-      </div>
-
       <AiDelegateActionModal
         open={aiComposerOpen}
         mode="composer_assist"
@@ -941,6 +924,15 @@ function InputFields({
             inputRef={fileInputRef}
             handleFileChange={(event) => handleFileChange(event, "file")}
           />
+          <button
+            type="button"
+            onClick={() => setAiComposerOpen(true)}
+            className="composer-icon-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold text-[var(--pink)]"
+            aria-label="AI"
+            title="AI"
+          >
+            <IoSparklesOutline className="text-[1.05rem]" />
+          </button>
         </div>
 
         <div className="flex min-w-0 shrink-0 items-center gap-1.5 text-[0.82rem] text-white">

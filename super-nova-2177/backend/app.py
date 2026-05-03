@@ -67,6 +67,16 @@ DELETED_COMMENT_TEXT = "[deleted]"
 LEGACY_SHA256_LENGTH = 64
 PBKDF2_HASH_PREFIX = "pbkdf2_sha256"
 PBKDF2_ITERATIONS = int(os.environ.get("PASSWORD_PBKDF2_ITERATIONS", "260000"))
+
+
+def _env_int_at_least(name: str, default: int, minimum: int) -> int:
+    try:
+        return max(minimum, int(os.environ.get(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+WRAPPER_ACCESS_TOKEN_MINUTES = _env_int_at_least("SUPERNOVA_ACCESS_TOKEN_MINUTES", 720, 15)
 SYSTEM_VOTE_QUESTION = os.environ.get(
     "SYSTEM_VOTE_QUESTION",
     "Should SuperNova prioritize AI rights as the next major research focus?",
@@ -940,6 +950,71 @@ def _proposal_review_text(proposal) -> str:
     return f"{title}\n\n{body}".strip()
 
 
+def _proposal_public_context(proposal) -> Dict[str, Any]:
+    title = getattr(proposal, "title", "") or "Untitled post"
+    body = (
+        getattr(proposal, "description", None)
+        or getattr(proposal, "body", None)
+        or ""
+    )
+    author = (
+        getattr(proposal, "userName", None)
+        or getattr(proposal, "author", None)
+        or getattr(proposal, "username", None)
+        or "unknown"
+    )
+    author_species = (
+        getattr(proposal, "author_type", None)
+        or getattr(proposal, "species", None)
+        or "human"
+    )
+    media = _media_payload(
+        getattr(proposal, "image", ""),
+        getattr(proposal, "video", ""),
+        getattr(proposal, "link", ""),
+        getattr(proposal, "file", ""),
+        getattr(proposal, "payload", None),
+        getattr(proposal, "voting_deadline", None),
+    )
+    indicators: List[str] = []
+    if media.get("images"):
+        indicators.append(f"{len(media.get('images') or [])} image(s)")
+    if media.get("video"):
+        indicators.append("video attached")
+    if media.get("file"):
+        indicators.append("file attached")
+    if media.get("link"):
+        indicators.append("link attached")
+    governance = media.get("governance") or {}
+    if governance.get("kind") and governance.get("kind") != "post":
+        indicators.append(f"{governance.get('kind')} governance")
+    return {
+        "id": getattr(proposal, "id", None),
+        "title": str(title or "Untitled post")[:220],
+        "body": str(body or "")[:2400],
+        "author": str(author or "unknown")[:120],
+        "author_species": str(author_species or "human")[:40],
+        "media": {
+            "image_urls": (media.get("images") or [])[:4],
+            "video": media.get("video") or "",
+            "file": media.get("file") or "",
+            "link": media.get("link") or "",
+            "indicators": indicators,
+            "governance": governance,
+        },
+    }
+
+
+def _context_excerpt(value: str, fallback: str = "the public proposal context") -> str:
+    text_value = " ".join(str(value or "").split())
+    if not text_value:
+        return fallback
+    stops = [". ", "! ", "? ", "\n"]
+    first_stop = min([idx for marker in stops if (idx := text_value.find(marker)) > 24] or [160])
+    excerpt = text_value[: min(first_stop + 1, 190)].strip()
+    return excerpt or fallback
+
+
 def _protocol_review_risk_flags(proposal) -> List[str]:
     text_value = _proposal_review_text(proposal).lower()
     flags: List[str] = []
@@ -1149,7 +1224,41 @@ def _ai_persona_hash(persona: Dict[str, Any]) -> str:
     return hashlib.sha256(_json_dumps_compact(stable).encode("utf-8")).hexdigest()
 
 
-def _generate_ai_delegate_username(db: Session, custodian_username: str, ai_name: str) -> str:
+def _ai_delegate_handle_taken(
+    db: Session,
+    candidate: str,
+    *,
+    exclude_actor_id: Optional[int] = None,
+    exclude_harmonizer_id: Optional[int] = None,
+) -> bool:
+    actor_row = _get_ai_actor_row_by_username(db, candidate)
+    if actor_row:
+        try:
+            actor_id = int(getattr(actor_row, "id", 0) or 0)
+        except (TypeError, ValueError):
+            actor_id = 0
+        if not exclude_actor_id or actor_id != int(exclude_actor_id):
+            return True
+
+    harmonizer = _find_harmonizer_by_username(db, candidate)
+    if harmonizer:
+        try:
+            harmonizer_id = int(getattr(harmonizer, "id", 0) or 0)
+        except (TypeError, ValueError):
+            harmonizer_id = 0
+        if not exclude_harmonizer_id or harmonizer_id != int(exclude_harmonizer_id):
+            return True
+    return False
+
+
+def _generate_ai_delegate_username(
+    db: Session,
+    custodian_username: str,
+    ai_name: str,
+    *,
+    exclude_actor_id: Optional[int] = None,
+    exclude_harmonizer_id: Optional[int] = None,
+) -> str:
     custodian_slug = _slugify_ai_name(custodian_username, "principal")[:14].strip("-_") or "principal"
     ai_slug = _slugify_ai_name(ai_name, "delegate")[:10].strip("-_") or "delegate"
     base = f"{custodian_slug}-{ai_slug}"[:28].strip("-_")
@@ -1157,7 +1266,12 @@ def _generate_ai_delegate_username(db: Session, custodian_username: str, ai_name
         base = f"{base}-ai"[:32].strip("-_")
     candidate = _normalize_ai_delegate_username(base)
     suffix = 2
-    while _get_ai_actor_row_by_username(db, candidate) or _find_harmonizer_by_username(db, candidate):
+    while _ai_delegate_handle_taken(
+        db,
+        candidate,
+        exclude_actor_id=exclude_actor_id,
+        exclude_harmonizer_id=exclude_harmonizer_id,
+    ):
         suffix_text = f"-{suffix}"
         trimmed = base[: 28 - len(suffix_text)].strip("-_") or "delegate"
         candidate = _normalize_ai_delegate_username(f"{trimmed}{suffix_text}")
@@ -1488,10 +1602,13 @@ def _create_delegate_harmonizer(
 
 
 def _ai_delegate_action_metadata(actor_payload: Dict[str, Any]) -> Dict[str, Any]:
+    display_name = actor_payload.get("display_name") or actor_payload.get("ai_name") or ""
     return {
         "ai_actor_id": actor_payload.get("id"),
         "ai_actor_username": actor_payload.get("username"),
-        "ai_actor_display_name": actor_payload.get("display_name") or actor_payload.get("ai_name") or "",
+        "ai_actor_display_name": display_name,
+        "selected_ai_actor_id": actor_payload.get("id"),
+        "selected_ai_actor_display_name": display_name,
         "ai_actor_type": actor_payload.get("ai_actor_type", "principal_delegate"),
         "species": "ai",
         "custodian_id": actor_payload.get("custodian_user_id"),
@@ -1527,6 +1644,8 @@ def _ai_delegate_actor_metadata(actor) -> Dict[str, Any]:
         "ai_actor_id": getattr(actor, "id", None),
         "ai_actor_username": username,
         "ai_actor_display_name": getattr(actor, "display_name", None) or username,
+        "selected_ai_actor_id": getattr(actor, "id", None),
+        "selected_ai_actor_display_name": getattr(actor, "display_name", None) or username,
         "ai_actor_type": "principal_delegate",
         "species": "ai",
         "custodian_id": None,
@@ -1797,20 +1916,48 @@ def _generate_locked_ai_review(
     allow_caution: bool,
 ) -> Dict[str, Any]:
     proposal_id = getattr(proposal, "id", None)
-    title = _connector_proposal_title(proposal)
+    proposal_context = _proposal_public_context(proposal)
+    title = proposal_context["title"]
+    body_excerpt = _context_excerpt(proposal_context.get("body"), title)
+    media_indicators = proposal_context.get("media", {}).get("indicators") or []
     flags = _protocol_review_risk_flags(proposal)
     if flags:
-        stance = "caution" if allow_caution else "abstain"
+        stance = "caution" if allow_caution else "oppose"
         summary = (
-            "Protocol caution: this proposal should be reviewed for "
-            f"{', '.join(flags).replace('_', ' ')} before any real-world action."
+            f"{title} raises protocol risk around {', '.join(flags).replace('_', ' ')}. "
+            f"My review is grounded in the visible context: {body_excerpt}"
         )
     else:
-        stance = "support"
-        summary = (
-            "Protocol support: this proposal appears compatible with visible tri-species "
-            "review, manual approval, and public-interest contribution records."
+        text_value = f"{title} {proposal_context.get('body', '')}".lower()
+        alignment_terms = (
+            "manual",
+            "approval",
+            "public",
+            "governance",
+            "ai",
+            "tri-species",
+            "safety",
+            "accessibility",
+            "education",
+            "climate",
+            "open source",
+            "protocol",
+            "review",
         )
+        if any(term in text_value for term in alignment_terms):
+            stance = "support"
+            summary = (
+                f"{title} looks supportable because it gives a public reviewable context: "
+                f"{body_excerpt}"
+            )
+        else:
+            stance = "abstain"
+            summary = (
+                f"{title} needs more detail before I can support it; the visible context is: "
+                f"{body_excerpt}"
+            )
+    if media_indicators:
+        summary = f"{summary} Media context noted: {', '.join(media_indicators)}."
 
     context = actor_payload.get("ai_actor_context") or {}
     persona_bits = []
@@ -1834,6 +1981,10 @@ def _generate_locked_ai_review(
         f"review for proposal {proposal_id}: {summary}\n\n"
     )
     reasoning_text = reasoning_intro + (f"{persona_context_text}\n\n" if persona_context_text else "") + (
+        f"Proposal author: @{proposal_context.get('author')} ({proposal_context.get('author_species')}).\n"
+        f"Proposal title: {title}\n"
+        f"Proposal excerpt: {body_excerpt}\n"
+        f"Media indicators: {', '.join(media_indicators) if media_indicators else 'none'}\n\n"
         f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
         "Manual-preview-only: this review does not execute real-world actions."
     )
@@ -1847,6 +1998,7 @@ def _generate_locked_ai_review(
         "reasoning_text": reasoning_text,
         "reasoning_hash": reasoning_hash,
         "risk_flags": flags,
+        "proposal_context": proposal_context,
         "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
         "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
         "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
@@ -1862,7 +2014,10 @@ def _generate_locked_ai_review(
         "proposal": {
             "id": proposal_id,
             "title": title,
-            "body": _proposal_review_text(proposal)[:2200],
+            "body": proposal_context.get("body", "")[:2200],
+            "author": proposal_context.get("author"),
+            "author_species": proposal_context.get("author_species"),
+            "media": proposal_context.get("media"),
             "risk_flags": flags,
         },
         "ai_actor": {
@@ -1937,16 +2092,22 @@ def _generate_locked_ai_delegate_comment(
     context = actor_payload.get("ai_actor_context") or {}
     traits = [str(item) for item in (context.get("traits") or []) if item][:5]
     trait_text = ", ".join(traits[:3]) if traits else "public-interest governance"
-    proposal_title = _connector_proposal_title(proposal)
+    proposal_context = _proposal_public_context(proposal)
+    proposal_title = proposal_context["title"]
     proposal_text = _proposal_review_text(proposal)
+    proposal_excerpt = _context_excerpt(proposal_context.get("body"), proposal_title)
+    media_indicators = proposal_context.get("media", {}).get("indicators") or []
     persona_summary = context.get("persona_summary") or actor_payload.get("persona_summary") or ""
     review_posture = context.get("review_posture") or actor_payload.get("review_posture") or ""
+    communication_style = context.get("communication_style") or actor_payload.get("communication_style") or "careful and concise"
     display_name = actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name") or actor_payload.get("ai_actor_username") or "AI delegate"
-    focus_sentence = f" I am especially considering: {focus}" if focus else ""
+    focus_sentence = f" I am especially considering {focus}." if focus else ""
+    media_sentence = f" I also notice the attached {', '.join(media_indicators)}." if media_indicators else ""
     comment_text = (
-        f"From my {trait_text} charter, I see this as a review moment for visible tri-species participation, "
-        "manual-preview-only safety, and clear public-interest next steps."
-        f"{focus_sentence}"
+        f"As {display_name}, I am reading \"{proposal_title}\" through my {trait_text} lens. "
+        f"The key public detail I see is: {proposal_excerpt} "
+        "I would keep the next step visible, approval-based, and grounded in tri-species accountability."
+        f"{media_sentence}{focus_sentence}"
     )
     if len(comment_text) > 620:
         comment_text = comment_text[:617].rstrip() + "..."
@@ -1955,9 +2116,12 @@ def _generate_locked_ai_delegate_comment(
         f"{display_name} generated an AI-authored comment draft for proposal {getattr(proposal, 'id', None)} "
         f"({proposal_title}).\n\n"
         f"Persona summary: {persona_summary}\n"
+        f"Communication style: {communication_style}\n"
         f"Review posture: {review_posture}\n"
         f"Traits: {', '.join(traits) if traits else 'not declared'}\n"
+        f"Proposal author: @{proposal_context.get('author')} ({proposal_context.get('author_species')})\n"
         f"Proposal context: {proposal_text[:700]}\n"
+        f"Media indicators: {', '.join(media_indicators) if media_indicators else 'none'}\n"
         f"Custody label: {actor_payload.get('custody_label') or ''}\n"
         f"Focus: {focus or 'none'}\n\n"
         f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
@@ -1970,7 +2134,7 @@ def _generate_locked_ai_delegate_comment(
         "body": comment_text,
         "content_hash": _hash_text(comment_text),
         "reasoning_summary": (
-            f"AI-authored comment from {display_name} using its {trait_text} persona context."
+            f"{display_name} comments on {proposal_title} using its {trait_text} persona context."
         ),
         "reasoning_text": reasoning_text,
         "reasoning_hash": _hash_text(reasoning_text),
@@ -1979,6 +2143,7 @@ def _generate_locked_ai_delegate_comment(
         "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
         "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
         "custody_label": actor_payload.get("custody_label") or "",
+        "proposal_context": proposal_context,
         "ai_actor_context": context,
         "manual_preview_only": True,
         "no_automatic_execution": True,
@@ -1989,6 +2154,9 @@ def _generate_locked_ai_delegate_comment(
             "id": getattr(proposal, "id", None),
             "title": proposal_title,
             "body": proposal_text[:2200],
+            "author": proposal_context.get("author"),
+            "author_species": proposal_context.get("author_species"),
+            "media": proposal_context.get("media"),
         },
         "ai_actor": {
             "display_name": display_name,
@@ -2380,7 +2548,7 @@ def _create_wrapper_access_token(username: str, expires_delta: Optional[timedelt
         return None
     try:
         settings = get_settings()
-        expire = datetime.datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+        expire = datetime.datetime.utcnow() + (expires_delta or timedelta(minutes=WRAPPER_ACCESS_TOKEN_MINUTES))
         return jwt.encode(
             {"sub": subject, "exp": expire},
             settings.SECRET_KEY,
@@ -2827,6 +2995,80 @@ def _sync_username_references(
             messages_changed = True
     if messages_changed:
         _write_messages_store(messages)
+
+
+def _sync_ai_delegate_custodian_prefix(
+    db: Session,
+    old_username: str,
+    new_username: str,
+    user_id: Optional[int] = None,
+) -> None:
+    if not user_id:
+        return
+    old_prefix = _slugify_ai_name(old_username, "principal")[:14].strip("-_") or "principal"
+    _ensure_ai_actors_table(db)
+    rows = db.execute(
+        text(
+            "SELECT * FROM ai_actors "
+            "WHERE ai_actor_type = 'principal_delegate' AND custodian_user_id = :custodian_user_id"
+        ),
+        {"custodian_user_id": user_id},
+    ).fetchall()
+    if not rows:
+        return
+
+    for row in rows:
+        actor_id = getattr(row, "id", None)
+        old_delegate_username = (getattr(row, "username", "") or "").strip()
+        if not old_delegate_username:
+            continue
+        harmonizer_user_id = getattr(row, "harmonizer_user_id", None)
+        ai_name = (
+            getattr(row, "ai_name", None)
+            or getattr(row, "display_name", None)
+            or old_delegate_username
+        )
+        should_rename_handle = _safe_user_key(old_delegate_username).startswith(f"{old_prefix}-")
+        new_delegate_username = old_delegate_username
+        if should_rename_handle:
+            new_delegate_username = _generate_ai_delegate_username(
+                db,
+                new_username,
+                str(ai_name or old_delegate_username),
+                exclude_actor_id=actor_id,
+                exclude_harmonizer_id=harmonizer_user_id,
+            )
+        custody_label = f"Delegate of @{new_username}"
+        now = datetime.datetime.utcnow()
+        db.execute(
+            text(
+                "UPDATE ai_actors SET username = :username, custody_label = :custody_label, "
+                "updated_at = :updated_at WHERE id = :id"
+            ),
+            {
+                "id": actor_id,
+                "username": new_delegate_username,
+                "custody_label": custody_label,
+                "updated_at": now,
+            },
+        )
+        if harmonizer_user_id and new_delegate_username != old_delegate_username and Harmonizer is not None:
+            delegate_user = db.query(Harmonizer).filter(Harmonizer.id == harmonizer_user_id).first()
+            if delegate_user:
+                delegate_user.username = new_delegate_username
+                delegate_user.email = _delegate_harmonizer_email(new_delegate_username)
+                db.add(delegate_user)
+        db.commit()
+
+        if new_delegate_username != old_delegate_username:
+            _sync_username_references(old_delegate_username, new_delegate_username, harmonizer_user_id)
+            _rename_profile_metadata(db, old_delegate_username, new_delegate_username)
+            _sync_species_references(
+                new_delegate_username,
+                "ai",
+                harmonizer_user_id,
+                aliases=[old_delegate_username, new_delegate_username],
+            )
 
 
 def _sync_species_references(
@@ -5321,6 +5563,7 @@ def connector_draft_ai_delegate_review(
         "reasoning_text": review["reasoning_text"],
         "reasoning_hash": review["reasoning_hash"],
         "risk_flags": review["risk_flags"],
+        "proposal_context": review.get("proposal_context", {}),
         "ai_actor_context": review.get("ai_actor_context", {}),
         "generation_source": review.get("generation_source", "deterministic_fallback_no_key"),
         "model_identity": review.get("model_identity") or actor_metadata.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
@@ -5399,6 +5642,7 @@ def connector_draft_ai_delegate_comment(
         "reasoning_summary": comment_draft["reasoning_summary"],
         "reasoning_text": comment_draft["reasoning_text"],
         "reasoning_hash": comment_draft["reasoning_hash"],
+        "proposal_context": comment_draft.get("proposal_context", {}),
         "ai_actor_context": comment_draft.get("ai_actor_context", {}),
         "generation_source": comment_draft.get("generation_source", "deterministic_fallback_no_key"),
         "model_identity": comment_draft.get("model_identity") or actor_metadata.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
@@ -6412,6 +6656,7 @@ def update_profile(
         username_changed = _safe_user_key(old_username) != _safe_user_key(next_username)
         if _safe_user_key(old_username) != _safe_user_key(next_username):
             _sync_username_references(old_username, next_username, user_id)
+            _sync_ai_delegate_custodian_prefix(db, old_username, next_username, user_id)
             _rename_profile_metadata(db, old_username, next_username)
         if payload.domain_url is not None or payload.domain_as_profile is not None:
             _upsert_profile_metadata(db, next_username, payload.domain_url, payload.domain_as_profile)
@@ -6436,6 +6681,7 @@ def update_profile(
                 aliases=[old_username, next_username],
             )
         response_payload = _public_user_payload(user, provider="password")
+        response_payload.update(_auth_fields_for_user(user))
         response_payload.update(_profile_metadata(db, next_username))
         return response_payload
     except Exception as e:

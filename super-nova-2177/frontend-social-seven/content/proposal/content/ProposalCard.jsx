@@ -160,7 +160,7 @@ function ProposalCard({
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
 
-  const { userData, defaultAvatar } = useUser();
+  const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
   const router = useRouter();
   const authorName = localUserName || userName || "";
@@ -225,6 +225,21 @@ function ProposalCard({
     window.addEventListener("supernova:open-ai-delegate-action", openAiDelegateAction);
     return () => window.removeEventListener("supernova:open-ai-delegate-action", openAiDelegateAction);
   }, [id]);
+
+  const openAccountModal = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+    }
+  };
+
+  const openAiActionModal = (mode) => {
+    if (!isAuthenticated || !userData?.name) {
+      openAccountModal();
+      return;
+    }
+    if (mode === "comment") setShowComments(true);
+    setAiActionModalMode(mode);
+  };
 
   useEffect(() => {
     if (!collabInviteOpen || collabSearch.trim().length < 1) {
@@ -1236,24 +1251,20 @@ function ProposalCard({
 
           {/* Right: comment and share */}
           <div className="flex shrink-0 items-center gap-1.5">
-            {userData?.name && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAiActionModalMode("review");
-                }}
-                className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors ${
-                  aiActionModalMode === "review"
-                    ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                    : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
-                }`}
-                title="Generate AI review"
-                aria-expanded={aiActionModalMode === "review"}
-              >
-                <IoSparklesOutline className="text-[0.82rem]" />
-                <span className="hidden text-[0.72rem] font-semibold sm:inline">AI</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => openAiActionModal("review")}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                aiActionModalMode === "review"
+                  ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
+              }`}
+              title="Generate AI review"
+              aria-label="Generate AI review"
+              aria-expanded={aiActionModalMode === "review"}
+            >
+              <IoSparklesOutline className="text-[0.9rem]" />
+            </button>
             {/* Comment toggle */}
             <button
               type="button"
@@ -1322,20 +1333,20 @@ function ProposalCard({
                 Comments
               </span>
               <div className="flex shrink-0 items-center gap-1.5">
-                {userData?.name && (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setAiActionModalMode("comment");
-                    }}
-                    className="rounded-full border border-[var(--horizontal-line)] px-2.5 py-1 text-[0.66rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
-                    aria-expanded={aiActionModalMode === "comment"}
-                  >
-                    Ask AI to comment
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openAiActionModal("comment");
+                  }}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--horizontal-line)] text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
+                  aria-label="Generate AI comment"
+                  title="Generate AI comment"
+                  aria-expanded={aiActionModalMode === "comment"}
+                >
+                  <IoSparklesOutline className="text-[0.82rem]" />
+                </button>
                 <span className="rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
                   {localComments.length}
                 </span>
@@ -1409,7 +1420,7 @@ function ProposalCard({
       <AiDelegateActionModal
         open={Boolean(aiActionModalMode)}
         mode={aiActionModalMode}
-        target={{ id, title, text: localText, media }}
+        target={{ id, title, text: localText, author: authorName, species: specie, media }}
         onClose={() => setAiActionModalMode("")}
         onApproved={(payload, draftAction) => {
           const publishedComment = payload?.summary?.comment;
