@@ -270,6 +270,62 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["profile_safety"]["legal_recognition_is_not_permission_vote"])
         self.assertEqual(result["counts"]["harmonizers"], 5)
 
+    def test_custodian_username_change_updates_delegate_handle_prefix(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova", traits=["Science"])
+            old_delegate = created.json().get("delegate", {})
+            rename = client.patch(
+                "/profile/alice",
+                json={"username": "stellar"},
+                headers=alice_headers,
+            )
+            new_token = rename.json().get("access_token")
+            new_headers = {"Authorization": f"Bearer {new_token}"}
+            listed = client.get("/ai/delegates", headers=new_headers)
+            delegate = (listed.json().get("delegates") or [{}])[0]
+            new_profile = client.get(f"/ai-actors/{delegate.get('username')}")
+            old_profile = client.get(f"/ai-actors/{old_delegate.get('username')}")
+            db = backend_app.SessionLocal()
+            try:
+                delegate_user = db.query(backend_app.Harmonizer).filter(
+                    backend_app.Harmonizer.id == old_delegate.get("harmonizer_user_id")
+                ).first()
+                delegate_user_name = getattr(delegate_user, "username", "")
+                delegate_user_email = getattr(delegate_user, "email", "")
+            finally:
+                db.close()
+            result = {
+                "rename_status": rename.status_code,
+                "rename_username": rename.json().get("username"),
+                "has_new_token": bool(new_token),
+                "list_status": listed.status_code,
+                "old_delegate_username": old_delegate.get("username"),
+                "delegate_username": delegate.get("username"),
+                "custody_label": delegate.get("custody_label"),
+                "delegate_user_name": delegate_user_name,
+                "delegate_user_email": delegate_user_email,
+                "new_profile_status": new_profile.status_code,
+                "old_profile_status": old_profile.status_code,
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["rename_status"], 200)
+        self.assertEqual(result["rename_username"], "stellar")
+        self.assertTrue(result["has_new_token"])
+        self.assertEqual(result["list_status"], 200)
+        self.assertEqual(result["old_delegate_username"], "alice-nova")
+        self.assertTrue(result["delegate_username"].startswith("stellar-nova"), result)
+        self.assertEqual(result["custody_label"], "Delegate of @stellar")
+        self.assertEqual(result["delegate_user_name"], result["delegate_username"])
+        self.assertIn(result["delegate_username"], result["delegate_user_email"])
+        self.assertEqual(result["new_profile_status"], 200)
+        self.assertEqual(result["old_profile_status"], 404)
+
     def test_persona_genesis_validates_traits_and_keeps_handles_server_generated(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -513,6 +569,117 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["invalid_persona"]["model_identity"], "mock-gpt-mini")
         self.assertEqual(result["call_count"], 4)
 
+    def test_deterministic_fallback_uses_specific_proposal_and_media_context(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova", traits=["Science", "Ethics"])
+            delegate = created.json()["delegate"]
+            db = backend_app.SessionLocal()
+            try:
+                contextual = backend_app.Proposal(
+                    title="Manual Ocean Robots",
+                    description="This proposal asks humans, ORGs, and AI delegates to manually review ocean sensor robot safety before any public deployment.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=seeded["alice_id"],
+                    image=json.dumps(["ocean-robot.png"]),
+                    link="https://example.test/ocean-robots",
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                risky = backend_app.Proposal(
+                    title="Hidden Automation Switch",
+                    description="This plan would auto-execute changes without approval after a private webhook is triggered.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=seeded["alice_id"],
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                other = backend_app.Proposal(
+                    title="Community Library Notes",
+                    description="A short public note about education volunteers and accessible reading circles.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=seeded["alice_id"],
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                db.add_all([contextual, risky, other])
+                db.commit()
+                db.refresh(contextual)
+                db.refresh(risky)
+                db.refresh(other)
+                contextual_id = contextual.id
+                risky_id = risky.id
+                other_id = other.id
+            finally:
+                db.close()
+
+            contextual_review = client.post(
+                "/connector/actions/draft-ai-delegate-review",
+                json={"username": "alice", "proposal_id": contextual_id, "ai_actor_id": delegate["id"]},
+                headers=alice_headers,
+            )
+            contextual_comment = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": contextual_id,
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Mention sensor review.",
+                },
+                headers=alice_headers,
+            )
+            risky_review = client.post(
+                "/connector/actions/draft-ai-delegate-review",
+                json={"username": "alice", "proposal_id": risky_id, "ai_actor_id": delegate["id"]},
+                headers=alice_headers,
+            )
+            other_comment = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={"username": "alice", "proposal_id": other_id, "ai_actor_id": delegate["id"]},
+                headers=alice_headers,
+            )
+            result = {
+                "contextual_review_status": contextual_review.status_code,
+                "contextual_review": contextual_review.json().get("summary"),
+                "contextual_comment_status": contextual_comment.status_code,
+                "contextual_comment": contextual_comment.json().get("summary"),
+                "risky_review_status": risky_review.status_code,
+                "risky_review": risky_review.json().get("summary"),
+                "other_comment_status": other_comment.status_code,
+                "other_comment": other_comment.json().get("summary"),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["contextual_review_status"], 200)
+        self.assertEqual(result["contextual_review"]["generation_source"], "deterministic_fallback_no_key")
+        self.assertEqual(result["contextual_review"]["selected_ai_actor_id"], result["contextual_review"]["ai_actor_id"])
+        self.assertIn("Manual Ocean Robots", result["contextual_review"]["reasoning_summary"])
+        self.assertIn("ocean sensor robot safety", result["contextual_review"]["reasoning_summary"])
+        self.assertIn("image", " ".join(result["contextual_review"]["proposal_context"]["media"]["indicators"]))
+        self.assertTrue(result["contextual_review"]["reasoning_hash"])
+        self.assertEqual(result["contextual_comment_status"], 200)
+        self.assertEqual(result["contextual_comment"]["generation_source"], "deterministic_fallback_no_key")
+        self.assertIn("Manual Ocean Robots", result["contextual_comment"]["generated_comment"])
+        self.assertIn("ocean sensor robot safety", result["contextual_comment"]["generated_comment"])
+        self.assertIn("sensor review", result["contextual_comment"]["generated_comment"])
+        self.assertTrue(result["contextual_comment"]["content_hash"])
+        self.assertEqual(result["risky_review_status"], 200)
+        self.assertEqual(result["risky_review"]["intended_choice"], "oppose")
+        self.assertIn("Hidden Automation Switch", result["risky_review"]["reasoning_summary"])
+        self.assertEqual(result["other_comment_status"], 200)
+        self.assertIn("Community Library Notes", result["other_comment"]["generated_comment"])
+        self.assertNotEqual(
+            result["contextual_comment"]["generated_comment"],
+            result["other_comment"]["generated_comment"],
+        )
+
     def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
         page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
             encoding="utf-8"
@@ -547,6 +714,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         ai_modal = (
             PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "content" / "AiDelegateActionModal.jsx"
         ).read_text(encoding="utf-8")
+        ai_picker = (
+            PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "content" / "AiDelegatePicker.jsx"
+        ).read_text(encoding="utf-8")
         composer = (
             PROJECT_ROOT / "frontend-social-seven" / "content" / "create post" / "InputFields.jsx"
         ).read_text(encoding="utf-8")
@@ -558,16 +728,24 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Open AI Actions", assistant)
         self.assertIn("Published as ${connectorActionActorLabel(action)}", assistant)
         self.assertIn("Canceled - nothing published.", assistant)
+        self.assertIn("Fallback draft - backend AI key not configured", assistant)
         self.assertIn("AiDelegateActionModal", proposal_card)
         self.assertIn('mode={aiActionModalMode}', proposal_card)
+        self.assertIn("openAiActionModal", proposal_card)
         self.assertIn("Published as ${actorName}", proposal_card)
         self.assertIn('mode="composer_assist"', composer)
+        self.assertIn('aria-label="AI"', composer)
         self.assertIn("Generate AI review", ai_modal)
         self.assertIn("Generate AI comment", ai_modal)
         self.assertIn("Review ready", ai_modal)
         self.assertIn("Comment ready", ai_modal)
+        self.assertIn("AiDelegatePicker", ai_modal)
+        self.assertIn("ai-delegate-modal-shell-compact", ai_modal)
+        self.assertIn("ai-delegate-context-compact", ai_modal)
+        self.assertNotIn("<select", ai_modal)
         self.assertIn("This AI delegate is disabled for future actions.", ai_modal)
         self.assertIn("Sign in as the delegate custodian.", ai_modal)
+        self.assertIn("Real model generation requires OPENAI_API_KEY on the backend service.", ai_modal)
         self.assertIn("Published as ${actorName}", ai_modal)
         self.assertIn("Canceled - nothing published.", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-review", ai_modal)
@@ -577,6 +755,12 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Open in AI Actions", ai_modal)
         self.assertIn("<IoCheckmark", ai_modal)
         self.assertIn("<IoClose", ai_modal)
+        self.assertIn("ai-delegate-action-approve", ai_modal)
+        self.assertIn("ai-delegate-action-cancel", ai_modal)
+        self.assertIn("data-ai-delegate-picker", ai_picker)
+        self.assertIn("ai-delegate-picker-button", ai_picker)
+        self.assertIn("ai-delegate-picker-menu", ai_picker)
+        self.assertIn('href="/settings/ai-delegates"', ai_modal)
         self.assertNotIn("Review AI Actions", assistant)
         self.assertNotIn("Request review draft", proposal_card)
         self.assertNotIn("save draft action", proposal_card.lower())
@@ -592,9 +776,15 @@ class AiDelegateManagementTests(unittest.TestCase):
         likes_info = (frontend_root / "content" / "proposal" / "content" / "LikesInfo.jsx").read_text(
             encoding="utf-8"
         )
+        ai_modal = (
+            frontend_root / "content" / "proposal" / "content" / "AiDelegateActionModal.jsx"
+        ).read_text(encoding="utf-8")
+        ai_picker = (
+            frontend_root / "content" / "proposal" / "content" / "AiDelegatePicker.jsx"
+        ).read_text(encoding="utf-8")
         globals_css = (frontend_root / "app" / "globals.css").read_text(encoding="utf-8")
 
-        for text in [proposal_detail, likes, likes_info]:
+        for text in [proposal_detail, likes, likes_info, ai_modal, ai_picker]:
             self.assertNotIn("rgba(255,47,130", text)
             self.assertNotIn("rgba(255,79,143", text)
             self.assertNotIn("#ff4f8f", text)

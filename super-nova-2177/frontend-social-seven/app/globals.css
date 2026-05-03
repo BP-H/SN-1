@@ -2287,7 +2287,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .ai-delegate-modal-card {
-  width: min(100%, 31rem);
+  width: min(100%, 28rem);
   max-height: calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2299,9 +2299,13 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
     0 30px 90px rgba(0, 0, 0, 0.42),
     var(--shadow-pink),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  padding: 1.15rem;
+  padding: 1rem;
   color: var(--text-black);
   scrollbar-width: none;
+}
+
+.ai-delegate-modal-shell-compact {
+  overscroll-behavior: contain;
 }
 
 .ai-delegate-modal-card::-webkit-scrollbar {
@@ -2371,9 +2375,113 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   color: var(--text-gray-light);
 }
 
+.ai-delegate-picker {
+  position: relative;
+}
+
+.ai-delegate-picker-button,
+.ai-delegate-picker-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--horizontal-line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.75rem;
+  color: var(--text-black);
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.ai-delegate-picker-button:hover,
+.ai-delegate-picker-button.is-open,
+.ai-delegate-picker-option:hover,
+.ai-delegate-picker-option.is-selected {
+  border-color: color-mix(in srgb, var(--pink) 42%, transparent);
+  background: color-mix(in srgb, var(--pink) 9%, transparent);
+}
+
+.ai-delegate-picker-menu {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0;
+  top: calc(100% + 0.45rem);
+  display: grid;
+  gap: 0.4rem;
+  max-height: min(18rem, 42dvh);
+  overflow-y: auto;
+  border: 1px solid var(--horizontal-line);
+  border-radius: 1rem;
+  background: rgba(8, 11, 18, 0.98);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.32), var(--shadow-pink);
+  padding: 0.45rem;
+}
+
+.ai-delegate-picker-avatar {
+  display: inline-flex;
+  height: 2.45rem;
+  width: 2.45rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--pink);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 900;
+  box-shadow: var(--shadow-pink);
+}
+
+.ai-delegate-picker-chip {
+  display: inline-flex;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: var(--text-gray-light);
+}
+
 .ai-delegate-preview-card {
   border: 1px solid color-mix(in srgb, var(--pink) 36%, transparent);
   background: color-mix(in srgb, var(--pink) 10%, transparent);
+}
+
+.ai-delegate-action-row {
+  border-top: 1px solid var(--horizontal-line);
+  padding-top: 0.75rem;
+}
+
+.ai-delegate-action-icon {
+  display: inline-flex;
+  height: 2.55rem;
+  width: 2.55rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 1.1rem;
+}
+
+.ai-delegate-action-cancel {
+  border: 1px solid var(--horizontal-line);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text-black);
+}
+
+.ai-delegate-action-approve {
+  border: 1px solid color-mix(in srgb, var(--pink) 52%, transparent);
+  background: var(--pink);
+  color: white;
+  box-shadow: var(--shadow-pink);
+}
+
+.ai-delegate-action-icon:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 .ai-delegate-notice {
@@ -2404,9 +2512,35 @@ html[data-theme="light"] .ai-delegate-modal-card {
 html[data-theme="light"] .ai-delegate-icon-button,
 html[data-theme="light"] .ai-delegate-secondary,
 html[data-theme="light"] .ai-delegate-select,
-html[data-theme="light"] .ai-delegate-chip {
+html[data-theme="light"] .ai-delegate-chip,
+html[data-theme="light"] .ai-delegate-picker-button,
+html[data-theme="light"] .ai-delegate-picker-option,
+html[data-theme="light"] .ai-delegate-action-cancel {
   background: rgba(17, 24, 39, 0.045);
   border-color: rgba(17, 24, 39, 0.08);
+}
+
+html[data-theme="light"] .ai-delegate-picker-menu {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 44px rgba(25, 30, 48, 0.16), var(--shadow-pink);
+}
+
+@media (max-width: 540px) {
+  .ai-delegate-modal-backdrop {
+    align-items: end;
+    padding: 0.75rem;
+  }
+
+  .ai-delegate-modal-card {
+    width: 100%;
+    max-height: calc(100dvh - 1.5rem);
+    border-radius: 1.15rem;
+    padding: 0.9rem;
+  }
+
+  .ai-delegate-picker-menu {
+    max-height: 34dvh;
+  }
 }
 
 .ai-cursor-action-button {
