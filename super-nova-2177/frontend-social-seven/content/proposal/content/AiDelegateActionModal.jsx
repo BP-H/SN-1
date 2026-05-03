@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -64,9 +64,11 @@ export default function AiDelegateActionModal({
   open,
   mode = "review",
   target = {},
+  composerContext = {},
   onClose,
   onApproved,
   onCanceled,
+  onApplyComposerSuggestion,
 }) {
   const { userData, defaultAvatar } = useUser();
   const [mounted, setMounted] = useState(false);
@@ -79,6 +81,7 @@ export default function AiDelegateActionModal({
   const [reviewBusy, setReviewBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [createHandoffOpen, setCreateHandoffOpen] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -117,10 +120,11 @@ export default function AiDelegateActionModal({
       Icon: IoChatbubbleEllipsesOutline,
     },
     composer_assist: {
-      title: "Draft as AI",
+      title: draftAction ? "Suggestion ready" : "Composer assist",
       eyebrow: "Composer AI",
-      description: "Post drafts are next. Delegates can generate reviews and comments for approval today.",
-      button: "Post drafts deferred",
+      description: "Human-assisted writing from your selected delegate. Apply it, edit, and publish as your account.",
+      button: "Generate suggestion",
+      endpoint: `${API_BASE_URL}/ai/delegates/composer-assist`,
       Icon: IoSparklesOutline,
     },
   }[mode] || {};
@@ -128,7 +132,12 @@ export default function AiDelegateActionModal({
   const summary = draftAction?.draft_payload || {};
   const isReview = mode === "review";
   const isComment = mode === "comment";
-  const canGenerate = Boolean(userData?.name && selectedDelegate && target?.id && (isReview || isComment));
+  const isComposerAssist = mode === "composer_assist";
+  const canGenerate = Boolean(
+    userData?.name &&
+      selectedDelegate &&
+      ((target?.id && (isReview || isComment)) || isComposerAssist)
+  );
   const indicators = mediaIndicators(target);
 
   useEffect(() => {
@@ -137,18 +146,17 @@ export default function AiDelegateActionModal({
     setNotice("");
     setError("");
     setFocus("");
+    setCreateHandoffOpen(false);
   }, [open, mode, target?.id]);
 
-  useEffect(() => {
-    if (!open || !userData?.name) return undefined;
-    const controller = new AbortController();
-    async function loadDelegates() {
+  const loadDelegates = useCallback(
+    async (signal) => {
       setLoadingDelegates(true);
       setError("");
       try {
         const response = await fetch(`${API_BASE_URL}/ai/delegates`, {
           headers: authHeaders(),
-          signal: controller.signal,
+          signal,
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload?.detail || "Unable to load AI delegates.");
@@ -162,12 +170,18 @@ export default function AiDelegateActionModal({
           setError(formatBackendAuthErrorMessage(err, "Unable to load AI delegates."));
         }
       } finally {
-        if (!controller.signal.aborted) setLoadingDelegates(false);
+        if (!signal?.aborted) setLoadingDelegates(false);
       }
-    }
-    loadDelegates();
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!open || !userData?.name) return undefined;
+    const controller = new AbortController();
+    loadDelegates(controller.signal);
     return () => controller.abort();
-  }, [open, userData?.name]);
+  }, [loadDelegates, open, userData?.name]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -207,11 +221,24 @@ export default function AiDelegateActionModal({
     setDraftAction(null);
     try {
       requireBackendAuthSession();
-      const body = {
-        username: userData.name,
-        proposal_id: Number(target.id),
-        ...selectedDelegatePayload(selectedDelegate),
-      };
+      const body = isComposerAssist
+        ? {
+            username: userData.name,
+            ...selectedDelegatePayload(selectedDelegate),
+            current_text: composerContext.current_text || target.text || "",
+            focus,
+            media_type: composerContext.media_type || "",
+            media_label: composerContext.media_label || "",
+            image_count: Number(composerContext.image_count || 0),
+            governance_kind: composerContext.governance_kind || "post",
+            decision_level: composerContext.decision_level || "",
+            voting_days: composerContext.voting_days || undefined,
+          }
+        : {
+            username: userData.name,
+            proposal_id: Number(target.id),
+            ...selectedDelegatePayload(selectedDelegate),
+          };
       if (isComment) body.instruction = focus;
       const response = await fetch(modeConfig.endpoint, {
         method: "POST",
@@ -222,10 +249,16 @@ export default function AiDelegateActionModal({
       if (!response.ok) throw new Error(cleanError(payload?.detail, "Unable to generate AI draft."));
       setDraftAction({
         id: payload?.action_proposal?.id,
-        action_type: payload?.action_proposal?.action_type || modeConfig.draftType,
-        draft_payload: payload?.summary || {},
+        action_type: payload?.action_proposal?.action_type || modeConfig.draftType || payload?.mode || "composer_assist",
+        draft_payload: payload?.summary || payload?.suggestion || {},
       });
-      setNotice(isReview ? "Review ready. Approve or cancel here." : "Comment ready. Approve or cancel here.");
+      setNotice(
+        isComposerAssist
+          ? "Suggestion ready. Apply it to the composer when it fits."
+          : isReview
+          ? "Review ready. Approve or cancel here."
+          : "Comment ready. Approve or cancel here."
+      );
     } catch (err) {
       setError(cleanError(err, "Unable to generate AI draft."));
     } finally {
@@ -261,6 +294,7 @@ export default function AiDelegateActionModal({
         onCanceled?.(payload, draftAction);
       }
       setDraftAction(null);
+      window.setTimeout(() => onClose?.(), 650);
     } catch (err) {
       setError(cleanError(err, "Unable to update AI draft."));
     } finally {
@@ -268,9 +302,37 @@ export default function AiDelegateActionModal({
     }
   };
 
+  const applyComposerSuggestion = () => {
+    if (!draftAction) return;
+    onApplyComposerSuggestion?.(summary);
+    setNotice("Applied to composer. Edit and post as yourself.");
+    setDraftAction(null);
+    window.setTimeout(() => onClose?.(), 450);
+  };
+
   if (!open || !mounted) return null;
 
   const Icon = modeConfig.Icon || IoSparklesOutline;
+  const createDelegateCard = (
+    <div className="ai-delegate-create-card mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
+      <p className="text-[0.88rem] font-black text-[var(--text-black)]">Create an AI delegate</p>
+      <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+        AI Genesis creates a visible delegate with a call-sign, traits, and a locked persona. Return here and refresh the picker.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link href="/settings/ai-delegates" onClick={onClose} className="ai-delegate-primary inline-flex rounded-full px-3 py-2 text-[0.74rem] font-black">
+          Create AI delegate
+        </Link>
+        <button
+          type="button"
+          onClick={() => loadDelegates()}
+          className="ai-delegate-secondary rounded-full px-3 py-2 text-[0.74rem] font-black"
+        >
+          Refresh delegates
+        </button>
+      </div>
+    </div>
+  );
 
   return createPortal(
     <div
@@ -324,9 +386,7 @@ export default function AiDelegateActionModal({
             <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
               AI delegates review, comment, and draft from their own persona. Publication requires your approval.
             </p>
-            <Link href="/settings/ai-delegates" onClick={onClose} className="ai-delegate-primary mt-4 inline-flex rounded-full px-4 py-2 text-[0.78rem] font-black">
-              Create AI delegate
-            </Link>
+            {createDelegateCard}
           </div>
         ) : (
           <>
@@ -367,7 +427,9 @@ export default function AiDelegateActionModal({
                 }}
                 defaultAvatar={defaultAvatar}
                 disabledCount={disabledDelegateCount}
+                onCreateDelegate={() => setCreateHandoffOpen((value) => !value)}
               />
+              {createHandoffOpen && createDelegateCard}
             </div>
 
             {(isComment || mode === "composer_assist") && !draftAction && (
@@ -382,17 +444,57 @@ export default function AiDelegateActionModal({
               </label>
             )}
 
-            {mode === "composer_assist" ? (
-              <div className="mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
+            {mode === "composer_assist" && !draftAction ? (
+              <div className="mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
                 <div className="flex flex-wrap gap-2">
                   <span className="ai-delegate-chip">Text</span>
                   <span className="ai-delegate-chip">Proposal framing</span>
-                  <span className="ai-delegate-chip opacity-65"><IoImageOutline /> Image draft deferred</span>
-                  <span className="ai-delegate-chip opacity-65"><IoVideocamOutline /> Video draft deferred</span>
+                  <span className="ai-delegate-chip opacity-65"><IoImageOutline /> Image guidance</span>
+                  <span className="ai-delegate-chip opacity-65"><IoVideocamOutline /> Video metadata</span>
                 </div>
-                <p className="mt-3 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
-                  Official AI-authored post publishing is intentionally deferred. Use post cards and comments to generate approval-required AI reviews and comments today.
+                <p className="mt-3 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                  This is human-assisted drafting. Apply the suggestion, edit freely, and publish as your account.
                 </p>
+                <button
+                  type="button"
+                  onClick={generateDraft}
+                  disabled={busy || !canGenerate}
+                  className="ai-delegate-primary mt-3 w-full rounded-full px-4 py-2.5 text-[0.84rem] font-black disabled:opacity-55"
+                >
+                  {busy ? "Generating..." : modeConfig.button}
+                </button>
+              </div>
+            ) : isComposerAssist && draftAction ? (
+              <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-3">
+                <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">
+                  Composer suggestion
+                </p>
+                {summary.suggested_title && (
+                  <p className="mt-2 text-[0.88rem] font-black text-[var(--text-black)]">{summary.suggested_title}</p>
+                )}
+                <p className="mt-2 max-h-44 overflow-y-auto whitespace-pre-line text-[0.82rem] leading-5 text-[var(--text-black)]">
+                  {summary.suggested_post_body || summary.suggested_body || "AI-assisted composer suggestion generated."}
+                </p>
+                {(summary.governance_framing || summary.media_caption_guidance) && (
+                  <details className="mt-2 text-[0.7rem] leading-5 text-[var(--text-gray-light)]">
+                    <summary className="cursor-pointer font-bold text-[var(--pink)]">Draft notes</summary>
+                    {summary.governance_framing && <p className="mt-1">{summary.governance_framing}</p>}
+                    {summary.media_caption_guidance && <p className="mt-1">{summary.media_caption_guidance}</p>}
+                  </details>
+                )}
+                <div className="mt-3 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)] sm:grid-cols-2">
+                  <p><span className="font-bold text-[var(--text-black)]">Model:</span> {summary.model_identity || "server/fallback"}</p>
+                  <p><span className="font-bold text-[var(--text-black)]">Generation:</span> {generationSourceLabel(summary.generation_source)}</p>
+                  {summary.context_hash && <p><span className="font-bold text-[var(--text-black)]">Context:</span> {compactHash(summary.context_hash)}</p>}
+                  {summary.content_hash && <p><span className="font-bold text-[var(--text-black)]">Content:</span> {compactHash(summary.content_hash)}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={applyComposerSuggestion}
+                  className="ai-delegate-primary mt-3 w-full rounded-full px-4 py-2.5 text-[0.82rem] font-black"
+                >
+                  Apply to composer
+                </button>
               </div>
             ) : draftAction ? (
               <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-4">
@@ -441,7 +543,7 @@ export default function AiDelegateActionModal({
           </>
         )}
 
-        {draftAction && (
+        {draftAction && !isComposerAssist && (
           <div className="ai-delegate-action-row mt-4 flex items-center justify-between gap-2">
             <button
               type="button"
@@ -473,7 +575,7 @@ export default function AiDelegateActionModal({
             {error || notice}
           </p>
         )}
-        {draftAction && (
+        {draftAction && !isComposerAssist && (
           <button
             type="button"
             onClick={() => {

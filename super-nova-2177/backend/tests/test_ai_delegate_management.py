@@ -13,32 +13,35 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def run_delegate_probe(probe: str) -> dict:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "ai_delegate_management.sqlite"
-        env = os.environ.copy()
-        env.update(
-            {
-                "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
-                "DB_MODE": "central",
-                "SECRET_KEY": "strong-test-secret-for-ai-delegates",
-                "SUPERNOVA_ENV": "development",
-                "APP_ENV": "development",
-                "ENV": "development",
-            }
-        )
-        env.pop("RAILWAY_ENVIRONMENT", None)
-        env.pop("OPENAI_API_KEY", None)
-        env.pop("OPENAI_PERSONA_MODEL", None)
+    # Windows test clients can hold SQLite handles briefly after subprocess exit.
+    # Use mkdtemp so cleanup races do not mask the actual probe assertion result.
+    tmpdir = tempfile.mkdtemp()
+    db_path = Path(tmpdir) / "ai_delegate_management.sqlite"
+    env = os.environ.copy()
+    env.update(
+        {
+            "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
+            "DB_MODE": "central",
+            "SECRET_KEY": "strong-test-secret-for-ai-delegates",
+            "SUPERNOVA_ENV": "development",
+            "APP_ENV": "development",
+            "ENV": "development",
+        }
+    )
+    env.pop("RAILWAY_ENVIRONMENT", None)
+    env.pop("OPENAI_API_KEY", None)
+    env.pop("OPENAI_PERSONA_MODEL", None)
 
-        completed = subprocess.run(
-            [sys.executable, "-c", probe],
-            cwd=PROJECT_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
+    probe_python = os.environ.get("PYTHON_EXECUTABLE_FOR_PROBES") or sys.executable
+    completed = subprocess.run(
+        [probe_python, "-c", probe],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
 
     if completed.returncode != 0:
         raise AssertionError(f"probe failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}")
@@ -680,6 +683,54 @@ class AiDelegateManagementTests(unittest.TestCase):
             result["other_comment"]["generated_comment"],
         )
 
+    def test_composer_assist_generates_contextual_human_assisted_suggestion_without_publishing(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova", traits=["Science", "Governance"])
+            delegate = created.json()["delegate"]
+            before = counts()
+            assist = client.post(
+                "/ai/delegates/composer-assist",
+                json={
+                    "username": "alice",
+                    "ai_actor_id": delegate["id"],
+                    "current_text": "Draft a post about ocean sensor review and public deployment safeguards.",
+                    "focus": "Make the decision language explicit.",
+                    "media_type": "image",
+                    "media_label": "ocean-sensors.png",
+                    "image_count": 1,
+                    "governance_kind": "decision",
+                    "decision_level": "important",
+                    "voting_days": 5,
+                },
+                headers=alice_headers,
+            )
+            after = counts()
+            result = {
+                "status": assist.status_code,
+                "summary": assist.json().get("summary"),
+                "before": before,
+                "after": after,
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["status"], 200)
+        summary = result["summary"]
+        self.assertEqual(summary["mode"], "human_assisted_composer")
+        self.assertEqual(summary["generation_source"], "deterministic_fallback_no_key")
+        self.assertIn("ocean sensor review", summary["suggested_post_body"])
+        self.assertIn("decision", summary["governance_framing"].lower())
+        self.assertIn("ocean-sensors.png", summary["media_caption_guidance"])
+        self.assertTrue(summary["content_hash"])
+        self.assertTrue(summary["context_hash"])
+        self.assertEqual(summary["selected_ai_actor_id"], summary["ai_actor_id"])
+        self.assertEqual(result["before"]["votes"], result["after"]["votes"])
+        self.assertEqual(result["before"]["comments"], result["after"]["comments"])
+
     def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
         page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
             encoding="utf-8"
@@ -735,19 +786,28 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Published as ${actorName}", proposal_card)
         self.assertIn('mode="composer_assist"', composer)
         self.assertIn('aria-label="AI"', composer)
+        self.assertIn("composerContext={composerAiContext}", composer)
+        self.assertIn("onApplyComposerSuggestion", composer)
+        self.assertIn("AI suggestion applied. Edit and publish as your account when ready.", composer)
         self.assertIn("Generate AI review", ai_modal)
         self.assertIn("Generate AI comment", ai_modal)
+        self.assertIn("Generate suggestion", ai_modal)
+        self.assertIn("Apply to composer", ai_modal)
+        self.assertIn("/ai/delegates/composer-assist", ai_modal)
         self.assertIn("Review ready", ai_modal)
         self.assertIn("Comment ready", ai_modal)
+        self.assertIn("Suggestion ready", ai_modal)
         self.assertIn("AiDelegatePicker", ai_modal)
         self.assertIn("ai-delegate-modal-shell-compact", ai_modal)
         self.assertIn("ai-delegate-context-compact", ai_modal)
         self.assertNotIn("<select", ai_modal)
+        self.assertNotIn("Post drafts deferred", ai_modal)
         self.assertIn("This AI delegate is disabled for future actions.", ai_modal)
         self.assertIn("Sign in as the delegate custodian.", ai_modal)
         self.assertIn("Real model generation requires OPENAI_API_KEY on the backend service.", ai_modal)
         self.assertIn("Published as ${actorName}", ai_modal)
         self.assertIn("Canceled - nothing published.", ai_modal)
+        self.assertIn("window.setTimeout(() => onClose?.()", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-review", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-comment", ai_modal)
         self.assertIn("approve-ai-review", ai_modal)
@@ -760,7 +820,14 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("data-ai-delegate-picker", ai_picker)
         self.assertIn("ai-delegate-picker-button", ai_picker)
         self.assertIn("ai-delegate-picker-menu", ai_picker)
+        self.assertIn("onCreateDelegate", ai_picker)
+        self.assertIn("+ Create AI delegate", ai_picker)
+        self.assertIn("ai-delegate-picker-create", ai_picker)
         self.assertIn('href="/settings/ai-delegates"', ai_modal)
+        self.assertIn("delegate_review", assistant)
+        self.assertIn("AI Review", assistant)
+        self.assertIn("AI Comment", assistant)
+        self.assertNotIn('buildPrompt("comment"', assistant)
         self.assertNotIn("Review AI Actions", assistant)
         self.assertNotIn("Request review draft", proposal_card)
         self.assertNotIn("save draft action", proposal_card.lower())
