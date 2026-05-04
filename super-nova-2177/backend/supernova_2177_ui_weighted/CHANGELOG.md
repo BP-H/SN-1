@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Added post-merge stabilization docs for rate-limit rollback and the next architecture/security sprint.
 - Tightened AI delegate action modal discoverability: mini Genesis remains available with zero delegates and a compact create-another affordance is visible when delegates already exist.
 - Reduced AI action modal weight by moving model, generation, and hash metadata into collapsed details while keeping approve/cancel publication controls unchanged.
 - Added alpha-stage commons-safe rate limits for auth, uploads, AI generation, writes, messages, and public reads. Limits are generous, species-neutral, environment-configurable circuit breakers for spam, brute force, upload abuse, and runaway automation; they are not monetization or participation throttles.
