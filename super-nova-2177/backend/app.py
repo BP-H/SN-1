@@ -101,6 +101,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.ai_action_approvals import create_ai_action_approvals_router
 
+try:
+    from .routers.proposals import create_proposals_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.proposals import create_proposals_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -6225,12 +6230,6 @@ app.include_router(create_messages_router(
 ))
 
 
-@app.post(
-    "/proposals",
-    response_model=ProposalSchema,
-    response_model_exclude={"collabs"},
-    summary="Create a new proposal",
-)
 async def create_proposal(
     title: str = Form(...),
     body: str = Form(...),
@@ -6599,7 +6598,6 @@ def read_current_user(
     current_user = get_current_harmonizer(authorization, db)
     return serialize_harmonizer(current_user)
 
-@app.get("/proposals", response_model=List[ProposalSchema])
 def list_proposals(
     filter: str = Query("all"),
     search: Optional[str] = Query(None),
@@ -7062,14 +7060,12 @@ def remove_system_vote(
 # --- Tally endpoints ---
 # REMOVE DUPLICATE get_proposal ENDPOINT
     
-@app.get("/proposals/{pid}/tally-weighted")
 def tally_weighted(pid: int):
     if not SUPER_NOVA_AVAILABLE:
         raise HTTPException(status_code=501, detail="SuperNova weighted voting not available")
     return tally_votes(pid)
 
 # --- Decision endpoint ---
-@app.post("/decide/{pid}", response_model=DecisionSchema)
 def decide(pid: int, threshold: float = 0.6, db: Session = Depends(get_db)):
     try:
         # Sistema ponderado
@@ -7966,7 +7962,6 @@ def get_user_karma(username: str, db: Session = Depends(get_db)):
     }
 
 # --- Restante dos endpoints (mantidos da sua versão) ---
-@app.get("/decisions", response_model=List[DecisionSchema])
 def list_decisions(db: Session = Depends(get_db)):
     if SUPER_NOVA_AVAILABLE:
         decisions = db.query(Decision).order_by(Decision.id.desc()).all()
@@ -7975,7 +7970,6 @@ def list_decisions(db: Session = Depends(get_db)):
         result = db.execute(text("SELECT * FROM decisions ORDER BY id DESC"))
         return [DecisionSchema(id=d.id, proposal_id=d.proposal_id, status=d.status) for d in result.fetchall()]
 
-@app.post("/runs", response_model=RunSchema)
 def create_run(decision_id: int, db: Session = Depends(get_db)):
     try:
         if SUPER_NOVA_AVAILABLE:
@@ -8003,7 +7997,6 @@ def create_run(decision_id: int, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create run: {str(e)}")
 
-@app.get("/runs", response_model=List[RunSchema])
 def list_runs(db: Session = Depends(get_db)):
     if SUPER_NOVA_AVAILABLE:
         runs = db.query(Run).order_by(Run.id.desc()).all()
@@ -8013,7 +8006,6 @@ def list_runs(db: Session = Depends(get_db)):
         return [RunSchema(id=r.id, decision_id=r.decision_id, status=r.status) for r in result.fetchall()]
 
 # --- Proposal detail endpoint (final version, single definition) ---
-@app.get("/proposals/{pid}", response_model=ProposalSchema)
 def get_proposal(pid: int, db: Session = Depends(get_db)):
     _ensure_proposal_read_indexes(db)
     if CRUD_MODELS_AVAILABLE:
@@ -8155,7 +8147,6 @@ app.include_router(create_uploads_router(
 ))
 
 # --- Delete endpoints ---
-@app.patch("/proposals/{pid}", response_model=ProposalSchema, response_model_exclude={"collabs"})
 def update_proposal(
     pid: int,
     payload: ProposalUpdateIn,
@@ -8209,7 +8200,6 @@ def update_proposal(
         raise HTTPException(status_code=500, detail=f"Failed to update proposal: {str(e)}")
 
 
-@app.delete("/proposals/{pid}")
 def delete_proposal(
     pid: int,
     author: Optional[str] = Query(None),
@@ -8259,7 +8249,6 @@ def delete_proposal(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete proposal: {str(e)}")
 
-@app.delete("/proposals")
 def delete_all_proposals(
     x_confirm_delete: Optional[str] = Header(default=None, alias="x-confirm-delete"),
     db: Session = Depends(get_db),
@@ -8294,6 +8283,27 @@ def delete_all_proposals(
 
 
 
+
+
+app.include_router(create_proposals_router(
+    proposal_response_model=ProposalSchema,
+    proposal_list_response_model=List[ProposalSchema],
+    decision_response_model=DecisionSchema,
+    decision_list_response_model=List[DecisionSchema],
+    run_response_model=RunSchema,
+    run_list_response_model=List[RunSchema],
+    create_proposal_endpoint=create_proposal,
+    list_proposals_endpoint=list_proposals,
+    tally_weighted_endpoint=tally_weighted,
+    decide_endpoint=decide,
+    list_decisions_endpoint=list_decisions,
+    create_run_endpoint=create_run,
+    list_runs_endpoint=list_runs,
+    get_proposal_endpoint=get_proposal,
+    update_proposal_endpoint=update_proposal,
+    delete_proposal_endpoint=delete_proposal,
+    delete_all_proposals_endpoint=delete_all_proposals,
+))
 
 
 # --- Register routers ---

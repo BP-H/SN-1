@@ -17,13 +17,14 @@ class RouteSplitPlanTests(unittest.TestCase):
         self.assertTrue((BACKEND_DIR / "routers" / "ai_readonly.py").exists())
         self.assertTrue((BACKEND_DIR / "routers" / "ai_actions.py").exists())
         self.assertTrue((BACKEND_DIR / "routers" / "ai_action_approvals.py").exists())
+        self.assertTrue((BACKEND_DIR / "routers" / "proposals.py").exists())
         self.assertTrue((BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").exists())
 
     def test_route_split_plan_names_next_safe_candidates(self):
         plan = (BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").read_text(encoding="utf-8")
 
         self.assertIn("Recommended Next Extraction Order To Evaluate", plan)
-        self.assertIn("1. `routers/proposals.py`", plan)
+        self.assertIn("1. `routers/comments.py`", plan)
         for expected in [
             "routers/social_graph.py",
             "routers/ai_delegates.py",

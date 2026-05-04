@@ -233,6 +233,10 @@ semantics must stay unchanged during each extraction.
 
 ### Proposals / Posts
 
+- Status: route registration extracted to `routers/proposals.py`. The high-risk
+  implementation functions remain in `app.py` as injected endpoints so media,
+  governance, collab, mention, and AI-approved post behavior stays unchanged
+  during the first proposal boundary split.
 - Paths:
   - `GET /proposals`
   - `POST /proposals`
@@ -261,13 +265,14 @@ semantics must stay unchanged during each extraction.
   `test_proposal_embedded_caps.py`, `test_proposal_mention_notifications.py`,
   `test_proposal_collab_*`, `test_read_pagination_baseline.py`,
   `test_connector_action_proposal_model.py`
-- Missing tests before extraction: create proposal with all media variants; bulk delete
-  protected by confirmation; proposal update/delete after username alias change; frontend
-  refresh contract for AI-approved posts
+- Missing tests before further helper extraction: create proposal with all media
+  variants; bulk delete protected by confirmation; proposal update/delete after
+  username alias change; frontend refresh contract for AI-approved posts
 - Risk: high
 - Recommended module: `routers/proposals.py`
-- Extraction notes: extract late. This surface is central and intertwined with uploads,
-  comments, votes, collabs, mentions, and AI action publication.
+- Extraction notes: route wrappers are extracted. Do not move helper
+  implementations until the remaining media, alias, collab, mention, and
+  AI-approved post refresh snapshots are broader.
 
 ### Comments / Comment Votes / Mentions
 
@@ -406,12 +411,13 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/proposals.py` - high-risk because it is central to post creation,
-   media payloads, collabs, mentions, and AI-approved post refresh behavior.
-2. `routers/comments.py` - high-risk because comment/reply/vote/mention behavior is
+1. `routers/comments.py` - high-risk because comment/reply/vote/mention behavior is
    intertwined with proposal serialization and AI-approved comment refresh.
-3. `routers/system_votes.py` and remaining vote routes - move late because vote
+2. `routers/system_votes.py` and remaining vote routes - move late because vote
    attribution, species metadata, and AI-approved review votes are easy to regress.
+3. Proposal helper extraction within `routers/proposals.py` - evaluate only after
+   broader media, username-alias, mention, collab, and AI-approved post refresh
+   snapshots are in place.
 
 ## Extraction Checklist For Future PRs
 

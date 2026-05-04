@@ -88,7 +88,7 @@ class CommentAuthRoutesTests(unittest.TestCase):
         self.assertEqual(result["matching_status"], 200)
         self.assertEqual(result["matching_comment"], "edited by author")
 
-    def test_comment_delete_requires_author_or_proposal_owner_token(self):
+    def test_comment_delete_requires_original_author_token(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             author_seeded = seed_comment_target(
@@ -117,7 +117,7 @@ class CommentAuthRoutesTests(unittest.TestCase):
                 content="owner-moderated delete",
             )
             owner_comment_id = owner_seeded["comment_id"]
-            matching_owner = client.delete(
+            proposal_owner = client.delete(
                 f"/comments/{owner_comment_id}?user=bob",
                 headers=bob_headers,
             )
@@ -127,8 +127,8 @@ class CommentAuthRoutesTests(unittest.TestCase):
                 "wrong_status": wrong.status_code,
                 "matching_author_status": matching_author.status_code,
                 "matching_author_deleted": matching_author.json().get("deleted"),
-                "matching_owner_status": matching_owner.status_code,
-                "matching_owner_deleted": matching_owner.json().get("deleted"),
+                "proposal_owner_status": proposal_owner.status_code,
+                "proposal_owner_detail": proposal_owner.json().get("detail"),
             }
             print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -141,8 +141,8 @@ class CommentAuthRoutesTests(unittest.TestCase):
         self.assertEqual(result["wrong_status"], 403)
         self.assertEqual(result["matching_author_status"], 200)
         self.assertTrue(result["matching_author_deleted"])
-        self.assertEqual(result["matching_owner_status"], 200)
-        self.assertTrue(result["matching_owner_deleted"])
+        self.assertEqual(result["proposal_owner_status"], 403)
+        self.assertIn("original comment author", result["proposal_owner_detail"])
 
 
 if __name__ == "__main__":
