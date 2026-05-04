@@ -276,6 +276,10 @@ semantics must stay unchanged during each extraction.
 
 ### Comments / Comment Votes / Mentions
 
+- Status: route registration extracted to `routers/comments.py`. The high-risk
+  implementation functions remain in `app.py` as injected endpoints so replies,
+  mentions, comment votes, tombstones, and AI-approved comment refresh behavior
+  stay unchanged during the first comment boundary split.
 - Paths:
   - `GET /comments`
   - `POST /comments`
@@ -298,13 +302,14 @@ semantics must stay unchanged during each extraction.
 - Existing tests: `test_comment_auth_routes.py`, `test_comment_mention_notifications.py`,
   `test_comments_pagination.py`, `test_delete_with_mentions.py`,
   `test_connector_action_inbox_cancel.py`
-- Missing tests before extraction: reply-to-reply AI comment attachment contract;
-  comment delete after username alias change; comment action refresh without full page
-  reload
+- Missing tests before further helper extraction: reply-to-reply AI comment
+  attachment contract; comment delete after username alias change; comment
+  action refresh without full page reload
 - Risk: high
 - Recommended module: `routers/comments.py`
-- Extraction notes: keep comments near proposal serialization until embedded comment
-  payloads and AI-approved comments have stronger regression coverage.
+- Extraction notes: route wrappers are extracted. Keep helper implementations
+  near proposal serialization until embedded comment payloads and AI-approved
+  comments have stronger regression coverage.
 
 ### Votes / System Votes
 
@@ -411,13 +416,14 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/comments.py` - high-risk because comment/reply/vote/mention behavior is
-   intertwined with proposal serialization and AI-approved comment refresh.
-2. `routers/system_votes.py` and remaining vote routes - move late because vote
+1. `routers/system_votes.py` and remaining vote routes - move late because vote
    attribution, species metadata, and AI-approved review votes are easy to regress.
-3. Proposal helper extraction within `routers/proposals.py` - evaluate only after
+2. Proposal helper extraction within `routers/proposals.py` - evaluate only after
    broader media, username-alias, mention, collab, and AI-approved post refresh
    snapshots are in place.
+3. Comment helper extraction within `routers/comments.py` - evaluate only after
+   broader reply-to-reply AI comment, username-alias delete, mention, pagination,
+   and refresh snapshots are in place.
 
 ## Extraction Checklist For Future PRs
 

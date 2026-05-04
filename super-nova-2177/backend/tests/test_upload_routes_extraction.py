@@ -41,9 +41,21 @@ class UploadRoutesExtractionTests(unittest.TestCase):
         app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
         module_text = (BACKEND_DIR / "routers" / "uploads.py").read_text(encoding="utf-8")
 
-        self.assertIn('app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")', app_text)
+        self.assertIn('app.mount("/uploads", SuperNovaUploadStaticFiles(directory=uploads_dir), name="uploads")', app_text)
         self.assertNotIn("StaticFiles", module_text)
         self.assertIn("/uploads", {getattr(route, "path", "") for route in backend_app.app.routes})
+
+    def test_static_uploads_keep_legacy_extensionless_images_renderable(self):
+        legacy_name = "legacy-extensionless-image-test"
+        legacy_path = Path(backend_app.uploads_dir) / legacy_name
+        legacy_path.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF" + (b"\x00" * 32))
+        try:
+            response = client.get(f"/uploads/{legacy_name}")
+        finally:
+            legacy_path.unlink(missing_ok=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers.get("content-type", "").startswith("image/jpeg"))
 
     def test_upload_routes_keep_existing_validation_shape(self):
         image_response = client.post(

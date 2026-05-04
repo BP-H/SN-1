@@ -106,6 +106,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.proposals import create_proposals_router
 
+try:
+    from .routers.comments import create_comments_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.comments import create_comments_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -452,7 +457,46 @@ async def commons_rate_limit_middleware(request: Request, call_next):
 
 uploads_dir = os.environ.get("UPLOADS_DIR") or os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+
+def _sniff_legacy_upload_media_type(full_path) -> str:
+    path = Path(str(full_path))
+    if path.suffix:
+        return ""
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(32)
+    except OSError:
+        return ""
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+        return "image/webp"
+    if header.startswith(b"BM"):
+        return "image/bmp"
+    brand = header[4:16]
+    if b"ftypavif" in brand:
+        return "image/avif"
+    if any(marker in brand for marker in (b"ftypheic", b"ftypheix", b"ftyphevc", b"ftyphevx", b"ftypmif1")):
+        return "image/heic"
+    return ""
+
+
+class SuperNovaUploadStaticFiles(StaticFiles):
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if response.headers.get("content-type", "").startswith("text/plain"):
+            legacy_media_type = _sniff_legacy_upload_media_type(full_path)
+            if legacy_media_type:
+                response.headers["content-type"] = legacy_media_type
+        return response
+
+
+app.mount("/uploads", SuperNovaUploadStaticFiles(directory=uploads_dir), name="uploads")
 if PROTOCOL_DIR.exists():
     app.mount("/protocol", StaticFiles(directory=str(PROTOCOL_DIR)), name="protocol")
 if SUPER_NOVA_CORE_APP is not None:
@@ -5126,7 +5170,6 @@ app.include_router(create_ai_readonly_router(
 ))
 
 
-@app.get("/connector/proposals/{proposal_id}/comments", summary="Read public proposal comments through the connector facade")
 def connector_get_proposal_comments(
     proposal_id: int,
     limit: int = Query(20, ge=1, le=100),
@@ -7404,7 +7447,6 @@ def list_notifications(
 
 
 # --- Comment endpoint ---
-@app.get("/comments")
 def list_comments(
     proposal_id: int,
     limit: Optional[int] = Query(None),
@@ -7507,7 +7549,6 @@ def _record_comment_mentions(
     return created_for
 
 
-@app.post("/comments")
 def add_comment(
     c: CommentIn,
     authorization: Optional[str] = Header(default=None),
@@ -7644,7 +7685,6 @@ def add_comment(
         raise HTTPException(status_code=500, detail=f"Failed to add comment: {str(e)}")
 
 
-@app.patch("/comments/{comment_id}")
 def update_comment(
     comment_id: int,
     payload: CommentUpdateIn,
@@ -7709,7 +7749,6 @@ def update_comment(
         raise HTTPException(status_code=500, detail=f"Failed to edit comment: {str(exc)}")
 
 
-@app.post("/comments/{comment_id}/votes")
 def vote_comment(
     comment_id: int,
     payload: CommentVoteIn,
@@ -7782,7 +7821,6 @@ def vote_comment(
         raise HTTPException(status_code=500, detail=f"Failed to vote on comment: {str(exc)}")
 
 
-@app.delete("/comments/{comment_id}/votes")
 def remove_comment_vote(
     comment_id: int,
     username: str = Query(...),
@@ -7814,7 +7852,6 @@ def remove_comment_vote(
         raise HTTPException(status_code=500, detail=f"Failed to remove comment vote: {str(exc)}")
 
 
-@app.delete("/comments/{comment_id}")
 def delete_comment(
     comment_id: int,
     user: str = Query(...),
@@ -7941,6 +7978,18 @@ def delete_comment(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete comment: {str(exc)}")
+
+
+app.include_router(create_comments_router(
+    connector_get_proposal_comments_endpoint=connector_get_proposal_comments,
+    list_comments_endpoint=list_comments,
+    add_comment_endpoint=add_comment,
+    update_comment_endpoint=update_comment,
+    vote_comment_endpoint=vote_comment,
+    remove_comment_vote_endpoint=remove_comment_vote,
+    delete_comment_endpoint=delete_comment,
+))
+
 
 # --- Karma endpoint ---
 @app.get("/users/{username}/karma")
