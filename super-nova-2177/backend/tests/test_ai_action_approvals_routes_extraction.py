@@ -50,17 +50,11 @@ class AiActionApprovalRoutesExtractionTests(unittest.TestCase):
         for path in expected_paths:
             self.assertIn("POST", registered[path])
 
-    def test_comment_vote_route_wrappers_remain_outside_ai_approval_router(self):
+    def test_system_vote_route_wrappers_remain_outside_ai_approval_router(self):
         app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
         module_text = (BACKEND_DIR / "routers" / "ai_action_approvals.py").read_text(encoding="utf-8")
 
         for route in [
-            '@app.get("/comments"',
-            '@app.post("/comments"',
-            '@app.patch("/comments/{comment_id}"',
-            '@app.delete("/comments/{comment_id}"',
-            '@app.post("/comments/{comment_id}/votes"',
-            '@app.delete("/comments/{comment_id}/votes"',
             '@app.get("/system-vote"',
             '@app.post("/system-vote"',
             '@app.delete("/system-vote"',
@@ -75,6 +69,14 @@ class AiActionApprovalRoutesExtractionTests(unittest.TestCase):
             '@router.delete("/proposals/{pid}"',
         ]:
             self.assertNotIn(moved_proposal_route, module_text)
+
+        for moved_comment_route in [
+            '@router.get("/comments"',
+            '@router.post("/comments"',
+            '@router.patch("/comments/{comment_id}"',
+            '@router.delete("/comments/{comment_id}"',
+        ]:
+            self.assertNotIn(moved_comment_route, module_text)
 
     def test_unknown_approval_still_requires_auth_before_not_found(self):
         response = client.post("/connector/actions/987654321/approve-vote")
