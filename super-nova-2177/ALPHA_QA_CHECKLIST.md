@@ -23,6 +23,7 @@
 - Current generous defaults are: auth 24/minute, uploads 80/hour, AI generation 36/minute, writes 180/minute, messages 120/minute, public reads 1200/minute.
 - Confirm `/health`, `/supernova-status`, protocol metadata, and static uploaded media reads stay exempt or very generous.
 - Confirm a 429 response includes friendly JSON plus `Retry-After` and `X-SuperNova-RateLimit-Bucket`.
+- Rollback switch: set `SUPERNOVA_RATE_LIMIT_ENABLED=false` to disable the alpha limiter without code changes.
 
 ## Deferred
 - Redis-backed distributed counters are still deferred; the current limiter is single-instance alpha protection.

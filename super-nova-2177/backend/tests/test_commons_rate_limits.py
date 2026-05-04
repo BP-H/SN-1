@@ -199,6 +199,26 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertNotEqual(result["disabled_first"]["status"], 429)
         self.assertNotEqual(result["disabled_second"]["status"], 429)
 
+    def test_alpha_docs_cover_rate_limit_env_and_rollback(self):
+        checklist = (PROJECT_ROOT / "ALPHA_QA_CHECKLIST.md").read_text(encoding="utf-8")
+        sprint = (PROJECT_ROOT / "NEXT_STABILITY_SPRINT.md").read_text(encoding="utf-8")
+
+        for name in [
+            "SUPERNOVA_RATE_LIMIT_ENABLED",
+            "SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR",
+            "SUPERNOVA_RATE_LIMIT_AI_GENERATION_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_PUBLIC_READS_PER_MINUTE",
+        ]:
+            self.assertIn(name, checklist)
+        self.assertIn("SUPERNOVA_RATE_LIMIT_ENABLED=false", checklist)
+        self.assertIn("not paywalls", checklist)
+        self.assertIn("Redis-backed buckets only when `REDIS_URL` is configured", sprint)
+        self.assertIn("router split", sprint.lower())
+        self.assertIn("Branch Protection", sprint)
+
 
 if __name__ == "__main__":
     unittest.main()
