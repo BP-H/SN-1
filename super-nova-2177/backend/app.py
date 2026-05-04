@@ -71,6 +71,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.messages import create_messages_router
 
+try:
+    from .routers.uploads import create_uploads_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.uploads import create_uploads_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -9743,71 +9748,20 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             )
         )
 
-# --- Upload endpoints ---
-@app.post("/upload-image")
-async def upload_image(
-    file: UploadFile = File(...),
-    username: Optional[str] = Form(None),
-    user_id: Optional[str] = Form(None),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    os.makedirs(uploads_dir, exist_ok=True)
-    if not _upload_matches(file, "image/", IMAGE_UPLOAD_EXTENSIONS):
-        raise HTTPException(status_code=400, detail="Uploaded file must be an image")
-
-    clean_username = (username or "").strip()
-    clean_user_id = (user_id or "").strip()
-    sync_error = ""
-    user = None
-    if (clean_username or clean_user_id) and Harmonizer is not None:
-        try:
-            if clean_user_id:
-                try:
-                    user = db.query(Harmonizer).filter(Harmonizer.id == int(clean_user_id)).first()
-                except (TypeError, ValueError):
-                    user = None
-            if user is None and clean_username:
-                user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
-            if user is not None:
-                _require_token_identity_match(authorization, db, getattr(user, "username", ""))
-        except HTTPException:
-            raise
-        except Exception as exc:
-            db.rollback()
-            sync_error = str(exc)
-
-    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg", UPLOAD_AVATAR_MAX_BYTES)
-
-    avatar_url = f"/uploads/{unique_name}"
-    profile_synced = False
-    if user is not None:
-        try:
-            user.profile_pic = avatar_url
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            _sync_user_avatar_references(db, user.username, avatar_url, getattr(user, "id", None))
-            profile_synced = True
-        except Exception as exc:
-            db.rollback()
-            sync_error = str(exc)
-
-    return {
-        "filename": unique_name,
-        "url": avatar_url,
-        "content_type": file.content_type,
-        "profile_synced": profile_synced,
-        "sync_error": sync_error,
-    }
-
-@app.post("/upload-file")
-async def upload_file(file: UploadFile = File(...)):
-    os.makedirs(uploads_dir, exist_ok=True)
-    if _safe_upload_extension(file) not in DOCUMENT_UPLOAD_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Uploaded file type is not supported")
-    unique_name = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS, max_bytes=UPLOAD_DOCUMENT_MAX_BYTES)
-    return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
+app.include_router(create_uploads_router(
+    get_db=get_db,
+    uploads_dir=uploads_dir,
+    image_upload_extensions=IMAGE_UPLOAD_EXTENSIONS,
+    document_upload_extensions=DOCUMENT_UPLOAD_EXTENSIONS,
+    upload_avatar_max_bytes=UPLOAD_AVATAR_MAX_BYTES,
+    upload_document_max_bytes=UPLOAD_DOCUMENT_MAX_BYTES,
+    harmonizer_model=Harmonizer,
+    upload_matches=_upload_matches,
+    safe_upload_extension=_safe_upload_extension,
+    save_upload_file=_save_upload_file,
+    require_token_identity_match=_require_token_identity_match,
+    sync_user_avatar_references=_sync_user_avatar_references,
+))
 
 # --- Delete endpoints ---
 @app.patch("/proposals/{pid}", response_model=ProposalSchema, response_model_exclude={"collabs"})
