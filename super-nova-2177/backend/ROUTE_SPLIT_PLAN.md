@@ -55,6 +55,27 @@ semantics must stay unchanged during each extraction.
 - Notes: route paths, response shapes, direct table behavior, fallback JSON store
   behavior, pagination, and auth semantics are intended to be unchanged.
 
+### Uploads / Media
+
+- Module: `backend/routers/uploads.py`
+- Paths: `POST /upload-image`, `POST /upload-file`
+- Dependencies kept in `app.py`: static `/uploads` mount, `uploads_dir`,
+  `IMAGE_UPLOAD_EXTENSIONS`, `DOCUMENT_UPLOAD_EXTENSIONS`, `UPLOAD_AVATAR_MAX_BYTES`,
+  `UPLOAD_DOCUMENT_MAX_BYTES`, `Harmonizer`, `_upload_matches`,
+  `_safe_upload_extension`, `_save_upload_file`, `_require_token_identity_match`,
+  `_sync_user_avatar_references`
+- Models/tables: none for plain direct uploads; optional `Harmonizer` profile avatar
+  sync for `/upload-image`
+- Auth: unchanged. Plain uploads remain compatible with existing behavior; profile sync
+  still requires a matching bearer token when username/user_id is supplied.
+- Frontend surfaces: composer media upload, avatar/profile image upload, AI/media post
+  flows
+- Existing tests: `test_upload_size_limits.py`, `test_auth_bound_write_routes.py`,
+  `test_upload_routes_extraction.py`
+- Risk: low-medium, already extracted
+- Notes: static `/uploads` mount intentionally remains in `app.py`; proposal create
+  media handling and profile/avatar sync helpers remain outside this router.
+
 ## Route Groups Still In `backend/app.py`
 
 ### Auth / Profile / Session
@@ -262,30 +283,6 @@ semantics must stay unchanged during each extraction.
 - Extraction notes: good after messages/uploads, but keep profile counts compatibility in
   mind.
 
-### Uploads / Media
-
-- Paths:
-  - `POST /upload-image`
-  - `POST /upload-file`
-  - static mount: `/uploads`
-- Current helper dependencies: upload size limit helpers, `_upload_matches`,
-  `_save_upload`, `_uploads_url`, media extension/content-type allowlists,
-  `UPLOADS_DIR`, FastAPI `UploadFile`
-- Models/tables: none for direct upload endpoints; proposal create stores returned URLs
-  later
-- Auth requirements: upload endpoints currently rely on route-level behavior/rate
-  limits; verify whether bearer auth should remain unchanged before any move
-- Frontend surfaces: composer media upload, avatar/profile image upload, AI/media post
-  flows
-- Existing tests: `test_upload_size_limits.py`
-- Missing tests before extraction: auth/no-auth posture snapshot; image/video/file
-  content-type matrix; static `/uploads` cache/no-store expectations
-- Risk: low-medium
-- Recommended module: `routers/uploads.py`
-- Extraction notes: recommended second extraction candidate because upload limits are
-  already covered and the route surface is compact. Do not move static mount if that
-  changes app startup behavior.
-
 ### Public Federation / Export Routes
 
 - Paths:
@@ -366,13 +363,11 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/uploads.py` - compact route set, upload limits already tested; keep static
-   mount behavior unchanged.
-2. `routers/social_graph.py` - follows/social graph is moderately bounded, but profile
+1. `routers/social_graph.py` - follows/social graph is moderately bounded, but profile
    counts and fallback JSON parity need snapshots.
-3. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
+2. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
    but high risk because it publishes AI-authored content after approval.
-4. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
+3. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
    central, intertwined, and easiest to regress.
 
 ## Extraction Checklist For Future PRs
