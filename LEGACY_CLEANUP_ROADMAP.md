@@ -76,7 +76,7 @@ Additional checks:
 | Legacy surface | Reference findings | Risk classification | Future cleanup direction |
 | --- | --- | --- | --- |
 | `super-nova-2177/frontend-nova` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, or runtime references. `start_frontend_nova.ps1` was removed with the source folder. | Completed first explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
-| `super-nova-2177/frontend-professional` | Source retained; runnable launcher support retired after fresh checks. Remaining references are cleanup/status docs, `scripts/list_cleanup_candidates.py`, the retired `start_supernova.ps1` option text, and package self-references. | Source-retirement candidate; no active launcher. | Consider source deletion in a later single-target PR after another fresh package/deployment/workflow reference check. |
+| `super-nova-2177/frontend-professional` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, runtime, or local launcher dependency. The unified launcher keeps only a retired/off-path handoff to Social Seven. | Completed explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
 | `super-nova-2177/frontend-next` | Referenced by cleanup/security docs, `REPO_STATUS.md`, `run_local.py`, `start_supernova.ps1`, `start_frontend_next.ps1`, and `frontend-social-six` docs; has `Dockerfile` and package files. | Deployment/security-sensitive legacy Next app. | Do not delete until a legacy Next deployment assessment confirms it is unused. |
 | `super-nova-2177/frontend-social-six` | Referenced by auth/security docs, cleanup docs, RSC/Next assessment, `REPO_STATUS.md`, launchers, `Dockerfile`, and social auth setup docs. | Auth-history-sensitive legacy social frontend. | Defer until a dedicated social-six retirement assessment. |
 | `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
@@ -109,11 +109,10 @@ config.
 3. `frontend-nova` launcher retirement PR: completed.
 4. `frontend-nova` deletion PR: completed after fresh reference checks found no
    active package, deployment, workflow, or runtime references.
-5. `frontend-professional` launcher retirement PR: completed; source folder is
-   still retained for a later explicit deletion PR.
-6. Repeat the source deletion pattern for `frontend-professional` only after a
-   fresh reference check confirms no active package, deployment, workflow, or
-   runtime dependency.
+5. `frontend-professional` launcher retirement PR: completed.
+6. `frontend-professional` deletion PR: completed after fresh reference checks
+   found no active package, deployment, workflow, runtime, or local launcher
+   dependency.
 7. Separate assessments for `frontend-next`, `frontend-social-six`,
    `frontend-vite-3d`, nested `nova-web`, and nested `nova-api`.
 8. Do not schedule `frontend-vite-basic` removal until the protected duplicate

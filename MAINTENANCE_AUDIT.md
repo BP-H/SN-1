@@ -36,7 +36,6 @@ Keep these compatible unless a dedicated migration plan exists:
 These may be useful references or future branches, but should not be deleted from `master` without branch-tested proof:
 
 - `super-nova-2177/frontend-next/`
-- `super-nova-2177/frontend-professional/`
 - `super-nova-2177/frontend-social-six/`
 - `super-nova-2177/frontend-vite-3d/`
 - `super-nova-2177/frontend-vite-basic/`
@@ -46,10 +45,9 @@ These may be useful references or future branches, but should not be deleted fro
 retired and fresh reference checks confirmed no active package, deployment,
 workflow, or runtime dependency.
 
-`super-nova-2177/frontend-professional/` remains in the tree for now, but its
-runnable local launcher paths were retired after reference checks. A later PR
-may delete the source folder only after another single-target package,
-deployment, workflow, and docs check.
+`super-nova-2177/frontend-professional/` was deleted after its runnable local
+launcher paths were retired and fresh reference checks confirmed no active
+package, deployment, workflow, runtime, or local launcher dependency.
 
 ## Generated Or Local Artifact Candidates
 
