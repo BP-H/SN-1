@@ -563,6 +563,10 @@ UPLOAD_IMAGE_MAX_BYTES = _upload_limit_from_env("UPLOAD_IMAGE_MAX_BYTES", 20 * 1
 UPLOAD_AVATAR_MAX_BYTES = _upload_limit_from_env("UPLOAD_AVATAR_MAX_BYTES", UPLOAD_IMAGE_MAX_BYTES)
 UPLOAD_VIDEO_MAX_BYTES = _upload_limit_from_env("UPLOAD_VIDEO_MAX_BYTES", 250 * 1024 * 1024)
 UPLOAD_DOCUMENT_MAX_BYTES = _upload_limit_from_env("UPLOAD_DOCUMENT_MAX_BYTES", 50 * 1024 * 1024)
+UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES = _upload_limit_from_env(
+    "UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES",
+    3 * 1024 * 1024,
+)
 UPLOAD_COPY_CHUNK_BYTES = 1024 * 1024
 
 
@@ -622,6 +626,31 @@ def _save_upload_file(
     file_path = os.path.join(uploads_dir, unique_name)
     _copy_upload_file_bounded(upload, file_path, max_bytes)
     return unique_name
+
+
+def _image_data_url_from_upload_file(file_name: str, content_type: Optional[str] = None) -> str:
+    if UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES <= 0:
+        return ""
+    clean_name = str(file_name or "").strip()
+    if not clean_name or "/" in clean_name or "\\" in clean_name:
+        return ""
+    full_path = Path(uploads_dir) / clean_name
+    try:
+        size = full_path.stat().st_size
+    except OSError:
+        return ""
+    if size <= 0 or size > UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES:
+        return ""
+    media_type = str(content_type or "").strip().lower()
+    if not media_type.startswith("image/"):
+        media_type = _sniff_legacy_upload_media_type(full_path)
+    if not media_type.startswith("image/"):
+        return ""
+    try:
+        encoded = base64.b64encode(full_path.read_bytes()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:{media_type};base64,{encoded}"
 
 
 def _format_timestamp(value) -> str:
@@ -966,6 +995,41 @@ def _uploads_url(value: str) -> str:
     return f"/uploads/{media}"
 
 
+def _upload_relative_path(value: str) -> str:
+    media = str(value or "").strip()
+    if not media or media.startswith(("data:", "blob:")):
+        return ""
+    try:
+        path_value = urlparse(media).path if media.startswith(("http://", "https://")) else media
+    except Exception:
+        path_value = media
+    if path_value.startswith("/uploads/"):
+        relative = path_value[len("/uploads/"):]
+    elif path_value.startswith("uploads/"):
+        relative = path_value[len("uploads/"):]
+    elif "/" not in path_value and "\\" not in path_value:
+        relative = path_value
+    else:
+        return ""
+    relative = unquote(relative).replace("\\", "/").lstrip("/")
+    if not relative or any(part in {"", ".", ".."} for part in relative.split("/")):
+        return ""
+    return relative
+
+
+def _upload_media_file_exists(value: str) -> bool:
+    relative = _upload_relative_path(value)
+    if not relative:
+        return False
+    try:
+        root = Path(uploads_dir).resolve()
+        candidate = (root / relative).resolve()
+        candidate.relative_to(root)
+        return candidate.is_file()
+    except Exception:
+        return False
+
+
 def _absolute_public_media_url(value: str) -> str:
     media = _uploads_url(value)
     if not media:
@@ -977,7 +1041,24 @@ def _absolute_public_media_url(value: str) -> str:
     return media
 
 
-def _image_urls_from_storage(value) -> List[str]:
+def _image_data_urls_from_payload(payload: Dict) -> List[str]:
+    raw_urls = payload.get("image_data_urls") or payload.get("imageDataUrls") or []
+    if isinstance(raw_urls, str):
+        try:
+            parsed = json.loads(raw_urls)
+        except Exception:
+            parsed = [raw_urls]
+        raw_urls = parsed
+    if not isinstance(raw_urls, list):
+        return []
+    return [
+        str(item or "").strip()
+        for item in raw_urls
+        if str(item or "").strip().startswith("data:image/")
+    ]
+
+
+def _image_urls_from_storage(value, fallback_data_urls: Optional[List[str]] = None) -> List[str]:
     raw = str(value or "").strip()
     if not raw:
         return []
@@ -985,9 +1066,23 @@ def _image_urls_from_storage(value) -> List[str]:
         parsed = json.loads(raw)
     except Exception:
         parsed = None
-    if isinstance(parsed, list):
-        return [_uploads_url(item) for item in parsed if str(item or "").strip()]
-    return [_uploads_url(raw)]
+    fallback_iter = iter(fallback_data_urls or [])
+    urls = []
+    values = parsed if isinstance(parsed, list) else [raw]
+    for item in values:
+        if not str(item or "").strip():
+            continue
+        media_url = _uploads_url(item)
+        fallback_url = next(fallback_iter, "")
+        if (
+            fallback_url
+            and media_url.startswith("/uploads/")
+            and not _upload_media_file_exists(media_url)
+        ):
+            urls.append(fallback_url)
+        else:
+            urls.append(media_url)
+    return urls
 
 
 def _normalize_media_layout(value: Optional[str]) -> str:
@@ -1065,8 +1160,8 @@ def _media_payload(
     payload_value=None,
     voting_deadline_value=None,
 ) -> Dict:
-    images = _image_urls_from_storage(image_value)
     payload = _payload_dict(payload_value)
+    images = _image_urls_from_storage(image_value, _image_data_urls_from_payload(payload))
     return {
         "image": images[0] if images else "",
         "images": images,
@@ -6309,6 +6404,7 @@ async def create_proposal(
     os.makedirs(uploads_dir, exist_ok=True)
     image_filename = None
     image_filenames = []
+    image_data_urls = []
     video_value = video or ""
     file_filename = None
     safe_media_layout = _normalize_media_layout(media_layout)
@@ -6333,6 +6429,9 @@ async def create_proposal(
             UPLOAD_IMAGE_MAX_BYTES,
         )
         image_filenames.append(next_filename)
+        image_data_url = _image_data_url_from_upload_file(next_filename, image_upload.content_type)
+        if image_data_url:
+            image_data_urls.append(image_data_url)
     if len(image_filenames) == 1:
         image_filename = image_filenames[0]
     elif len(image_filenames) > 1:
@@ -6368,6 +6467,8 @@ async def create_proposal(
         deadline_days = safe_voting_days if safe_governance_kind == "decision" else 7
         voting_deadline = created_at + timedelta(days=deadline_days)
     proposal_payload = {"media_layout": safe_media_layout}
+    if image_data_urls:
+        proposal_payload["image_data_urls"] = image_data_urls
     if safe_governance_kind == "decision":
         approval_threshold = _governance_threshold(safe_decision_level)
         proposal_payload.update({
