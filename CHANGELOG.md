@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a legacy frontend cleanup closeout checkpoint confirming FE7 as the only
+  active/default frontend, preserving `frontend-vite-basic` because of its
+  protected duplicate core file, and pausing further source deletion.
 - Deleted the legacy `frontend-social-six` source folder and launcher after
   owner-accepted external Supabase/Vercel/Railway/auth/API-route risk, keeping
   active production on FE7 only.

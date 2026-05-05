@@ -49,9 +49,9 @@ Changed files:
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package-lock.json`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package.json`
-- `super-nova-2177/frontend-next/package.json`
+- `super-nova-2177/frontend-next/package.json` (later deleted as legacy source)
 - `super-nova-2177/frontend-social-seven/package.json`
-- `super-nova-2177/frontend-social-six/package.json`
+- `super-nova-2177/frontend-social-six/package.json` (later deleted as legacy source)
 
 Observations:
 
