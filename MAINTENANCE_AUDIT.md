@@ -49,6 +49,11 @@ workflow, or runtime dependency.
 launcher paths were retired and fresh reference checks confirmed no active
 package, deployment, workflow, runtime, or local launcher dependency.
 
+`super-nova-2177/frontend-vite-3d/` remains in the tree because it has package
+self-references, its own `vercel.json`, and prior API-route/deployment notes.
+Its runnable local launcher paths were retired pending a dedicated deployment
+and API-route audit.
+
 ## Generated Or Local Artifact Candidates
 
 These should stay ignored where possible. If already tracked, remove only in a separate cleanup branch after confirming production and local workflows do not depend on them.

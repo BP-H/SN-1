@@ -5,7 +5,7 @@ Write-Host ""
 Write-Host "Which Frontend would you like to launch?"
 Write-Host "  1. Next.js (legacy/off-path)" -ForegroundColor Green
 Write-Host "  2. Vite Professional (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
-Write-Host "  3. Vite 3D (legacy/off-path)" -ForegroundColor Magenta
+Write-Host "  3. Vite 3D (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
 Write-Host "  4. Vite Basic (legacy/off-path)" -ForegroundColor White
 Write-Host "  5. Frontend Nova (deleted/off-path; use Social Seven)" -ForegroundColor DarkGray
 Write-Host "  6. Social Six (legacy/off-path)" -ForegroundColor Blue
@@ -21,7 +21,7 @@ if ([string]::IsNullOrWhiteSpace($choice)) {
 $frontendMap = @{
     "1" = "frontend-next"
     "2" = "__retired_frontend_professional"
-    "3" = "frontend-vite-3d"
+    "3" = "__retired_frontend_vite_3d"
     "4" = "frontend-vite-basic"
     "5" = "__retired_frontend_nova"
     "6" = "frontend-social-six"
@@ -30,7 +30,6 @@ $frontendMap = @{
 
 $frontendPorts = @{
     "frontend-next" = 3000
-    "frontend-vite-3d" = 5175
     "frontend-vite-basic" = 5174
     "frontend-social-six" = 3001
     "frontend-social-seven" = 3007
@@ -43,11 +42,13 @@ if ($null -eq $frontendDir) {
     exit 1
 }
 
-if ($frontendDir -eq "__retired_frontend_nova" -or $frontendDir -eq "__retired_frontend_professional") {
+if ($frontendDir -eq "__retired_frontend_nova" -or $frontendDir -eq "__retired_frontend_professional" -or $frontendDir -eq "__retired_frontend_vite_3d") {
     if ($frontendDir -eq "__retired_frontend_nova") {
         Write-Host "`nfrontend-nova was deleted after retirement. Use frontend-social-seven." -ForegroundColor Yellow
-    } else {
+    } elseif ($frontendDir -eq "__retired_frontend_professional") {
         Write-Host "`nfrontend-professional local launchers were retired after cleanup checks. Use frontend-social-seven." -ForegroundColor Yellow
+    } else {
+        Write-Host "`nfrontend-vite-3d local launchers were retired pending deployment/API-route audit. Use frontend-social-seven." -ForegroundColor Yellow
     }
     Write-Host "Run this launcher again and choose option 7 for Social Seven." -ForegroundColor Cyan
     exit 0

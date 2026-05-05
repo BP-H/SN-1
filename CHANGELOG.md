@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Retired runnable local launcher support for the deployment-sensitive
+  `frontend-vite-3d` legacy frontend while keeping its source folder for a later
+  deployment/API-route audit.
 - Deleted the inactive `frontend-professional` source folder after launcher
   retirement and fresh reference checks found no active runtime, workflow, or
   deployment dependency.
