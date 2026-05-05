@@ -53,7 +53,14 @@ function normalizeBaseUrl(url) {
 
 function joinApiUrl(baseUrl, path = "") {
   if (!path) return baseUrl;
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:") ||
+    path.startsWith("blob:")
+  ) {
+    return path;
+  }
   if (!path.startsWith("/")) return `${baseUrl}/${path}`;
   return `${baseUrl}${path}`;
 }
