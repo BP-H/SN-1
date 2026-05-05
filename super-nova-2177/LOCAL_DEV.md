@@ -43,9 +43,9 @@ python run_local.py --frontend social-seven
 `frontend-nova`, `frontend-professional`, `frontend-vite-3d`, and
 `frontend-next` local launcher targets are retired/off-path. Use `social-seven`
 for the active frontend. The `frontend-vite-3d` source folder was deleted after
-retirement with owner-accepted external Vercel/API-route risk. The
-`frontend-next` source folder remains in the repo for deployment/auth/security
-assessment and is not an active local launcher.
+retirement with owner-accepted external Vercel/API-route risk. The tracked
+`frontend-next` source folder was deleted after retirement with owner-accepted
+external deployment/auth/API-route risk.
 
 ## Requirements
 

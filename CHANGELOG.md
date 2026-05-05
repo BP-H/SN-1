@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Deleted the retired `frontend-next` source folder after launcher retirement
+  and owner-accepted external deployment/auth/API-route risk, keeping active
+  production on FE7 only.
 - Deleted the retired `frontend-vite-3d` source folder after launcher
   retirement and owner-accepted external Vercel/API-route risk, keeping active
   production on FE7 only.

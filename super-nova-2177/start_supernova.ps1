@@ -47,7 +47,7 @@ if ($frontendDir -eq "__retired_frontend_nova" -or $frontendDir -eq "__retired_f
     } elseif ($frontendDir -eq "__retired_frontend_professional") {
         Write-Host "`nfrontend-professional local launchers were retired after cleanup checks. Use frontend-social-seven." -ForegroundColor Yellow
     } elseif ($frontendDir -eq "__retired_frontend_next") {
-        Write-Host "`nfrontend-next local launchers were retired pending deployment/auth/security audit. Use frontend-social-seven." -ForegroundColor Yellow
+        Write-Host "`nfrontend-next was deleted after launcher retirement. Use frontend-social-seven." -ForegroundColor Yellow
     } else {
         Write-Host "`nfrontend-vite-3d was deleted after launcher retirement. Use frontend-social-seven." -ForegroundColor Yellow
     }

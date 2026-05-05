@@ -33,7 +33,7 @@ class LocalDockerComposeAuditTests(unittest.TestCase):
             "NESTED_LEGACY_SURFACES_AUDIT.md",
             "super-nova-2177/backend/Dockerfile",
             "super-nova-2177/frontend-social-seven/Dockerfile",
-            "super-nova-2177/frontend-next/Dockerfile",
+            "frontend-next` source after owner-accepted external deployment/auth/API-route",
             "super-nova-2177/frontend-social-six/Dockerfile",
             "super-nova-2177/backend/supernova_2177_ui_weighted/nova-api/Dockerfile",
         ]:

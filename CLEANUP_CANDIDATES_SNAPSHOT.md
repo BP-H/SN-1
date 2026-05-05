@@ -34,12 +34,10 @@ Completed entries are history, not active cleanup candidates.
   retirement and fresh repo-local reference checks. The owner explicitly
   accepted the remaining external Vercel/API-route uncertainty documented in
   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
-- `super-nova-2177/frontend-next` runnable local launcher support was retired;
-  the source folder remains a deployment/auth/security-sensitive cleanup
-  candidate until manual Vercel/project-root verification proves its Next app,
-  Dockerfile path, Supabase auth dependencies, and `/api/ai` handler are not
-  deployed. The local repo audit is recorded in
-  `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
+- `super-nova-2177/frontend-next` was deleted after runnable local launcher
+  retirement and fresh repo-local reference checks. The owner explicitly
+  accepted the remaining external deployment/auth/API-route uncertainty
+  documented in `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
 - `super-nova-2177/frontend-social-six` was audited as auth-history-sensitive;
   source and runnable local launcher support remain intact until manual
   Supabase/Vercel/Railway verification proves its provider-auth flow,
@@ -51,7 +49,6 @@ Completed entries are history, not active cleanup candidates.
 These folders are retained/deferred candidates. Deleted folders such as
 `frontend-nova` and `frontend-professional` should not be relisted here.
 
-- `super-nova-2177/frontend-next`
 - `super-nova-2177/frontend-social-six`
 - `super-nova-2177/frontend-vite-basic`
 
@@ -93,7 +90,6 @@ deployment/import/test gates are satisfied.
 ## Typo-Named Tracked Files
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend/tr_pages/animate_gaussion.py`
-- `super-nova-2177/frontend-next/content/proposal/content/LikesDeslikes.jsx`
 - `super-nova-2177/frontend-social-seven/content/proposal/content/LikesDeslikes.jsx`
 - `super-nova-2177/frontend-social-six/content/proposal/content/LikesDeslikes.jsx`
 - `super-nova-2177/frontend-vite-basic/src/components/LikesDeslikes.tsx`
