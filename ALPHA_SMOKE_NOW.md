@@ -5,6 +5,10 @@ architecture/security sprint. This is a manual QA checklist, not a new runtime
 feature gate. Keep live/network smoke advisory unless the deployed environment
 is intentionally being promoted.
 
+Before starting, copy `ALPHA_SMOKE_SIGNOFF_TEMPLATE.md` into a dated signoff
+note and record the commit SHA, frontend URL, backend URL, browser/device, date,
+pass/fail/blocked rows, known issues, and rollback target.
+
 ## Account And Public Reads
 
 - [ ] Sign up as Human.
@@ -95,6 +99,14 @@ should live in persistent object storage or an equivalent durable media layer.
   backend health/status/feed reads without signing in or mutating data.
 - [ ] Keep this advisory until broader backend-seeded and mobile E2E coverage is
   stable enough to become a required branch check.
+
+## Branch Protection Reminder
+
+- [ ] Branch protection remains manual unless enabled in GitHub settings.
+- [ ] If enabling first-pass protection, require only `Backend local
+  deterministic checks` and `FE7 local deterministic checks`, and require
+  branches to be up to date before merging.
+- [ ] Keep live/network smoke and advisory E2E checks unrequired.
 
 ## Safety Gates
 

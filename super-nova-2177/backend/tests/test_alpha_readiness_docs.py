@@ -45,6 +45,12 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         smoke = (REPO_ROOT / "ALPHA_SMOKE_NOW.md").read_text(encoding="utf-8")
 
         for expected in [
+            "ALPHA_SMOKE_SIGNOFF_TEMPLATE.md",
+            "commit SHA",
+            "frontend URL",
+            "backend URL",
+            "browser/device",
+            "rollback target",
             "AI delegate",
             "AI review draft",
             "AI comment draft",
@@ -64,14 +70,43 @@ class AlphaReadinessDocsTests(unittest.TestCase):
             "/supernova-status",
             "/status",
             "rate limits",
+            "Backend local",
+            "FE7 local",
+            "advisory E2E checks unrequired",
         ]:
             self.assertIn(expected, smoke)
 
         checklist = (REPO_ROOT / "ALPHA_QA_CHECKLIST.md").read_text(encoding="utf-8")
         self.assertIn("ALPHA_SMOKE_NOW.md", checklist)
+        self.assertIn("ALPHA_SMOKE_SIGNOFF_TEMPLATE.md", checklist)
         self.assertIn("bounded DB-backed `data:image/...` fallback", checklist)
         self.assertIn("cannot be reconstructed from app code alone", checklist)
         self.assertIn("Persistent object storage", checklist)
+
+    def test_alpha_smoke_signoff_template_captures_required_evidence(self):
+        template = (REPO_ROOT / "ALPHA_SMOKE_SIGNOFF_TEMPLATE.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "Commit SHA",
+            "Frontend URL",
+            "Backend URL",
+            "Browser and version",
+            "Device / viewport",
+            "Smoke date",
+            "Previous known-good rollback target",
+            "PASS",
+            "FAIL",
+            "BLOCKED",
+            "Known Issues",
+            "Rollback target",
+            "Require status checks to pass before merging",
+            "Require branches to be up to date before merging",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "E2E remains advisory",
+            "cannot be reconstructed by app code alone",
+        ]:
+            self.assertIn(expected, template)
 
 
 if __name__ == "__main__":
