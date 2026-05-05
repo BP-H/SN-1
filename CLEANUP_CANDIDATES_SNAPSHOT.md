@@ -23,7 +23,9 @@ This is a read-only inventory. It is not approval to delete anything from `maste
   launcher dependency.
 - `super-nova-2177/frontend-vite-3d` runnable local launcher support was
   retired; the source folder remains a deployment-sensitive cleanup candidate
-  until a dedicated Vercel/API-route audit proves deletion is safe.
+  until manual Vercel/project-root verification proves its Vite app and
+  Vercel-style `/api/*` handlers are not deployed. The local repo audit is
+  recorded in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
 
 ## Legacy Or Experimental Frontend Trees
 

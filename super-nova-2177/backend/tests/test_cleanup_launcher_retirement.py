@@ -49,6 +49,13 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertIn("frontend-vite-3d` | Source retained; runnable local launcher support retired", roadmap)
         self.assertIn("super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py", roadmap)
 
+        audit = (ROOT / "FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md").read_text(encoding="utf-8")
+        self.assertIn("Deletion is deferred", audit)
+        self.assertIn("vercel.json", audit)
+        self.assertIn("api/ Audit", audit)
+        self.assertIn("manual Vercel/project-root", audit)
+        self.assertIn("verification", audit)
+
 
 if __name__ == "__main__":
     unittest.main()

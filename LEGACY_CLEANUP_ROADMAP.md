@@ -80,7 +80,7 @@ Additional checks:
 | `super-nova-2177/frontend-next` | Referenced by cleanup/security docs, `REPO_STATUS.md`, `run_local.py`, `start_supernova.ps1`, `start_frontend_next.ps1`, and `frontend-social-six` docs; has `Dockerfile` and package files. | Deployment/security-sensitive legacy Next app. | Do not delete until a legacy Next deployment assessment confirms it is unused. |
 | `super-nova-2177/frontend-social-six` | Referenced by auth/security docs, cleanup docs, RSC/Next assessment, `REPO_STATUS.md`, launchers, `Dockerfile`, and social auth setup docs. | Auth-history-sensitive legacy social frontend. | Defer until a dedicated social-six retirement assessment. |
 | `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
-| `super-nova-2177/frontend-vite-3d` | Source retained; runnable local launcher support retired after fresh checks. Remaining references include cleanup/status docs, package self-references, its own `vercel.json`, and prior notes about Vercel-style API routes. | Deployment-sensitive; no active launcher. | Defer source deletion until deployment/API route audit confirms it is unused. |
+| `super-nova-2177/frontend-vite-3d` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel project-root settings were not manually verified. | Deployment/API-sensitive; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder and `/api/*` handlers are not deployed. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web` | Referenced by nested cleanup/security docs, `REPO_STATUS.md`, package/lockfile files, Next config, internal comments, and universe docs. | Nested legacy app and dependency-sensitive. | Keep under nested backend/lockfile cleanup plan. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api` | Referenced by `REPO_STATUS.md` and its own `index.py`. | Low visible reference count, but nested backend-sensitive. | Assess with nested backend cleanup, not frontend cleanup. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` | Referenced by `REPO_STATUS.md`, many nested docs, install scripts, utility imports, compatibility wrappers, and tests. | Do not touch. Active legacy Python UI package. | Do not delete or rename without a compatibility and test audit. |
@@ -114,7 +114,9 @@ config.
    found no active package, deployment, workflow, runtime, or local launcher
    dependency.
 7. `frontend-vite-3d` launcher retirement PR: completed; source folder is still
-   retained until a deployment/API-route audit proves deletion is safe.
+   retained. Dedicated deployment/API audit is documented in
+   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until
+   manual Vercel/project-root verification proves it safe.
 8. Separate assessments for `frontend-next`, `frontend-social-six`, nested
    `nova-web`, and nested `nova-api`.
 9. Do not schedule `frontend-vite-basic` removal until the protected duplicate
