@@ -5,6 +5,9 @@ This audit captures cleanup direction without changing runtime behavior. Do not 
 Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` pauses broad cleanup after
 the latest launcher/source retirements and nested audits. Use it to decide the
 next safe sprint before deleting, moving, or retiring more legacy surfaces.
+Legacy frontend source deletion is closed out in
+`LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`; return to alpha smoke/product work before
+starting any new deletion sprint.
 
 ## Active Production Paths
 
@@ -39,7 +42,9 @@ Keep these compatible unless a dedicated migration plan exists:
 
 These may be useful references or future branches, but should not be deleted from `master` without branch-tested proof:
 
-- `super-nova-2177/frontend-vite-basic/`
+- `super-nova-2177/frontend-vite-basic/` (retained because it contains
+  protected duplicate `supernovacore.py` and participates in the safe-check
+  contract; future changes need a dedicated protected-core-safe plan)
 - nested or duplicate backend experiments under `super-nova-2177/backend/supernova_2177_ui_weighted/`
 
 `super-nova-2177/frontend-nova/` was deleted after its local launchers were

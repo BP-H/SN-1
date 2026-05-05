@@ -11,6 +11,10 @@ protection, smoke-blocker fixes, first-user polish, and durable media storage.
 This checkpoint began as documentation-only. Later cleanup PRs may update this
 status record after single-target cleanup work passes its own checks.
 
+Legacy frontend cleanup is now closed out in
+`LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`. Treat that document as the current
+handoff back to alpha smoke and product work.
+
 ## Completed Cleanup
 
 - `frontend-nova` was deleted after launcher retirement and fresh reference
@@ -42,7 +46,8 @@ Do not touch these casually:
   `super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py`
 - Protected duplicate core:
   `super-nova-2177/frontend-vite-basic/supernovacore.py`
-- `super-nova-2177/frontend-vite-basic`
+- `super-nova-2177/frontend-vite-basic` (retained because it contains protected
+  duplicate core and participates in the safe-check contract)
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`

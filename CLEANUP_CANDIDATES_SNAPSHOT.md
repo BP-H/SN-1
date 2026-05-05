@@ -14,6 +14,8 @@ lint/build, public protocol smoke, and protected-core zero diff.
 Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` summarizes completed
 cleanup, deferred cleanup, manual external verification needs, and the
 recommended non-cleanup priorities before any further deletion work.
+Legacy frontend source deletion is closed out in
+`LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`.
 
 ## Completed Cleanup
 
@@ -50,6 +52,10 @@ These folders are retained/deferred candidates. Deleted folders such as
 `frontend-nova` and `frontend-professional` should not be relisted here.
 
 - `super-nova-2177/frontend-vite-basic`
+
+`frontend-vite-basic` remains retained because it contains protected duplicate
+`supernovacore.py` and is part of the protected-core safe-check contract. Do not
+delete, retire, or move it without a dedicated protected-core-safe plan.
 
 ## Nested Backend Experiments
 

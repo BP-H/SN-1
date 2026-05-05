@@ -47,6 +47,10 @@ The tracked `frontend-next` source folder was deleted after retirement with
 owner-accepted external deployment/auth/API-route risk. The tracked
 `frontend-social-six` source folder and launcher were deleted after
 owner-accepted external Supabase/Vercel/Railway/auth/API-route risk.
+Legacy frontend cleanup is closed out in
+`../LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`. `frontend-vite-basic` remains retained
+because it contains protected duplicate `supernovacore.py`; do not delete or
+retire it without a dedicated protected-core-safe plan.
 
 ## Requirements
 
