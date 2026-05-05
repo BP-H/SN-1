@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Deleted the inactive `frontend-professional` source folder after launcher
+  retirement and fresh reference checks found no active runtime, workflow, or
+  deployment dependency.
 - Retired runnable local launcher support for the inactive `frontend-professional`
   legacy frontend while keeping active FE7, backend runtime, uploads, DB files,
   and protected core untouched.
