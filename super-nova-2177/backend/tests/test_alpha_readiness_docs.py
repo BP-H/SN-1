@@ -108,6 +108,23 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         ]:
             self.assertIn(expected, template)
 
+    def test_incomplete_alpha_smoke_signoff_does_not_invent_results(self):
+        signoff = (REPO_ROOT / "ALPHA_SMOKE_SIGNOFF_2026-05-04_INCOMPLETE.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "Incomplete",
+            "NOT PROVIDED",
+            "NOT RUN",
+            "No manual smoke evidence was provided",
+            "BLOCKED - no completed manual smoke results were provided",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "cannot be reconstructed by app code alone",
+        ]:
+            self.assertIn(expected, signoff)
+
 
 if __name__ == "__main__":
     unittest.main()
