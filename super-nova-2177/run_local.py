@@ -29,14 +29,6 @@ FRONTENDS = {
         "type": "vite",
         "status": "legacy/off-path",
     },
-    "vite-3d": {
-        "dir": ROOT / "frontend-vite-3d",
-        "env_key": "VITE_API_URL",
-        "port": 5175,
-        "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5175"],
-        "type": "vite",
-        "status": "legacy/off-path",
-    },
     "social-six": {
         "dir": ROOT / "frontend-social-six",
         "env_key": "NEXT_PUBLIC_API_URL",

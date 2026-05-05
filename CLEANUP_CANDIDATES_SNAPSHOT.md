@@ -21,6 +21,9 @@ This is a read-only inventory. It is not approval to delete anything from `maste
 - `super-nova-2177/frontend-professional` was deleted after fresh reference
   checks found no active package, deployment, workflow, runtime, or local
   launcher dependency.
+- `super-nova-2177/frontend-vite-3d` runnable local launcher support was
+  retired; the source folder remains a deployment-sensitive cleanup candidate
+  until a dedicated Vercel/API-route audit proves deletion is safe.
 
 ## Legacy Or Experimental Frontend Trees
 
