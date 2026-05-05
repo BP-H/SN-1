@@ -123,8 +123,9 @@ Classification:
   do not change without deployment smoke.
 - `super-nova-2177/frontend-social-seven/Dockerfile`: active FE7-adjacent
   Dockerfile, not referenced by the current project Compose file.
-- `super-nova-2177/frontend-next/Dockerfile`: retained deployment/auth-sensitive
-  legacy surface; see `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
+- `super-nova-2177/frontend-next/Dockerfile`: later deleted with the retired
+  `frontend-next` source after owner-accepted external deployment/auth/API-route
+  risk. It is no longer a retained Dockerfile surface.
 - `super-nova-2177/frontend-social-six/Dockerfile`: retained
   auth-history-sensitive legacy surface; see
   `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.

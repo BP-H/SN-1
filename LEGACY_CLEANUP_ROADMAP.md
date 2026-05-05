@@ -86,7 +86,7 @@ Additional checks:
 | --- | --- | --- | --- |
 | `super-nova-2177/frontend-nova` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, or runtime references. `start_frontend_nova.ps1` was removed with the source folder. | Completed first explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
 | `super-nova-2177/frontend-professional` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, runtime, or local launcher dependency. The unified launcher keeps only a retired/off-path handoff to Social Seven. | Completed explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
-| `super-nova-2177/frontend-next` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/auth/security audit found a standalone Next package, Dockerfile, Supabase auth dependencies, and an `app/api/ai` route. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel/project-root settings were not manually verified. | Deployment/auth/security-sensitive legacy Next app; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder, Dockerfile path, Supabase auth surface, and `/api/ai` handler are not deployed. |
+| `super-nova-2177/frontend-next` | Deleted after runnable local launcher retirement and fresh repo-local reference checks. Dedicated deployment/auth/security audit found a standalone Next package, Dockerfile, Supabase auth dependencies, and an `app/api/ai` route; the owner explicitly accepted the remaining external deployment/auth/API-route uncertainty before deletion. | Completed deployment/auth-sensitive legacy source deletion. | Roll back with a single revert if the retired source, Dockerfile, Supabase auth surface, or `/api/ai` handler are needed again. |
 | `super-nova-2177/frontend-social-six` | Source and launchers retained. Dedicated auth/deployment audit found a standalone Next package, Dockerfile, Supabase auth dependencies, `SOCIAL_AUTH_SETUP.md`, and an `app/api/ai` route. Local repo checks found no active workflow or external deploy config pointing to it, but Supabase/Vercel/Railway settings were not manually verified. | Auth-history-sensitive legacy social frontend with active local launcher. | Defer launcher retirement and source deletion until manual Supabase/Vercel/Railway verification confirms the provider-auth flow, Dockerfile path, and `/api/ai` handler are inactive. |
 | `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
 | `super-nova-2177/frontend-vite-3d` | Deleted after runnable local launcher retirement and fresh repo-local reference checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers; the owner explicitly accepted the remaining external Vercel/API-route uncertainty before deletion. | Completed deployment-sensitive legacy source deletion. | Roll back with a single revert if the retired source or Vercel-style API handlers are needed again. |
@@ -125,10 +125,10 @@ config.
    deleted after fresh repo-local checks and owner-accepted external
    Vercel/API-route risk documented in
    `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
-8. `frontend-next` launcher retirement PR: completed; source folder is still
-   retained. Dedicated deployment/auth/security audit is documented in
-   `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until
-   manual Vercel/project-root verification proves it safe.
+8. `frontend-next` launcher retirement PR: completed; source folder was deleted
+   after fresh repo-local checks and owner-accepted external
+   deployment/auth/API-route risk documented in
+   `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
 9. `frontend-social-six` auth/deployment audit: completed; source folder and
    launchers are still retained. Audit is documented in
    `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`, and launcher retirement remains

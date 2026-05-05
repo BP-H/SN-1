@@ -4,11 +4,30 @@ Date: 2026-05-05
 
 ## Decision
 
-`super-nova-2177/frontend-next/` source is retained. Runnable local launcher
-support is retired because local reference checks found no active workflow,
-deployment config, or repo-level runtime dependency outside docs and local
-launchers. Source deletion is deferred because the folder is
-deployment/auth/security-sensitive.
+Deletion was performed in a later single-target cleanup PR. The owner explicitly
+accepted the external deployment/auth/API-route risk documented below, and fresh
+repo-local reference checks still found no active workflow, package, launcher,
+script, or deployment config outside the folder pointing to
+`super-nova-2177/frontend-next/`.
+
+The deletion PR did not change runtime behavior, frontend UI, backend routes,
+deployment settings, uploads, DB files, Docker Compose behavior, or protected
+core.
+
+## 2026-05-05 Owner-Accepted Deletion
+
+The owner explicitly accepted the remaining external uncertainty:
+
+- unknown Vercel/Railway/Docker project-root state
+- unknown Supabase auth/provider dependency
+- unknown active `app/api/ai` exposure
+- unknown external smoke/manual QA dependency on the legacy Next app
+
+With that risk accepted, the tracked `super-nova-2177/frontend-next/` source was
+deleted as a single cleanup target. Active production remains
+`frontend-social-seven` only. Rollback is a single revert of the deletion PR if
+the retired Next source, Dockerfile, Supabase auth surface, or `app/api/ai`
+handler are needed again.
 
 ## Reference Checks Performed
 
@@ -21,13 +40,12 @@ deployment/auth/security-sensitive.
 - Inspected `super-nova-2177/frontend-next/Dockerfile`.
 - Inspected `super-nova-2177/frontend-next/next.config.mjs`.
 - Inspected `super-nova-2177/frontend-next/app/api/ai/route.js`.
-- Confirmed `run_local.py` exposed `next` before this retirement.
-- Confirmed `start_supernova.ps1` exposed `frontend-next` before this
-  retirement.
+- Confirmed `run_local.py` no longer exposes `next`.
+- Confirmed `start_supernova.ps1` option 1 is a retired handoff to Social Seven.
 
 ## Audit Result
 
-Local repo checks found these references before retirement:
+Local repo checks found these references before launcher retirement:
 
 - Cleanup/status/security docs.
 - `scripts/list_cleanup_candidates.py`, which keeps the source listed as a
@@ -38,13 +56,14 @@ Local repo checks found these references before retirement:
 - `super-nova-2177/frontend-social-six/SOCIAL_AUTH_SETUP.md`, which documents
   social-six as derived from the original Next app.
 
-No active GitHub workflow or repo-level deploy config outside
-`frontend-next/` was found pointing at this folder. Manual Vercel/Railway
-project settings were not verified.
+Fresh deletion checks found no active GitHub workflow or repo-level deploy
+config outside `frontend-next/` pointing at this folder. Manual
+Vercel/Railway/Docker/Supabase settings were not verified; that risk was
+explicitly accepted by the owner for deletion.
 
 ## Deployment/Auth/Security Notes
 
-`frontend-next` is not safe for source deletion yet because it contains:
+`frontend-next` was deployment/auth/security-sensitive because it contained:
 
 - A standalone Next package and lockfiles.
 - A `Dockerfile`.
@@ -52,21 +71,21 @@ project settings were not verified.
 - An `app/api/ai/route.js` handler that uses server-side `OPENAI_API_KEY`.
 - Legacy content and proposal routes that may be useful for future archaeology.
 
-Deletion is deferred until manual Vercel/project-root verification confirms the
-folder, Dockerfile path, Supabase auth surface, and `/api/ai` handler are not
-deployed.
+Deletion proceeded after the owner accepted the unresolved external
+deployment/auth/API-route uncertainty.
 
 ## Current State
 
 - Active/default frontend remains `super-nova-2177/frontend-social-seven`.
-- `frontend-next` source remains in the repo.
+- Tracked `frontend-next` source was deleted.
 - `frontend-next` no longer appears in `run_local.py --list-frontends`.
 - `start_supernova.ps1` option 1 is a retired handoff to Social Seven.
 - `start_frontend_next.ps1` was removed.
 
-## Future Deletion Checklist
+## Historical Deletion Checklist
 
-Before deleting `frontend-next/`, verify:
+This was the preferred external verification checklist before the owner accepted
+the risk and deletion proceeded:
 
 - No Vercel project root points to `super-nova-2177/frontend-next`.
 - No Railway/Docker deploy path uses `frontend-next/Dockerfile`.
@@ -78,6 +97,6 @@ Before deleting `frontend-next/`, verify:
 
 ## Rollback
 
-If the retired launcher is needed again, revert the launcher-retirement PR to
-restore `start_frontend_next.ps1` and the `frontend-next` entries in
-`run_local.py` and `start_supernova.ps1`.
+Rollback is a single revert restoring `super-nova-2177/frontend-next/`, its
+Dockerfile, Supabase auth surface, `app/api/ai` handler, and cleanup candidate
+docs.
