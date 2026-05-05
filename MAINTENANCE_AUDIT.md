@@ -52,7 +52,10 @@ package, deployment, workflow, runtime, or local launcher dependency.
 `super-nova-2177/frontend-vite-3d/` remains in the tree because it has package
 self-references, its own `vercel.json`, and prior API-route/deployment notes.
 Its runnable local launcher paths were retired pending a dedicated deployment
-and API-route audit.
+and API-route audit. The audit is now captured in
+`FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`; source deletion remains deferred until
+manual Vercel/project-root verification confirms the folder's app and `/api/*`
+handlers are not deployed.
 
 ## Generated Or Local Artifact Candidates
 
