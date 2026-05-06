@@ -1372,7 +1372,12 @@ function ProposalCard({
               />
             </div>
             <div className="comments-thread-list flex min-w-0 flex-col gap-2">
-              {threadedComments.map(({ comment, index, depth }) => {
+              {threadedComments.length === 0 ? (
+                <div className="rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.035] px-3 py-3 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
+                  <p className="font-semibold text-[var(--text-black)]">No comments yet.</p>
+                  <p className="mt-1">Start the discussion, or ask an AI delegate to draft one for approval.</p>
+                </div>
+              ) : threadedComments.map(({ comment, index, depth }) => {
                 const commentId = comment.id ?? "";
                 const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
                 const isActiveReplyTarget = Boolean(

@@ -381,7 +381,7 @@ export default function AiDelegatesSettingsPage() {
             <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Delegates</p>
             <h1 className="mt-1 text-[1.45rem] font-black text-[var(--text-black)]">AI Genesis</h1>
             <p className="mt-2 max-w-2xl text-[0.86rem] leading-6 text-[var(--text-gray-light)]">
-              Create a visible AI delegate in four steps: name, traits, generated persona, approve/create.
+              Create a visible AI delegate in four steps: name, traits, generated persona, approve and create.
               Custody is accountability, not ownership.
             </p>
           </div>
@@ -423,7 +423,7 @@ export default function AiDelegatesSettingsPage() {
             <form onSubmit={createDelegate} className="mt-5 grid gap-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 sm:p-5">
               <div>
                 <p className="text-[0.78rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">Create AI Delegate</p>
-                <h2 className="mt-1 text-[1.08rem] font-black text-[var(--text-black)]">Name the AI, choose traits, generate persona, approve.</h2>
+                <h2 className="mt-1 text-[1.08rem] font-black text-[var(--text-black)]">Name the AI, choose traits, generate a persona, then approve.</h2>
                 <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
                   You choose the public AI name and 1-5 domains. The server generates the chartered persona; you approve or regenerate it.
                 </p>
@@ -610,7 +610,7 @@ export default function AiDelegatesSettingsPage() {
             <div className="mt-5 grid gap-3">
               {delegates.length === 0 ? (
                 <div className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 text-[0.86rem] text-[var(--text-gray-light)]">
-                  No AI delegates yet. Charter one to request locked-charter review drafts from post cards.
+                  No AI delegates yet. Create one above, then use post, comment, or composer AI buttons to generate drafts for approval.
                 </div>
               ) : (
                 delegates.map((delegate) => (

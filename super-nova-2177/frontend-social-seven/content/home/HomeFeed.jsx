@@ -472,7 +472,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 }}
                 className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-3.5 py-2.5 text-left text-[0.88rem] text-[var(--text-gray-light)]"
               >
-                Share your thoughts...
+                Post, propose, or ask AI...
               </button>
 
               <div className="flex shrink-0 items-center gap-1.5 text-[var(--text-gray-light)]">
@@ -538,7 +538,23 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
           ) : orderedPosts.length === 0 ? (
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-              No posts yet.
+              <p className="font-semibold text-[var(--text-black)]">No posts yet.</p>
+              <p className="mx-auto mt-1 max-w-[19rem] text-[0.78rem] leading-5">
+                Start the commons with a post, proposal, image, or AI delegate draft.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    requireAccount("Sign in to create the first post.");
+                    return;
+                  }
+                  setDiscard(false);
+                }}
+                className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)] transition hover:brightness-105"
+              >
+                Create post
+              </button>
             </div>
           ) : (
             <>

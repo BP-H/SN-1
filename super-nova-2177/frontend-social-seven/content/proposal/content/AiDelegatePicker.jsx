@@ -82,7 +82,7 @@ export default function AiDelegatePicker({
   return (
     <div ref={pickerRef} className="ai-delegate-picker" data-ai-delegate-picker>
       <p className="mb-2 text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-        AI delegate
+        Selected AI delegate
       </p>
       <button
         type="button"
@@ -132,7 +132,7 @@ export default function AiDelegatePicker({
               <span className="min-w-0 flex-1 text-left">
                 <span className="block text-[0.82rem] font-black text-[var(--text-black)]">+ Create AI delegate</span>
                 <span className="mt-0.5 block text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
-                  Create one in this popup, or open the full Genesis page.
+                  Create one here, or open the full Genesis page.
                 </span>
               </span>
             </button>
