@@ -6,9 +6,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 try:
-    from .supernova_runtime import runtime_status
+    from .supernova_runtime import public_database_status, runtime_status
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
-    from supernova_runtime import runtime_status
+    from supernova_runtime import public_database_status, runtime_status
 
 
 def build_supernova_runtime_payload(
@@ -64,10 +64,12 @@ def create_status_router(
             supernova_available,
             include_routes=False,
         )
+        database_status = public_database_status(db_engine_url)
         return {
             "ok": True,
             "database": db_status,
-            "database_engine": db_engine_url,
+            "database_engine": database_status["db_backend"],
+            **database_status,
             **build_cors_diagnostics(cors_config),
             "supernova_integration": supernova_runtime["integration"],
             "supernova": supernova_runtime,
@@ -81,10 +83,12 @@ def create_status_router(
             supernova_available,
             include_routes=True,
         )
+        database_status = public_database_status(db_engine_url)
         return {
             "supernova_connected": supernova_available,
             "supernova": supernova_runtime,
-            "database_engine": db_engine_url,
+            "database_engine": database_status["db_backend"],
+            **database_status,
             **build_cors_diagnostics(cors_config),
             "features_available": {
                 "weighted_voting": supernova_available,

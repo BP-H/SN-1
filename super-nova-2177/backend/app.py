@@ -39,9 +39,9 @@ for path in (BACKEND_DIR, SUPER_NOVA_DIR):
         sys.path.insert(0, path_str)
 
 try:
-    from .supernova_runtime import load_supernova_runtime, runtime_status
+    from .supernova_runtime import load_supernova_runtime, public_database_status, runtime_status
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
-    from supernova_runtime import load_supernova_runtime, runtime_status
+    from supernova_runtime import load_supernova_runtime, public_database_status, runtime_status
 
 
 def _load_supernova_runtime():
@@ -4186,18 +4186,22 @@ def universe_info():
     """Return details about the current database configuration."""
     if not SUPER_NOVA_AVAILABLE:
         # Fallback response when SuperNova is not available
+        database_status = public_database_status("sqlite:///fallback.db")
         return {
             "mode": "standalone",
-            "engine": "sqlite:///fallback.db", 
+            "engine": database_status["db_backend"],
+            **database_status,
             "universe_id": "standalone_universe",
             "note": "SuperNova integration not available"
         }
     
     try:
         s = get_settings()
+        database_status = public_database_status(DB_ENGINE_URL or s.engine_url)
         return {
             "mode": s.DB_MODE,
-            "engine": DB_ENGINE_URL or s.engine_url,
+            "engine": database_status["db_backend"],
+            **database_status,
             "universe_id": s.UNIVERSE_ID,
         }
     except Exception as e:
