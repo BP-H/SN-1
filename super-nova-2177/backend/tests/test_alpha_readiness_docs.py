@@ -32,6 +32,9 @@ class AlphaReadinessDocsTests(unittest.TestCase):
 
     def test_branch_protection_doc_names_candidate_required_checks(self):
         status_doc = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(encoding="utf-8")
+        workflow = (REPO_ROOT / ".github" / "workflows" / "local-safe-pr-gates.yml").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Candidate Required Checks", status_doc)
         self.assertIn("Backend local deterministic checks", status_doc)
@@ -40,6 +43,14 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         self.assertIn("Require branches to be up to date before merging", status_doc)
         self.assertIn("Keep live/network smoke checks advisory", status_doc)
         self.assertIn("SUPERNOVA_RATE_LIMIT_ENABLED=false", status_doc)
+        self.assertIn("Backend local deterministic checks", workflow)
+        self.assertIn("FE7 local deterministic checks", workflow)
+        self.assertIn("python -m py_compile super-nova-2177/backend/app.py", workflow)
+        self.assertIn("python -m unittest backend.tests.test_alpha_readiness_docs", workflow)
+        self.assertIn("python scripts/check_safe.py --local-only", workflow)
+        self.assertIn("npm ci", workflow)
+        self.assertIn("npm run lint", workflow)
+        self.assertIn("npm run build", workflow)
 
     def test_alpha_smoke_doc_covers_core_manual_paths(self):
         smoke = (REPO_ROOT / "ALPHA_SMOKE_NOW.md").read_text(encoding="utf-8")
