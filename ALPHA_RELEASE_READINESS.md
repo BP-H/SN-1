@@ -88,6 +88,11 @@ the workflows are stable enough to avoid noisy blocking failures.
 Before promoting a deployment, complete `DEPLOYMENT_MEDIA_PREFLIGHT.md` and
 `DATA_PRESERVATION_PREFLIGHT.md`.
 
+Before any future SN-2 to SN-1 branch sync, also complete
+`SN1_SYNC_PREFLIGHT_2026-05-06.md`. SN-1 sync must start as a non-default branch
+first, using `sn2-alpha-sync-2026-05-06`, and must preserve database, upload, and
+environment state before any SN-1 `master` merge.
+
 Release-critical points:
 
 - FE7 deploy root is `super-nova-2177/frontend-social-seven`.
