@@ -71,6 +71,14 @@ First required checks to enable:
 - `Backend local deterministic checks`
 - `FE7 local deterministic checks`
 
+`Backend local deterministic checks` is the PR workflow job that runs backend
+compile, alpha readiness docs tests, focused backend deterministic tests,
+`check_safe.py --local-only`, and protected core zero-diff.
+
+`FE7 local deterministic checks` is the PR workflow job that runs `npm ci`,
+`npm run lint`, and `npm run build` from
+`super-nova-2177/frontend-social-seven`.
+
 Keep live/network smoke and Playwright E2E advisory for branch protection until
 the workflows are stable enough to avoid noisy blocking failures.
 

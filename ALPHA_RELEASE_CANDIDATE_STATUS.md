@@ -87,7 +87,9 @@ snapshots, and only then consider any merge or production promotion.
 ## Known Non-Blocking Caveats
 
 - Human manual browser smoke is still incomplete.
-- Branch protection has not been verified as enabled in GitHub settings.
+- Branch protection has not been verified as enabled in GitHub settings. The
+  candidate required check names are `Backend local deterministic checks` and
+  `FE7 local deterministic checks`.
 - Old images whose upload bytes are already gone remain unrecoverable from app
   code alone.
 - Durable object storage or equivalent remains the long-term media direction.
