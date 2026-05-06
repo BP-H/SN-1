@@ -25,7 +25,9 @@ The current public protocol posture remains:
 - `super-nova-2177/backend/supernova_2177_ui_weighted/db_models.py`
 - `super-nova-2177/frontend-social-seven/utils/authSession.js`
 - Active FE7 write callers under `super-nova-2177/frontend-social-seven/app/` and `super-nova-2177/frontend-social-seven/content/`
-- Legacy/off-path references in `frontend-vite-3d`, `frontend-social-six`, nested backend, `nova-web`, and `transcendental_resonance_frontend`
+- Historical legacy/off-path references in deleted `frontend-vite-3d` and
+  `frontend-social-six`, plus retained nested backend, `nova-web`, and
+  `transcendental_resonance_frontend`
 
 ## Key Finding
 
@@ -92,8 +94,8 @@ These were outside the explicit QA list but are active write routes in `backend/
 | `super-nova-2177/backend/supernova_2177_ui_weighted/auth_utils.py` | Active helper path through wrapper import. | Used for password/JWT fallback settings and password verification compatibility. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/db_models.py` | Active model source through runtime loading. | Contains legacy SHA password helpers; do not edit without separate model/auth review. |
 | `frontend-social-seven` | Active frontend. | Sends `authHeaders()` on many write paths when password session token exists, but social/guest sessions may not always provide a bearer token. Backend must enforce ownership server-side. |
-| `frontend-vite-3d` | Legacy/off-path frontend. | Contains API service and AI route code; not part of this backend hardening implementation pass. |
-| `frontend-social-six` | Legacy/off-path frontend. | Contains older proposal/comment/vote/upload callers; do not change until separate legacy surface assessment. |
+| `frontend-vite-3d` | Deleted legacy/off-path frontend. | Historical assessment context only; source was later removed after owner-accepted external Vercel/API-route risk. |
+| `frontend-social-six` | Deleted legacy/off-path frontend. | Historical assessment context only; source was later removed after owner-accepted external Supabase/Vercel/Railway/auth/API-route risk. |
 | Nested backend under `supernova_2177_ui_weighted/backend/` | Legacy/nested backend experiment. | Has similar write routes; keep under nested backend cleanup/security assessment. |
 | `transcendental_resonance_frontend` / NiceGUI paths | Legacy Python UI package. | Contains many API callers; do not mix with active FE7/backend auth hardening. |
 

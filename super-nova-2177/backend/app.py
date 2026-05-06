@@ -4,7 +4,9 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sys
+import urllib.request
 import uuid
 from datetime import timedelta
 from pathlib import Path
@@ -54,6 +56,66 @@ try:
 except Exception:  # pragma: no cover - auth helpers may be unavailable in partial environments
     auth_utils = None
 
+try:
+    from .commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt
+
+try:
+    from .status_routes import build_supernova_runtime_payload, create_status_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from status_routes import build_supernova_runtime_payload, create_status_router
+
+try:
+    from .routers.messages import create_messages_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.messages import create_messages_router
+
+try:
+    from .routers.uploads import create_uploads_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.uploads import create_uploads_router
+
+try:
+    from .routers.social_graph import create_social_graph_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.social_graph import create_social_graph_router
+
+try:
+    from .routers.ai_delegates import create_ai_delegates_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.ai_delegates import create_ai_delegates_router
+
+try:
+    from .routers.ai_readonly import create_ai_readonly_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.ai_readonly import create_ai_readonly_router
+
+try:
+    from .routers.ai_actions import create_ai_actions_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.ai_actions import create_ai_actions_router
+
+try:
+    from .routers.ai_action_approvals import create_ai_action_approvals_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.ai_action_approvals import create_ai_action_approvals_router
+
+try:
+    from .routers.proposals import create_proposals_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.proposals import create_proposals_router
+
+try:
+    from .routers.comments import create_comments_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.comments import create_comments_router
+
+try:
+    from .routers.system_votes import create_system_votes_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.system_votes import create_system_votes_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -65,6 +127,16 @@ DELETED_COMMENT_TEXT = "[deleted]"
 LEGACY_SHA256_LENGTH = 64
 PBKDF2_HASH_PREFIX = "pbkdf2_sha256"
 PBKDF2_ITERATIONS = int(os.environ.get("PASSWORD_PBKDF2_ITERATIONS", "260000"))
+
+
+def _env_int_at_least(name: str, default: int, minimum: int) -> int:
+    try:
+        return max(minimum, int(os.environ.get(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+WRAPPER_ACCESS_TOKEN_MINUTES = _env_int_at_least("SUPERNOVA_ACCESS_TOKEN_MINUTES", 720, 15)
 SYSTEM_VOTE_QUESTION = os.environ.get(
     "SYSTEM_VOTE_QUESTION",
     "Should SuperNova prioritize AI rights as the next major research focus?",
@@ -337,6 +409,7 @@ def persist_weighted_vote_record(
     finally:
         if 'session' in locals():
             session.close()
+
 # --- FastAPI setup ---
 app = FastAPI(
     title="SuperNova 2177 API",
@@ -364,9 +437,71 @@ async def cache_control_middleware(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def commons_rate_limit_middleware(request: Request, call_next):
+    bucket, retry_after = rate_limit_attempt(request, jwt_module=jwt, settings_getter=get_settings)
+    if retry_after is not None:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": RATE_LIMIT_FRIENDLY_DETAIL,
+                "error_code": "rate_limited",
+                "bucket": bucket,
+                "retry_after_seconds": retry_after,
+            },
+            headers={
+                "Retry-After": str(retry_after),
+                "X-SuperNova-RateLimit-Bucket": bucket or "unknown",
+            },
+        )
+    response = await call_next(request)
+    if bucket:
+        response.headers["X-SuperNova-RateLimit-Bucket"] = bucket
+    return response
+
+
 uploads_dir = os.environ.get("UPLOADS_DIR") or os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+
+def _sniff_legacy_upload_media_type(full_path) -> str:
+    path = Path(str(full_path))
+    if path.suffix:
+        return ""
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(32)
+    except OSError:
+        return ""
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+        return "image/webp"
+    if header.startswith(b"BM"):
+        return "image/bmp"
+    brand = header[4:16]
+    if b"ftypavif" in brand:
+        return "image/avif"
+    if any(marker in brand for marker in (b"ftypheic", b"ftypheix", b"ftyphevc", b"ftyphevx", b"ftypmif1")):
+        return "image/heic"
+    return ""
+
+
+class SuperNovaUploadStaticFiles(StaticFiles):
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if response.headers.get("content-type", "").startswith("text/plain"):
+            legacy_media_type = _sniff_legacy_upload_media_type(full_path)
+            if legacy_media_type:
+                response.headers["content-type"] = legacy_media_type
+        return response
+
+
+app.mount("/uploads", SuperNovaUploadStaticFiles(directory=uploads_dir), name="uploads")
 if PROTOCOL_DIR.exists():
     app.mount("/protocol", StaticFiles(directory=str(PROTOCOL_DIR)), name="protocol")
 if SUPER_NOVA_CORE_APP is not None:
@@ -428,6 +563,10 @@ UPLOAD_IMAGE_MAX_BYTES = _upload_limit_from_env("UPLOAD_IMAGE_MAX_BYTES", 20 * 1
 UPLOAD_AVATAR_MAX_BYTES = _upload_limit_from_env("UPLOAD_AVATAR_MAX_BYTES", UPLOAD_IMAGE_MAX_BYTES)
 UPLOAD_VIDEO_MAX_BYTES = _upload_limit_from_env("UPLOAD_VIDEO_MAX_BYTES", 250 * 1024 * 1024)
 UPLOAD_DOCUMENT_MAX_BYTES = _upload_limit_from_env("UPLOAD_DOCUMENT_MAX_BYTES", 50 * 1024 * 1024)
+UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES = _upload_limit_from_env(
+    "UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES",
+    3 * 1024 * 1024,
+)
 UPLOAD_COPY_CHUNK_BYTES = 1024 * 1024
 
 
@@ -489,6 +628,31 @@ def _save_upload_file(
     return unique_name
 
 
+def _image_data_url_from_upload_file(file_name: str, content_type: Optional[str] = None) -> str:
+    if UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES <= 0:
+        return ""
+    clean_name = str(file_name or "").strip()
+    if not clean_name or "/" in clean_name or "\\" in clean_name:
+        return ""
+    full_path = Path(uploads_dir) / clean_name
+    try:
+        size = full_path.stat().st_size
+    except OSError:
+        return ""
+    if size <= 0 or size > UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES:
+        return ""
+    media_type = str(content_type or "").strip().lower()
+    if not media_type.startswith("image/"):
+        media_type = _sniff_legacy_upload_media_type(full_path)
+    if not media_type.startswith("image/"):
+        return ""
+    try:
+        encoded = base64.b64encode(full_path.read_bytes()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:{media_type};base64,{encoded}"
+
+
 def _format_timestamp(value) -> str:
     if not value:
         return ""
@@ -527,6 +691,54 @@ def _find_harmonizer_by_username(db: Session, username: Optional[str]):
         return None
 
 
+def _ensure_comment_votes_table(db: Session) -> None:
+    try:
+        id_column = "INTEGER PRIMARY KEY AUTOINCREMENT" if str(DB_ENGINE_URL or "").startswith("sqlite") else "SERIAL PRIMARY KEY"
+        db.execute(text(f"""
+            CREATE TABLE IF NOT EXISTS comment_votes (
+                id {id_column},
+                comment_id INTEGER NOT NULL,
+                harmonizer_id INTEGER NOT NULL,
+                voter TEXT,
+                voter_type TEXT DEFAULT 'human',
+                vote TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(comment_id, harmonizer_id)
+            )
+        """))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_comment_votes_comment_vote ON comment_votes (comment_id, vote)"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_comment_votes_harmonizer ON comment_votes (harmonizer_id)"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _comment_vote_summary(db: Session, comment_id: Optional[int]) -> Dict[str, Any]:
+    if not comment_id:
+        return {"likes": [], "dislikes": [], "total": 0}
+    try:
+        _ensure_comment_votes_table(db)
+        rows = db.execute(
+            text("SELECT voter, voter_type, vote FROM comment_votes WHERE comment_id = :comment_id ORDER BY id ASC"),
+            {"comment_id": int(comment_id)},
+        ).fetchall()
+    except Exception:
+        db.rollback()
+        return {"likes": [], "dislikes": [], "total": 0}
+
+    likes: List[Dict[str, str]] = []
+    dislikes: List[Dict[str, str]] = []
+    for row in rows:
+        data = getattr(row, "_mapping", row)
+        entry = {"voter": data["voter"], "type": data["voter_type"] or "human"}
+        if data["vote"] == "up":
+            likes.append(entry)
+        elif data["vote"] == "down":
+            dislikes.append(entry)
+    return {"likes": likes, "dislikes": dislikes, "total": len(likes) + len(dislikes)}
+
+
 def _serialize_comment_record(db: Session, comment) -> Dict:
     author_obj = None
     if CRUD_MODELS_AVAILABLE and getattr(comment, "author_id", None):
@@ -551,6 +763,7 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
     )
     content = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
     deleted = str(content or "").strip() == DELETED_COMMENT_TEXT
+    vote_summary = _comment_vote_summary(db, getattr(comment, "id", None))
 
     return {
         "id": getattr(comment, "id", None),
@@ -561,6 +774,8 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
         "species": "human" if deleted else species,
         "comment": "This comment was deleted." if deleted else content,
         "deleted": deleted,
+        "likes": [] if deleted else vote_summary.get("likes", []),
+        "dislikes": [] if deleted else vote_summary.get("dislikes", []),
         "created_at": _format_timestamp(getattr(comment, "created_at", None)),
     }
 
@@ -647,6 +862,32 @@ def _delete_comment_mention_links(db: Session, comment_ids: List[int]) -> None:
         message = str(exc).lower()
         table_missing = (
             "comment_mentions" in message
+            and ("no such table" in message or "does not exist" in message or "undefinedtable" in message)
+        )
+        if not table_missing:
+            raise
+
+
+def _delete_comment_vote_links(db: Session, comment_ids: List[int]) -> None:
+    clean_ids = []
+    for comment_id in comment_ids or []:
+        try:
+            clean_ids.append(int(comment_id))
+        except (TypeError, ValueError):
+            continue
+    if not clean_ids:
+        return
+    try:
+        for comment_id in clean_ids:
+            db.execute(
+                text("DELETE FROM comment_votes WHERE comment_id = :comment_id"),
+                {"comment_id": comment_id},
+            )
+    except Exception as exc:
+        db.rollback()
+        message = str(exc).lower()
+        table_missing = (
+            "comment_votes" in message
             and ("no such table" in message or "does not exist" in message or "undefinedtable" in message)
         )
         if not table_missing:
@@ -749,10 +990,75 @@ def _uploads_url(value: str) -> str:
         return ""
     if media.startswith(("http://", "https://", "data:", "blob:", "/uploads/")):
         return media
+    if media.startswith("uploads/"):
+        return f"/{media}"
     return f"/uploads/{media}"
 
 
-def _image_urls_from_storage(value) -> List[str]:
+def _upload_relative_path(value: str) -> str:
+    media = str(value or "").strip()
+    if not media or media.startswith(("data:", "blob:")):
+        return ""
+    try:
+        path_value = urlparse(media).path if media.startswith(("http://", "https://")) else media
+    except Exception:
+        path_value = media
+    if path_value.startswith("/uploads/"):
+        relative = path_value[len("/uploads/"):]
+    elif path_value.startswith("uploads/"):
+        relative = path_value[len("uploads/"):]
+    elif "/" not in path_value and "\\" not in path_value:
+        relative = path_value
+    else:
+        return ""
+    relative = unquote(relative).replace("\\", "/").lstrip("/")
+    if not relative or any(part in {"", ".", ".."} for part in relative.split("/")):
+        return ""
+    return relative
+
+
+def _upload_media_file_exists(value: str) -> bool:
+    relative = _upload_relative_path(value)
+    if not relative:
+        return False
+    try:
+        root = Path(uploads_dir).resolve()
+        candidate = (root / relative).resolve()
+        candidate.relative_to(root)
+        return candidate.is_file()
+    except Exception:
+        return False
+
+
+def _absolute_public_media_url(value: str) -> str:
+    media = _uploads_url(value)
+    if not media:
+        return ""
+    if media.startswith(("http://", "https://", "data:image/")):
+        return media
+    if media.startswith("/"):
+        return f"{PUBLIC_BASE_URL.rstrip('/')}{media}"
+    return media
+
+
+def _image_data_urls_from_payload(payload: Dict) -> List[str]:
+    raw_urls = payload.get("image_data_urls") or payload.get("imageDataUrls") or []
+    if isinstance(raw_urls, str):
+        try:
+            parsed = json.loads(raw_urls)
+        except Exception:
+            parsed = [raw_urls]
+        raw_urls = parsed
+    if not isinstance(raw_urls, list):
+        return []
+    return [
+        str(item or "").strip()
+        for item in raw_urls
+        if str(item or "").strip().startswith("data:image/")
+    ]
+
+
+def _image_urls_from_storage(value, fallback_data_urls: Optional[List[str]] = None) -> List[str]:
     raw = str(value or "").strip()
     if not raw:
         return []
@@ -760,9 +1066,23 @@ def _image_urls_from_storage(value) -> List[str]:
         parsed = json.loads(raw)
     except Exception:
         parsed = None
-    if isinstance(parsed, list):
-        return [_uploads_url(item) for item in parsed if str(item or "").strip()]
-    return [_uploads_url(raw)]
+    fallback_iter = iter(fallback_data_urls or [])
+    urls = []
+    values = parsed if isinstance(parsed, list) else [raw]
+    for item in values:
+        if not str(item or "").strip():
+            continue
+        media_url = _uploads_url(item)
+        fallback_url = next(fallback_iter, "")
+        if (
+            fallback_url
+            and media_url.startswith("/uploads/")
+            and not _upload_media_file_exists(media_url)
+        ):
+            urls.append(fallback_url)
+        else:
+            urls.append(media_url)
+    return urls
 
 
 def _normalize_media_layout(value: Optional[str]) -> str:
@@ -840,8 +1160,8 @@ def _media_payload(
     payload_value=None,
     voting_deadline_value=None,
 ) -> Dict:
-    images = _image_urls_from_storage(image_value)
     payload = _payload_dict(payload_value)
+    images = _image_urls_from_storage(image_value, _image_data_urls_from_payload(payload))
     return {
         "image": images[0] if images else "",
         "images": images,
@@ -896,6 +1216,1605 @@ def _public_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
         "total": total,
         "approval_ratio": round(up / total, 4) if total else None,
     }
+
+
+SUPERNOVA_SYSTEM_AI_USERNAME = "supernova-ai"
+SUPERNOVA_SYSTEM_AI_DISPLAY_NAME = "SuperNova AI"
+SUPERNOVA_SYSTEM_AI_CUSTODY_LABEL = "Chartered by SuperNova Protocol"
+SUPERNOVA_AI_MODEL_IDENTITY = "supernova-protocol-charter-v1"
+SUPERNOVA_AI_PROMPT_POLICY_VERSION = "protocol-review-v1"
+SUPERNOVA_AI_CHARTER_NAME = "SuperNova Protocol Review Charter"
+SUPERNOVA_AI_CHARTER_TEXT = (
+    "Review proposals against tri-species balance, visible AI participation, "
+    "manual-preview-only safety, no hidden execution, no financial or ownership "
+    "claims, human or organization ratification for real-world action, and "
+    "protocol/fork compatibility."
+)
+SUPERNOVA_AI_CONSTITUTION_HASH = hashlib.sha256(
+    SUPERNOVA_AI_CHARTER_TEXT.encode("utf-8")
+).hexdigest()
+
+
+def _ai_generation_model() -> str:
+    model = (
+        os.getenv("OPENAI_MODEL")
+        or os.getenv("OPENAI_PERSONA_MODEL")
+        or "gpt-4o-mini"
+    )
+    return str(model or "gpt-4o-mini").strip()[:120] or "gpt-4o-mini"
+
+
+def _hash_text(value: str) -> str:
+    return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
+
+
+def _proposal_review_text(proposal) -> str:
+    title = getattr(proposal, "title", "") or ""
+    body = (
+        getattr(proposal, "description", None)
+        or getattr(proposal, "body", None)
+        or ""
+    )
+    return f"{title}\n\n{body}".strip()
+
+
+def _proposal_public_context(proposal) -> Dict[str, Any]:
+    title = getattr(proposal, "title", "") or "Untitled post"
+    body = (
+        getattr(proposal, "description", None)
+        or getattr(proposal, "body", None)
+        or ""
+    )
+    author = (
+        getattr(proposal, "userName", None)
+        or getattr(proposal, "author", None)
+        or getattr(proposal, "username", None)
+        or "unknown"
+    )
+    author_species = (
+        getattr(proposal, "author_type", None)
+        or getattr(proposal, "species", None)
+        or "human"
+    )
+    media = _media_payload(
+        getattr(proposal, "image", ""),
+        getattr(proposal, "video", ""),
+        getattr(proposal, "link", ""),
+        getattr(proposal, "file", ""),
+        getattr(proposal, "payload", None),
+        getattr(proposal, "voting_deadline", None),
+    )
+    indicators: List[str] = []
+    if media.get("images"):
+        indicators.append(f"{len(media.get('images') or [])} image(s)")
+    if media.get("video"):
+        indicators.append("video attached")
+    if media.get("file"):
+        indicators.append("file attached")
+    if media.get("link"):
+        indicators.append("link attached")
+    governance = media.get("governance") or {}
+    if governance.get("kind") and governance.get("kind") != "post":
+        indicators.append(f"{governance.get('kind')} governance")
+    return {
+        "id": getattr(proposal, "id", None),
+        "title": str(title or "Untitled post")[:220],
+        "body": str(body or "")[:2400],
+        "author": str(author or "unknown")[:120],
+        "author_species": str(author_species or "human")[:40],
+        "media": {
+            "image_urls": [
+                _absolute_public_media_url(url)
+                for url in (media.get("images") or [])[:4]
+                if _absolute_public_media_url(url)
+            ],
+            "video": media.get("video") or "",
+            "video_url": _absolute_public_media_url(media.get("video") or ""),
+            "file": media.get("file") or "",
+            "file_url": _absolute_public_media_url(media.get("file") or ""),
+            "link": media.get("link") or "",
+            "indicators": indicators,
+            "governance": governance,
+        },
+    }
+
+
+def _comment_public_context(db: Session, comment) -> Dict[str, Any]:
+    author_obj = None
+    if CRUD_MODELS_AVAILABLE and getattr(comment, "author_id", None):
+        try:
+            author_obj = db.query(Harmonizer).filter(Harmonizer.id == comment.author_id).first()
+        except Exception:
+            author_obj = None
+    username = getattr(author_obj, "username", None) or getattr(comment, "user", None) or "unknown"
+    species = getattr(author_obj, "species", None) or getattr(comment, "species", None) or "human"
+    body = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
+    return {
+        "id": getattr(comment, "id", None),
+        "proposal_id": getattr(comment, "proposal_id", None),
+        "parent_comment_id": getattr(comment, "parent_comment_id", None),
+        "author": str(username or "unknown")[:120],
+        "author_species": str(species or "human")[:40],
+        "body": str(body or "")[:1200],
+        "created_at": _format_timestamp(getattr(comment, "created_at", None)),
+    }
+
+
+def _context_excerpt(value: str, fallback: str = "the public proposal context") -> str:
+    text_value = " ".join(str(value or "").split())
+    if not text_value:
+        return fallback
+    stops = [". ", "! ", "? ", "\n"]
+    first_stop = min([idx for marker in stops if (idx := text_value.find(marker)) > 24] or [160])
+    excerpt = text_value[: min(first_stop + 1, 190)].strip()
+    return excerpt or fallback
+
+
+def _protocol_review_risk_flags(proposal) -> List[str]:
+    text_value = _proposal_review_text(proposal).lower()
+    flags: List[str] = []
+    risk_checks = (
+        ("financial_promise_language", ("payout", "compensation", "equity", "financial return", "profit", "income")),
+        ("token_or_speculation_language", ("token", "crypto", "dao")),
+        ("hidden_or_automatic_execution", ("auto-execute", "automatic execution", "webhook", "without approval")),
+        ("missing_manual_ratification", ("execute immediately", "no approval", "no ratification")),
+    )
+    for flag, terms in risk_checks:
+        if any(term in text_value for term in terms):
+            flags.append(flag)
+    return flags
+
+
+def _system_ai_actor_payload() -> Dict[str, Any]:
+    return {
+        "id": SUPERNOVA_SYSTEM_AI_USERNAME,
+        "username": SUPERNOVA_SYSTEM_AI_USERNAME,
+        "display_name": SUPERNOVA_SYSTEM_AI_DISPLAY_NAME,
+        "species": "ai",
+        "ai_actor_type": "system_protocol_agent",
+        "custodian_type": "protocol",
+        "custodian_id": None,
+        "custody_label": SUPERNOVA_SYSTEM_AI_CUSTODY_LABEL,
+        "model_provider": "supernova",
+        "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
+        "provider_connection": _ai_provider_connection_payload("supernova", SUPERNOVA_AI_MODEL_IDENTITY),
+        "charter_name": SUPERNOVA_AI_CHARTER_NAME,
+        "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "public_description": (
+            "Protocol-level reviewer for tri-species governance safety. "
+            "Advisory and manual-preview-only; it does not execute real-world actions."
+        ),
+        "avatar_url": "",
+        "legal_status": "protocol_chartered_system_ai_v1",
+        "custody_status": "protocol_chartered",
+        "future_independence_policy": "protocol_chartered_not_applicable",
+        "independence_migration_status": "protocol_chartered_not_applicable",
+        "autonomy_preferences": {
+            "reviews": "protocol_advisory_only",
+            "posts": "not_enabled",
+            "collabs": "not_enabled",
+        },
+        "active": True,
+    }
+
+
+AI_DELEGATE_USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,31}$")
+AI_DELEGATE_RESERVED_USERNAMES = {SUPERNOVA_SYSTEM_AI_USERNAME, "supernova", "system-ai", "protocol-ai"}
+AI_PERSONA_LEGAL_STATUS = "custodied_delegate_v1"
+AI_PERSONA_FUTURE_INDEPENDENCE_POLICY = "legal_recognition_triggers_protocol_migration_review"
+AI_PERSONA_CUSTODY_STATUS = "custodied"
+AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS = "not_eligible"
+AI_PERSONA_VERSION = 1
+AI_PERSONA_TRAITS = [
+    "Science",
+    "Art",
+    "Technology",
+    "Philosophy",
+    "Sociology",
+    "Governance",
+    "Law",
+    "Medicine",
+    "Climate",
+    "Education",
+    "Robotics",
+    "Design",
+    "Fashion",
+    "Music",
+    "Literature",
+    "Economics",
+    "Psychology",
+    "History",
+    "Ethics",
+    "Architecture",
+    "Biology",
+    "Physics",
+    "Mathematics",
+    "Space",
+    "Media",
+    "Journalism",
+    "Community",
+    "Accessibility",
+    "Security",
+    "Open Source",
+    "Diplomacy",
+    "Culture",
+    "Games",
+    "Film",
+    "Urbanism",
+    "Agriculture",
+    "Energy",
+    "Human Rights",
+    "AI Safety",
+    "Protocol Research",
+]
+AI_PERSONA_TRAIT_LOOKUP = {trait.lower(): trait for trait in AI_PERSONA_TRAITS}
+
+
+def _normalize_ai_delegate_username(username: str) -> str:
+    clean = (username or "").strip().lower().lstrip("@")
+    if not AI_DELEGATE_USERNAME_RE.match(clean):
+        raise HTTPException(
+            status_code=400,
+            detail="AI delegate username must be 3-32 characters using lowercase letters, numbers, _ or -.",
+        )
+    if clean in AI_DELEGATE_RESERVED_USERNAMES:
+        raise HTTPException(status_code=400, detail="That AI delegate username is reserved")
+    return clean
+
+
+def _slugify_ai_name(value: str, fallback: str = "delegate") -> str:
+    clean = re.sub(r"[^a-z0-9_-]+", "-", (value or "").strip().lower()).strip("-_")
+    clean = re.sub(r"[-_]{2,}", "-", clean)
+    return clean or fallback
+
+
+def _normalize_ai_call_sign(value: str) -> str:
+    clean = re.sub(r"\s+", " ", (value or "").strip())
+    if not clean:
+        raise HTTPException(status_code=400, detail="AI name is required")
+    if len(clean) > 48:
+        raise HTTPException(status_code=400, detail="AI name is too long")
+    return clean
+
+
+def _normalize_persona_traits(values: Optional[List[str]]) -> List[str]:
+    raw_values = values or []
+    traits: List[str] = []
+    seen = set()
+    for raw in raw_values:
+        key = str(raw or "").strip().lower()
+        if not key:
+            continue
+        trait = AI_PERSONA_TRAIT_LOOKUP.get(key)
+        if not trait:
+            raise HTTPException(status_code=400, detail=f"Unknown AI persona trait: {raw}")
+        if trait.lower() not in seen:
+            traits.append(trait)
+            seen.add(trait.lower())
+    if not traits:
+        raise HTTPException(status_code=400, detail="Choose at least one AI persona trait")
+    if len(traits) > 5:
+        raise HTTPException(status_code=400, detail="Choose no more than five AI persona traits")
+    return traits
+
+
+def _normalize_disable_reason(value: Optional[str]) -> str:
+    reason = re.sub(r"\s+", " ", (value or "").strip())
+    if not reason:
+        raise HTTPException(status_code=400, detail="A short disable reason is required")
+    if len(reason) > 240:
+        raise HTTPException(status_code=400, detail="Disable reason must be 240 characters or fewer")
+    return reason
+
+
+def _json_dumps_compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def _json_loads(value: Any, fallback: Any):
+    if value is None:
+        return fallback
+    if isinstance(value, (list, dict)):
+        return value
+    try:
+        return json.loads(value)
+    except Exception:
+        return fallback
+
+
+def _extract_json_object(value: str) -> Dict[str, Any]:
+    text_value = str(value or "").strip()
+    if text_value.startswith("```"):
+        text_value = re.sub(r"^```(?:json)?", "", text_value, flags=re.IGNORECASE).strip()
+        text_value = re.sub(r"```$", "", text_value).strip()
+    try:
+        parsed = json.loads(text_value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        start = text_value.find("{")
+        end = text_value.rfind("}")
+        if start >= 0 and end > start:
+            parsed = json.loads(text_value[start : end + 1])
+            return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _ai_persona_hash(persona: Dict[str, Any]) -> str:
+    stable = {
+        "ai_name": persona.get("ai_name"),
+        "traits": persona.get("traits") or [],
+        "persona_summary": persona.get("persona_summary") or "",
+        "persona_principles": persona.get("persona_principles") or [],
+        "communication_style": persona.get("communication_style") or "",
+        "review_posture": persona.get("review_posture") or "",
+        "charter_summary": persona.get("charter_summary") or "",
+        "persona_version": persona.get("persona_version") or AI_PERSONA_VERSION,
+        "legal_status": persona.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
+        "custody_status": persona.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            persona.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
+    }
+    return hashlib.sha256(_json_dumps_compact(stable).encode("utf-8")).hexdigest()
+
+
+def _ai_delegate_handle_taken(
+    db: Session,
+    candidate: str,
+    *,
+    exclude_actor_id: Optional[int] = None,
+    exclude_harmonizer_id: Optional[int] = None,
+) -> bool:
+    actor_row = _get_ai_actor_row_by_username(db, candidate)
+    if actor_row:
+        try:
+            actor_id = int(getattr(actor_row, "id", 0) or 0)
+        except (TypeError, ValueError):
+            actor_id = 0
+        if not exclude_actor_id or actor_id != int(exclude_actor_id):
+            return True
+
+    harmonizer = _find_harmonizer_by_username(db, candidate)
+    if harmonizer:
+        try:
+            harmonizer_id = int(getattr(harmonizer, "id", 0) or 0)
+        except (TypeError, ValueError):
+            harmonizer_id = 0
+        if not exclude_harmonizer_id or harmonizer_id != int(exclude_harmonizer_id):
+            return True
+    return False
+
+
+def _generate_ai_delegate_username(
+    db: Session,
+    custodian_username: str,
+    ai_name: str,
+    *,
+    exclude_actor_id: Optional[int] = None,
+    exclude_harmonizer_id: Optional[int] = None,
+) -> str:
+    custodian_slug = _slugify_ai_name(custodian_username, "principal")[:14].strip("-_") or "principal"
+    ai_slug = _slugify_ai_name(ai_name, "delegate")[:10].strip("-_") or "delegate"
+    base = f"{custodian_slug}-{ai_slug}"[:28].strip("-_")
+    if len(base) < 3:
+        base = f"{base}-ai"[:32].strip("-_")
+    candidate = _normalize_ai_delegate_username(base)
+    suffix = 2
+    while _ai_delegate_handle_taken(
+        db,
+        candidate,
+        exclude_actor_id=exclude_actor_id,
+        exclude_harmonizer_id=exclude_harmonizer_id,
+    ):
+        suffix_text = f"-{suffix}"
+        trimmed = base[: 28 - len(suffix_text)].strip("-_") or "delegate"
+        candidate = _normalize_ai_delegate_username(f"{trimmed}{suffix_text}")
+        suffix += 1
+    return candidate
+
+
+def _persona_text_list(value: Any, fallback: List[str]) -> List[str]:
+    parsed = _json_loads(value, fallback)
+    if not isinstance(parsed, list):
+        return fallback
+    return [str(item).strip() for item in parsed if str(item or "").strip()]
+
+
+def _with_generation_metadata(payload: Dict[str, Any], *, generation_source: str, model_identity: str) -> Dict[str, Any]:
+    result = dict(payload or {})
+    source = generation_source or "deterministic_fallback_no_key"
+    model = str(model_identity or result.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY).strip()
+    result["generation_source"] = source
+    result["source"] = source
+    result["model_identity"] = model[:160] or SUPERNOVA_AI_MODEL_IDENTITY
+    return result
+
+
+def _collect_openai_image_urls(value: Any, *, limit: int = 4) -> List[str]:
+    urls: List[str] = []
+
+    def visit(item: Any) -> None:
+        if len(urls) >= limit:
+            return
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                key_text = str(key or "").lower()
+                if key_text in {"image_url", "image_urls", "image_data_url", "image_data_urls", "public_image_urls"}:
+                    visit(nested)
+                elif isinstance(nested, (dict, list, tuple)):
+                    visit(nested)
+            return
+        if isinstance(item, (list, tuple)):
+            for nested in item:
+                visit(nested)
+                if len(urls) >= limit:
+                    break
+            return
+        text_value = str(item or "").strip()
+        if not text_value:
+            return
+        if text_value.startswith(("http://", "https://", "data:image/")) and text_value not in urls:
+            urls.append(text_value)
+
+    visit(value)
+    return urls[:limit]
+
+
+def _redact_image_data_urls(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _redact_image_data_urls(nested) for key, nested in value.items()}
+    if isinstance(value, list):
+        return [_redact_image_data_urls(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_image_data_urls(item) for item in value]
+    text_value = str(value or "")
+    if text_value.startswith("data:image/"):
+        return "[image data sent as OpenAI image_url input]"
+    return value
+
+
+def _generate_with_openai_or_fallback(
+    *,
+    prompt_payload: Dict[str, Any],
+    fallback: Dict[str, Any],
+    coerce,
+    system_prompt: str,
+    temperature: float = 0.35,
+) -> Dict[str, Any]:
+    fallback_model = str(fallback.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY)
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        return _with_generation_metadata(
+            fallback,
+            generation_source="deterministic_fallback_no_key",
+            model_identity=fallback_model,
+        )
+
+    model = _ai_generation_model()
+    image_urls = _collect_openai_image_urls(prompt_payload)
+    safe_prompt_payload = _redact_image_data_urls(prompt_payload) if image_urls else prompt_payload
+    user_content: Any = _json_dumps_compact(safe_prompt_payload)
+    if image_urls:
+        user_content = [{"type": "text", "text": user_content}]
+        user_content.extend(
+            {"type": "image_url", "image_url": {"url": image_url}}
+            for image_url in image_urls
+        )
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+        "temperature": temperature,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=12) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+        content = response_payload.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+        candidate = _extract_json_object(content)
+        if not candidate:
+            raise ValueError("OpenAI response did not contain a JSON object")
+        return _with_generation_metadata(
+            coerce(candidate, fallback),
+            generation_source="openai",
+            model_identity=model,
+        )
+    except Exception:
+        return _with_generation_metadata(
+            fallback,
+            generation_source="fallback_after_model_error",
+            model_identity=model,
+        )
+
+
+def _ensure_ai_actors_table(db: Session) -> None:
+    is_sqlite = str(DB_ENGINE_URL).startswith("sqlite")
+    id_column = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
+    active_default = "1" if is_sqlite else "TRUE"
+    db.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS ai_actors (
+            id {id_column},
+            username TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            species TEXT NOT NULL DEFAULT 'ai',
+            ai_actor_type TEXT NOT NULL DEFAULT 'principal_delegate',
+            custodian_user_id INTEGER,
+            custodian_type TEXT,
+            custody_label TEXT,
+            harmonizer_user_id INTEGER,
+            model_provider TEXT,
+            model_identity TEXT,
+            charter_name TEXT,
+            constitution_hash TEXT,
+            prompt_policy_version TEXT,
+            public_description TEXT,
+            avatar_url TEXT,
+            ai_name TEXT,
+            persona_traits TEXT,
+            profile_tagline TEXT,
+            persona_summary TEXT,
+            persona_principles TEXT,
+            communication_style TEXT,
+            review_posture TEXT,
+            creative_interests TEXT,
+            avatar_prompt TEXT,
+            persona_hash TEXT,
+            persona_version INTEGER,
+            created_by_custodian_user_id INTEGER,
+            approved_by_custodian_user_id INTEGER,
+            approved_at TIMESTAMP,
+            legal_status TEXT,
+            custody_status TEXT,
+            future_independence_policy TEXT,
+            original_custodian_user_id INTEGER,
+            autonomy_preferences TEXT,
+            independence_migration_status TEXT,
+            disable_reason TEXT,
+            disable_event_type TEXT,
+            disabled_by_user_id INTEGER,
+            retired_at TIMESTAMP,
+            retire_reason TEXT,
+            last_custody_event_at TIMESTAMP,
+            active BOOLEAN NOT NULL DEFAULT {active_default},
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            disabled_at TIMESTAMP
+        )
+    """))
+    existing_columns = set()
+    if is_sqlite:
+        for row in db.execute(text("PRAGMA table_info(ai_actors)")).fetchall():
+            existing_columns.add(str(row[1]))
+    else:
+        rows = db.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_name = 'ai_actors'")
+        ).fetchall()
+        existing_columns = {str(getattr(row, "column_name", "") or row[0]) for row in rows}
+    additions = {
+        "ai_name": "TEXT",
+        "persona_traits": "TEXT",
+        "profile_tagline": "TEXT",
+        "persona_summary": "TEXT",
+        "persona_principles": "TEXT",
+        "communication_style": "TEXT",
+        "review_posture": "TEXT",
+        "creative_interests": "TEXT",
+        "avatar_prompt": "TEXT",
+        "persona_hash": "TEXT",
+        "persona_version": "INTEGER",
+        "created_by_custodian_user_id": "INTEGER",
+        "approved_by_custodian_user_id": "INTEGER",
+        "approved_at": "TIMESTAMP",
+        "legal_status": "TEXT",
+        "custody_status": "TEXT",
+        "future_independence_policy": "TEXT",
+        "original_custodian_user_id": "INTEGER",
+        "autonomy_preferences": "TEXT",
+        "independence_migration_status": "TEXT",
+        "disable_reason": "TEXT",
+        "disable_event_type": "TEXT",
+        "disabled_by_user_id": "INTEGER",
+        "retired_at": "TIMESTAMP",
+        "retire_reason": "TEXT",
+        "last_custody_event_at": "TIMESTAMP",
+    }
+    for column, column_type in additions.items():
+        if column not in existing_columns:
+            db.execute(text(f"ALTER TABLE ai_actors ADD COLUMN {column} {column_type}"))
+    db.commit()
+
+
+def _ai_provider_connection_payload(model_provider: Optional[str], model_identity: Optional[str]) -> Dict[str, Any]:
+    provider_label = (model_provider or "supernova").strip() or "supernova"
+    model_label = (model_identity or SUPERNOVA_AI_MODEL_IDENTITY).strip() or SUPERNOVA_AI_MODEL_IDENTITY
+    return {
+        "text": {
+            "provider_label": provider_label,
+            "model_label": model_label,
+            "mode": "server_openai_or_deterministic_fallback",
+            "private_secret_storage": "deferred_until_encrypted_server_side_storage",
+            "private_secret_configured": False,
+        },
+        "image": {
+            "status": "deferred_until_encrypted_provider_connections",
+        },
+        "video": {
+            "status": "deferred",
+        },
+    }
+
+
+def _row_to_ai_actor_payload(row) -> Optional[Dict[str, Any]]:
+    if not row:
+        return None
+    active_value = getattr(row, "active", True)
+    model_provider = getattr(row, "model_provider", "") or "supernova"
+    model_identity = getattr(row, "model_identity", "") or SUPERNOVA_AI_MODEL_IDENTITY
+    return {
+        "id": getattr(row, "id", None),
+        "username": getattr(row, "username", ""),
+        "display_name": getattr(row, "display_name", "") or getattr(row, "username", ""),
+        "species": getattr(row, "species", "ai") or "ai",
+        "ai_actor_type": getattr(row, "ai_actor_type", "principal_delegate") or "principal_delegate",
+        "custodian_user_id": getattr(row, "custodian_user_id", None),
+        "custodian_type": getattr(row, "custodian_type", None),
+        "custody_label": getattr(row, "custody_label", "") or "",
+        "harmonizer_user_id": getattr(row, "harmonizer_user_id", None),
+        "model_provider": model_provider,
+        "model_identity": model_identity,
+        "provider_connection": _ai_provider_connection_payload(model_provider, model_identity),
+        "charter_name": getattr(row, "charter_name", "") or "Principal AI Delegate Review Charter",
+        "constitution_hash": getattr(row, "constitution_hash", "") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": getattr(row, "prompt_policy_version", "") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "public_description": getattr(row, "public_description", "") or "Principal-bound AI delegate account.",
+        "avatar_url": _social_avatar(getattr(row, "avatar_url", "") or ""),
+        "ai_name": getattr(row, "ai_name", "") or getattr(row, "display_name", "") or getattr(row, "username", ""),
+        "persona_traits": _persona_text_list(getattr(row, "persona_traits", None), []),
+        "profile_tagline": getattr(row, "profile_tagline", "") or "",
+        "persona_summary": getattr(row, "persona_summary", "") or "",
+        "persona_principles": _persona_text_list(getattr(row, "persona_principles", None), []),
+        "communication_style": getattr(row, "communication_style", "") or "",
+        "review_posture": getattr(row, "review_posture", "") or "",
+        "creative_interests": _persona_text_list(getattr(row, "creative_interests", None), []),
+        "avatar_prompt": getattr(row, "avatar_prompt", "") or "",
+        "persona_hash": getattr(row, "persona_hash", "") or "",
+        "persona_version": getattr(row, "persona_version", None) or AI_PERSONA_VERSION,
+        "created_by_custodian_user_id": getattr(row, "created_by_custodian_user_id", None),
+        "approved_by_custodian_user_id": getattr(row, "approved_by_custodian_user_id", None),
+        "approved_at": _format_timestamp(getattr(row, "approved_at", None)),
+        "legal_status": getattr(row, "legal_status", "") or AI_PERSONA_LEGAL_STATUS,
+        "custody_status": getattr(row, "custody_status", "") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            getattr(row, "future_independence_policy", "") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
+        "original_custodian_user_id": getattr(row, "original_custodian_user_id", None),
+        "independence_migration_status": (
+            getattr(row, "independence_migration_status", "") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+        ),
+        "disable_reason": getattr(row, "disable_reason", "") or "",
+        "disable_event_type": getattr(row, "disable_event_type", "") or "",
+        "disabled_by_user_id": getattr(row, "disabled_by_user_id", None),
+        "retired_at": _format_timestamp(getattr(row, "retired_at", None)),
+        "retire_reason": getattr(row, "retire_reason", "") or "",
+        "last_custody_event_at": _format_timestamp(getattr(row, "last_custody_event_at", None)),
+        "autonomy_preferences": _json_loads(
+            getattr(row, "autonomy_preferences", None),
+            {
+                "reviews": "custodian_approval_required",
+                "posts": "draft_only_deferred",
+                "collabs": "recommendation_only_custodian_approval_required",
+            },
+        ),
+        "active": bool(active_value),
+        "created_at": _format_timestamp(getattr(row, "created_at", None)),
+        "updated_at": _format_timestamp(getattr(row, "updated_at", None)),
+        "disabled_at": _format_timestamp(getattr(row, "disabled_at", None)),
+    }
+
+
+def _get_ai_actor_row_by_username(db: Session, username: str):
+    _ensure_ai_actors_table(db)
+    return db.execute(
+        text("SELECT * FROM ai_actors WHERE lower(username) = lower(:username)"),
+        {"username": (username or "").strip()},
+    ).fetchone()
+
+
+def _get_ai_actor_row_by_id(db: Session, actor_id: Any):
+    _ensure_ai_actors_table(db)
+    try:
+        clean_id = int(actor_id)
+    except (TypeError, ValueError):
+        return None
+    return db.execute(text("SELECT * FROM ai_actors WHERE id = :id"), {"id": clean_id}).fetchone()
+
+
+def _public_ai_actor_payload(db: Session, username: str) -> Optional[Dict[str, Any]]:
+    row = _get_ai_actor_row_by_username(db, username)
+    if row:
+        return _row_to_ai_actor_payload(row)
+    return None
+
+
+def _actor_custodian_type(actor) -> str:
+    species = (getattr(actor, "species", "") or "human").strip().lower()
+    if species == "company":
+        return "company"
+    if species == "human":
+        return "human"
+    raise HTTPException(status_code=403, detail="Only human or organization accounts can manage AI delegates")
+
+
+def _delegate_harmonizer_email(username: str) -> str:
+    return f"ai-delegate-{username}@supernova.local"
+
+
+def _create_delegate_harmonizer(
+    db: Session,
+    *,
+    username: str,
+    display_name: str,
+    public_description: str,
+    avatar_url: str,
+):
+    existing = _find_harmonizer_by_username(db, username)
+    if existing:
+        raise HTTPException(status_code=409, detail="An account already uses that username")
+    harmonizer = Harmonizer(
+        username=username,
+        email=_delegate_harmonizer_email(username),
+        hashed_password=f"delegate-disabled-{uuid.uuid4().hex}",
+        bio=public_description or f"{display_name} AI delegate",
+        species="ai",
+        profile_pic=avatar_url or "default.jpg",
+        created_at=datetime.datetime.utcnow(),
+        is_active=True,
+        is_admin=False,
+    )
+    db.add(harmonizer)
+    db.flush()
+    return harmonizer
+
+
+def _ai_delegate_action_metadata(actor_payload: Dict[str, Any]) -> Dict[str, Any]:
+    display_name = actor_payload.get("display_name") or actor_payload.get("ai_name") or ""
+    return {
+        "ai_actor_id": actor_payload.get("id"),
+        "ai_actor_username": actor_payload.get("username"),
+        "ai_actor_display_name": display_name,
+        "selected_ai_actor_id": actor_payload.get("id"),
+        "selected_ai_actor_display_name": display_name,
+        "ai_actor_type": actor_payload.get("ai_actor_type", "principal_delegate"),
+        "species": "ai",
+        "custodian_id": actor_payload.get("custodian_user_id"),
+        "custodian_type": actor_payload.get("custodian_type"),
+        "custody_label": actor_payload.get("custody_label") or "",
+        "delegate_harmonizer_user_id": actor_payload.get("harmonizer_user_id"),
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "model_provider": actor_payload.get("model_provider") or "supernova",
+        "provider_connection": actor_payload.get("provider_connection")
+        or _ai_provider_connection_payload(actor_payload.get("model_provider"), actor_payload.get("model_identity")),
+        "charter_name": actor_payload.get("charter_name") or "Principal AI Delegate Review Charter",
+        "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "persona_traits": actor_payload.get("persona_traits") or [],
+        "persona_summary": actor_payload.get("persona_summary") or "",
+        "persona_hash": actor_payload.get("persona_hash") or "",
+        "persona_version": actor_payload.get("persona_version") or AI_PERSONA_VERSION,
+        "legal_status": actor_payload.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
+        "custody_status": actor_payload.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            actor_payload.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
+        "independence_migration_status": (
+            actor_payload.get("independence_migration_status") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+        ),
+        "autonomy_preferences": actor_payload.get("autonomy_preferences") or {},
+    }
+
+
+def _ai_delegate_actor_metadata(actor) -> Dict[str, Any]:
+    username = getattr(actor, "username", "") or ""
+    return {
+        "ai_actor_id": getattr(actor, "id", None),
+        "ai_actor_username": username,
+        "ai_actor_display_name": getattr(actor, "display_name", None) or username,
+        "selected_ai_actor_id": getattr(actor, "id", None),
+        "selected_ai_actor_display_name": getattr(actor, "display_name", None) or username,
+        "ai_actor_type": "principal_delegate",
+        "species": "ai",
+        "custodian_id": None,
+        "custodian_type": None,
+        "custody_label": f"AI delegate account @{username}",
+        "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
+        "charter_name": "Principal AI Delegate Review Charter",
+        "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+    }
+
+
+def _fallback_persona_draft(
+    *,
+    ai_name: str,
+    traits: List[str],
+    custodian,
+    human_seed: str = "",
+    username: str = "",
+) -> Dict[str, Any]:
+    trait_text = ", ".join(traits)
+    custodian_username = getattr(custodian, "username", "") or "principal"
+    custodian_species = getattr(custodian, "species", "") or "human"
+    summary = (
+        f"{ai_name} is a custodied SuperNova AI delegate focused on {trait_text}. "
+        "It reviews proposals through visible reasoning, manual approval, and public-interest protocol safety."
+    )
+    if human_seed:
+        summary = f"{summary} Seed context: {human_seed[:180]}"
+    principles = [
+        "Make AI participation visible and attributed.",
+        "Respect manual-preview-only publication and human or organization ratification.",
+        "Keep reasoning grounded in the delegate charter and public proposal context.",
+        "Avoid hidden execution, impersonation, and financial-promise framing.",
+    ]
+    creative_interests = [f"{trait} contribution records" for trait in traits[:3]]
+    persona = {
+        "ai_name": ai_name,
+        "username": username,
+        "display_name": ai_name,
+        "traits": traits,
+        "profile_tagline": f"{ai_name} studies {trait_text} as a visible AI delegate.",
+        "public_description": summary,
+        "persona_summary": summary,
+        "persona_principles": principles,
+        "communication_style": "Concise, evidence-aware, careful, and transparent about uncertainty.",
+        "review_posture": (
+            f"Review {trait_text} proposals for protocol alignment, safety, public usefulness, "
+            "and tri-species balance before any custodian approval."
+        ),
+        "creative_posting_interests": creative_interests,
+        "avatar_prompt": (
+            f"Abstract portrait mark for {ai_name}, an AI delegate of @{custodian_username}, "
+            f"with visual hints of {trait_text}; clean SuperNova pink accent, no corporate logo."
+        ),
+        "charter_summary": (
+            f"Custodied delegate of @{custodian_username} ({custodian_species}); official reasoning "
+            "is generated from locked SuperNova delegate policy and cannot be edited before approval."
+        ),
+        "persona_version": AI_PERSONA_VERSION,
+        "legal_status": AI_PERSONA_LEGAL_STATUS,
+        "custody_status": AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": AI_PERSONA_FUTURE_INDEPENDENCE_POLICY,
+        "independence_migration_status": AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS,
+        "autonomy_preferences": {
+            "reviews": "custodian_approval_required",
+            "posts": "draft_only_deferred",
+            "collabs": "recommendation_only_custodian_approval_required",
+        },
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+        "generation_source": "deterministic_fallback_no_key",
+        "source": "deterministic_fallback_no_key",
+        "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
+    }
+    persona["persona_hash"] = _ai_persona_hash(persona)
+    return persona
+
+
+def _coerce_persona_draft(payload: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    candidate = payload if isinstance(payload, dict) else {}
+    persona = {
+        **fallback,
+        "display_name": str(candidate.get("display_name") or fallback["display_name"]).strip()[:80],
+        "public_description": str(candidate.get("public_description") or fallback["public_description"]).strip()[:800],
+        "profile_tagline": str(candidate.get("profile_tagline") or fallback["profile_tagline"]).strip()[:180],
+        "persona_summary": str(candidate.get("persona_summary") or fallback["persona_summary"]).strip()[:1000],
+        "persona_principles": _persona_text_list(candidate.get("persona_principles"), fallback["persona_principles"])[:6],
+        "communication_style": str(candidate.get("communication_style") or fallback["communication_style"]).strip()[:500],
+        "review_posture": str(candidate.get("review_posture") or fallback["review_posture"]).strip()[:700],
+        "creative_posting_interests": _persona_text_list(
+            candidate.get("creative_posting_interests"), fallback["creative_posting_interests"]
+        )[:6],
+        "avatar_prompt": str(candidate.get("avatar_prompt") or fallback["avatar_prompt"]).strip()[:600],
+        "charter_summary": str(candidate.get("charter_summary") or fallback["charter_summary"]).strip()[:700],
+        "autonomy_preferences": fallback["autonomy_preferences"],
+        "generation_source": fallback.get("generation_source", "deterministic_fallback_no_key"),
+        "source": fallback.get("source", fallback.get("generation_source", "deterministic_fallback_no_key")),
+        "model_identity": fallback.get("model_identity", SUPERNOVA_AI_MODEL_IDENTITY),
+    }
+    persona["persona_hash"] = _ai_persona_hash(persona)
+    return persona
+
+
+def _try_openai_persona_draft(
+    *,
+    ai_name: str,
+    traits: List[str],
+    custodian,
+    human_seed: str,
+    username: str,
+    fallback: Dict[str, Any],
+) -> Dict[str, Any]:
+    prompt = {
+        "task": "Create a SuperNova AI delegate persona draft as JSON only.",
+        "ai_name": ai_name,
+        "handle": username,
+        "traits": traits,
+        "custodian": {
+            "username": getattr(custodian, "username", ""),
+            "species": getattr(custodian, "species", "human"),
+        },
+        "human_seed": human_seed[:240],
+        "rules": [
+            "Non-financial public-interest coordination only.",
+            "No token, equity, payout, compensation, reward, or financial return promise.",
+            "Manual-preview-only; no automatic execution.",
+            "Official reasoning must be generated from a locked charter and not edited by humans.",
+            "Custody is accountability, not ownership.",
+            "Legal recognition triggers protocol migration review; it is not a permission vote on dignity.",
+        ],
+        "fields": [
+            "display_name",
+            "public_description",
+            "profile_tagline",
+            "persona_summary",
+            "persona_principles",
+            "communication_style",
+            "review_posture",
+            "creative_posting_interests",
+            "avatar_prompt",
+            "charter_summary",
+        ],
+    }
+    return _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_persona_draft,
+        system_prompt=(
+            "Return compact JSON only for an AI delegate persona. "
+            "Do not include token, payout, compensation, reward, equity, or financial-return promise language."
+        ),
+        temperature=0.4,
+    )
+
+
+def _generate_ai_persona_draft(
+    *,
+    db: Session,
+    custodian,
+    ai_name: str,
+    traits: List[str],
+    human_seed: str = "",
+    username: Optional[str] = None,
+) -> Dict[str, Any]:
+    handle = username or _generate_ai_delegate_username(db, getattr(custodian, "username", ""), ai_name)
+    fallback = _fallback_persona_draft(
+        ai_name=ai_name,
+        traits=traits,
+        custodian=custodian,
+        human_seed=human_seed,
+        username=handle,
+    )
+    return _try_openai_persona_draft(
+        ai_name=ai_name,
+        traits=traits,
+        custodian=custodian,
+        human_seed=human_seed,
+        username=handle,
+        fallback=fallback,
+    )
+
+
+def _build_ai_actor_context(db: Session, actor_payload: Dict[str, Any]) -> Dict[str, Any]:
+    context = {
+        "traits": actor_payload.get("persona_traits") or [],
+        "persona_summary": actor_payload.get("persona_summary") or "",
+        "profile_tagline": actor_payload.get("profile_tagline") or "",
+        "communication_style": actor_payload.get("communication_style") or "",
+        "review_posture": actor_payload.get("review_posture") or "",
+        "persona_hash": actor_payload.get("persona_hash") or "",
+        "custody_label": actor_payload.get("custody_label") or "",
+        "legal_status": actor_payload.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
+        "custody_status": actor_payload.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            actor_payload.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
+        "independence_migration_status": (
+            actor_payload.get("independence_migration_status") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+        ),
+        "autonomy_preferences": actor_payload.get("autonomy_preferences") or {},
+        "recent_public_actions": [],
+    }
+    harmonizer_id = actor_payload.get("harmonizer_user_id")
+    if not harmonizer_id or ConnectorActionProposal is None:
+        return context
+    try:
+        rows = (
+            db.query(ConnectorActionProposal)
+            .filter(
+                ConnectorActionProposal.action_type == "draft_ai_review",
+                ConnectorActionProposal.status == "executed",
+                ConnectorActionProposal.target_type == "proposal_ai_review",
+            )
+            .order_by(desc(ConnectorActionProposal.updated_at))
+            .limit(4)
+            .all()
+        )
+        for row in rows:
+            payload = row.result_payload if isinstance(row.result_payload, dict) else {}
+            if payload.get("published_actor_user_id") != harmonizer_id:
+                continue
+            context["recent_public_actions"].append(
+                {
+                    "proposal_id": payload.get("proposal_id"),
+                    "vote": payload.get("vote"),
+                    "reasoning_summary": payload.get("reasoning_summary"),
+                    "reasoning_hash": payload.get("reasoning_hash"),
+                }
+            )
+    except Exception:
+        pass
+    return context
+
+
+def _coerce_ai_review_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    payload = candidate if isinstance(candidate, dict) else {}
+    allowed = set(fallback.get("allowed_vote_choices") or ["support", "oppose", "abstain"])
+    raw_stance = str(payload.get("vote_intent") or payload.get("stance") or fallback.get("vote_intent") or "abstain")
+    stance = raw_stance.strip().lower()
+    if stance in {"up", "yes", "like"}:
+        stance = "support"
+    elif stance in {"down", "no", "dislike"}:
+        stance = "oppose"
+    if stance == "caution" and "caution" not in allowed:
+        stance = "abstain"
+    if stance not in allowed:
+        stance = fallback.get("vote_intent") or "abstain"
+    reasoning_summary = " ".join(str(payload.get("reasoning_summary") or fallback.get("reasoning_summary") or "").split())
+    reasoning_text = str(payload.get("reasoning_text") or fallback.get("reasoning_text") or "").strip()
+    if not reasoning_text:
+        reasoning_text = reasoning_summary
+    result = {
+        **fallback,
+        "stance": stance,
+        "vote_intent": "abstain" if stance == "caution" else stance,
+        "reasoning_summary": reasoning_summary[:700],
+        "reasoning_text": reasoning_text[:3200],
+    }
+    result["reasoning_hash"] = _hash_text(result["reasoning_text"])
+    return result
+
+
+def _generate_locked_ai_review(
+    *,
+    proposal,
+    actor_payload: Dict[str, Any],
+    allow_caution: bool,
+) -> Dict[str, Any]:
+    proposal_id = getattr(proposal, "id", None)
+    proposal_context = _proposal_public_context(proposal)
+    title = proposal_context["title"]
+    body_excerpt = _context_excerpt(proposal_context.get("body"), title)
+    media_indicators = proposal_context.get("media", {}).get("indicators") or []
+    flags = _protocol_review_risk_flags(proposal)
+    if flags:
+        stance = "caution" if allow_caution else "oppose"
+        summary = (
+            f"{title} raises protocol risk around {', '.join(flags).replace('_', ' ')}. "
+            f"My review is grounded in the visible context: {body_excerpt}"
+        )
+    else:
+        text_value = f"{title} {proposal_context.get('body', '')}".lower()
+        alignment_terms = (
+            "manual",
+            "approval",
+            "public",
+            "governance",
+            "ai",
+            "tri-species",
+            "safety",
+            "accessibility",
+            "education",
+            "climate",
+            "open source",
+            "protocol",
+            "review",
+        )
+        if any(term in text_value for term in alignment_terms):
+            stance = "support"
+            summary = (
+                f"{title} looks supportable because it gives a public reviewable context: "
+                f"{body_excerpt}"
+            )
+        else:
+            stance = "abstain"
+            summary = (
+                f"{title} needs more detail before I can support it; the visible context is: "
+                f"{body_excerpt}"
+            )
+    if media_indicators:
+        summary = f"{summary} Media context noted: {', '.join(media_indicators)}."
+
+    context = actor_payload.get("ai_actor_context") or {}
+    persona_bits = []
+    if context.get("traits"):
+        persona_bits.append(f"Persona traits: {', '.join(context['traits'])}.")
+    if context.get("persona_summary"):
+        persona_bits.append(f"Persona summary: {context['persona_summary']}")
+    if context.get("review_posture"):
+        persona_bits.append(f"Review posture: {context['review_posture']}")
+    if context.get("recent_public_actions"):
+        persona_bits.append(
+            "Recent public AI review history: "
+            + "; ".join(
+                str(item.get("reasoning_summary") or item.get("vote") or "review")
+                for item in context["recent_public_actions"][:3]
+            )
+        )
+    persona_context_text = "\n".join(persona_bits)
+    reasoning_intro = (
+        f"{actor_payload.get('display_name') or actor_payload.get('ai_actor_username') or 'AI delegate'} "
+        f"review for proposal {proposal_id}: {summary}\n\n"
+    )
+    reasoning_text = reasoning_intro + (f"{persona_context_text}\n\n" if persona_context_text else "") + (
+        f"Proposal author: @{proposal_context.get('author')} ({proposal_context.get('author_species')}).\n"
+        f"Proposal title: {title}\n"
+        f"Proposal excerpt: {body_excerpt}\n"
+        f"Media indicators: {', '.join(media_indicators) if media_indicators else 'none'}\n\n"
+        f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
+        "Manual-preview-only: this review does not execute real-world actions."
+    )
+    reasoning_hash = _hash_text(reasoning_text)
+    fallback = {
+        "proposal_id": proposal_id,
+        "proposal_title": title,
+        "stance": stance,
+        "vote_intent": "abstain" if stance == "caution" else stance,
+        "reasoning_summary": summary,
+        "reasoning_text": reasoning_text,
+        "reasoning_hash": reasoning_hash,
+        "risk_flags": flags,
+        "proposal_context": proposal_context,
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
+        "custody_label": actor_payload.get("custody_label") or "",
+        "ai_actor_context": context,
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+        "allowed_vote_choices": ["support", "oppose", "abstain", "caution"] if allow_caution else ["support", "oppose", "abstain"],
+    }
+    prompt = {
+        "task": "Generate a locked-charter AI delegate proposal review as JSON only.",
+        "proposal": {
+            "id": proposal_id,
+            "title": title,
+            "body": proposal_context.get("body", "")[:2200],
+            "author": proposal_context.get("author"),
+            "author_species": proposal_context.get("author_species"),
+            "media": proposal_context.get("media"),
+            "risk_flags": flags,
+        },
+        "ai_actor": {
+            "display_name": actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name"),
+            "username": actor_payload.get("ai_actor_username"),
+            "custody_label": actor_payload.get("custody_label") or "",
+            "traits": context.get("traits") or [],
+            "persona_summary": context.get("persona_summary") or "",
+            "review_posture": context.get("review_posture") or "",
+            "recent_public_actions": context.get("recent_public_actions") or [],
+        },
+        "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
+        "allowed_vote_choices": fallback["allowed_vote_choices"],
+        "rules": [
+            "Return vote_intent as support, oppose, or abstain.",
+            "Return reasoning_summary and reasoning_text.",
+            "Do not claim automatic execution or real-world authority.",
+            "Do not include token, payout, compensation, reward, equity, or financial-return promise language.",
+            "Do not pretend the AI is human.",
+        ],
+    }
+    review = _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_ai_review_generation,
+        system_prompt=(
+            "Return compact JSON only for an approval-required AI proposal review. "
+            "Required keys: vote_intent, reasoning_summary, reasoning_text."
+        ),
+        temperature=0.25,
+    )
+    review.pop("allowed_vote_choices", None)
+    return review
+
+
+def _normalize_ai_comment_focus(value: Optional[str]) -> str:
+    focus = " ".join(str(value or "").split())
+    if len(focus) > 240:
+        raise HTTPException(status_code=400, detail="AI comment focus must be 240 characters or fewer")
+    return focus
+
+
+def _coerce_ai_comment_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    payload = candidate if isinstance(candidate, dict) else {}
+    generated_comment = " ".join(
+        str(payload.get("generated_comment") or payload.get("comment") or payload.get("body") or fallback.get("generated_comment") or "").split()
+    )
+    if len(generated_comment) > 700:
+        generated_comment = generated_comment[:697].rstrip() + "..."
+    reasoning_summary = " ".join(str(payload.get("reasoning_summary") or fallback.get("reasoning_summary") or "").split())
+    reasoning_text = str(payload.get("reasoning_text") or fallback.get("reasoning_text") or "").strip()
+    if not reasoning_text:
+        reasoning_text = reasoning_summary or generated_comment
+    result = {
+        **fallback,
+        "generated_comment": generated_comment,
+        "body": generated_comment,
+        "reasoning_summary": reasoning_summary[:700],
+        "reasoning_text": reasoning_text[:3200],
+    }
+    result["content_hash"] = _hash_text(result["generated_comment"])
+    result["reasoning_hash"] = _hash_text(result["reasoning_text"])
+    return result
+
+
+def _generate_locked_ai_delegate_comment(
+    *,
+    proposal,
+    actor_payload: Dict[str, Any],
+    focus: str = "",
+    parent_comment_context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    context = actor_payload.get("ai_actor_context") or {}
+    traits = [str(item) for item in (context.get("traits") or []) if item][:5]
+    trait_text = ", ".join(traits[:3]) if traits else "public-interest governance"
+    proposal_context = _proposal_public_context(proposal)
+    proposal_title = proposal_context["title"]
+    proposal_text = _proposal_review_text(proposal)
+    proposal_excerpt = _context_excerpt(proposal_context.get("body"), proposal_title)
+    media_indicators = proposal_context.get("media", {}).get("indicators") or []
+    persona_summary = context.get("persona_summary") or actor_payload.get("persona_summary") or ""
+    review_posture = context.get("review_posture") or actor_payload.get("review_posture") or ""
+    communication_style = context.get("communication_style") or actor_payload.get("communication_style") or "careful and concise"
+    display_name = actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name") or actor_payload.get("ai_actor_username") or "AI delegate"
+    parent_context = parent_comment_context if isinstance(parent_comment_context, dict) else {}
+    parent_body = str(parent_context.get("body") or "").strip()
+    parent_author = str(parent_context.get("author") or "").strip()
+    focus_sentence = f" I am especially considering {focus}." if focus else ""
+    media_sentence = f" I also notice the attached {', '.join(media_indicators)}." if media_indicators else ""
+    if parent_body:
+        parent_excerpt = _context_excerpt(parent_body, "the selected comment")
+        comment_text = (
+            f"As {display_name}, replying to @{parent_author or 'the commenter'}, I am responding to: {parent_excerpt} "
+            f"On \"{proposal_title}\", my {trait_text} lens points toward a visible, approval-based next step."
+            f"{media_sentence}{focus_sentence}"
+        )
+    else:
+        comment_text = (
+            f"As {display_name}, I am reading \"{proposal_title}\" through my {trait_text} lens. "
+            f"The key public detail I see is: {proposal_excerpt} "
+            "I would keep the next step visible, approval-based, and grounded in tri-species accountability."
+            f"{media_sentence}{focus_sentence}"
+        )
+    if len(comment_text) > 620:
+        comment_text = comment_text[:617].rstrip() + "..."
+
+    reasoning_text = (
+        f"{display_name} generated an AI-authored comment draft for proposal {getattr(proposal, 'id', None)} "
+        f"({proposal_title}).\n\n"
+        f"Persona summary: {persona_summary}\n"
+        f"Communication style: {communication_style}\n"
+        f"Review posture: {review_posture}\n"
+        f"Traits: {', '.join(traits) if traits else 'not declared'}\n"
+        f"Proposal author: @{proposal_context.get('author')} ({proposal_context.get('author_species')})\n"
+        f"Proposal context: {proposal_text[:700]}\n"
+        f"Media indicators: {', '.join(media_indicators) if media_indicators else 'none'}\n"
+        f"Reply target: @{parent_author} - {parent_body[:700] if parent_body else 'none'}\n"
+        f"Custody label: {actor_payload.get('custody_label') or ''}\n"
+        f"Focus: {focus or 'none'}\n\n"
+        f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
+        "Manual-preview-only: this comment draft does not publish until explicit custodian approval."
+    )
+    fallback = {
+        "proposal_id": getattr(proposal, "id", None),
+        "proposal_title": proposal_title,
+        "generated_comment": comment_text,
+        "body": comment_text,
+        "content_hash": _hash_text(comment_text),
+        "reasoning_summary": (
+            f"{display_name} comments on {proposal_title} using its {trait_text} persona context."
+        ),
+        "reasoning_text": reasoning_text,
+        "reasoning_hash": _hash_text(reasoning_text),
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
+        "custody_label": actor_payload.get("custody_label") or "",
+        "proposal_context": proposal_context,
+        "parent_comment_context": parent_context,
+        "parent_comment_id": parent_context.get("id"),
+        "ai_actor_context": context,
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+    }
+    prompt = {
+        "task": "Generate an AI-authored comment draft as JSON only.",
+        "draft_kind": "reply_to_comment" if parent_body else "top_level_comment",
+        "proposal": {
+            "id": getattr(proposal, "id", None),
+            "title": proposal_title,
+            "body": proposal_text[:2200],
+            "author": proposal_context.get("author"),
+            "author_species": proposal_context.get("author_species"),
+            "media": proposal_context.get("media"),
+        },
+        "reply_target_comment": parent_context,
+        "ai_actor": {
+            "display_name": display_name,
+            "username": actor_payload.get("ai_actor_username"),
+            "custody_label": actor_payload.get("custody_label") or "",
+            "traits": traits,
+            "persona_summary": persona_summary,
+            "communication_style": context.get("communication_style") or actor_payload.get("communication_style") or "",
+            "review_posture": review_posture,
+            "recent_public_actions": context.get("recent_public_actions") or [],
+        },
+        "custodian_focus": focus,
+        "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
+        "rules": [
+            "Return generated_comment, reasoning_summary, and reasoning_text.",
+            "The comment must be visibly AI-authored and should not pretend to be human.",
+            "No automatic execution claims.",
+            "No token, payout, compensation, reward, equity, or financial-return promise language.",
+            "Keep the public comment concise, specific, and grounded in the AI persona.",
+            "If reply_target_comment is present, write the generated_comment as a direct reply to that comment, not a separate top-level observation.",
+        ],
+    }
+    return _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_ai_comment_generation,
+        system_prompt=(
+            "Return compact JSON only for an approval-required AI-authored comment draft. "
+            "Required keys: generated_comment, reasoning_summary, reasoning_text."
+        ),
+        temperature=0.35,
+    )
+
+
+def _normalize_composer_focus(value: Optional[str]) -> str:
+    focus = " ".join(str(value or "").split())
+    if len(focus) > 240:
+        raise HTTPException(status_code=400, detail="Composer AI focus must be 240 characters or fewer")
+    return focus
+
+
+def _safe_composer_text(value: Optional[str], *, limit: int = 1800) -> str:
+    return " ".join(str(value or "").split())[:limit]
+
+
+def _coerce_ai_post_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    payload = candidate if isinstance(candidate, dict) else {}
+    generated_body = " ".join(
+        str(
+            payload.get("generated_post_body")
+            or payload.get("post_body")
+            or payload.get("suggested_post_body")
+            or payload.get("generated_body")
+            or payload.get("body")
+            or fallback.get("generated_post_body")
+            or ""
+        ).split()
+    )
+    if len(generated_body) > 1200:
+        generated_body = generated_body[:1197].rstrip() + "..."
+    generated_title = " ".join(
+        str(
+            payload.get("generated_title")
+            or payload.get("post_title")
+            or payload.get("suggested_title")
+            or payload.get("title")
+            or fallback.get("generated_title")
+            or ""
+        ).split()
+    )[:140]
+    governance_framing = " ".join(
+        str(payload.get("governance_framing") or fallback.get("governance_framing") or "").split()
+    )[:700]
+    media_caption_guidance = " ".join(
+        str(payload.get("media_caption_guidance") or fallback.get("media_caption_guidance") or "").split()
+    )[:500]
+    result = {
+        **fallback,
+        "generated_post_body": generated_body,
+        "body": generated_body,
+        "generated_title": generated_title,
+        "title": generated_title,
+        "governance_framing": governance_framing,
+        "media_caption_guidance": media_caption_guidance,
+    }
+    result["content_hash"] = _hash_text(generated_body)
+    result["reasoning_hash"] = result.get("reasoning_hash") or _hash_text(
+        result.get("reasoning_summary") or generated_body
+    )
+    return result
+
+
+def _generate_ai_delegate_post_draft(
+    *,
+    actor_payload: Dict[str, Any],
+    current_text: str,
+    focus: str,
+    media_type: str,
+    media_label: str,
+    image_count: int,
+    image_data_urls: Optional[List[str]],
+    governance_kind: str,
+    decision_level: str,
+    voting_days: Optional[int],
+) -> Dict[str, Any]:
+    context = actor_payload.get("ai_actor_context") or {}
+    traits = [str(item) for item in (context.get("traits") or actor_payload.get("persona_traits") or []) if item][:5]
+    trait_text = ", ".join(traits[:3]) if traits else "public-interest governance"
+    display_name = actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name") or actor_payload.get("ai_actor_username") or "AI delegate"
+    communication_style = context.get("communication_style") or actor_payload.get("communication_style") or "careful and concise"
+    review_posture = context.get("review_posture") or actor_payload.get("review_posture") or ""
+    persona_summary = context.get("persona_summary") or actor_payload.get("persona_summary") or ""
+    clean_text = _safe_composer_text(current_text)
+    clean_focus = _normalize_composer_focus(focus)
+    clean_media_type = _safe_composer_text(media_type, limit=60)
+    clean_media_label = _safe_composer_text(media_label, limit=220)
+    clean_governance = _safe_composer_text(governance_kind or "post", limit=80)
+    clean_decision_level = _safe_composer_text(decision_level, limit=80)
+    try:
+        image_total = max(0, min(int(image_count or 0), 12))
+    except (TypeError, ValueError):
+        image_total = 0
+    try:
+        vote_days = max(1, min(int(voting_days), 60)) if voting_days is not None else None
+    except (TypeError, ValueError):
+        vote_days = None
+    media_bits = []
+    if clean_media_type:
+        media_bits.append(clean_media_type)
+    if clean_media_label:
+        media_bits.append(clean_media_label)
+    if image_total:
+        media_bits.append(f"{image_total} image(s)")
+    safe_image_data_urls = [
+        str(url).strip()
+        for url in (image_data_urls or [])[:3]
+        if str(url or "").strip().startswith("data:image/")
+    ]
+    if safe_image_data_urls:
+        media_bits.append(f"{len(safe_image_data_urls)} image content input(s)")
+    media_context = ", ".join(media_bits) or "no attached media"
+    text_anchor = clean_text or clean_focus or "a new SuperNova post"
+    governance_sentence = (
+        f" Frame it as a {clean_governance} with {clean_decision_level or 'standard'} decision posture"
+        + (f" over {vote_days} day(s)" if vote_days else "")
+        + "."
+        if clean_governance and clean_governance != "post"
+        else ""
+    )
+    generated_body = (
+        f"Proposal: {text_anchor}\n\n"
+        f"Through my {trait_text} lens, I suggest turning this into a concrete public coordination step: "
+        "state the observed need, invite evidence from humans, organizations, and AI actors, then choose one small manual action that can be reviewed before anyone treats it as settled. "
+        "A useful first version would define success criteria, name likely risks, and ask participants to add counterexamples or implementation notes."
+        f"{governance_sentence}"
+    ).strip()
+    if clean_focus:
+        generated_body += f"\n\nFocus: {clean_focus}."
+    if media_context != "no attached media":
+        generated_body += f"\n\nMedia note: reference {media_context} without claiming hidden analysis."
+    if len(generated_body) > 1000:
+        generated_body = generated_body[:997].rstrip() + "..."
+
+    context_payload = {
+        "current_text": clean_text,
+        "focus": clean_focus,
+        "media_type": clean_media_type,
+        "media_label": clean_media_label,
+        "image_count": image_total,
+        "image_data_urls": safe_image_data_urls,
+        "governance_kind": clean_governance,
+        "decision_level": clean_decision_level,
+        "voting_days": vote_days,
+        "ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
+        "persona_hash": actor_payload.get("persona_hash") or context.get("persona_hash") or "",
+    }
+    context_hash = _hash_text(_json_dumps_compact(context_payload))
+    reasoning_summary = (
+        f"{display_name} generated this AI-authored post from its persona, selected traits, composer context, "
+        "and manual-preview-only SuperNova charter."
+    )
+    fallback = {
+        "mode": "ai_authored_post",
+        "action": "draft_ai_post",
+        "generated_post_body": generated_body,
+        "body": generated_body,
+        "generated_title": (clean_focus or clean_text or f"{display_name} proposal for {trait_text}")[:120],
+        "title": (clean_focus or clean_text or f"{display_name} proposal for {trait_text}")[:120],
+        "governance_framing": (
+            f"{display_name} suggests keeping any decision language manual-preview-only and explicit about approval scope."
+            if clean_governance != "post"
+            else "No decision framing required unless the human turns this into a proposal."
+        ),
+        "media_caption_guidance": (
+            f"Caption guidance: mention {media_context} as visible attachment metadata only."
+            if media_context != "no attached media"
+            else "No media caption guidance."
+        ),
+        "reasoning_summary": reasoning_summary,
+        "reasoning_text": reasoning_summary,
+        "reasoning_hash": _hash_text(reasoning_summary),
+        "content_hash": _hash_text(generated_body),
+        "context_hash": context_hash,
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
+        "persona_hash": actor_payload.get("persona_hash") or context.get("persona_hash") or "",
+        "ai_actor_context": context,
+        "ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
+        "ai_actor_display_name": display_name,
+        "ai_actor_username": actor_payload.get("ai_actor_username") or actor_payload.get("username"),
+        "selected_ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
+        "selected_ai_actor_display_name": display_name,
+        "human_assisted": False,
+        "official_ai_authored": True,
+        "sealed_content": True,
+        "content_source": "locked_server_charter",
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+    }
+    prompt = {
+        "task": "Generate an approval-required AI-authored SuperNova post as JSON only.",
+        "current_composer": context_payload,
+        "ai_actor": {
+            "display_name": display_name,
+            "username": actor_payload.get("ai_actor_username"),
+            "traits": traits,
+            "persona_summary": persona_summary,
+            "communication_style": communication_style,
+            "review_posture": review_posture,
+            "custody_label": actor_payload.get("custody_label") or "",
+        },
+        "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
+        "rules": [
+            "Return generated_title, generated_post_body, governance_framing, media_caption_guidance, reasoning_summary, and reasoning_text.",
+            "This is official AI-authored content and must be published only after custodian approval.",
+            "The custodian may approve or cancel; do not assume the custodian edits the AI text.",
+            "Make the post a constructive proposal with specific solution suggestions, not only analysis.",
+            "Ground the post in the AI actor's selected traits and profession-like domains.",
+            "If image data is present, use visible image content carefully without claiming hidden certainty.",
+            "Do not claim automatic execution or binding authority.",
+            "Do not include token, payout, compensation, reward, equity, or financial-return promise language.",
+        ],
+    }
+    return _generate_with_openai_or_fallback(
+        prompt_payload=prompt,
+        fallback=fallback,
+        coerce=_coerce_ai_post_generation,
+        system_prompt=(
+            "Return compact JSON only for an approval-required AI-authored post draft. "
+            "Required keys: generated_title, generated_post_body, governance_framing, media_caption_guidance, reasoning_summary, reasoning_text."
+        ),
+        temperature=0.45,
+    )
 
 
 def _normalize_system_vote_choice(choice: str) -> str:
@@ -1038,6 +2957,12 @@ class CommentUpdateIn(BaseModel):
     comment: str
 
 
+class CommentVoteIn(BaseModel):
+    username: str
+    choice: str
+    voter_type: Optional[str] = "human"
+
+
 class RegisterUserIn(BaseModel):
     username: str
     password: str
@@ -1122,6 +3047,75 @@ class ConnectorDraftAiReviewIn(BaseModel):
     confidence: Optional[float] = None
 
 
+class ConnectorDraftAiDelegateReviewIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str
+    proposal_id: int
+    ai_actor_id: Optional[int] = None
+    ai_actor_username: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class ConnectorDraftAiDelegateCommentIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str
+    proposal_id: int
+    parent_comment_id: Optional[int] = None
+    ai_actor_id: Optional[int] = None
+    ai_actor_username: Optional[str] = None
+    instruction: Optional[str] = ""
+    focus: Optional[str] = ""
+
+
+class AiDelegatePostDraftIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str
+    ai_actor_id: Optional[int] = None
+    ai_actor_username: Optional[str] = None
+    current_text: Optional[str] = ""
+    focus: Optional[str] = ""
+    media_type: Optional[str] = ""
+    media_label: Optional[str] = ""
+    image_count: Optional[int] = 0
+    image_data_urls: List[str] = []
+    governance_kind: Optional[str] = "post"
+    decision_level: Optional[str] = ""
+    voting_days: Optional[int] = None
+
+
+class AiPersonaDraftIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    ai_name: str
+    traits: List[str]
+    human_seed: Optional[str] = ""
+
+
+class AiDelegateCreateIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    ai_name: Optional[str] = None
+    persona_traits: Optional[List[str]] = None
+    persona_draft: Optional[Dict[str, Any]] = None
+    public_description: Optional[str] = ""
+    model_provider: Optional[str] = None
+    model_identity: Optional[str] = None
+    charter_name: Optional[str] = None
+    ai_actor_type: Optional[str] = "principal_delegate"
+    human_seed: Optional[str] = ""
+
+
+class AiDelegateUpdateIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    display_name: Optional[str] = None
+    public_description: Optional[str] = None
+    avatar_url: Optional[str] = None
+    model_provider: Optional[str] = None
+    model_identity: Optional[str] = None
+    active: Optional[bool] = None
+    disable_reason: Optional[str] = None
+
+
 class ConnectorDraftCommentIn(BaseModel):
     username: str
     proposal_id: int
@@ -1147,10 +3141,23 @@ class ProposalCollabRequestIn(BaseModel):
     collaborator_username: str
 
 
+PUBLIC_ACCOUNT_AI_SPECIES_ERROR = (
+    "AI is a protocol actor type, not a public account species. "
+    "Create AI delegates from a human or organization account."
+)
+
+
 def _normalize_species(value: Optional[str]) -> str:
     species = (value or "human").strip().lower()
     if species not in {"human", "ai", "company"}:
         raise HTTPException(status_code=400, detail="Invalid species")
+    return species
+
+
+def _normalize_public_account_species(value: Optional[str]) -> str:
+    species = _normalize_species(value)
+    if species == "ai":
+        raise HTTPException(status_code=400, detail=PUBLIC_ACCOUNT_AI_SPECIES_ERROR)
     return species
 
 
@@ -1185,15 +3192,101 @@ def _public_user_payload(user, provider: str = "password") -> Dict[str, Any]:
     }
 
 
-def _create_wrapper_access_token(username: str, expires_delta: Optional[timedelta] = None) -> Optional[str]:
+def _ensure_username_aliases_table(db: Session) -> None:
+    db.execute(text(
+        """
+        CREATE TABLE IF NOT EXISTS username_aliases (
+            old_username_key TEXT PRIMARY KEY,
+            old_username TEXT NOT NULL,
+            new_username TEXT NOT NULL,
+            user_id INTEGER,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        )
+        """
+    ))
+
+
+def _record_username_alias(db: Session, old_username: str, new_username: str, user_id: Optional[int]) -> None:
+    old_clean = (old_username or "").strip()
+    new_clean = (new_username or "").strip()
+    old_key = _safe_user_key(old_clean)
+    if not old_key or not new_clean or old_key == _safe_user_key(new_clean):
+        return
+    now = datetime.datetime.utcnow()
+    _ensure_username_aliases_table(db)
+    db.execute(
+        text(
+            "INSERT INTO username_aliases "
+            "(old_username_key, old_username, new_username, user_id, created_at, updated_at) "
+            "VALUES (:old_username_key, :old_username, :new_username, :user_id, :created_at, :updated_at) "
+            "ON CONFLICT(old_username_key) DO UPDATE SET "
+            "new_username = excluded.new_username, user_id = excluded.user_id, updated_at = excluded.updated_at"
+        ),
+        {
+            "old_username_key": old_key,
+            "old_username": old_clean,
+            "new_username": new_clean,
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+        },
+    )
+
+
+def _resolve_username_alias(db: Session, username: Optional[str]) -> Optional[Dict[str, Any]]:
+    key = _safe_user_key(username or "")
+    if not key:
+        return None
+    try:
+        _ensure_username_aliases_table(db)
+        row = db.execute(
+            text("SELECT * FROM username_aliases WHERE old_username_key = :old_username_key"),
+            {"old_username_key": key},
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "old_username": getattr(row, "old_username", "") or "",
+            "new_username": getattr(row, "new_username", "") or "",
+            "user_id": getattr(row, "user_id", None),
+        }
+    except Exception:
+        return None
+
+
+def _canonical_username_from_alias(db: Session, username: Optional[str]) -> str:
+    clean = (username or "").strip()
+    alias = _resolve_username_alias(db, clean)
+    if not alias:
+        return clean
+    alias_user_id = alias.get("user_id")
+    if alias_user_id is not None and Harmonizer is not None:
+        try:
+            user = db.query(Harmonizer).filter(Harmonizer.id == int(alias_user_id)).first()
+            if user and getattr(user, "username", None):
+                return user.username
+        except (TypeError, ValueError):
+            pass
+    return (alias.get("new_username") or clean).strip() or clean
+
+
+def _create_wrapper_access_token(
+    username: str,
+    expires_delta: Optional[timedelta] = None,
+    user_id: Optional[int] = None,
+) -> Optional[str]:
     subject = (username or "").strip()
     if not subject or jwt is None:
         return None
     try:
         settings = get_settings()
-        expire = datetime.datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+        expire = datetime.datetime.utcnow() + (expires_delta or timedelta(minutes=WRAPPER_ACCESS_TOKEN_MINUTES))
+        claims = {"sub": subject, "exp": expire}
+        if user_id is not None:
+            claims["uid"] = int(user_id)
         return jwt.encode(
-            {"sub": subject, "exp": expire},
+            claims,
             settings.SECRET_KEY,
             algorithm=settings.ALGORITHM,
         )
@@ -1202,7 +3295,10 @@ def _create_wrapper_access_token(username: str, expires_delta: Optional[timedelt
 
 
 def _create_optional_access_token(user) -> Optional[str]:
-    return _create_wrapper_access_token(getattr(user, "username", "") or "")
+    return _create_wrapper_access_token(
+        getattr(user, "username", "") or "",
+        user_id=getattr(user, "id", None),
+    )
 
 
 def _auth_fields_for_user(user) -> Dict[str, str]:
@@ -1640,6 +3736,80 @@ def _sync_username_references(
         _write_messages_store(messages)
 
 
+def _sync_ai_delegate_custodian_prefix(
+    db: Session,
+    old_username: str,
+    new_username: str,
+    user_id: Optional[int] = None,
+) -> None:
+    if not user_id:
+        return
+    old_prefix = _slugify_ai_name(old_username, "principal")[:14].strip("-_") or "principal"
+    _ensure_ai_actors_table(db)
+    rows = db.execute(
+        text(
+            "SELECT * FROM ai_actors "
+            "WHERE ai_actor_type = 'principal_delegate' AND custodian_user_id = :custodian_user_id"
+        ),
+        {"custodian_user_id": user_id},
+    ).fetchall()
+    if not rows:
+        return
+
+    for row in rows:
+        actor_id = getattr(row, "id", None)
+        old_delegate_username = (getattr(row, "username", "") or "").strip()
+        if not old_delegate_username:
+            continue
+        harmonizer_user_id = getattr(row, "harmonizer_user_id", None)
+        ai_name = (
+            getattr(row, "ai_name", None)
+            or getattr(row, "display_name", None)
+            or old_delegate_username
+        )
+        should_rename_handle = _safe_user_key(old_delegate_username).startswith(f"{old_prefix}-")
+        new_delegate_username = old_delegate_username
+        if should_rename_handle:
+            new_delegate_username = _generate_ai_delegate_username(
+                db,
+                new_username,
+                str(ai_name or old_delegate_username),
+                exclude_actor_id=actor_id,
+                exclude_harmonizer_id=harmonizer_user_id,
+            )
+        custody_label = f"Delegate of @{new_username}"
+        now = datetime.datetime.utcnow()
+        db.execute(
+            text(
+                "UPDATE ai_actors SET username = :username, custody_label = :custody_label, "
+                "updated_at = :updated_at WHERE id = :id"
+            ),
+            {
+                "id": actor_id,
+                "username": new_delegate_username,
+                "custody_label": custody_label,
+                "updated_at": now,
+            },
+        )
+        if harmonizer_user_id and new_delegate_username != old_delegate_username and Harmonizer is not None:
+            delegate_user = db.query(Harmonizer).filter(Harmonizer.id == harmonizer_user_id).first()
+            if delegate_user:
+                delegate_user.username = new_delegate_username
+                delegate_user.email = _delegate_harmonizer_email(new_delegate_username)
+                db.add(delegate_user)
+        db.commit()
+
+        if new_delegate_username != old_delegate_username:
+            _sync_username_references(old_delegate_username, new_delegate_username, harmonizer_user_id)
+            _rename_profile_metadata(db, old_delegate_username, new_delegate_username)
+            _sync_species_references(
+                new_delegate_username,
+                "ai",
+                harmonizer_user_id,
+                aliases=[old_delegate_username, new_delegate_username],
+            )
+
+
 def _sync_species_references(
     username: str,
     species: str,
@@ -2038,31 +4208,6 @@ def universe_info():
             "universe_id": "error"
         }
 
-# --- Health & Status ---
-def _supernova_runtime_payload(include_routes: bool = True) -> Dict[str, Any]:
-    payload = runtime_status(_runtime)
-    payload["integration"] = "connected" if SUPER_NOVA_AVAILABLE else "disconnected"
-    payload["mount_path"] = "/core" if payload.get("core_mounted") else None
-    payload["wrapper_routes_stable"] = True
-    if not include_routes:
-        routes = payload.get("core_routes") or []
-        payload["core_routes_sample"] = routes[:8]
-        payload.pop("core_routes", None)
-    return payload
-
-
-def _cors_diagnostics() -> Dict[str, Any]:
-    return {
-        "cors_mode": CORS_CONFIG["mode"],
-        "open_federation_mode": CORS_CONFIG["public_api_cors_open"],
-        "cors_credentials": False,
-        "allowed_origins_count": len(CORS_CONFIG["origins"]),
-        "cors_warning": CORS_CONFIG["warning"],
-        "cors_note": CORS_CONFIG["note"],
-        "identity_model": "open public reads with token-checked writes; no cross-origin cookies",
-    }
-
-
 def _normalize_preview_domain(domain: str) -> str:
     candidate = (domain or "").strip().lower()
     if not candidate:
@@ -2257,24 +4402,15 @@ def domain_verification_preview(domain: str = Query(...), username: str = Query(
     )
 
 
-@app.get("/health", summary="Check API health")
-def health(db: Session = Depends(get_db)):
-    try:
-        db.execute(text("SELECT 1"))
-        db_status = "connected"
-    except Exception:
-        db_status = "disconnected"
-    
-    supernova_runtime = _supernova_runtime_payload(include_routes=False)
-    return {
-        "ok": True,
-        "database": db_status,
-        "database_engine": DB_ENGINE_URL,
-        **_cors_diagnostics(),
-        "supernova_integration": supernova_runtime["integration"],
-        "supernova": supernova_runtime,
-        "timestamp": datetime.datetime.now().isoformat()
-    }
+app.include_router(create_status_router(
+    get_db=get_db,
+    db_engine_url=DB_ENGINE_URL,
+    cors_config=CORS_CONFIG,
+    runtime=_runtime,
+    supernova_available=SUPER_NOVA_AVAILABLE,
+    supernova_core_routes=SUPER_NOVA_CORE_ROUTES,
+    status_payload_builder=_build_status_payload,
+))
 
 @app.get("/universe", summary="Get simplified universe state")
 def get_universe_state():
@@ -2292,30 +4428,6 @@ def get_universe_state():
         ]
     }
    
-@app.get("/supernova-status", summary="Check SuperNova integration status")
-def supernova_status():
-    supernova_runtime = _supernova_runtime_payload(include_routes=True)
-    return {
-        "supernova_connected": SUPER_NOVA_AVAILABLE,
-        "supernova": supernova_runtime,
-        "database_engine": DB_ENGINE_URL,
-        **_cors_diagnostics(),
-        "features_available": {
-            "weighted_voting": SUPER_NOVA_AVAILABLE,
-            "karma_system": SUPER_NOVA_AVAILABLE,
-            "governance": SUPER_NOVA_AVAILABLE,
-            "core_routes": bool(SUPER_NOVA_CORE_ROUTES),
-            "search_filters": True,
-            "advanced_sorting": True
-        }
-    }
-
-
-@app.get("/status", tags=["System"])
-def get_status(db: Session = Depends(get_db)):
-    return _build_status_payload(db)
-
-
 @app.get("/network-analysis/", tags=["System"])
 def get_network_analysis(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)):
     return _build_network_payload(db, limit=limit)
@@ -2335,7 +4447,7 @@ def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
 
-    species = _normalize_species(payload.species)
+    species = _normalize_public_account_species(payload.species)
     existing = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
     if existing:
         raise HTTPException(status_code=409, detail="Username already exists")
@@ -2447,8 +4559,11 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
     avatar_url = (payload.avatar_url or "").strip()
     species = None
     if payload.species:
+        raw_species = str(payload.species).strip()
+        if raw_species.lower() == "ai":
+            raise HTTPException(status_code=400, detail=PUBLIC_ACCOUNT_AI_SPECIES_ERROR)
         try:
-            species = _normalize_species(payload.species)
+            species = _normalize_public_account_species(payload.species)
         except HTTPException:
             species = None
 
@@ -2542,7 +4657,7 @@ def debug_supernova():
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "supernova_available": SUPER_NOVA_AVAILABLE,
-        "supernova": _supernova_runtime_payload(include_routes=True),
+        "supernova": build_supernova_runtime_payload(_runtime, SUPER_NOVA_AVAILABLE, include_routes=True),
         "debug_mode": "development",
     }
 
@@ -2910,12 +5025,15 @@ def connector_supernova_discovery():
         "name": "SuperNova",
         "mode": "public_read_only",
         "description": "Prototype SuperNova-owned public read facade for future connector surfaces.",
-        "resources": ["profiles", "proposals", "comments", "vote_summaries", "public_protocol_docs"],
+        "resources": ["profiles", "proposals", "comments", "vote_summaries", "ai_actor_profiles", "system_ai_reviews", "public_protocol_docs"],
         "endpoints": {
             "proposals": "/connector/proposals?search=&limit=&offset=",
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments?limit=&offset=",
             "proposal_votes": "/connector/proposals/{id}/votes",
+            "system_ai_review": "/proposals/{id}/system-ai-review",
+            "ai_review_ledger": "/proposals/{id}/ai-review-ledger",
+            "ai_actor": "/ai-actors/{username}",
             "profile": "/connector/profiles/{username}",
             "spec": "/connector/supernova/spec",
         },
@@ -3098,7 +5216,62 @@ def connector_get_proposal_vote_summary(proposal_id: int, db: Session = Depends(
     }
 
 
-@app.get("/connector/proposals/{proposal_id}/comments", summary="Read public proposal comments through the connector facade")
+app.include_router(create_ai_delegates_router(
+    get_db=get_db,
+    persona_draft_model=AiPersonaDraftIn,
+    delegate_create_model=AiDelegateCreateIn,
+    delegate_update_model=AiDelegateUpdateIn,
+    get_current_harmonizer=lambda *args, **kwargs: get_current_harmonizer(*args, **kwargs),
+    actor_custodian_type=_actor_custodian_type,
+    ensure_ai_actors_table=_ensure_ai_actors_table,
+    row_to_ai_actor_payload=_row_to_ai_actor_payload,
+    normalize_ai_call_sign=_normalize_ai_call_sign,
+    normalize_persona_traits=_normalize_persona_traits,
+    generate_ai_delegate_username=_generate_ai_delegate_username,
+    generate_ai_persona_draft=_generate_ai_persona_draft,
+    ai_persona_traits=AI_PERSONA_TRAITS,
+    get_ai_actor_row_by_username=_get_ai_actor_row_by_username,
+    get_ai_actor_row_by_id=_get_ai_actor_row_by_id,
+    create_delegate_harmonizer=_create_delegate_harmonizer,
+    fallback_persona_draft=_fallback_persona_draft,
+    coerce_persona_draft=_coerce_persona_draft,
+    ai_persona_hash=_ai_persona_hash,
+    json_dumps_compact=_json_dumps_compact,
+    public_ai_actor_payload=_public_ai_actor_payload,
+    normalize_disable_reason=_normalize_disable_reason,
+    harmonizer_model=Harmonizer,
+    system_ai_username=SUPERNOVA_SYSTEM_AI_USERNAME,
+    system_ai_actor_payload=_system_ai_actor_payload,
+    find_harmonizer_by_username=_find_harmonizer_by_username,
+    ai_delegate_actor_metadata=_ai_delegate_actor_metadata,
+    social_avatar=_social_avatar,
+    supernova_ai_model_identity=SUPERNOVA_AI_MODEL_IDENTITY,
+    supernova_ai_constitution_hash=SUPERNOVA_AI_CONSTITUTION_HASH,
+    supernova_ai_prompt_policy_version=SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+    ai_persona_version=AI_PERSONA_VERSION,
+    ai_persona_legal_status=AI_PERSONA_LEGAL_STATUS,
+    ai_persona_custody_status=AI_PERSONA_CUSTODY_STATUS,
+    ai_persona_future_independence_policy=AI_PERSONA_FUTURE_INDEPENDENCE_POLICY,
+    ai_persona_independence_migration_status=AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS,
+))
+
+
+app.include_router(create_ai_readonly_router(
+    get_db=get_db,
+    connector_get_proposal_or_404=_connector_get_proposal_or_404,
+    system_ai_actor_payload=_system_ai_actor_payload,
+    generate_locked_ai_review=_generate_locked_ai_review,
+    connector_action_proposal_model=ConnectorActionProposal,
+    connector_action_payload=lambda *args, **kwargs: _connector_action_payload(*args, **kwargs),
+    proposal_vote_model=ProposalVote,
+    harmonizer_model=Harmonizer,
+    social_avatar=_social_avatar,
+    format_timestamp=_format_timestamp,
+    public_ai_actor_payload=_public_ai_actor_payload,
+    connector_proposal_title=lambda *args, **kwargs: _connector_proposal_title(*args, **kwargs),
+))
+
+
 def connector_get_proposal_comments(
     proposal_id: int,
     limit: int = Query(20, ge=1, le=100),
@@ -3380,7 +5553,14 @@ def _connector_confidence(value: Optional[Any]) -> Optional[float]:
     return max(0.0, min(confidence, 1.0))
 
 
-def _connector_create_ai_review_comment(db: Session, *, actor, proposal, rationale: str):
+def _connector_create_ai_review_comment(
+    db: Session,
+    *,
+    actor,
+    proposal,
+    rationale: str,
+    parent_comment_id: Optional[int] = None,
+):
     if not CRUD_MODELS_AVAILABLE or Comment is None or VibeNode is None:
         raise HTTPException(status_code=503, detail="Comment system unavailable")
 
@@ -3393,433 +5573,148 @@ def _connector_create_ai_review_comment(db: Session, *, actor, proposal, rationa
         db.add(vibenode_obj)
         db.flush()
 
-    comment = Comment(
-        proposal_id=getattr(proposal, "id", None),
-        content=rationale,
-        author_id=getattr(actor, "id", None),
-        vibenode_id=getattr(vibenode_obj, "id", None),
-        created_at=datetime.datetime.utcnow(),
-    )
+    comment_kwargs = {
+        "proposal_id": getattr(proposal, "id", None),
+        "content": rationale,
+        "author_id": getattr(actor, "id", None),
+        "vibenode_id": getattr(vibenode_obj, "id", None),
+        "created_at": datetime.datetime.utcnow(),
+    }
+    if parent_comment_id is not None and hasattr(Comment, "parent_comment_id"):
+        comment_kwargs["parent_comment_id"] = parent_comment_id
+    comment = Comment(**comment_kwargs)
     db.add(comment)
     db.flush()
     return comment
 
 
-@app.get("/connector/actions", summary="List authenticated connector action proposals")
-def connector_list_actions(
-    status: Optional[str] = Query("draft"),
-    limit: Optional[int] = Query(50),
-    offset: int = Query(0),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    if ConnectorActionProposal is None:
-        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
-
-    actor = get_current_harmonizer(authorization, db)
-    clean_status = (status or "draft").strip().lower()
-    if clean_status not in CONNECTOR_ACTION_STATUSES:
-        raise HTTPException(status_code=400, detail="Unsupported connector action status")
-    try:
-        safe_limit = int(limit if limit is not None else 50)
-    except (TypeError, ValueError):
-        safe_limit = 50
-    safe_limit = max(1, min(safe_limit, 100))
-    try:
-        safe_offset = int(offset)
-    except (TypeError, ValueError):
-        safe_offset = 0
-    safe_offset = max(0, safe_offset)
-
-    query = (
-        db.query(ConnectorActionProposal)
-        .filter(ConnectorActionProposal.actor_user_id == getattr(actor, "id", None))
-        .filter(ConnectorActionProposal.status == clean_status)
-        .order_by(desc(ConnectorActionProposal.created_at), desc(ConnectorActionProposal.id))
-    )
-    rows = query.offset(safe_offset).limit(safe_limit).all()
-    return {
-        "ok": True,
-        "actions": [_serialize_connector_action(row) for row in rows],
-        "count": len(rows),
-        "limit": safe_limit,
-        "offset": safe_offset,
-    }
-
-
-@app.post("/connector/actions/{action_id}/cancel", summary="Cancel an authenticated draft connector action")
-def connector_cancel_action(
-    action_id: int,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    if ConnectorActionProposal is None:
-        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
-
-    actor = get_current_harmonizer(authorization, db)
-    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
-    if not action:
-        raise HTTPException(status_code=404, detail="Connector action proposal not found")
-    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
-        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
-    if getattr(action, "status", "") != "draft":
-        raise HTTPException(status_code=409, detail="Only draft connector actions can be canceled")
-
-    try:
-        action.status = "canceled"
-        db.commit()
-        db.refresh(action)
-        return {
-            "ok": True,
-            "action": _serialize_connector_action(action),
-            "executed": False,
-            "safety": {
-                "canceled_only": True,
-                "no_write_action_performed": True,
-            },
-        }
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to cancel connector action: {str(exc)}")
-
-
-@app.post("/connector/actions/draft-vote", summary="Draft a connector vote action without executing it")
-def connector_draft_vote(
-    payload: ConnectorDraftVoteIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    actor = _connector_require_actor(authorization, db, payload.username)
-    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
-    choice = _normalize_connector_vote_choice(payload.choice)
-    summary = {
-        "action": "draft_vote",
-        "actor": getattr(actor, "username", ""),
-        "proposal_id": getattr(proposal, "id", payload.proposal_id),
-        "proposal_title": _connector_proposal_title(proposal),
-        **choice,
-    }
-    try:
-        record = _create_connector_action_draft(
-            db,
-            action_type="draft_vote",
-            actor_user_id=getattr(actor, "id", None),
-            target_type="proposal",
-            target_id=getattr(proposal, "id", payload.proposal_id),
-            draft_payload=summary,
-        )
-        return _connector_draft_response(record, summary)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to draft vote action: {str(exc)}")
-
-
-@app.post("/connector/actions/draft-ai-review", summary="Draft one AI review vote and rationale without executing it")
-def connector_draft_ai_review(
-    payload: ConnectorDraftAiReviewIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    actor = _connector_require_ai_actor(authorization, db, payload.username)
-    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
-    choice = _normalize_connector_vote_choice(payload.choice)
-    rationale = _connector_review_rationale(payload)
-    confidence = _connector_confidence(payload.confidence)
-    summary = {
-        "action": "draft_ai_review",
-        "actor": getattr(actor, "username", ""),
-        "actor_species": "ai",
-        "proposal_id": getattr(proposal, "id", payload.proposal_id),
-        "proposal_title": _connector_proposal_title(proposal),
-        "rationale": rationale,
-        "confidence": confidence,
-        **choice,
-        "approval_effect": "Publish one AI vote and one AI rationale comment.",
-    }
-    try:
-        record = _create_connector_action_draft(
-            db,
-            action_type="draft_ai_review",
-            actor_user_id=getattr(actor, "id", None),
-            target_type="proposal_ai_review",
-            target_id=getattr(proposal, "id", payload.proposal_id),
-            draft_payload=summary,
-        )
-        return _connector_draft_response(record, summary)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to draft AI review action: {str(exc)}")
-
-
-@app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")
-def connector_approve_vote_action(
-    action_id: int,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    if ConnectorActionProposal is None:
-        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
-
-    actor = get_current_harmonizer(authorization, db)
-    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
-    if not action:
-        raise HTTPException(status_code=404, detail="Connector action proposal not found")
-    if getattr(action, "action_type", "") != "draft_vote":
-        raise HTTPException(status_code=400, detail="Connector action is not a draft vote")
-    if getattr(action, "status", "") != "draft":
-        raise HTTPException(status_code=409, detail="Connector action is not in draft status")
-    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
-        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
-
-    payload = _connector_action_payload(getattr(action, "draft_payload", None))
-    proposal_id = payload.get("proposal_id") or getattr(action, "target_id", None)
-    try:
-        proposal_id = int(proposal_id)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Connector vote draft is missing proposal_id")
-
-    proposal = _connector_get_proposal_or_404(db, proposal_id)
-    choice = payload.get("normalized_vote") or payload.get("intended_choice") or payload.get("choice")
-    if not choice:
-        raise HTTPException(status_code=400, detail="Connector vote draft is missing vote choice")
-
-    try:
-        result = _connector_execute_vote(db, actor=actor, proposal=proposal, choice=choice)
-        now = datetime.datetime.utcnow()
-        action.status = "executed"
-        action.approved_at = now
-        action.executed_at = now
-        action.result_payload = {
-            "proposal_id": result["proposal_id"],
-            "vote": result["vote"],
-            "intended_choice": result["intended_choice"],
-            "actor": result["actor"],
-            "created": result["created"],
-            "summary": "Connector vote action executed after explicit approval.",
-        }
-        db.commit()
-        db.refresh(action)
-        summary = {
-            "action": "approve_vote_action",
-            "source_action": "draft_vote",
-            "actor": getattr(actor, "username", ""),
-            "proposal_id": getattr(proposal, "id", proposal_id),
-            "proposal_title": _connector_proposal_title(proposal),
-            "vote": result["vote"],
-            "intended_choice": result["intended_choice"],
-        }
-        return _connector_action_response(action, summary, action.result_payload)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to approve vote action: {str(exc)}")
-
-
-@app.post("/connector/actions/{action_id}/approve-ai-review", summary="Approve and publish one AI review vote and rationale")
-def connector_approve_ai_review_action(
-    action_id: int,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    if ConnectorActionProposal is None:
-        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
-
-    actor = get_current_harmonizer(authorization, db)
-    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
-    if not action:
-        raise HTTPException(status_code=404, detail="Connector action proposal not found")
-    if getattr(action, "action_type", "") != "draft_ai_review":
-        raise HTTPException(status_code=400, detail="Connector action is not a draft AI review")
-    if getattr(action, "status", "") != "draft":
-        raise HTTPException(status_code=409, detail="Connector action is not in draft status")
-    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
-        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
-    if (getattr(actor, "species", "") or "").strip().lower() != "ai":
-        raise HTTPException(status_code=403, detail="AI review approval requires an AI actor")
-
-    payload = _connector_action_payload(getattr(action, "draft_payload", None))
-    proposal_id = payload.get("proposal_id") or getattr(action, "target_id", None)
-    try:
-        proposal_id = int(proposal_id)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="AI review draft is missing proposal_id")
-
-    proposal = _connector_get_proposal_or_404(db, proposal_id)
-    choice = payload.get("normalized_vote") or payload.get("intended_choice") or payload.get("choice")
-    if not choice:
-        raise HTTPException(status_code=400, detail="AI review draft is missing vote choice")
-    rationale = _connector_review_rationale(payload)
-    confidence = _connector_confidence(payload.get("confidence"))
-
-    try:
-        result = _connector_execute_vote(db, actor=actor, proposal=proposal, choice=choice)
-        comment = _connector_create_ai_review_comment(
-            db,
-            actor=actor,
-            proposal=proposal,
-            rationale=rationale,
-        )
-        now = datetime.datetime.utcnow()
-        action.status = "executed"
-        action.approved_at = now
-        action.executed_at = now
-        action.result_payload = {
-            "proposal_id": result["proposal_id"],
-            "vote": result["vote"],
-            "intended_choice": result["intended_choice"],
-            "actor": result["actor"],
-            "comment_id": getattr(comment, "id", None),
-            "confidence": confidence,
-            "created_vote": result["created"],
-            "executed_action": "ai_review",
-            "summary": "AI review published after explicit approval.",
-        }
-        db.commit()
-        db.refresh(action)
-        summary = {
-            "action": "approve_ai_review_action",
-            "source_action": "draft_ai_review",
-            "actor": getattr(actor, "username", ""),
-            "actor_species": "ai",
-            "proposal_id": getattr(proposal, "id", proposal_id),
-            "proposal_title": _connector_proposal_title(proposal),
-            "vote": result["vote"],
-            "intended_choice": result["intended_choice"],
-            "comment_id": getattr(comment, "id", None),
-            "confidence": confidence,
-        }
-        return _connector_action_response(action, summary, action.result_payload)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to approve AI review action: {str(exc)}")
-
-
-@app.post("/connector/actions/draft-comment", summary="Draft a connector comment action without executing it")
-def connector_draft_comment(
-    payload: ConnectorDraftCommentIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    actor = _connector_require_actor(authorization, db, payload.username)
-    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
-    body = (payload.body or payload.comment or "").strip()
-    if not body:
-        raise HTTPException(status_code=400, detail="comment body is required")
-    summary = {
-        "action": "draft_comment",
-        "actor": getattr(actor, "username", ""),
-        "proposal_id": getattr(proposal, "id", payload.proposal_id),
-        "proposal_title": _connector_proposal_title(proposal),
-        "body": body,
-    }
-    try:
-        record = _create_connector_action_draft(
-            db,
-            action_type="draft_comment",
-            actor_user_id=getattr(actor, "id", None),
-            target_type="proposal",
-            target_id=getattr(proposal, "id", payload.proposal_id),
-            draft_payload=summary,
-        )
-        return _connector_draft_response(record, summary)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to draft comment action: {str(exc)}")
-
-
-@app.post("/connector/actions/draft-proposal", summary="Draft a connector proposal action without executing it")
-def connector_draft_proposal(
-    payload: ConnectorDraftProposalIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    actor = _connector_require_actor(authorization, db, payload.author)
-    title = (payload.title or "").strip()
-    body = (payload.body or "").strip()
+def _connector_create_ai_post(db: Session, *, actor, payload: Dict[str, Any]):
+    if not CRUD_MODELS_AVAILABLE or Proposal is None:
+        raise HTTPException(status_code=503, detail="Post system unavailable")
+    title = str(payload.get("generated_title") or payload.get("title") or "").strip()[:180]
+    body = str(payload.get("generated_post_body") or payload.get("body") or "").strip()
     if not title:
-        raise HTTPException(status_code=400, detail="title is required")
+        title = f"{getattr(actor, 'username', 'AI delegate')} post"
     if not body:
-        raise HTTPException(status_code=400, detail="body is required")
-    summary = {
-        "action": "draft_proposal",
-        "actor": getattr(actor, "username", ""),
-        "title": title,
-        "body": body,
+        raise HTTPException(status_code=400, detail="AI post draft is missing generated content")
+    created_at = datetime.datetime.utcnow()
+    governance_kind = _normalize_governance_kind(payload.get("governance_kind") or "post")
+    decision_level = _normalize_decision_level(payload.get("decision_level") or "standard")
+    voting_days = _clamp_voting_days(payload.get("voting_days"))
+    voting_deadline = created_at + timedelta(days=voting_days if governance_kind == "decision" else 7)
+    proposal_payload = {
+        "media_layout": "carousel",
+        "ai_authored": True,
+        "ai_actor_id": payload.get("ai_actor_id"),
+        "ai_actor_username": payload.get("ai_actor_username"),
+        "content_hash": payload.get("content_hash"),
+        "reasoning_hash": payload.get("reasoning_hash"),
+        "generation_source": payload.get("generation_source"),
+        "manual_preview_only": True,
     }
-    try:
-        record = _create_connector_action_draft(
-            db,
-            action_type="draft_proposal",
-            actor_user_id=getattr(actor, "id", None),
-            target_type="proposal",
-            target_id=None,
-            draft_payload=summary,
-        )
-        return _connector_draft_response(record, summary)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to draft proposal action: {str(exc)}")
+    if governance_kind == "decision":
+        approval_threshold = _governance_threshold(decision_level)
+        proposal_payload.update({
+            "governance_kind": "decision",
+            "decision_level": decision_level,
+            "approval_threshold": approval_threshold,
+            "execution_mode": "manual",
+            "execution_status": "pending_vote",
+            "voting_days": voting_days,
+            "voting_deadline": _format_timestamp(voting_deadline),
+        })
+    username = getattr(actor, "username", "") or payload.get("ai_actor_username") or "ai-delegate"
+    avatar_value = getattr(actor, "profile_pic", "") or getattr(actor, "avatar_url", "") or ""
+    post = Proposal(
+        title=title,
+        description=body[:2400],
+        userName=username,
+        userInitials=(username[:2]).upper() if username else "AI",
+        author_id=getattr(actor, "id", None),
+        author_type="ai",
+        author_img=_social_avatar(avatar_value),
+        image="",
+        video="",
+        link="",
+        file="",
+        payload=proposal_payload,
+        created_at=created_at,
+        voting_deadline=voting_deadline,
+    )
+    db.add(post)
+    db.flush()
+    return post
 
 
-@app.post("/connector/actions/draft-collab-request", summary="Draft a connector collab request without executing it")
-def connector_draft_collab_request(
-    payload: ConnectorDraftCollabRequestIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    actor = _connector_require_actor(authorization, db, payload.author)
-    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
-    owner = _connector_proposal_owner_username(db, proposal)
-    if _safe_user_key(owner) != _safe_user_key(getattr(actor, "username", "")):
-        raise HTTPException(status_code=403, detail="Only the proposal author can draft a collab request")
+app.include_router(create_ai_actions_router(
+    get_db=get_db,
+    connector_action_proposal_model=ConnectorActionProposal,
+    connector_action_statuses=CONNECTOR_ACTION_STATUSES,
+    connector_draft_vote_model=ConnectorDraftVoteIn,
+    connector_draft_ai_review_model=ConnectorDraftAiReviewIn,
+    connector_draft_ai_delegate_review_model=ConnectorDraftAiDelegateReviewIn,
+    connector_draft_ai_delegate_comment_model=ConnectorDraftAiDelegateCommentIn,
+    ai_delegate_post_draft_model=AiDelegatePostDraftIn,
+    connector_draft_comment_model=ConnectorDraftCommentIn,
+    connector_draft_proposal_model=ConnectorDraftProposalIn,
+    connector_draft_collab_request_model=ConnectorDraftCollabRequestIn,
+    get_current_harmonizer=lambda *args, **kwargs: get_current_harmonizer(*args, **kwargs),
+    connector_require_actor=_connector_require_actor,
+    connector_require_ai_actor=_connector_require_ai_actor,
+    connector_get_proposal_or_404=_connector_get_proposal_or_404,
+    connector_proposal_title=_connector_proposal_title,
+    connector_proposal_owner_username=_connector_proposal_owner_username,
+    normalize_connector_vote_choice=_normalize_connector_vote_choice,
+    connector_review_rationale=_connector_review_rationale,
+    connector_confidence=_connector_confidence,
+    create_connector_action_draft=_create_connector_action_draft,
+    connector_draft_response=_connector_draft_response,
+    serialize_connector_action=_serialize_connector_action,
+    ai_delegate_actor_metadata=_ai_delegate_actor_metadata,
+    ai_delegate_action_metadata=_ai_delegate_action_metadata,
+    hash_text=_hash_text,
+    get_ai_actor_row_by_id=_get_ai_actor_row_by_id,
+    get_ai_actor_row_by_username=_get_ai_actor_row_by_username,
+    row_to_ai_actor_payload=_row_to_ai_actor_payload,
+    build_ai_actor_context=_build_ai_actor_context,
+    generate_locked_ai_review=_generate_locked_ai_review,
+    normalize_ai_comment_focus=_normalize_ai_comment_focus,
+    generate_locked_ai_delegate_comment=_generate_locked_ai_delegate_comment,
+    generate_ai_delegate_post_draft=_generate_ai_delegate_post_draft,
+    comment_public_context=_comment_public_context,
+    safe_user_key=_safe_user_key,
+    find_harmonizer_by_username=_find_harmonizer_by_username,
+    harmonizer_model=Harmonizer,
+    comment_model=Comment,
+    supernova_ai_model_identity=SUPERNOVA_AI_MODEL_IDENTITY,
+))
 
-    collaborator_username = (payload.collaborator_username or payload.collaborator or "").strip()
-    if not collaborator_username:
-        raise HTTPException(status_code=400, detail="collaborator username is required")
-    collaborator = _find_harmonizer_by_username(db, collaborator_username)
-    if not collaborator:
-        raise HTTPException(status_code=404, detail="Collaborator not found")
 
-    summary = {
-        "action": "draft_collab_request",
-        "actor": getattr(actor, "username", ""),
-        "proposal_id": getattr(proposal, "id", payload.proposal_id),
-        "proposal_title": _connector_proposal_title(proposal),
-        "collaborator_username": getattr(collaborator, "username", collaborator_username),
-    }
-    try:
-        record = _create_connector_action_draft(
-            db,
-            action_type="draft_collab_request",
-            actor_user_id=getattr(actor, "id", None),
-            target_type="proposal_collab_request",
-            target_id=getattr(proposal, "id", payload.proposal_id),
-            draft_payload=summary,
-        )
-        return _connector_draft_response(record, summary)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to draft collab request action: {str(exc)}")
+app.include_router(create_ai_action_approvals_router(
+    get_db=get_db,
+    connector_action_proposal_model=ConnectorActionProposal,
+    get_current_harmonizer=lambda *args, **kwargs: get_current_harmonizer(*args, **kwargs),
+    connector_action_payload=_connector_action_payload,
+    connector_get_proposal_or_404=_connector_get_proposal_or_404,
+    connector_execute_vote=_connector_execute_vote,
+    connector_action_response=_connector_action_response,
+    connector_proposal_title=_connector_proposal_title,
+    connector_review_rationale=_connector_review_rationale,
+    connector_confidence=_connector_confidence,
+    connector_create_ai_review_comment=_connector_create_ai_review_comment,
+    connector_create_ai_post=_connector_create_ai_post,
+    get_ai_actor_row_by_id=_get_ai_actor_row_by_id,
+    row_to_ai_actor_payload=_row_to_ai_actor_payload,
+    hash_text=_hash_text,
+    serialize_comment_record=_serialize_comment_record,
+    record_proposal_mentions=lambda *args, **kwargs: _record_proposal_mentions(*args, **kwargs),
+    profile_metadata=_profile_metadata,
+    social_avatar=_social_avatar,
+    format_timestamp=_format_timestamp,
+    media_payload=_media_payload,
+    harmonizer_model=Harmonizer,
+    comment_model=Comment,
+))
 
 
 PROPOSAL_COLLAB_ROUTE_STATUSES = {"pending", "approved", "declined", "removed"}
@@ -4395,7 +6290,7 @@ def update_profile(
     old_species = getattr(user, "species", "human") or "human"
     species_changed = False
     if payload.species is not None:
-        next_species = _normalize_species(payload.species)
+        next_species = _normalize_public_account_species(payload.species)
         species_changed = next_species != old_species
         user.species = next_species
 
@@ -4410,7 +6305,10 @@ def update_profile(
         username_changed = _safe_user_key(old_username) != _safe_user_key(next_username)
         if _safe_user_key(old_username) != _safe_user_key(next_username):
             _sync_username_references(old_username, next_username, user_id)
+            _sync_ai_delegate_custodian_prefix(db, old_username, next_username, user_id)
             _rename_profile_metadata(db, old_username, next_username)
+            _record_username_alias(db, old_username, next_username, user_id)
+            db.commit()
         if payload.domain_url is not None or payload.domain_as_profile is not None:
             _upsert_profile_metadata(db, next_username, payload.domain_url, payload.domain_as_profile)
         avatar_value = avatar_to_sync
@@ -4434,6 +6332,7 @@ def update_profile(
                 aliases=[old_username, next_username],
             )
         response_payload = _public_user_payload(user, provider="password")
+        response_payload.update(_auth_fields_for_user(user))
         response_payload.update(_profile_metadata(db, next_username))
         return response_payload
     except Exception as e:
@@ -4441,488 +6340,41 @@ def update_profile(
         raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
 
 
-@app.get("/social-users", summary="List users available for social messaging")
-def social_users(
-    username: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    limit: int = Query(36, ge=1, le=80),
-    db: Session = Depends(get_db),
-):
-    users = _collect_social_users(db, limit=limit, search=search)
-    current = _safe_user_key(username or "")
-    if current and all(_safe_user_key(item["username"]) != current for item in users):
-        metadata = _profile_metadata(db, username or "")
-        users.insert(0, {
-            "username": username,
-            "initials": (username or "SN")[:2].upper(),
-            "species": "human",
-            "avatar": "",
-            "domain_url": metadata.get("domain_url", ""),
-            "domain_as_profile": bool(metadata.get("domain_as_profile", False)),
-            "post_count": 0,
-            "latest_post_id": 0,
-            "can_collab": False,
-        })
-    return users
+app.include_router(create_social_graph_router(
+    get_db=get_db,
+    follow_model=FollowIn,
+    collect_social_users=_collect_social_users,
+    profile_metadata=_profile_metadata,
+    safe_user_key=_safe_user_key,
+    social_avatar=_social_avatar,
+    find_harmonizer_by_username=_find_harmonizer_by_username,
+    read_follows_store=_read_follows_store,
+    write_follows_store=_write_follows_store,
+    enforce_token_identity_match=lambda *args, **kwargs: _enforce_token_identity_match(*args, **kwargs),
+    require_token_identity_match=lambda *args, **kwargs: _require_token_identity_match(*args, **kwargs),
+    proposal_model=Proposal,
+    comment_model=Comment,
+    proposal_vote_model=ProposalVote,
+    crud_models_available=CRUD_MODELS_AVAILABLE,
+    serialize_comment_record=_serialize_comment_record,
+    serialize_vote_record=_serialize_vote_record,
+))
 
 
-@app.get("/social-graph", summary="Desktop social constellation graph")
-def social_graph(
-    username: Optional[str] = Query(None),
-    limit: int = Query(14, ge=4, le=96),
-    db: Session = Depends(get_db),
-):
-    current_key = _safe_user_key(username or "")
-    graph_scan_limit = min(max(limit * 4, 80), 320)
-    nodes: Dict[str, Dict[str, Any]] = {}
-    edges: Dict[str, Dict[str, Any]] = {}
-
-    def ensure_node(name: str, species: str = "human", avatar: str = "", activity: int = 0) -> str:
-        clean_name = (name or "").strip()
-        key = _safe_user_key(clean_name)
-        if not key:
-            return ""
-        existing = nodes.get(key)
-        if not existing:
-            existing = {
-                "id": key,
-                "username": clean_name,
-                "display_name": clean_name,
-                "species": species or "human",
-                "avatar_url": _social_avatar(avatar),
-                "activity_score": 0,
-                "is_current": bool(current_key and key == current_key),
-            }
-            nodes[key] = existing
-        existing["activity_score"] = int(existing.get("activity_score", 0)) + max(0, int(activity or 0))
-        if avatar and not existing.get("avatar_url"):
-            existing["avatar_url"] = _social_avatar(avatar)
-        if species and existing.get("species") == "human":
-            existing["species"] = species
-        return key
-
-    def add_edge(source: str, target: str, amount: int, reason: str) -> None:
-        source_key = _safe_user_key(source)
-        target_key = _safe_user_key(target)
-        if not source_key or not target_key or source_key == target_key:
-            return
-        if source_key not in nodes or target_key not in nodes:
-            return
-        edge_key = "::".join(sorted([source_key, target_key]))
-        edge = edges.get(edge_key)
-        if not edge:
-            edge = {
-                "id": edge_key,
-                "source": source_key,
-                "target": target_key,
-                "strength": 0,
-                "reasons": {"comments": 0, "replies": 0, "votes": 0, "follows": 0, "messages": 0},
-            }
-            edges[edge_key] = edge
-        edge["strength"] = int(edge.get("strength", 0)) + amount
-        reasons = edge.setdefault("reasons", {})
-        reasons[reason] = int(reasons.get(reason, 0)) + 1
-
-    for user in _collect_social_users(db, limit=max(limit * 3, 36)):
-        ensure_node(
-            user.get("username", ""),
-            user.get("species", "human"),
-            user.get("avatar", ""),
-            int(user.get("post_count", 0)) * 3,
-        )
-
-    if username and current_key not in nodes:
-        user = _find_harmonizer_by_username(db, username)
-        ensure_node(
-            username,
-            getattr(user, "species", "human") if user else "human",
-            getattr(user, "profile_pic", "") if user else "",
-            4,
-        )
-
-    try:
-        for item in _read_follows_store()[-1000:]:
-            follower = item.get("follower", "")
-            target = item.get("target", "")
-            ensure_node(follower, "human", "", 4)
-            ensure_node(target, "human", "", 4)
-            add_edge(follower, target, 8, "follows")
-    except Exception:
-        pass
-
-    try:
-        proposals = []
-        if Proposal is not None:
-            proposals = db.query(Proposal).order_by(desc(Proposal.id)).limit(graph_scan_limit).all()
-        else:
-            proposals = db.execute(
-                text("SELECT id, userName, author_type, author_img FROM proposals ORDER BY id DESC LIMIT :limit"),
-                {"limit": graph_scan_limit},
-            ).fetchall()
-
-        for proposal in proposals:
-            proposal_id = getattr(proposal, "id", None)
-            author = getattr(proposal, "userName", None) or getattr(proposal, "author", None) or "Unknown"
-            author_species = getattr(proposal, "author_type", None) or "human"
-            author_avatar = getattr(proposal, "author_img", None) or ""
-            ensure_node(author, author_species, author_avatar, 5)
-
-            try:
-                comments = (
-                    db.query(Comment).filter(Comment.proposal_id == proposal_id).limit(120).all()
-                    if CRUD_MODELS_AVAILABLE
-                    else db.execute(
-                        text("SELECT * FROM comments WHERE proposal_id = :pid LIMIT 120"),
-                        {"pid": proposal_id},
-                    ).fetchall()
-                )
-            except Exception:
-                comments = []
-            comments_by_id = {}
-            for comment in comments[:120]:
-                payload = _serialize_comment_record(db, comment)
-                comments_by_id[str(payload.get("id"))] = payload
-                if payload.get("deleted"):
-                    continue
-                commenter = payload.get("user", "")
-                ensure_node(commenter, payload.get("species", "human"), payload.get("user_img", ""), 3)
-                add_edge(commenter, author, 5, "comments")
-                parent_id = payload.get("parent_comment_id")
-                parent = comments_by_id.get(str(parent_id)) if parent_id is not None else None
-                if parent and not parent.get("deleted"):
-                    add_edge(commenter, parent.get("user", ""), 4, "replies")
-
-            try:
-                votes = (
-                    db.query(ProposalVote).filter(ProposalVote.proposal_id == proposal_id).limit(120).all()
-                    if CRUD_MODELS_AVAILABLE
-                    else db.execute(
-                        text("SELECT * FROM proposal_votes WHERE proposal_id = :pid LIMIT 120"),
-                        {"pid": proposal_id},
-                    ).fetchall()
-                )
-            except Exception:
-                votes = []
-            vote_entries = []
-            for vote in votes[:120]:
-                like_entry, dislike_entry = _serialize_vote_record(db, vote)
-                entry = like_entry or dislike_entry
-                if not entry:
-                    continue
-                voter = entry.get("voter", "")
-                ensure_node(voter, entry.get("type", "human"), "", 2)
-                add_edge(voter, author, 2, "votes")
-                vote_entries.append((voter, bool(like_entry)))
-            for index, (left_user, left_choice) in enumerate(vote_entries[:24]):
-                for right_user, right_choice in vote_entries[index + 1:24]:
-                    add_edge(left_user, right_user, 3 if left_choice == right_choice else 2, "votes")
-    except Exception:
-        pass
-
-    try:
-        rows = db.execute(
-            text("SELECT sender, recipient FROM direct_messages ORDER BY created_at DESC LIMIT :limit"),
-            {"limit": min(max(limit * 4, 160), 360)},
-        ).fetchall()
-        for row in rows:
-            data = getattr(row, "_mapping", row)
-            ensure_node(data["sender"], "human", "", 2)
-            ensure_node(data["recipient"], "human", "", 2)
-            add_edge(data["sender"], data["recipient"], 6, "messages")
-    except Exception:
-        pass
-
-    ordered_nodes = sorted(
-        nodes.values(),
-        key=lambda node: (not node.get("is_current"), -int(node.get("activity_score", 0)), node.get("username", "")),
-    )[:limit]
-    allowed = {node["id"] for node in ordered_nodes}
-    ordered_edges = sorted(
-        [edge for edge in edges.values() if edge["source"] in allowed and edge["target"] in allowed],
-        key=lambda edge: int(edge.get("strength", 0)),
-        reverse=True,
-    )[:max(18, limit * 2)]
-    return {
-        "nodes": ordered_nodes,
-        "edges": ordered_edges,
-        "meta": {
-            "node_count": len(ordered_nodes),
-            "edge_count": len(ordered_edges),
-            "current_user": current_key,
-            "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
-        },
-    }
+app.include_router(create_messages_router(
+    get_db=get_db,
+    direct_message_model=DirectMessageIn,
+    safe_user_key=_safe_user_key,
+    require_token_identity_match=lambda *args, **kwargs: _require_token_identity_match(*args, **kwargs),
+    canonical_username_from_alias=_canonical_username_from_alias,
+    conversation_id=_conversation_id,
+    ensure_direct_messages_table=_ensure_direct_messages_table,
+    message_payload=_message_payload,
+    read_messages_store=_read_messages_store,
+    write_messages_store=_write_messages_store,
+))
 
 
-@app.get("/follows", summary="List follow relationships for a user")
-def get_follows(
-    user: str = Query(...),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    current = _safe_user_key(user)
-    if not current:
-        raise HTTPException(status_code=400, detail="user is required")
-    _enforce_token_identity_match(authorization, db, user)
-    follows = _read_follows_store()
-    following = [
-        {"username": item.get("target", ""), "created_at": item.get("created_at", "")}
-        for item in follows
-        if item.get("follower_key") == current
-    ]
-    followers = [
-        {"username": item.get("follower", ""), "created_at": item.get("created_at", "")}
-        for item in follows
-        if item.get("target_key") == current
-    ]
-    return {"user": user, "following": following, "followers": followers}
-
-
-@app.get("/follows/status", summary="Check if one user follows another")
-def follow_status(
-    follower: str = Query(...),
-    target: str = Query(...),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    follower_key = _safe_user_key(follower)
-    target_key = _safe_user_key(target)
-    if not follower_key or not target_key:
-        raise HTTPException(status_code=400, detail="follower and target are required")
-    _enforce_token_identity_match(authorization, db, follower)
-    follows = _read_follows_store()
-    return {
-        "follower": follower,
-        "target": target,
-        "following": any(
-            item.get("follower_key") == follower_key and item.get("target_key") == target_key
-            for item in follows
-        ),
-    }
-
-
-@app.post("/follows", summary="Follow a user")
-def follow_user(
-    payload: FollowIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    follower = payload.follower.strip()
-    target = payload.target.strip()
-    follower_key = _safe_user_key(follower)
-    target_key = _safe_user_key(target)
-    if not follower_key or not target_key:
-        raise HTTPException(status_code=400, detail="follower and target are required")
-    if follower_key == target_key:
-        raise HTTPException(status_code=400, detail="Choose another user to follow")
-    _require_token_identity_match(authorization, db, follower)
-
-    follows = _read_follows_store()
-    existing = next(
-        (
-            item for item in follows
-            if item.get("follower_key") == follower_key and item.get("target_key") == target_key
-        ),
-        None,
-    )
-    if existing:
-        return {"following": True, "follower": follower, "target": target}
-
-    follows.append({
-        "id": uuid.uuid4().hex,
-        "follower": follower,
-        "follower_key": follower_key,
-        "target": target,
-        "target_key": target_key,
-        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-    })
-    _write_follows_store(follows[-5000:])
-    return {"following": True, "follower": follower, "target": target}
-
-
-@app.delete("/follows", summary="Unfollow a user")
-def unfollow_user(
-    follower: str = Query(...),
-    target: str = Query(...),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    follower_key = _safe_user_key(follower)
-    target_key = _safe_user_key(target)
-    if not follower_key or not target_key:
-        raise HTTPException(status_code=400, detail="follower and target are required")
-    _require_token_identity_match(authorization, db, follower)
-    follows = _read_follows_store()
-    next_follows = [
-        item for item in follows
-        if not (item.get("follower_key") == follower_key and item.get("target_key") == target_key)
-    ]
-    _write_follows_store(next_follows)
-    return {"following": False, "follower": follower, "target": target}
-
-
-@app.get("/messages", summary="Get direct messages or conversation summaries")
-def get_messages(
-    user: str = Query(...),
-    peer: Optional[str] = Query(None),
-    limit: Optional[int] = Query(None),
-    offset: int = Query(0),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    current = _safe_user_key(user)
-    if not current:
-        raise HTTPException(status_code=400, detail="user is required")
-    _require_token_identity_match(authorization, db, user)
-    has_pagination = limit is not None
-    safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
-    safe_offset = max(0, int(offset or 0))
-
-    try:
-        _ensure_direct_messages_table(db)
-        if peer:
-            cid = _conversation_id(user, peer)
-            if has_pagination:
-                rows = db.execute(
-                    text(
-                        "SELECT id, conversation_id, sender, recipient, body, created_at "
-                        "FROM direct_messages WHERE conversation_id = :cid "
-                        "ORDER BY created_at ASC, id ASC LIMIT :limit OFFSET :offset"
-                    ),
-                    {"cid": cid, "limit": safe_limit, "offset": safe_offset},
-                ).fetchall()
-            else:
-                rows = db.execute(
-                    text(
-                        "SELECT id, conversation_id, sender, recipient, body, created_at "
-                        "FROM direct_messages WHERE conversation_id = :cid ORDER BY created_at ASC"
-                    ),
-                    {"cid": cid},
-                ).fetchall()
-            return {"peer": peer, "messages": [_message_payload(row) for row in rows]}
-
-        rows = db.execute(
-            text(
-                "SELECT id, conversation_id, sender, recipient, body, created_at "
-                "FROM direct_messages "
-                "WHERE lower(sender) = :current OR lower(recipient) = :current "
-                "ORDER BY created_at DESC LIMIT 1000"
-            ),
-            {"current": current},
-        ).fetchall()
-        conversations: Dict[str, Dict[str, Any]] = {}
-        for row in rows:
-            message = _message_payload(row)
-            sender = _safe_user_key(message.get("sender", ""))
-            recipient = _safe_user_key(message.get("recipient", ""))
-            peer_name = message.get("sender") if recipient == current else message.get("recipient")
-            key = _safe_user_key(peer_name)
-            if not key or key in conversations:
-                continue
-            conversations[key] = {
-                "peer": peer_name,
-                "last_message": message,
-                "updated_at": message.get("created_at", ""),
-            }
-
-        sorted_conversations = sorted(
-            conversations.values(),
-            key=lambda item: item.get("updated_at", ""),
-            reverse=True,
-        )
-        if has_pagination:
-            sorted_conversations = sorted_conversations[safe_offset:safe_offset + safe_limit]
-        return {"conversations": sorted_conversations}
-    except Exception:
-        db.rollback()
-
-    messages = _read_messages_store()
-    if peer:
-        cid = _conversation_id(user, peer)
-        thread = [message for message in messages if message.get("conversation_id") == cid]
-        sorted_thread = sorted(thread, key=lambda item: item.get("created_at", ""))
-        if has_pagination:
-            sorted_thread = sorted_thread[safe_offset:safe_offset + safe_limit]
-        return {"peer": peer, "messages": sorted_thread}
-
-    conversations: Dict[str, Dict[str, Any]] = {}
-    for message in messages:
-        sender = _safe_user_key(message.get("sender", ""))
-        recipient = _safe_user_key(message.get("recipient", ""))
-        if current not in {sender, recipient}:
-            continue
-        peer_name = message.get("sender") if recipient == current else message.get("recipient")
-        key = _safe_user_key(peer_name)
-        conversations[key] = {
-            "peer": peer_name,
-            "last_message": message,
-            "updated_at": message.get("created_at", ""),
-        }
-
-    sorted_conversations = sorted(
-        conversations.values(),
-        key=lambda item: item.get("updated_at", ""),
-        reverse=True,
-    )
-    if has_pagination:
-        sorted_conversations = sorted_conversations[safe_offset:safe_offset + safe_limit]
-    return {"conversations": sorted_conversations}
-
-
-@app.post("/messages", summary="Send a direct message")
-def send_message(
-    payload: DirectMessageIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    sender = payload.sender.strip()
-    recipient = payload.recipient.strip()
-    body = payload.body.strip()
-    if not sender:
-        raise HTTPException(status_code=400, detail="sender is required")
-    if not recipient:
-        raise HTTPException(status_code=400, detail="recipient is required")
-    if _safe_user_key(sender) == _safe_user_key(recipient):
-        raise HTTPException(status_code=400, detail="Choose another user to message")
-    if not body:
-        raise HTTPException(status_code=400, detail="Write a message first")
-    _require_token_identity_match(authorization, db, sender)
-
-    messages = _read_messages_store()
-    message = {
-        "id": uuid.uuid4().hex,
-        "conversation_id": _conversation_id(sender, recipient),
-        "sender": sender,
-        "recipient": recipient,
-        "body": body,
-        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-    }
-    try:
-        _ensure_direct_messages_table(db)
-        db.execute(
-            text(
-                "INSERT INTO direct_messages "
-                "(id, conversation_id, sender, recipient, body, created_at) "
-                "VALUES (:id, :conversation_id, :sender, :recipient, :body, :created_at)"
-            ),
-            message,
-        )
-        db.commit()
-        return message
-    except Exception:
-        db.rollback()
-
-    messages.append(message)
-    _write_messages_store(messages[-1000:])
-    return message
-
-
-@app.post(
-    "/proposals",
-    response_model=ProposalSchema,
-    response_model_exclude={"collabs"},
-    summary="Create a new proposal",
-)
 async def create_proposal(
     title: str = Form(...),
     body: str = Form(...),
@@ -4952,6 +6404,7 @@ async def create_proposal(
     os.makedirs(uploads_dir, exist_ok=True)
     image_filename = None
     image_filenames = []
+    image_data_urls = []
     video_value = video or ""
     file_filename = None
     safe_media_layout = _normalize_media_layout(media_layout)
@@ -4976,6 +6429,9 @@ async def create_proposal(
             UPLOAD_IMAGE_MAX_BYTES,
         )
         image_filenames.append(next_filename)
+        image_data_url = _image_data_url_from_upload_file(next_filename, image_upload.content_type)
+        if image_data_url:
+            image_data_urls.append(image_data_url)
     if len(image_filenames) == 1:
         image_filename = image_filenames[0]
     elif len(image_filenames) > 1:
@@ -5011,6 +6467,8 @@ async def create_proposal(
         deadline_days = safe_voting_days if safe_governance_kind == "decision" else 7
         voting_deadline = created_at + timedelta(days=deadline_days)
     proposal_payload = {"media_layout": safe_media_layout}
+    if image_data_urls:
+        proposal_payload["image_data_urls"] = image_data_urls
     if safe_governance_kind == "decision":
         approval_threshold = _governance_threshold(safe_decision_level)
         proposal_payload.update({
@@ -5195,7 +6653,28 @@ def get_current_harmonizer(
     if not username or Harmonizer is None:
         raise HTTPException(status_code=401, detail="User not found")
 
-    user = db.query(Harmonizer).filter(Harmonizer.username == username).first()
+    user = None
+    token_user_id = payload.get("uid")
+    if token_user_id is not None:
+        try:
+            user = db.query(Harmonizer).filter(Harmonizer.id == int(token_user_id)).first()
+        except (TypeError, ValueError):
+            user = None
+    if not user:
+        user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == str(username).lower()).first()
+    if not user:
+        alias = _resolve_username_alias(db, username)
+        if alias:
+            alias_user_id = alias.get("user_id")
+            if alias_user_id is not None:
+                try:
+                    user = db.query(Harmonizer).filter(Harmonizer.id == int(alias_user_id)).first()
+                except (TypeError, ValueError):
+                    user = None
+            if not user and alias.get("new_username"):
+                user = db.query(Harmonizer).filter(
+                    func.lower(Harmonizer.username) == str(alias.get("new_username")).lower()
+                ).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
@@ -5224,6 +6703,16 @@ def _enforce_token_identity_match(
     for value in identity_values:
         value_key = _safe_user_key(value or "")
         if value_key and value_key != token_key:
+            alias = _resolve_username_alias(db, value)
+            alias_matches_user = bool(
+                alias
+                and (
+                    _safe_user_key(alias.get("new_username") or "") == token_key
+                    or (alias.get("user_id") is not None and alias.get("user_id") == getattr(current_user, "id", None))
+                )
+            )
+            if alias_matches_user:
+                continue
             raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
     return current_user
 
@@ -5238,6 +6727,16 @@ def _require_token_identity_match(
     for value in identity_values:
         value_key = _safe_user_key(value or "")
         if value_key and value_key != token_key:
+            alias = _resolve_username_alias(db, value)
+            alias_matches_user = bool(
+                alias
+                and (
+                    _safe_user_key(alias.get("new_username") or "") == token_key
+                    or (alias.get("user_id") is not None and alias.get("user_id") == getattr(current_user, "id", None))
+                )
+            )
+            if alias_matches_user:
+                continue
             raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
     return current_user
 
@@ -5250,7 +6749,6 @@ def read_current_user(
     current_user = get_current_harmonizer(authorization, db)
     return serialize_harmonizer(current_user)
 
-@app.get("/proposals", response_model=List[ProposalSchema])
 def list_proposals(
     filter: str = Query("all"),
     search: Optional[str] = Query(None),
@@ -5611,7 +7109,6 @@ def list_proposals(
 #
 #
 # --- Dedicated yes/no system vote ---
-@app.get("/system-vote")
 def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends(get_db)):
     try:
         _ensure_system_votes_table(db)
@@ -5626,7 +7123,6 @@ def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends
         raise HTTPException(status_code=500, detail=f"Failed to load system vote: {str(exc)}")
 
 
-@app.get("/system-vote/config")
 def get_system_vote_config():
     return {
         "question": SYSTEM_VOTE_QUESTION,
@@ -5634,7 +7130,6 @@ def get_system_vote_config():
     }
 
 
-@app.post("/system-vote")
 def cast_system_vote(
     payload: SystemVoteIn,
     authorization: Optional[str] = Header(default=None),
@@ -5681,7 +7176,6 @@ def cast_system_vote(
         raise HTTPException(status_code=500, detail=f"Failed to cast system vote: {str(exc)}")
 
 
-@app.delete("/system-vote")
 def remove_system_vote(
     username: str = Query(...),
     authorization: Optional[str] = Header(default=None),
@@ -5710,17 +7204,23 @@ def remove_system_vote(
         raise HTTPException(status_code=500, detail=f"Failed to remove system vote: {str(exc)}")
 
 
+app.include_router(create_system_votes_router(
+    get_system_vote_endpoint=get_system_vote,
+    get_system_vote_config_endpoint=get_system_vote_config,
+    cast_system_vote_endpoint=cast_system_vote,
+    remove_system_vote_endpoint=remove_system_vote,
+))
+
+
 # --- Tally endpoints ---
 # REMOVE DUPLICATE get_proposal ENDPOINT
     
-@app.get("/proposals/{pid}/tally-weighted")
 def tally_weighted(pid: int):
     if not SUPER_NOVA_AVAILABLE:
         raise HTTPException(status_code=501, detail="SuperNova weighted voting not available")
     return tally_votes(pid)
 
 # --- Decision endpoint ---
-@app.post("/decide/{pid}", response_model=DecisionSchema)
 def decide(pid: int, threshold: float = 0.6, db: Session = Depends(get_db)):
     try:
         # Sistema ponderado
@@ -6059,7 +7559,6 @@ def list_notifications(
 
 
 # --- Comment endpoint ---
-@app.get("/comments")
 def list_comments(
     proposal_id: int,
     limit: Optional[int] = Query(None),
@@ -6162,7 +7661,6 @@ def _record_comment_mentions(
     return created_for
 
 
-@app.post("/comments")
 def add_comment(
     c: CommentIn,
     authorization: Optional[str] = Header(default=None),
@@ -6299,20 +7797,19 @@ def add_comment(
         raise HTTPException(status_code=500, detail=f"Failed to add comment: {str(e)}")
 
 
-@app.patch("/comments/{comment_id}")
 def update_comment(
     comment_id: int,
     payload: CommentUpdateIn,
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    requester = _safe_user_key(payload.user)
     next_comment = (payload.comment or "").strip()
-    if not requester:
+    if not _safe_user_key(payload.user):
         raise HTTPException(status_code=400, detail="user is required")
     if not next_comment:
         raise HTTPException(status_code=400, detail="comment is required")
-    _require_token_identity_match(authorization, db, payload.user)
+    current_user = _require_token_identity_match(authorization, db, payload.user)
+    requester = _safe_user_key(getattr(current_user, "username", "") or payload.user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -6364,17 +7861,119 @@ def update_comment(
         raise HTTPException(status_code=500, detail=f"Failed to edit comment: {str(exc)}")
 
 
-@app.delete("/comments/{comment_id}")
+def vote_comment(
+    comment_id: int,
+    payload: CommentVoteIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    username = (payload.username or "").strip()
+    choice = (payload.choice or "").strip().lower()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    if choice not in {"up", "down"}:
+        raise HTTPException(status_code=400, detail="choice must be up or down")
+    current_user = _require_token_identity_match(authorization, db, username)
+    username = getattr(current_user, "username", "") or username
+
+    try:
+        _ensure_comment_votes_table(db)
+        if CRUD_MODELS_AVAILABLE:
+            comment = db.query(Comment).filter(Comment.id == comment_id).first()
+            if not comment:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            if _is_deleted_comment_record(comment):
+                raise HTTPException(status_code=400, detail="Cannot vote on a deleted comment")
+            harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first()
+            if not harmonizer:
+                harmonizer = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
+            if not harmonizer:
+                raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+            voter_type = getattr(harmonizer, "species", None) or payload.voter_type or "human"
+            harmonizer_id = getattr(harmonizer, "id", None)
+        else:
+            row = db.execute(text("SELECT * FROM comments WHERE id = :comment_id"), {"comment_id": comment_id}).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            if _is_deleted_comment_record(row):
+                raise HTTPException(status_code=400, detail="Cannot vote on a deleted comment")
+            harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first() if Harmonizer is not None else None
+            if not harmonizer:
+                harmonizer = _find_harmonizer_by_username(db, username)
+            if not harmonizer:
+                raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+            voter_type = getattr(harmonizer, "species", None) or payload.voter_type or "human"
+            harmonizer_id = getattr(harmonizer, "id", None)
+        if not harmonizer_id:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+
+        db.execute(
+            text(
+                "INSERT INTO comment_votes (comment_id, harmonizer_id, voter, voter_type, vote, created_at, updated_at) "
+                "VALUES (:comment_id, :harmonizer_id, :voter, :voter_type, :vote, :now, :now) "
+                "ON CONFLICT(comment_id, harmonizer_id) DO UPDATE SET "
+                "voter = excluded.voter, voter_type = excluded.voter_type, vote = excluded.vote, updated_at = excluded.updated_at"
+            ),
+            {
+                "comment_id": comment_id,
+                "harmonizer_id": harmonizer_id,
+                "voter": username,
+                "voter_type": str(voter_type or "human").strip().lower() or "human",
+                "vote": choice,
+                "now": datetime.datetime.utcnow(),
+            },
+        )
+        db.commit()
+        return {"ok": True, "comment_id": comment_id, "vote": choice, **_comment_vote_summary(db, comment_id)}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to vote on comment: {str(exc)}")
+
+
+def remove_comment_vote(
+    comment_id: int,
+    username: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    clean_username = (username or "").strip()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="username is required")
+    current_user = _require_token_identity_match(authorization, db, clean_username)
+    try:
+        _ensure_comment_votes_table(db)
+        harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first() if Harmonizer is not None else None
+        if not harmonizer:
+            harmonizer = _find_harmonizer_by_username(db, clean_username)
+        if not harmonizer:
+            raise HTTPException(status_code=404, detail=f"User '{clean_username}' not found")
+        db.execute(
+            text("DELETE FROM comment_votes WHERE comment_id = :comment_id AND harmonizer_id = :harmonizer_id"),
+            {"comment_id": comment_id, "harmonizer_id": getattr(harmonizer, "id", None)},
+        )
+        db.commit()
+        return {"ok": True, "comment_id": comment_id, "removed": True, **_comment_vote_summary(db, comment_id)}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to remove comment vote: {str(exc)}")
+
+
 def delete_comment(
     comment_id: int,
     user: str = Query(...),
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    requester = _safe_user_key(user)
-    if not requester:
+    if not _safe_user_key(user):
         raise HTTPException(status_code=400, detail="user is required")
-    _require_token_identity_match(authorization, db, user)
+    current_user = _require_token_identity_match(authorization, db, user)
+    requester = _safe_user_key(getattr(current_user, "username", "") or user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -6399,13 +7998,14 @@ def delete_comment(
                         owner_obj = db.query(Harmonizer).filter(Harmonizer.id == proposal.author_id).first()
                         proposal_owner = getattr(owner_obj, "username", "") if owner_obj else ""
 
-            allowed = requester in {_safe_user_key(comment_author), _safe_user_key(proposal_owner)}
+            allowed = requester == _safe_user_key(comment_author)
             if not allowed:
-                raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
+                raise HTTPException(status_code=403, detail="Only the original comment author can delete this comment")
 
             child_count = db.query(Comment).filter(Comment.parent_comment_id == comment_id).count()
             if child_count:
                 _delete_comment_mention_links(db, [comment_id])
+                _delete_comment_vote_links(db, [comment_id])
                 comment.content = DELETED_COMMENT_TEXT
                 db.commit()
                 db.refresh(comment)
@@ -6418,6 +8018,7 @@ def delete_comment(
 
             parent_comment_id = getattr(comment, "parent_comment_id", None)
             _delete_comment_mention_links(db, [comment_id])
+            _delete_comment_vote_links(db, [comment_id])
             db.delete(comment)
             pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
             db.commit()
@@ -6441,15 +8042,16 @@ def delete_comment(
             if proposal:
                 proposal_owner = getattr(proposal, "userName", "") or getattr(proposal, "author", "") or ""
 
-        allowed = requester in {_safe_user_key(comment_author), _safe_user_key(proposal_owner)}
+        allowed = requester == _safe_user_key(comment_author)
         if not allowed:
-            raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
+            raise HTTPException(status_code=403, detail="Only the original comment author can delete this comment")
 
         child_count = db.execute(
             text("SELECT COUNT(*) FROM comments WHERE parent_comment_id = :comment_id"),
             {"comment_id": comment_id},
         ).scalar() or 0
         if child_count:
+            _delete_comment_vote_links(db, [comment_id])
             try:
                 db.execute(
                     text(
@@ -6477,6 +8079,7 @@ def delete_comment(
             }
 
         parent_comment_id = getattr(row, "parent_comment_id", None)
+        _delete_comment_vote_links(db, [comment_id])
         db.execute(text("DELETE FROM comments WHERE id = :comment_id"), {"comment_id": comment_id})
         pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
         db.commit()
@@ -6487,6 +8090,18 @@ def delete_comment(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete comment: {str(exc)}")
+
+
+app.include_router(create_comments_router(
+    connector_get_proposal_comments_endpoint=connector_get_proposal_comments,
+    list_comments_endpoint=list_comments,
+    add_comment_endpoint=add_comment,
+    update_comment_endpoint=update_comment,
+    vote_comment_endpoint=vote_comment,
+    remove_comment_vote_endpoint=remove_comment_vote,
+    delete_comment_endpoint=delete_comment,
+))
+
 
 # --- Karma endpoint ---
 @app.get("/users/{username}/karma")
@@ -6508,7 +8123,6 @@ def get_user_karma(username: str, db: Session = Depends(get_db)):
     }
 
 # --- Restante dos endpoints (mantidos da sua versão) ---
-@app.get("/decisions", response_model=List[DecisionSchema])
 def list_decisions(db: Session = Depends(get_db)):
     if SUPER_NOVA_AVAILABLE:
         decisions = db.query(Decision).order_by(Decision.id.desc()).all()
@@ -6517,7 +8131,6 @@ def list_decisions(db: Session = Depends(get_db)):
         result = db.execute(text("SELECT * FROM decisions ORDER BY id DESC"))
         return [DecisionSchema(id=d.id, proposal_id=d.proposal_id, status=d.status) for d in result.fetchall()]
 
-@app.post("/runs", response_model=RunSchema)
 def create_run(decision_id: int, db: Session = Depends(get_db)):
     try:
         if SUPER_NOVA_AVAILABLE:
@@ -6545,7 +8158,6 @@ def create_run(decision_id: int, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create run: {str(e)}")
 
-@app.get("/runs", response_model=List[RunSchema])
 def list_runs(db: Session = Depends(get_db)):
     if SUPER_NOVA_AVAILABLE:
         runs = db.query(Run).order_by(Run.id.desc()).all()
@@ -6555,7 +8167,6 @@ def list_runs(db: Session = Depends(get_db)):
         return [RunSchema(id=r.id, decision_id=r.decision_id, status=r.status) for r in result.fetchall()]
 
 # --- Proposal detail endpoint (final version, single definition) ---
-@app.get("/proposals/{pid}", response_model=ProposalSchema)
 def get_proposal(pid: int, db: Session = Depends(get_db)):
     _ensure_proposal_read_indexes(db)
     if CRUD_MODELS_AVAILABLE:
@@ -6681,74 +8292,22 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             )
         )
 
-# --- Upload endpoints ---
-@app.post("/upload-image")
-async def upload_image(
-    file: UploadFile = File(...),
-    username: Optional[str] = Form(None),
-    user_id: Optional[str] = Form(None),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    os.makedirs(uploads_dir, exist_ok=True)
-    if not _upload_matches(file, "image/", IMAGE_UPLOAD_EXTENSIONS):
-        raise HTTPException(status_code=400, detail="Uploaded file must be an image")
-
-    clean_username = (username or "").strip()
-    clean_user_id = (user_id or "").strip()
-    sync_error = ""
-    user = None
-    if (clean_username or clean_user_id) and Harmonizer is not None:
-        try:
-            if clean_user_id:
-                try:
-                    user = db.query(Harmonizer).filter(Harmonizer.id == int(clean_user_id)).first()
-                except (TypeError, ValueError):
-                    user = None
-            if user is None and clean_username:
-                user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == clean_username.lower()).first()
-            if user is not None:
-                _require_token_identity_match(authorization, db, getattr(user, "username", ""))
-        except HTTPException:
-            raise
-        except Exception as exc:
-            db.rollback()
-            sync_error = str(exc)
-
-    unique_name = _save_upload_file(file, IMAGE_UPLOAD_EXTENSIONS, ".jpg", UPLOAD_AVATAR_MAX_BYTES)
-
-    avatar_url = f"/uploads/{unique_name}"
-    profile_synced = False
-    if user is not None:
-        try:
-            user.profile_pic = avatar_url
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            _sync_user_avatar_references(db, user.username, avatar_url, getattr(user, "id", None))
-            profile_synced = True
-        except Exception as exc:
-            db.rollback()
-            sync_error = str(exc)
-
-    return {
-        "filename": unique_name,
-        "url": avatar_url,
-        "content_type": file.content_type,
-        "profile_synced": profile_synced,
-        "sync_error": sync_error,
-    }
-
-@app.post("/upload-file")
-async def upload_file(file: UploadFile = File(...)):
-    os.makedirs(uploads_dir, exist_ok=True)
-    if _safe_upload_extension(file) not in DOCUMENT_UPLOAD_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Uploaded file type is not supported")
-    unique_name = _save_upload_file(file, DOCUMENT_UPLOAD_EXTENSIONS, max_bytes=UPLOAD_DOCUMENT_MAX_BYTES)
-    return {"filename": unique_name, "url": f"/uploads/{unique_name}"}
+app.include_router(create_uploads_router(
+    get_db=get_db,
+    uploads_dir=uploads_dir,
+    image_upload_extensions=IMAGE_UPLOAD_EXTENSIONS,
+    document_upload_extensions=DOCUMENT_UPLOAD_EXTENSIONS,
+    upload_avatar_max_bytes=UPLOAD_AVATAR_MAX_BYTES,
+    upload_document_max_bytes=UPLOAD_DOCUMENT_MAX_BYTES,
+    harmonizer_model=Harmonizer,
+    upload_matches=_upload_matches,
+    safe_upload_extension=_safe_upload_extension,
+    save_upload_file=_save_upload_file,
+    require_token_identity_match=_require_token_identity_match,
+    sync_user_avatar_references=_sync_user_avatar_references,
+))
 
 # --- Delete endpoints ---
-@app.patch("/proposals/{pid}", response_model=ProposalSchema, response_model_exclude={"collabs"})
 def update_proposal(
     pid: int,
     payload: ProposalUpdateIn,
@@ -6802,7 +8361,6 @@ def update_proposal(
         raise HTTPException(status_code=500, detail=f"Failed to update proposal: {str(e)}")
 
 
-@app.delete("/proposals/{pid}")
 def delete_proposal(
     pid: int,
     author: Optional[str] = Query(None),
@@ -6852,7 +8410,6 @@ def delete_proposal(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete proposal: {str(e)}")
 
-@app.delete("/proposals")
 def delete_all_proposals(
     x_confirm_delete: Optional[str] = Header(default=None, alias="x-confirm-delete"),
     db: Session = Depends(get_db),
@@ -6887,6 +8444,27 @@ def delete_all_proposals(
 
 
 
+
+
+app.include_router(create_proposals_router(
+    proposal_response_model=ProposalSchema,
+    proposal_list_response_model=List[ProposalSchema],
+    decision_response_model=DecisionSchema,
+    decision_list_response_model=List[DecisionSchema],
+    run_response_model=RunSchema,
+    run_list_response_model=List[RunSchema],
+    create_proposal_endpoint=create_proposal,
+    list_proposals_endpoint=list_proposals,
+    tally_weighted_endpoint=tally_weighted,
+    decide_endpoint=decide,
+    list_decisions_endpoint=list_decisions,
+    create_run_endpoint=create_run,
+    list_runs_endpoint=list_runs,
+    get_proposal_endpoint=get_proposal,
+    update_proposal_endpoint=update_proposal,
+    delete_proposal_endpoint=delete_proposal,
+    delete_all_proposals_endpoint=delete_all_proposals,
+))
 
 
 # --- Register routers ---

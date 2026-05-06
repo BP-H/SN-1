@@ -49,8 +49,8 @@ Assessment note: the active FE7 lockfile already resolved `next` to `15.5.15`, w
 | Path | Surface | Assessment |
 | --- | --- | --- |
 | `super-nova-2177/frontend-social-seven/package.json` | Active FE7 frontend | Active production-relevant surface. Assess and handle first in a focused replacement PR. |
-| `super-nova-2177/frontend-next/package.json` | Legacy/alternate frontend | Legacy-sensitive. Do not combine with active FE7 security patch. |
-| `super-nova-2177/frontend-social-six/package.json` | Legacy/alternate frontend | Legacy-sensitive. Do not combine with active FE7 security patch. |
+| `super-nova-2177/frontend-next/package.json` | Deleted legacy/alternate frontend | Historical assessment context only; source was later removed after owner-accepted external deployment/auth/API-route risk. |
+| `super-nova-2177/frontend-social-six/package.json` | Deleted legacy/alternate frontend | Historical assessment context only; source was later removed after owner-accepted external Supabase/Vercel/Railway/auth/API-route risk. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package.json` | Nested/legacy web app | Cleanup/deployment-sensitive. Do not combine with active FE7 security patch. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package-lock.json` | Nested/legacy web app lockfile | Cleanup/deployment-sensitive. Do not combine with active FE7 security patch. |
 
@@ -59,8 +59,8 @@ Assessment note: the active FE7 lockfile already resolved `next` to `15.5.15`, w
 | Surface | PR #1 package change |
 | --- | --- |
 | Active FE7 | `next` from `^15.1.0` to `15.1.11` in `frontend-social-seven/package.json` |
-| `frontend-next` | `next` from `^16.0.3` to `16.0.10` |
-| `frontend-social-six` | `next` from `^16.0.3` to `16.0.10` |
+| `frontend-next` | `next` from `^16.0.3` to `16.0.10` on the deleted legacy source |
+| `frontend-social-six` | `next` from `^16.0.3` to `16.0.10` on the deleted legacy source |
 | Nested `nova-web` | `next` from `14.2.31` to `14.2.35` plus `package-lock.json` updates |
 
 PR #1 does not update `react` or `react-dom`; it only updates `next` package declarations and, for nested `nova-web`, the lockfile.
@@ -70,8 +70,8 @@ PR #1 does not update `react` or `react-dom`; it only updates `next` package dec
 | Surface | `package.json` Next | Lockfile Next | React | React DOM | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Active FE7: `super-nova-2177/frontend-social-seven` | `15.5.15` | `15.5.15` | `^18.3.1` | `^18.3.1` | Active app. PR #27 made the manifest explicitly match the already-resolved patched `15.5.15` lockfile version. |
-| `super-nova-2177/frontend-social-six` | `^16.0.3` | `16.0.3` | `^18.3.1` | `^18.3.1` | Legacy/alternate frontend. Needs separate review. |
-| `super-nova-2177/frontend-next` | `^16.0.3` | `16.0.3` | `^18.3.1` | `^18.3.1` | Legacy/alternate frontend. Needs separate review. |
+| `super-nova-2177/frontend-social-six` | `^16.0.3` | `16.0.3` | `^18.3.1` | `^18.3.1` | Deleted legacy/alternate frontend; historical row only. |
+| `super-nova-2177/frontend-next` | `^16.0.3` | `16.0.3` | `^18.3.1` | `^18.3.1` | Deleted legacy/alternate frontend; historical row only. |
 | Nested `nova-web` | `14.2.31` | `14.2.31` | `18.2.0` | `18.2.0` | Nested/legacy app. Cleanup assessment already treats this area as sensitive. |
 
 No direct `react-server-dom-*` package reference was found in the active FE7 package files. The risk is still relevant because Next.js App Router can include React Server Components behavior internally.
@@ -111,8 +111,8 @@ Handle these separately after the active FE7 pin:
 
 | Surface | Recommendation |
 | --- | --- |
-| `frontend-social-six` | Assess whether it is still deployed or should be archived before updating. |
-| `frontend-next` | Assess whether it is still deployed or should be archived before updating. |
+| `frontend-social-six` | Historical row only; source was later deleted after owner-accepted external auth/deployment risk. |
+| `frontend-next` | Historical row only; source was later deleted after owner-accepted external auth/deployment risk. |
 | Nested `nova-web` | Treat as deployment/cleanup-sensitive. Do not update or delete until the nested backend and lockfile cleanup plan is resolved. |
 
 ## Checks Used For PR #27

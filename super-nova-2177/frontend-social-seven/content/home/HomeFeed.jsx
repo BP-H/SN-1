@@ -8,6 +8,7 @@ import {
   IoDocumentTextOutline,
   IoImageOutline,
   IoSend,
+  IoSparklesOutline,
   IoVideocamOutline,
   IoStarOutline,
 } from "react-icons/io5";
@@ -96,6 +97,7 @@ function formatCountdown(deadlineString, nowMs) {
 export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
+  const [pendingAiOpen, setPendingAiOpen] = useState(false);
   const [systemNow, setSystemNow] = useState(() => Date.now());
 
   // Auto-open composer if navigated from a global '+' button click
@@ -142,6 +144,15 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     setDiscard(false);
   };
 
+  const openComposerWithAi = () => {
+    if (!isAuthenticated) {
+      requireAccount("Sign in to create AI delegate posts on SuperNova.");
+      return;
+    }
+    setPendingAiOpen(true);
+    setDiscard(false);
+  };
+
   const {
     data: postsData,
     isLoading,
@@ -166,6 +177,26 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     },
   });
   const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
+
+  useEffect(() => {
+    const handlePostCreated = (event) => {
+      const post = event?.detail?.post;
+      if (!post?.id) return;
+      queryClient.setQueryData(["home-feed", activeBE], (current) => {
+        if (!current?.pages?.length) return current;
+        const exists = current.pages.some((page) =>
+          Array.isArray(page) && page.some((item) => String(item?.id) === String(post.id))
+        );
+        if (exists) return current;
+        const pages = current.pages.map((page, index) =>
+          index === 0 && Array.isArray(page) ? [post, ...page] : page
+        );
+        return { ...current, pages };
+      });
+    };
+    window.addEventListener("supernova:post-created", handlePostCreated);
+    return () => window.removeEventListener("supernova:post-created", handlePostCreated);
+  }, [activeBE, queryClient]);
 
   const { data: followsData } = useQuery({
     queryKey: ["home-following", userData?.name || ""],
@@ -441,7 +472,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 }}
                 className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-3.5 py-2.5 text-left text-[0.88rem] text-[var(--text-gray-light)]"
               >
-                Share your thoughts...
+                Post, propose, or ask AI...
               </button>
 
               <div className="flex shrink-0 items-center gap-1.5 text-[var(--text-gray-light)]">
@@ -453,6 +484,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 </button>
                 <button type="button" onClick={() => openComposerWithMedia("file")} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full" aria-label="Add document">
                   <IoDocumentTextOutline className="text-[1rem]" />
+                </button>
+                <button type="button" onClick={openComposerWithAi} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full text-[var(--pink)]" aria-label="AI post" title="AI post">
+                  <IoSparklesOutline className="text-[1rem]" />
                 </button>
                 <button
                   type="button"
@@ -479,6 +513,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               setNotify={setNotify}
               autoOpenMediaType={pendingMediaPicker}
               onAutoOpenConsumed={() => setPendingMediaPicker("")}
+              autoOpenAi={pendingAiOpen}
+              onAutoOpenAiConsumed={() => setPendingAiOpen(false)}
+              refetchPosts={refetch}
             />
           )}
         </section>
@@ -501,7 +538,23 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
           ) : orderedPosts.length === 0 ? (
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-              No posts yet.
+              <p className="font-semibold text-[var(--text-black)]">No posts yet.</p>
+              <p className="mx-auto mt-1 max-w-[19rem] text-[0.78rem] leading-5">
+                Start the commons with a post, proposal, image, or AI delegate draft.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    requireAccount("Sign in to create the first post.");
+                    return;
+                  }
+                  setDiscard(false);
+                }}
+                className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)] transition hover:brightness-105"
+              >
+                Create post
+              </button>
             </div>
           ) : (
             <>

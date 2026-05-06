@@ -368,11 +368,16 @@ class ConnectorActionDraftRouteTests(unittest.TestCase):
             result["routes"],
             [
                 "/connector/actions",
+                "/connector/actions/draft-ai-delegate-comment",
+                "/connector/actions/draft-ai-delegate-post",
+                "/connector/actions/draft-ai-delegate-review",
                 "/connector/actions/draft-ai-review",
                 "/connector/actions/draft-collab-request",
                 "/connector/actions/draft-comment",
                 "/connector/actions/draft-proposal",
                 "/connector/actions/draft-vote",
+                "/connector/actions/{action_id}/approve-ai-comment",
+                "/connector/actions/{action_id}/approve-ai-post",
                 "/connector/actions/{action_id}/approve-ai-review",
                 "/connector/actions/{action_id}/approve-vote",
                 "/connector/actions/{action_id}/cancel",
@@ -381,6 +386,8 @@ class ConnectorActionDraftRouteTests(unittest.TestCase):
         self.assertEqual(
             result["execution_routes"],
             [
+                "/connector/actions/{action_id}/approve-ai-comment",
+                "/connector/actions/{action_id}/approve-ai-post",
                 "/connector/actions/{action_id}/approve-ai-review",
                 "/connector/actions/{action_id}/approve-vote",
             ],

@@ -1,0 +1,487 @@
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = ROOT.parent
+BACKEND_DIR = ROOT / "backend"
+
+
+class AlphaReadinessDocsTests(unittest.TestCase):
+    def test_route_split_plan_marks_extractions_and_defers_helpers(self):
+        plan = (BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "backend/status_routes.py",
+            "backend/routers/messages.py",
+            "backend/routers/uploads.py",
+            "backend/routers/social_graph.py",
+            "backend/routers/ai_delegates.py",
+            "backend/routers/ai_readonly.py",
+            "backend/routers/ai_actions.py",
+            "backend/routers/ai_action_approvals.py",
+            "backend/routers/proposals.py",
+            "backend/routers/comments.py",
+            "backend/routers/system_votes.py",
+        ]:
+            self.assertIn(expected, plan)
+
+        self.assertIn("Deeper helper extraction is intentionally deferred", plan)
+        self.assertIn("proposal, comment, or", plan)
+        self.assertIn("vote helpers merely to reduce", plan)
+
+    def test_branch_protection_doc_names_candidate_required_checks(self):
+        status_doc = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(encoding="utf-8")
+        workflow = (REPO_ROOT / ".github" / "workflows" / "local-safe-pr-gates.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Candidate Required Checks", status_doc)
+        self.assertIn("Backend local deterministic checks", status_doc)
+        self.assertIn("FE7 local deterministic checks", status_doc)
+        self.assertIn("Require status checks to pass before merging", status_doc)
+        self.assertIn("Require branches to be up to date before merging", status_doc)
+        self.assertIn("Keep live/network smoke checks advisory", status_doc)
+        self.assertIn("SUPERNOVA_RATE_LIMIT_ENABLED=false", status_doc)
+        self.assertIn("Backend local deterministic checks", workflow)
+        self.assertIn("FE7 local deterministic checks", workflow)
+        self.assertIn("python -m py_compile super-nova-2177/backend/app.py", workflow)
+        self.assertIn("python -m unittest backend.tests.test_alpha_readiness_docs", workflow)
+        self.assertIn("python scripts/check_safe.py --local-only", workflow)
+        self.assertIn("npm ci", workflow)
+        self.assertIn("npm run lint", workflow)
+        self.assertIn("npm run build", workflow)
+
+    def test_alpha_smoke_doc_covers_core_manual_paths(self):
+        smoke = (REPO_ROOT / "ALPHA_SMOKE_NOW.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "ALPHA_SMOKE_SIGNOFF_TEMPLATE.md",
+            "commit SHA",
+            "frontend URL",
+            "backend URL",
+            "browser/device",
+            "rollback target",
+            "AI delegate",
+            "AI review draft",
+            "AI comment draft",
+            "AI post draft",
+            "comment",
+            "Reply to a comment",
+            "Upload a fresh image",
+            "data:image/...",
+            "cannot reconstruct bytes that are already",
+            "/uploads/...",
+            "older uploaded image",
+            "Messages",
+            "Signed-out feed read",
+            "Signed-out profile read",
+            "Signed-out proposal detail read",
+            "/health",
+            "/supernova-status",
+            "/status",
+            "rate limits",
+            "Backend local",
+            "FE7 local",
+            "advisory E2E checks unrequired",
+        ]:
+            self.assertIn(expected, smoke)
+
+        checklist = (REPO_ROOT / "ALPHA_QA_CHECKLIST.md").read_text(encoding="utf-8")
+        self.assertIn("ALPHA_SMOKE_NOW.md", checklist)
+        self.assertIn("ALPHA_SMOKE_SIGNOFF_TEMPLATE.md", checklist)
+        self.assertIn("bounded DB-backed `data:image/...` fallback", checklist)
+        self.assertIn("cannot be reconstructed from app code alone", checklist)
+        self.assertIn("Persistent object storage", checklist)
+
+    def test_alpha_smoke_signoff_template_captures_required_evidence(self):
+        template = (REPO_ROOT / "ALPHA_SMOKE_SIGNOFF_TEMPLATE.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "Commit SHA",
+            "Frontend URL",
+            "Backend URL",
+            "Browser and version",
+            "Device / viewport",
+            "Smoke date",
+            "Previous known-good rollback target",
+            "PASS",
+            "FAIL",
+            "BLOCKED",
+            "Known Issues",
+            "Rollback target",
+            "Require status checks to pass before merging",
+            "Require branches to be up to date before merging",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "E2E remains advisory",
+            "cannot be reconstructed by app code alone",
+        ]:
+            self.assertIn(expected, template)
+
+    def test_incomplete_alpha_smoke_signoff_does_not_invent_results(self):
+        signoff = (REPO_ROOT / "ALPHA_SMOKE_SIGNOFF_2026-05-04_INCOMPLETE.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "Incomplete",
+            "NOT PROVIDED",
+            "NOT RUN",
+            "No manual smoke evidence was provided",
+            "BLOCKED - no completed manual smoke results were provided",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "cannot be reconstructed by app code alone",
+        ]:
+            self.assertIn(expected, signoff)
+
+    def test_current_alpha_smoke_signoff_records_only_observed_evidence(self):
+        signoff = (REPO_ROOT / "ALPHA_SMOKE_SIGNOFF_2026-05-05.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "fadfed8f1fb2d14199fa5e2e8a769c61e2d63ec9",
+            "Automated Evidence",
+            "Manual Evidence Intake",
+            "no human-clicked smoke notes",
+            "manual smoke rows remain `NOT RUN`",
+            "Backend start/check: PASS",
+            "/proposals?filter=latest&limit=30",
+            "PASS, `PLAYWRIGHT_PORT=3017 npm run test:e2e`",
+            "PASS, `PLAYWRIGHT_REAL_BACKEND=1",
+            "Manual Smoke Rows",
+            "NOT RUN",
+            "No human-clicked manual browser smoke evidence was provided",
+            "BLOCKED - automated guardrails and advisory real-backend E2E passed",
+            "Branch protection has not been verified as enabled",
+            "cannot be reconstructed by app code alone",
+        ]:
+            self.assertIn(expected, signoff)
+
+    def test_alpha_release_readiness_bundle_documents_release_gates(self):
+        readiness = (REPO_ROOT / "ALPHA_RELEASE_READINESS.md").read_text(encoding="utf-8")
+        evidence = (REPO_ROOT / "ALPHA_MANUAL_SMOKE_EVIDENCE_SHEET.md").read_text(
+            encoding="utf-8"
+        )
+        execution_pack = (REPO_ROOT / "ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md").read_text(
+            encoding="utf-8"
+        )
+        preflight = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
+        branch = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "FE7 lint",
+            "FE7 build",
+            "Mocked FE7 E2E",
+            "Real-backend public E2E",
+            "Backend compile",
+            "check_safe.py --local-only",
+            "Full safe check",
+            "Protected core zero-diff",
+            "Manual Browser Smoke Gate",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "DEPLOYMENT_MEDIA_PREFLIGHT.md",
+            "ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md",
+            "NEXT_PUBLIC_API_URL",
+            "UPLOADS_DIR",
+            "Rollback Gate",
+        ]:
+            self.assertIn(expected, readiness)
+
+        for expected in [
+            "PASS",
+            "FAIL",
+            "BLOCKED",
+            "NOT RUN",
+            "Signed-out public feed",
+            "Upload image",
+            "Create AI delegate",
+            "Approve AI review",
+            "Mobile AI modal",
+            "Public data snapshot captured before deploy/preview",
+            "Public data snapshot captured after deploy/preview and compared",
+            "Owner Next Action",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+        ]:
+            self.assertIn(expected, evidence)
+
+        for expected in [
+            "Alpha Release Smoke Execution Pack",
+            "No human-clicked smoke evidence was present",
+            "Owner Next Action",
+            "python scripts/public_data_snapshot.py <backend-url>",
+            "npm run dev",
+            "npm run test:e2e",
+            "npm run test:e2e:real",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "SN-1 sync",
+            "non-default-branch-first",
+            "Preserve `DATABASE_URL`",
+            "UPLOADS_DIR",
+            "NEXT_PUBLIC_API_URL",
+            "Stop Conditions",
+        ]:
+            self.assertIn(expected, execution_pack)
+
+        for expected in [
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "app.py",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "Uploaded images and files are runtime state, not git state",
+            "cannot be reconstructed",
+            "/proposals?filter=latest&limit=30",
+            "data:image/...",
+        ]:
+            self.assertIn(expected, preflight)
+
+        self.assertIn("not verified as", branch)
+        self.assertIn("enabled in GitHub settings", branch)
+        self.assertIn("advisory checks", branch)
+
+    def test_data_preservation_docs_and_snapshot_helper_are_read_only(self):
+        preflight = (REPO_ROOT / "DATA_PRESERVATION_PREFLIGHT.md").read_text(encoding="utf-8")
+        sn1 = (REPO_ROOT / "SN1_SYNC_DATA_SAFETY_NOTE.md").read_text(encoding="utf-8")
+        release = (REPO_ROOT / "ALPHA_RELEASE_READINESS.md").read_text(encoding="utf-8")
+        media = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
+        helper = (REPO_ROOT / "scripts" / "public_data_snapshot.py").read_text(encoding="utf-8")
+
+        for expected in [
+            "Never run database reset",
+            "Preserve `DATABASE_URL`",
+            "Preserve `UPLOADS_DIR`",
+            "Preserve `NEXT_PUBLIC_API_URL`",
+            "runtime state, not git state",
+            "cannot be reconstructed",
+            "database backup",
+            "upload/media backup",
+            "/proposals?filter=latest&limit=30",
+            "No confirmed active production destructive reset path was found",
+        ]:
+            self.assertIn(expected, preflight)
+
+        for expected in [
+            "Do not merge SN-2 into SN-1 `master` directly",
+            "non-default branch",
+            "preview or staging",
+            "Git does not carry",
+            "Roll back the code deployment first",
+        ]:
+            self.assertIn(expected, sn1)
+
+        self.assertIn("DATA_PRESERVATION_PREFLIGHT.md", release)
+        self.assertIn("scripts/public_data_snapshot.py", release)
+        self.assertIn("DATA_PRESERVATION_PREFLIGHT.md", media)
+        self.assertIn("scripts/public_data_snapshot.py", media)
+
+        for expected in [
+            "/health",
+            "/supernova-status",
+            "/proposals?filter=latest&limit=30",
+            "urllib.request.urlopen",
+            "proposal_sample",
+        ]:
+            self.assertIn(expected, helper)
+
+        for forbidden in ["urlopen(request, data=", "Request(url, data=", "POST", "DELETE", "drop_all"]:
+            self.assertNotIn(forbidden, helper)
+
+    def test_alpha_release_candidate_status_records_blocker_sweep(self):
+        status = (REPO_ROOT / "ALPHA_RELEASE_CANDIDATE_STATUS.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "Alpha Release Candidate Status",
+            "master` after PR #67",
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "No confirmed release-candidate blocker was found",
+            "Manual browser smoke status remains `NOT RUN`",
+            "DATA_PRESERVATION",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "NEXT_PUBLIC_API_URL",
+            "SN-1 sync was not performed",
+            "non-default branch",
+            "Do not declare final release `GO`",
+        ]:
+            self.assertIn(expected, status)
+
+    def test_alpha_release_signoff_checkpoint_records_owner_report_without_inventing_rows(self):
+        signoff = (REPO_ROOT / "ALPHA_RELEASE_SIGNOFF_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "owner manually checked the app",
+            "functions seem to be working",
+            "OWNER-REPORTED / NOT ITEMIZED",
+            "No explicit row-level browser evidence was provided",
+            "Controlled alpha/preview `GO`",
+            "detailed manual smoke rows",
+            "Branch protection has not been verified as enabled",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "NEXT_PUBLIC_API_URL",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "scripts/public_data_snapshot.py",
+            "SN-1 sync was not performed",
+            "non-default-branch-first",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+        ]:
+            self.assertIn(expected, signoff)
+
+        detailed_rows = [
+            "Signed-out public feed renders",
+            "Sign in, reload, and sign out",
+            "Create a post or proposal",
+            "Upload image and confirm it renders after refresh",
+            "Create AI delegate through AI Genesis",
+            "Mobile AI modal and delegate picker stay on-screen",
+        ]
+        for row in detailed_rows:
+            self.assertIn(f"| {row} | NOT RUN |", signoff)
+
+    def test_preview_release_smoke_records_gate_verification_and_branch_protection_status(self):
+        preview = (REPO_ROOT / "PREVIEW_RELEASE_SMOKE_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+        branch = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "Preview Release Smoke - 2026-05-06",
+            "b466d5063b9a8f14903937942b86ddf13a51834d",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "Preview/deploy URL: `NOT PROVIDED`",
+            "FE7 lint",
+            "FE7 build",
+            "Mocked FE7 E2E",
+            "Real-backend public FE7 E2E",
+            "scripts/public_data_snapshot.py http://127.0.0.1:8000",
+            "30 sampled proposals",
+            "protected: false",
+            "required status check enforcement `off`",
+            "no `gh` CLI",
+            "No GitHub token",
+            "no connector tool",
+            "SN-1 sync was not performed",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+            "Controlled alpha/preview remains `GO`",
+        ]:
+            self.assertIn(expected, preview)
+
+        for expected in [
+            "2026-05-06 Verification",
+            "2026-05-06 Post-PR72 Recheck",
+            "protected: false",
+            "required status check enforcement `off`",
+            "gh` is not",
+            "no GitHub token",
+            "do not expose branch protection",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+        ]:
+            self.assertIn(expected, branch)
+
+    def test_preview_deploy_smoke_records_deploy_next_steps_without_claiming_protection(self):
+        deploy = (REPO_ROOT / "PREVIEW_DEPLOY_SMOKE_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "Preview Deploy Smoke - 2026-05-06",
+            "protected: false",
+            "Required status checks enforcement: `off`",
+            "Preview/deploy URL: `NOT PROVIDED`",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "super-nova-2177/app.py",
+            "NEXT_PUBLIC_API_URL",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "python scripts/public_data_snapshot.py <backend-url>",
+            "/proposals?filter=latest&limit=30",
+            "proposal sample count",
+            "sampled media URLs",
+            "data:image/...",
+            "signed-out feed renders",
+            "upload image and refresh",
+            "AI delegate create",
+            "AI review draft approve/cancel",
+            "No detailed manual rows were changed to `PASS`",
+            "SN-1 sync was not performed",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+        ]:
+            self.assertIn(expected, deploy)
+
+    def test_sn1_sync_preflight_documents_non_default_branch_and_data_preservation(self):
+        preflight = (REPO_ROOT / "SN1_SYNC_PREFLIGHT_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+        release = (REPO_ROOT / "ALPHA_RELEASE_READINESS.md").read_text(encoding="utf-8")
+        media = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "SN-1 Sync Preflight - 2026-05-06",
+            "SN-2 controlled alpha/preview gates are green through PR #73",
+            "SN-2 `master` branch protection is still not verified enabled",
+            "non-default branch first",
+            "sn2-alpha-sync-2026-05-06",
+            "Do not merge SN-1 `master`",
+            "Preserve `DATABASE_URL`",
+            "Preserve `UPLOADS_DIR`",
+            "Preserve `NEXT_PUBLIC_API_URL`",
+            "database backup",
+            "upload/media backup",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+            "Existing posts and images disappear only if",
+            "git remote -v",
+            "git fetch sn2 master",
+            "git remote get-url origin",
+            "git switch -c sn2-alpha-sync-2026-05-06 sn2/master",
+            "git push -u origin sn2-alpha-sync-2026-05-06",
+            "git push origin master",
+            "python scripts/public_data_snapshot.py <current-backend-url>",
+            "python scripts/public_data_snapshot.py <sn1-preview-backend-url>",
+            "proposal IDs and titles",
+            "sampled media URLs",
+            "/uploads/...",
+            "HTTP 200 with image content type",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "/health",
+            "/supernova-status",
+            "/proposals?filter=latest&limit=30",
+            "Owner explicitly approves the SN-1 `master` merge",
+            "SN-1 sync was not performed",
+        ]:
+            self.assertIn(expected, preflight)
+
+        self.assertIn("SN1_SYNC_PREFLIGHT_2026-05-06.md", release)
+        self.assertIn("sn2-alpha-sync-2026-05-06", release)
+        self.assertIn("SN1_SYNC_PREFLIGHT_2026-05-06.md", media)
+
+
+if __name__ == "__main__":
+    unittest.main()

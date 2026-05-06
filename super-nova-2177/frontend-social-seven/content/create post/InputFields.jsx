@@ -15,6 +15,7 @@ import {
   IoPersonAddOutline,
   IoSend,
   IoShieldCheckmarkOutline,
+  IoSparklesOutline,
   IoTimeOutline,
   IoVideocamOutline,
 } from "react-icons/io5";
@@ -24,6 +25,7 @@ import { useUser } from "../profile/UserContext";
 import ErrorMessage from "../Error";
 import MediaInput from "./Media";
 import PdfPager from "../proposal/content/PdfPager";
+import AiDelegateActionModal from "../proposal/content/AiDelegateActionModal";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import {
   BACKEND_AUTH_MISSING_MESSAGE,
@@ -44,6 +46,8 @@ function InputFields({
   autoFocus = false,
   autoOpenMediaType = "",
   onAutoOpenConsumed,
+  autoOpenAi = false,
+  onAutoOpenAiConsumed,
 }) {
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
@@ -62,6 +66,7 @@ function InputFields({
   const [collabPromptUser, setCollabPromptUser] = useState(null);
   const [pendingCollabInvitees, setPendingCollabInvitees] = useState([]);
   const [collabNotice, setCollabNotice] = useState("");
+  const [aiComposerOpen, setAiComposerOpen] = useState(false);
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -180,6 +185,12 @@ function InputFields({
       inputMap[autoOpenMediaType]?.current?.click();
     }, 80);
   }, [autoOpenMediaType, onAutoOpenConsumed]);
+
+  useEffect(() => {
+    if (!autoOpenAi) return;
+    setAiComposerOpen(true);
+    onAutoOpenAiConsumed?.();
+  }, [autoOpenAi, onAutoOpenAiConsumed]);
 
   useEffect(() => {
     setPreviewIndex(0);
@@ -759,6 +770,20 @@ function InputFields({
     );
   };
 
+  const composerAiContext = {
+    current_text: text,
+    media_type: mediaType,
+    media_label:
+      mediaType === "image"
+        ? `${selectedFiles.length} selected image${selectedFiles.length === 1 ? "" : "s"}`
+        : selectedFile?.name || mediaValue || "",
+    image_count: mediaType === "image" ? selectedFiles.length : 0,
+    image_files: mediaType === "image" ? selectedFiles : [],
+    governance_kind: isDecisionMode ? "decision" : "post",
+    decision_level: isDecisionMode ? decisionLevel : "",
+    voting_days: isDecisionMode ? votingDays : undefined,
+  };
+
   const renderContent = () => (
     <div className="flex flex-col gap-3 text-[var(--text-black)]">
       <div className="relative">
@@ -874,6 +899,25 @@ function InputFields({
         </div>
       )}
 
+      <AiDelegateActionModal
+        open={aiComposerOpen}
+        mode="ai_post"
+        target={{ title: proposalMode === "decision" ? "Decision composer" : "Post composer", text }}
+        composerContext={composerAiContext}
+        onClose={() => setAiComposerOpen(false)}
+        onApproved={(payload) => {
+          const publishedPost = payload?.summary?.post;
+          if (publishedPost && setPosts) {
+            setPosts((oldPosts) => [publishedPost, ...(Array.isArray(oldPosts) ? oldPosts : [])]);
+          }
+          setAiComposerOpen(false);
+          setNotify(["AI post published as the selected delegate."]);
+          refetchPosts?.();
+          queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+          queryClient.invalidateQueries({ queryKey: ["proposals"] });
+        }}
+      />
+
       {renderMediaPreview()}
 
       <div className="flex flex-nowrap items-center justify-between gap-1.5 text-[0.78rem]">
@@ -914,6 +958,15 @@ function InputFields({
             inputRef={fileInputRef}
             handleFileChange={(event) => handleFileChange(event, "file")}
           />
+          <button
+            type="button"
+            onClick={() => setAiComposerOpen(true)}
+            className="composer-icon-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold text-[var(--pink)]"
+            aria-label="AI"
+            title="AI"
+          >
+            <IoSparklesOutline className="text-[1.05rem]" />
+          </button>
         </div>
 
         <div className="flex min-w-0 shrink-0 items-center gap-1.5 text-[0.82rem] text-white">

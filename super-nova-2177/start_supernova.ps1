@@ -3,12 +3,12 @@ Write-Host "      SuperNova 2177 Unified Launcher     " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Which Frontend would you like to launch?"
-Write-Host "  1. Next.js (legacy/off-path)" -ForegroundColor Green
-Write-Host "  2. Vite Professional (legacy/off-path)" -ForegroundColor Yellow
-Write-Host "  3. Vite 3D (legacy/off-path)" -ForegroundColor Magenta
+Write-Host "  1. Next.js (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
+Write-Host "  2. Vite Professional (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
+Write-Host "  3. Vite 3D (retired/off-path; use Social Seven)" -ForegroundColor DarkGray
 Write-Host "  4. Vite Basic (legacy/off-path)" -ForegroundColor White
 Write-Host "  5. Frontend Nova (deleted/off-path; use Social Seven)" -ForegroundColor DarkGray
-Write-Host "  6. Social Six (legacy/off-path)" -ForegroundColor Blue
+Write-Host "  6. Social Six (deleted/off-path; use Social Seven)" -ForegroundColor DarkGray
 Write-Host "  7. Social Seven (Active/default FE7)" -ForegroundColor Magenta
 Write-Host ""
 
@@ -19,21 +19,17 @@ if ([string]::IsNullOrWhiteSpace($choice)) {
 }
 
 $frontendMap = @{
-    "1" = "frontend-next"
-    "2" = "frontend-professional"
-    "3" = "frontend-vite-3d"
+    "1" = "__retired_frontend_next"
+    "2" = "__retired_frontend_professional"
+    "3" = "__retired_frontend_vite_3d"
     "4" = "frontend-vite-basic"
     "5" = "__retired_frontend_nova"
-    "6" = "frontend-social-six"
+    "6" = "__retired_frontend_social_six"
     "7" = "frontend-social-seven"
 }
 
 $frontendPorts = @{
-    "frontend-next" = 3000
-    "frontend-professional" = 5173
-    "frontend-vite-3d" = 5175
     "frontend-vite-basic" = 5174
-    "frontend-social-six" = 3001
     "frontend-social-seven" = 3007
 }
 
@@ -44,8 +40,18 @@ if ($null -eq $frontendDir) {
     exit 1
 }
 
-if ($frontendDir -eq "__retired_frontend_nova") {
-    Write-Host "`nfrontend-nova was deleted after retirement. Use frontend-social-seven." -ForegroundColor Yellow
+if ($frontendDir -eq "__retired_frontend_nova" -or $frontendDir -eq "__retired_frontend_professional" -or $frontendDir -eq "__retired_frontend_vite_3d" -or $frontendDir -eq "__retired_frontend_next" -or $frontendDir -eq "__retired_frontend_social_six") {
+    if ($frontendDir -eq "__retired_frontend_nova") {
+        Write-Host "`nfrontend-nova was deleted after retirement. Use frontend-social-seven." -ForegroundColor Yellow
+    } elseif ($frontendDir -eq "__retired_frontend_professional") {
+        Write-Host "`nfrontend-professional local launchers were retired after cleanup checks. Use frontend-social-seven." -ForegroundColor Yellow
+    } elseif ($frontendDir -eq "__retired_frontend_next") {
+        Write-Host "`nfrontend-next was deleted after launcher retirement. Use frontend-social-seven." -ForegroundColor Yellow
+    } elseif ($frontendDir -eq "__retired_frontend_social_six") {
+        Write-Host "`nfrontend-social-six was deleted after launcher retirement. Use frontend-social-seven." -ForegroundColor Yellow
+    } else {
+        Write-Host "`nfrontend-vite-3d was deleted after launcher retirement. Use frontend-social-seven." -ForegroundColor Yellow
+    }
     Write-Host "Run this launcher again and choose option 7 for Social Seven." -ForegroundColor Cyan
     exit 0
 }
@@ -60,7 +66,7 @@ Write-Host "[2/2] Starting Frontend: $frontendDir..." -ForegroundColor Cyan
 
 # Start the frontend in the current window
 Set-Location "$repoPath\$frontendDir"
-if ($frontendDir -eq "frontend-next" -or $frontendDir -eq "frontend-social-six" -or $frontendDir -eq "frontend-social-seven") {
+if ($frontendDir -eq "frontend-social-seven") {
     $env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:8000"
     & "C:\Program Files\nodejs\npm.cmd" run dev
 } else {

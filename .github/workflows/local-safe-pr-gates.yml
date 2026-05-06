@@ -31,6 +31,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r super-nova-2177/backend/requirements.txt
 
+      - name: Compile backend entrypoint
+        run: python -m py_compile super-nova-2177/backend/app.py
+
+      - name: Run alpha readiness docs tests
+        working-directory: super-nova-2177
+        run: python -m unittest backend.tests.test_alpha_readiness_docs
+
       - name: Run focused backend tests
         run: |
           python -m unittest super-nova-2177/backend/tests/test_public_federation_safety.py

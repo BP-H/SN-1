@@ -2,6 +2,13 @@
 
 This audit captures cleanup direction without changing runtime behavior. Do not delete or refactor live paths from `master` just because they appear here. Use a separate branch and prove each change with tests first.
 
+Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` pauses broad cleanup after
+the latest launcher/source retirements and nested audits. Use it to decide the
+next safe sprint before deleting, moving, or retiring more legacy surfaces.
+Legacy frontend source deletion is closed out in
+`LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`; return to alpha smoke/product work before
+starting any new deletion sprint.
+
 ## Active Production Paths
 
 - `app.py`: Railway/root compatibility entrypoint.
@@ -35,16 +42,48 @@ Keep these compatible unless a dedicated migration plan exists:
 
 These may be useful references or future branches, but should not be deleted from `master` without branch-tested proof:
 
-- `super-nova-2177/frontend-next/`
-- `super-nova-2177/frontend-professional/`
-- `super-nova-2177/frontend-social-six/`
-- `super-nova-2177/frontend-vite-3d/`
-- `super-nova-2177/frontend-vite-basic/`
+- `super-nova-2177/frontend-vite-basic/` (retained because it contains
+  protected duplicate `supernovacore.py` and participates in the safe-check
+  contract; future changes need a dedicated protected-core-safe plan)
 - nested or duplicate backend experiments under `super-nova-2177/backend/supernova_2177_ui_weighted/`
 
 `super-nova-2177/frontend-nova/` was deleted after its local launchers were
 retired and fresh reference checks confirmed no active package, deployment,
 workflow, or runtime dependency.
+
+`super-nova-2177/frontend-professional/` was deleted after its runnable local
+launcher paths were retired and fresh reference checks confirmed no active
+package, deployment, workflow, runtime, or local launcher dependency.
+
+`super-nova-2177/frontend-next/` was deleted after its runnable local launcher
+paths were retired and fresh repo-local reference checks found no active
+workflow, deployment config, runtime, or launcher dependency outside the folder.
+The owner explicitly accepted the remaining external deployment/auth/API-route
+uncertainty documented in `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
+
+`super-nova-2177/frontend-social-six/` was deleted after fresh repo-local
+reference checks, and its runnable local launcher support was retired. The owner
+explicitly accepted the remaining external Supabase/Vercel/Railway/auth/API-route
+uncertainty documented in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
+
+`super-nova-2177/frontend-vite-3d/` was deleted after its runnable local
+launcher paths were retired and fresh repo-local reference checks found no
+active workflow, deployment config, runtime, or launcher dependency outside the
+folder. The owner explicitly accepted the remaining external Vercel/API-route
+uncertainty documented in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
+
+Nested legacy surfaces under
+`super-nova-2177/backend/supernova_2177_ui_weighted/` were audited in
+`NESTED_LEGACY_SURFACES_AUDIT.md`. `nova-web`, `nova-api`, and
+`transcendental_resonance_frontend` remain retained because they have package,
+Docker/API, import, wrapper, install, or test dependencies. Protected core files
+remain untouched.
+
+Local Docker Compose config was audited in `LOCAL_DOCKER_COMPOSE_AUDIT.md`.
+Project-level `super-nova-2177/docker-compose.yml` remains unchanged and is
+treated as stale local-only because its frontend service still builds the
+missing `./frontend` path instead of active FE7. Nested Compose files remain
+retained under the nested legacy audit gates.
 
 ## Generated Or Local Artifact Candidates
 

@@ -4,6 +4,62 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a legacy frontend cleanup closeout checkpoint confirming FE7 as the only
+  active/default frontend, preserving `frontend-vite-basic` because of its
+  protected duplicate core file, and pausing further source deletion.
+- Deleted the legacy `frontend-social-six` source folder and launcher after
+  owner-accepted external Supabase/Vercel/Railway/auth/API-route risk, keeping
+  active production on FE7 only.
+- Deleted the retired `frontend-next` source folder after launcher retirement
+  and owner-accepted external deployment/auth/API-route risk, keeping active
+  production on FE7 only.
+- Deleted the retired `frontend-vite-3d` source folder after launcher
+  retirement and owner-accepted external Vercel/API-route risk, keeping active
+  production on FE7 only.
+- Normalized cleanup docs after the audit sprint so deleted frontends are not
+  active candidates, retained surfaces point to audit docs, and the read-only
+  cleanup inventory includes local Docker Compose candidates.
+- Added a local Docker Compose audit documenting that
+  `super-nova-2177/docker-compose.yml` is stale local-only because its frontend
+  service still builds missing `./frontend`, while leaving all config unchanged.
+- Added a cleanup stability checkpoint that pauses broad cleanup, summarizes
+  completed launcher/source retirements and audits, lists retained surfaces, and
+  names manual verification needed before future deletion work.
+- Added an audit for nested legacy surfaces under
+  `backend/supernova_2177_ui_weighted/`, documenting why `nova-web`,
+  `nova-api`, and `transcendental_resonance_frontend` require separate cleanup
+  gates and why protected core remains untouched.
+- Added an auth/deployment audit for retained `frontend-social-six` and
+  deferred launcher retirement or source deletion until external
+  Supabase/Vercel/Railway references are manually verified.
+- Retired runnable local launcher support for the deployment/auth-sensitive
+  `frontend-next` legacy frontend while keeping its source folder for manual
+  deployment/project-root verification.
+- Added a deployment/API-route audit for retained `frontend-vite-3d` and
+  deferred source deletion until manual Vercel/project-root verification proves
+  its Vite app and `/api/*` handlers are inactive.
+- Retired runnable local launcher support for the deployment-sensitive
+  `frontend-vite-3d` legacy frontend while keeping its source folder for a later
+  deployment/API-route audit.
+- Deleted the inactive `frontend-professional` source folder after launcher
+  retirement and fresh reference checks found no active runtime, workflow, or
+  deployment dependency.
+- Retired runnable local launcher support for the inactive `frontend-professional`
+  legacy frontend while keeping active FE7, backend runtime, uploads, DB files,
+  and protected core untouched.
+- Added in-modal AI delegate creation handoff, compacted the shared AI action modal/picker for mobile, made approve/cancel close cleanly after publish/cancel, added approval-required AI-authored post drafts from the composer, and routed AssistantOrb official AI review/comment actions through the shared approval modal instead of generic `/api/ai` comment fallback.
+- Made AI delegate review/comment fallbacks context-aware, replaced the native delegate dropdown with a custom picker, tightened the shared modal/composer controls for mobile approval-first use, and extended FE7 backend account sessions so Messages does not expire during normal alpha use.
+- Polished the shared AI delegate modal, AI Genesis step state, AssistantOrb action copy, and proposal vote accents so the approval-first AI UI reads more consistently across FE7.
+- Unified post-card, comment, composer, and AI widget delegate entrypoints around a shared approval modal that previews generated AI reviews/comments before approve/cancel, with AI Actions remaining as the secondary inbox.
+- Locked public principal species to human/organization account paths, removed the remaining profile AI species switcher, and added AI delegate provider settings as label-only metadata with private key storage deferred.
+- Added server-side OpenAI-backed generation for AI persona, review, and comment drafts with deterministic fallback metadata, while keeping AI Actions approval-required.
+- Stabilized AI Genesis and AI Actions regression coverage so the active delegate creation route stays call-sign-first, weird AI names produce safe handles, and review/comment drafts surface approval metadata.
+- Added approval-required AI-authored comment drafts from post comments, with sealed server-generated content and AI Actions approval metadata.
+- Polished AI Genesis with a call-sign-first trait search flow, clearer persona approval handoff, and richer AI Actions review-draft metadata.
+- Hardened AI custody auditability with disable reasons, explicit delete refusal, future legal-recognition migration wording, autonomy preference surfacing, and anti-domination docs.
+- Added AI Persona Genesis with trait-based delegate personas, short server-generated handles, profile-like AI pages, bounded persona context in sealed reviews, no standalone AI signup, and no normal custodian delete path.
+- Added persistent principal-bound AI delegate custody, a delegate settings page, sealed delegate review drafts, and a grouped vote/review ledger UI.
+- Added first-slice AI actor visibility with a protocol-chartered SuperNova AI advisory review, locked-charter AI delegate draft generation, public AI actor pages, and read-only review ledger endpoints.
 - Fixed FE7 sign-out stability so stale social-profile sync responses cannot restore auth after logout.
 - Added final alpha release notes and updated release signoff with completed release-owner manual QA results.
 - Added alpha release candidate signoff evidence for the post-PR #128 deployment, smoke checks, deterministic test matrix, and pending manual QA exceptions.

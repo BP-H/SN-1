@@ -14,12 +14,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 def run_auth_probe(probe: str) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "auth_bound_write_routes.sqlite"
-        env = os.environ.copy()
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() != "SUPERNOVA_ACCESS_TOKEN_MINUTES"
+        }
         env.update(
             {
                 "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
                 "DB_MODE": "central",
                 "SECRET_KEY": "strong-test-secret-for-auth-bound-write-routes",
+                "SUPERNOVA_ACCESS_TOKEN_MINUTES": "720",
                 "SUPERNOVA_ENV": "development",
                 "APP_ENV": "development",
                 "ENV": "development",
@@ -69,6 +74,8 @@ for path in (project_root, backend_dir):
     path_text = str(path)
     if path_text not in sys.path:
         sys.path.insert(0, path_text)
+
+os.environ["SUPERNOVA_ACCESS_TOKEN_MINUTES"] = "720"
 
 import backend.app as backend_app
 from db_models import Base
@@ -242,6 +249,149 @@ def seed_comment_target(author="alice", proposal_owner="bob", content="original 
 
 
 class AuthBoundWriteRouteTests(unittest.TestCase):
+    def test_backend_session_tokens_last_long_enough_for_messages(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            payload = backend_app.jwt.decode(
+                alice_token,
+                backend_app.get_settings().SECRET_KEY,
+                algorithms=[backend_app.get_settings().ALGORITHM],
+            )
+            ttl_seconds = int(payload.get("exp", 0)) - int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+            result = {
+                "subject": payload.get("sub"),
+                "ttl_minutes": ttl_seconds // 60,
+                "configured_minutes": backend_app.WRAPPER_ACCESS_TOKEN_MINUTES,
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["subject"], "alice")
+        self.assertGreaterEqual(result["ttl_minutes"], 600)
+        self.assertGreaterEqual(result["configured_minutes"], 720)
+
+    def test_profile_rename_returns_fresh_token_for_messages(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            rename = client.patch("/profile/alice", json={"username": "stellar"}, headers=alice_headers)
+            new_token = rename.json().get("access_token")
+            new_headers = {"Authorization": f"Bearer {new_token}"}
+            sent = client.post(
+                "/messages",
+                json={"sender": "stellar", "recipient": "bob", "body": "hello after rename"},
+                headers=new_headers,
+            )
+            thread = client.get("/messages?user=stellar&peer=bob", headers=new_headers)
+            old_token_send = client.post(
+                "/messages",
+                json={"sender": "stellar", "recipient": "bob", "body": "old token alias remains valid"},
+                headers=alice_headers,
+            )
+            stale_sender_send = client.post(
+                "/messages",
+                json={"sender": "alice", "recipient": "bob", "body": "stale sender alias remains canonical"},
+                headers=alice_headers,
+            )
+            stale_thread = client.get("/messages?user=alice&peer=bob", headers=alice_headers)
+            payload = sent.json()
+            stale_payload = stale_sender_send.json()
+            stale_thread_payload = stale_thread.json()
+            result = {
+                "rename_status": rename.status_code,
+                "rename_username": rename.json().get("username"),
+                "has_new_token": bool(new_token),
+                "sent_status": sent.status_code,
+                "sent_sender": payload.get("sender"),
+                "thread_status": thread.status_code,
+                "thread_count": len(thread.json().get("messages", [])),
+                "old_token_status": old_token_send.status_code,
+                "stale_sender_status": stale_sender_send.status_code,
+                "stale_sender": stale_payload.get("sender"),
+                "stale_thread_status": stale_thread.status_code,
+                "stale_thread_peer": stale_thread_payload.get("peer"),
+                "stale_thread_count": len(stale_thread_payload.get("messages", [])),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["rename_status"], 200)
+        self.assertEqual(result["rename_username"], "stellar")
+        self.assertTrue(result["has_new_token"])
+        self.assertEqual(result["sent_status"], 200)
+        self.assertEqual(result["sent_sender"], "stellar")
+        self.assertEqual(result["thread_status"], 200)
+        self.assertEqual(result["thread_count"], 3)
+        self.assertEqual(result["old_token_status"], 200)
+        self.assertEqual(result["stale_sender_status"], 200)
+        self.assertEqual(result["stale_sender"], "stellar")
+        self.assertEqual(result["stale_thread_status"], 200)
+        self.assertEqual(result["stale_thread_peer"], "bob")
+        self.assertEqual(result["stale_thread_count"], 5)
+
+    def test_profile_rename_alias_keeps_comment_delete_from_user_not_found(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            db = backend_app.SessionLocal()
+            try:
+                alice = db.query(backend_app.Harmonizer).filter(backend_app.Harmonizer.username == "alice").first()
+                proposal = backend_app.Proposal(
+                    title="Rename comment target",
+                    description="A post with a comment written before username change.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=alice.id,
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                vibe = backend_app.VibeNode(name="rename-test", author_id=alice.id)
+                db.add_all([proposal, vibe])
+                db.commit()
+                db.refresh(proposal)
+                db.refresh(vibe)
+                comment = backend_app.Comment(
+                    proposal_id=proposal.id,
+                    content="Comment before rename",
+                    author_id=alice.id,
+                    vibenode_id=vibe.id,
+                    created_at=datetime.datetime.utcnow(),
+                )
+                db.add(comment)
+                db.commit()
+                db.refresh(comment)
+                proposal_id = proposal.id
+                comment_id = comment.id
+            finally:
+                db.close()
+
+            rename = client.patch("/profile/alice", json={"username": "stellar"}, headers=alice_headers)
+            delete_with_old_token = client.delete(f"/comments/{comment_id}?user=stellar", headers=alice_headers)
+            public_read = client.get(f"/comments?proposal_id={proposal_id}")
+            delete_json = delete_with_old_token.json()
+            public_json = public_read.json()
+            remaining = public_json.get("comments", public_json) if isinstance(public_json, dict) else public_json
+            result = {
+                "rename_status": rename.status_code,
+                "delete_status": delete_with_old_token.status_code,
+                "delete_detail": delete_json.get("detail") if isinstance(delete_json, dict) else None,
+                "remaining_comments": len(remaining),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["rename_status"], 200)
+        self.assertEqual(result["delete_status"], 200, result)
+        self.assertIsNone(result["delete_detail"])
+        self.assertEqual(result["remaining_comments"], 0)
+
     def test_profile_update_requires_matching_bearer_identity(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -754,6 +904,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "id",
                 "parent_comment_id",
                 "proposal_id",
+                "likes",
+                "dislikes",
                 "species",
                 "user",
                 "user_img",
@@ -825,6 +977,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "id",
                 "parent_comment_id",
                 "proposal_id",
+                "likes",
+                "dislikes",
                 "species",
                 "user",
                 "user_img",
@@ -836,7 +990,57 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["public_count"], 1)
         self.assertEqual(result["public_comment"], "edited by alice")
 
-    def test_comment_delete_requires_author_or_proposal_owner_bearer_identity(self):
+    def test_comment_votes_are_auth_bound_and_publicly_serialized(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seeded = seed_comment_target(author="alice", proposal_owner="alice")
+            comment_id = seeded["comment_id"]
+            proposal_id = seeded["proposal_id"]
+            missing = client.post(
+                f"/comments/{comment_id}/votes",
+                json={"username": "bob", "choice": "up", "voter_type": "human"},
+            )
+            wrong = client.post(
+                f"/comments/{comment_id}/votes",
+                json={"username": "bob", "choice": "up", "voter_type": "human"},
+                headers=alice_headers,
+            )
+            voted = client.post(
+                f"/comments/{comment_id}/votes",
+                json={"username": "bob", "choice": "up", "voter_type": "human"},
+                headers=bob_headers,
+            )
+            public_read = client.get(f"/comments?proposal_id={proposal_id}")
+            removed = client.delete(f"/comments/{comment_id}/votes?username=bob", headers=bob_headers)
+            public_after_remove = client.get(f"/comments?proposal_id={proposal_id}")
+            result = {
+                "missing_status": missing.status_code,
+                "wrong_status": wrong.status_code,
+                "voted_status": voted.status_code,
+                "voted_likes": voted.json().get("likes"),
+                "public_likes": public_read.json()[0].get("likes"),
+                "public_dislikes": public_read.json()[0].get("dislikes"),
+                "removed_status": removed.status_code,
+                "removed_likes": removed.json().get("likes"),
+                "public_after_remove_likes": public_after_remove.json()[0].get("likes"),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["voted_status"], 200)
+        self.assertEqual(result["voted_likes"][0]["voter"], "bob")
+        self.assertEqual(result["public_likes"][0]["voter"], "bob")
+        self.assertEqual(result["public_dislikes"], [])
+        self.assertEqual(result["removed_status"], 200)
+        self.assertEqual(result["removed_likes"], [])
+        self.assertEqual(result["public_after_remove_likes"], [])
+
+    def test_comment_delete_requires_original_author_bearer_identity(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             author_seeded = seed_comment_target(
@@ -881,7 +1085,7 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "matching_author_deleted": author_payload.get("deleted"),
                 "matching_author_tombstone": author_payload.get("tombstone"),
                 "matching_owner_status": matching_owner.status_code,
-                "matching_owner_keys": sorted(owner_payload.keys()),
+                "matching_owner_detail": owner_payload.get("detail"),
                 "matching_owner_deleted": owner_payload.get("deleted"),
                 "matching_owner_tombstone": owner_payload.get("tombstone"),
                 "owner_read_status": owner_read.status_code,
@@ -903,15 +1107,12 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         )
         self.assertTrue(result["matching_author_deleted"])
         self.assertFalse(result["matching_author_tombstone"])
-        self.assertEqual(result["matching_owner_status"], 200)
-        self.assertEqual(
-            set(result["matching_owner_keys"]),
-            {"deleted", "ok", "pruned_comment_ids", "tombstone"},
-        )
-        self.assertTrue(result["matching_owner_deleted"])
-        self.assertFalse(result["matching_owner_tombstone"])
+        self.assertEqual(result["matching_owner_status"], 403)
+        self.assertIn("original comment author", result["matching_owner_detail"])
+        self.assertIsNone(result["matching_owner_deleted"])
+        self.assertIsNone(result["matching_owner_tombstone"])
         self.assertEqual(result["owner_read_status"], 200)
-        self.assertEqual(result["owner_read_count"], 0)
+        self.assertEqual(result["owner_read_count"], 1)
 
 
 if __name__ == "__main__":

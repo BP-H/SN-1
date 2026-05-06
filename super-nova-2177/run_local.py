@@ -13,44 +13,12 @@ ROOT = Path(__file__).resolve().parent
 DEFAULT_BACKEND_URL = "http://127.0.0.1:8000"
 
 FRONTENDS = {
-    "next": {
-        "dir": ROOT / "frontend-next",
-        "env_key": "NEXT_PUBLIC_API_URL",
-        "port": 3000,
-        "command": ["npm", "run", "dev"],
-        "type": "next",
-        "status": "legacy",
-    },
-    "professional": {
-        "dir": ROOT / "frontend-professional",
-        "env_key": "VITE_API_URL",
-        "port": 5173,
-        "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"],
-        "type": "vite",
-        "status": "legacy/off-path",
-    },
     "vite-basic": {
         "dir": ROOT / "frontend-vite-basic",
         "env_key": "VITE_API_URL",
         "port": 5174,
         "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5174"],
         "type": "vite",
-        "status": "legacy/off-path",
-    },
-    "vite-3d": {
-        "dir": ROOT / "frontend-vite-3d",
-        "env_key": "VITE_API_URL",
-        "port": 5175,
-        "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5175"],
-        "type": "vite",
-        "status": "legacy/off-path",
-    },
-    "social-six": {
-        "dir": ROOT / "frontend-social-six",
-        "env_key": "NEXT_PUBLIC_API_URL",
-        "port": 3001,
-        "command": ["npm", "run", "dev"],
-        "type": "next",
         "status": "legacy/off-path",
     },
     "social-seven": {

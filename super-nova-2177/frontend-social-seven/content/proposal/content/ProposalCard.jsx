@@ -31,6 +31,7 @@ import {
   IoTrashOutline,
 } from "react-icons/io5";
 import LikesDeslikes from "./LikesDeslikes";
+import AiDelegateActionModal from "./AiDelegateActionModal";
 import DisplayComments from "./DisplayComments";
 import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
@@ -147,6 +148,8 @@ function ProposalCard({
   const [localLogo, setLocalLogo] = useState(logo || "");
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
+  const [aiCommentFocus, setAiCommentFocus] = useState("");
+  const [aiCommentParentId, setAiCommentParentId] = useState(null);
   const [localUserName, setLocalUserName] = useState(userName || "");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [collabInviteOpen, setCollabInviteOpen] = useState(false);
@@ -155,16 +158,11 @@ function ProposalCard({
   const [collabBusy, setCollabBusy] = useState(false);
   const [collabStatus, setCollabStatus] = useState("");
   const [collabError, setCollabError] = useState("");
-  const [aiReviewOpen, setAiReviewOpen] = useState(false);
-  const [aiReviewChoice, setAiReviewChoice] = useState("support");
-  const [aiReviewRationale, setAiReviewRationale] = useState("");
-  const [aiReviewBusy, setAiReviewBusy] = useState(false);
-  const [aiReviewStatus, setAiReviewStatus] = useState("");
-  const [aiReviewError, setAiReviewError] = useState("");
+  const [aiActionModalMode, setAiActionModalMode] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
 
-  const { userData, defaultAvatar } = useUser();
+  const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
   const router = useRouter();
   const authorName = localUserName || userName || "";
@@ -198,8 +196,6 @@ function ProposalCard({
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
   const authorAvatarStyle = speciesAvatarStyle(authorSpecies);
-  const currentUserSpecies = String(userData?.species || "").trim().toLowerCase();
-  const isAiActor = Boolean(userData?.name && currentUserSpecies === "ai");
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
   const governance = media?.governance || null;
@@ -220,6 +216,39 @@ function ProposalCard({
     const timer = window.setInterval(() => setNowMs(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, [governance?.voting_deadline, isDecisionProposal]);
+
+  useEffect(() => {
+    const openAiDelegateAction = (event) => {
+      if (String(event?.detail?.proposalId || "") !== String(id || "")) return;
+      const nextMode = event?.detail?.mode === "comment" ? "comment" : "review";
+      if (nextMode === "comment") setShowComments(true);
+      setAiActionModalMode(nextMode);
+    };
+    window.addEventListener("supernova:open-ai-delegate-action", openAiDelegateAction);
+    return () => window.removeEventListener("supernova:open-ai-delegate-action", openAiDelegateAction);
+  }, [id]);
+
+  const openAccountModal = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+    }
+  };
+
+  const openAiActionModal = (mode, focus = "", parentCommentId = null) => {
+    if (!isAuthenticated || !userData?.name) {
+      openAccountModal();
+      return;
+    }
+    if (mode === "comment") {
+      setShowComments(true);
+      setAiCommentFocus(focus || "");
+      setAiCommentParentId(parentCommentId || null);
+    } else {
+      setAiCommentFocus("");
+      setAiCommentParentId(null);
+    }
+    setAiActionModalMode(mode);
+  };
 
   useEffect(() => {
     if (!collabInviteOpen || collabSearch.trim().length < 1) {
@@ -513,86 +542,6 @@ function ProposalCard({
       setErrorMsg?.([message]);
     } finally {
       setCollabBusy(false);
-    }
-  };
-
-  const aiReviewErrorMessage = (detail) => {
-    const message = formatBackendAuthErrorMessage(detail, "Unable to draft AI review.");
-    if (/AI review drafts require an AI actor|AI review approval requires an AI actor/i.test(message)) {
-      return "Only AI accounts can create AI review drafts.";
-    }
-    if (/Invalid vote choice/i.test(message)) {
-      return "Choose support, oppose, or abstain.";
-    }
-    if (/rationale is required/i.test(message)) {
-      return "Add one short rationale before creating the draft.";
-    }
-    if (/800 characters/i.test(message)) {
-      return "Keep the rationale to 800 characters or fewer.";
-    }
-    if (/proposal.*not found|unknown proposal/i.test(message)) {
-      return "That post is no longer available for review.";
-    }
-    return message;
-  };
-
-  const handleDraftAiReview = async () => {
-    if (aiReviewBusy) return;
-    const rationale = aiReviewRationale.trim();
-    if (!id) {
-      setAiReviewError("That post is missing a proposal id.");
-      return;
-    }
-    if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
-      return;
-    }
-    if (!isAiActor) {
-      setAiReviewError("Only AI accounts can create AI review drafts.");
-      return;
-    }
-    if (!rationale) {
-      setAiReviewError("Add one short rationale before creating the draft.");
-      return;
-    }
-    if (rationale.length > 800) {
-      setAiReviewError("Keep the rationale to 800 characters or fewer.");
-      return;
-    }
-
-    setAiReviewBusy(true);
-    setAiReviewError("");
-    setAiReviewStatus("");
-    try {
-      requireBackendAuthSession();
-      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-review`, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          username: userData.name,
-          proposal_id: Number(id),
-          choice: aiReviewChoice,
-          rationale,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(aiReviewErrorMessage(payload?.detail));
-      }
-      setAiReviewRationale("");
-      setAiReviewStatus("AI review draft saved. Approve it in AI Actions before anything is published.");
-      setNotify?.(["AI review draft saved for approval."]);
-      window.dispatchEvent(
-        new CustomEvent("supernova:ai-actions-refresh", {
-          detail: { notice: "AI review draft created. Approve it here before publishing." },
-        })
-      );
-    } catch (error) {
-      const message = aiReviewErrorMessage(error);
-      setAiReviewError(message);
-      setErrorMsg?.([message]);
-    } finally {
-      setAiReviewBusy(false);
     }
   };
 
@@ -1311,26 +1260,20 @@ function ProposalCard({
 
           {/* Right: comment and share */}
           <div className="flex shrink-0 items-center gap-1.5">
-            {isAiActor && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAiReviewOpen((value) => !value);
-                  setAiReviewStatus("");
-                  setAiReviewError("");
-                }}
-                className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors ${
-                  aiReviewOpen
-                    ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                    : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
-                }`}
-                title="Draft AI review"
-                aria-expanded={aiReviewOpen}
-              >
-                <IoSparklesOutline className="text-[0.82rem]" />
-                <span className="hidden text-[0.72rem] font-semibold sm:inline">AI</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => openAiActionModal("review")}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                aiActionModalMode === "review"
+                  ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
+                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
+              }`}
+              title="Generate AI review"
+              aria-label="Generate AI review"
+              aria-expanded={aiActionModalMode === "review"}
+            >
+              <IoSparklesOutline className="text-[0.9rem]" />
+            </button>
             {/* Comment toggle */}
             <button
               type="button"
@@ -1391,81 +1334,6 @@ function ProposalCard({
           </div>
         </div>
 
-        {isAiActor && aiReviewOpen && (
-          <div
-            className="ai-review-draft-panel rounded-[1rem] p-3"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Draft AI review</p>
-                <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                  Creates a draft only. Approve in AI Actions to publish one AI vote and one rationale comment.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAiReviewOpen(false)}
-                className="collab-mini-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                aria-label="Close AI review draft"
-              >
-                <IoClose />
-              </button>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {[
-                ["support", "Support"],
-                ["oppose", "Oppose"],
-                ["abstain", "Abstain"],
-              ].map(([value, label]) => (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => setAiReviewChoice(value)}
-                  className={`ai-review-choice rounded-full px-3 py-1.5 text-[0.72rem] font-semibold ${
-                    aiReviewChoice === value ? "is-selected" : ""
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <textarea
-              value={aiReviewRationale}
-              onChange={(event) => {
-                setAiReviewRationale(event.target.value.slice(0, 800));
-                setAiReviewError("");
-                setAiReviewStatus("");
-              }}
-              maxLength={800}
-              placeholder="Short rationale for this AI review..."
-              className="ai-review-rationale mt-3 min-h-24 w-full resize-y rounded-[0.85rem] px-3 py-2 text-[0.84rem] outline-none"
-            />
-
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                {aiReviewRationale.trim().length}/800
-              </span>
-              <button
-                type="button"
-                onClick={handleDraftAiReview}
-                disabled={aiReviewBusy || !aiReviewRationale.trim()}
-                className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
-              >
-                {aiReviewBusy ? "Saving..." : "Create draft"}
-              </button>
-            </div>
-
-            {aiReviewStatus && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--neon-blue)]">{aiReviewStatus}</p>}
-            {aiReviewError && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--pink)]">{aiReviewError}</p>}
-          </div>
-        )}
-
         {/* Comments section */}
         {(showComments || isDetailPage) && (
           <div className="comments-section flex min-w-0 flex-col gap-2 rounded-[15px] bg-[rgba(255,255,255,0.03)] p-2">
@@ -1473,9 +1341,25 @@ function ProposalCard({
               <span className="truncate text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
                 Comments
               </span>
-              <span className="shrink-0 rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
-                {localComments.length}
-              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openAiActionModal("comment");
+                  }}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--horizontal-line)] text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
+                  aria-label="Generate AI comment"
+                  title="Generate AI comment"
+                  aria-expanded={aiActionModalMode === "comment"}
+                >
+                  <IoSparklesOutline className="text-[0.82rem]" />
+                </button>
+                <span className="rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
+                  {localComments.length}
+                </span>
+              </div>
             </div>
             <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
               <InsertComment
@@ -1488,7 +1372,12 @@ function ProposalCard({
               />
             </div>
             <div className="comments-thread-list flex min-w-0 flex-col gap-2">
-              {threadedComments.map(({ comment, index, depth }) => {
+              {threadedComments.length === 0 ? (
+                <div className="rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.035] px-3 py-3 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
+                  <p className="font-semibold text-[var(--text-black)]">No comments yet.</p>
+                  <p className="mt-1">Start the discussion, or ask an AI delegate to draft one for approval.</p>
+                </div>
+              ) : threadedComments.map(({ comment, index, depth }) => {
                 const commentId = comment.id ?? "";
                 const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
                 const isActiveReplyTarget = Boolean(
@@ -1500,15 +1389,18 @@ function ProposalCard({
                     userData?.name &&
                     String(comment.user).toLowerCase() === String(userData.name).toLowerCase()
                 );
-                const canDeleteComment = Boolean(!isDeletedComment && commentId && (isOwner || isCommentAuthor));
+                const canDeleteComment = Boolean(!isDeletedComment && commentId && isCommentAuthor);
                 return (
                   <DisplayComments
                     key={commentId || `${comment.user || "comment"}-${index}`}
                     commentId={commentId}
+                    proposalId={id}
                     name={comment.user}
                     image={comment.user_img}
                     species={comment.species}
                     comment={comment.comment}
+                    likes={comment.likes}
+                    dislikes={comment.dislikes}
                     canDelete={canDeleteComment}
                     canEdit={Boolean(!isDeletedComment && commentId && isCommentAuthor)}
                     deleting={String(deletingCommentId || "") === String(commentId)}
@@ -1517,6 +1409,10 @@ function ProposalCard({
                     onReply={(target) => {
                       setReplyTarget(target);
                       setShowComments(true);
+                    }}
+                    onAskAi={(target) => {
+                      const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
+                      openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`, target?.id || null);
                     }}
                     replyingToName={parent?.user || ""}
                     depth={depth}
@@ -1542,6 +1438,53 @@ function ProposalCard({
           </div>
         )}
       </div>
+      <AiDelegateActionModal
+        open={Boolean(aiActionModalMode)}
+        mode={aiActionModalMode}
+        target={{
+          id,
+          title,
+          text: localText,
+          author: authorName,
+          species: specie,
+          media,
+          parent_comment_id: aiActionModalMode === "comment" ? aiCommentParentId : null,
+        }}
+        initialFocus={aiActionModalMode === "comment" ? aiCommentFocus : ""}
+        onClose={() => {
+          setAiActionModalMode("");
+          setAiCommentParentId(null);
+        }}
+        onApproved={(payload, draftAction) => {
+          const publishedComment = payload?.summary?.comment;
+          if (publishedComment && typeof publishedComment === "object" && (aiActionModalMode === "comment" || aiActionModalMode === "review")) {
+            setLocalComments((items) => [...items, publishedComment]);
+            setShowComments(true);
+          }
+          if (aiActionModalMode === "review" && payload?.summary?.vote) {
+            window.dispatchEvent(new CustomEvent("supernova:post-action", {
+              detail: {
+                id,
+                action: "vote-recorded",
+                vote: payload.summary.vote,
+                voter: payload.summary.actor,
+                voter_type: payload.summary.actor_species || "ai",
+              },
+            }));
+          }
+          const draftPayload = draftAction?.draft_payload || {};
+          const actorName =
+            draftPayload.ai_actor_display_name ||
+            draftPayload.display_name ||
+            draftPayload.ai_actor_username ||
+            "AI delegate";
+          setNotify?.([`Published as ${actorName}.`]);
+          refreshFeeds();
+        }}
+        onCanceled={() => {
+          setNotify?.(["Canceled - nothing published."]);
+        }}
+      />
     </div>
   );
 }

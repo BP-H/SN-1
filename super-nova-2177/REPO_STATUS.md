@@ -2,6 +2,12 @@
 
 This file is the current safety map for the repo. It is intentionally documentation-only: do not move or delete folders just to clean the tree while production is live.
 
+Current cleanup checkpoint: `../CLEANUP_STABILITY_CHECKPOINT.md`. It summarizes
+completed cleanup, retained surfaces, manual external verification needs, and
+the recommended next non-cleanup priorities.
+Legacy frontend source deletion is closed out in
+`../LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`; active production remains FE7 only.
+
 ## Active Online Surfaces
 
 - Backend API: `backend/app.py`
@@ -27,24 +33,25 @@ When `DATABASE_URL` is not set locally, the backend wrapper should use `supernov
 
 These folders may contain useful experiments, references, or older frontend variants, but they are not the primary production path right now.
 
-- `frontend-social-six`
-- `frontend-next`
-- `frontend-professional`
-- `frontend-vite-basic`
-- `frontend-vite-3d`
-- `backend/supernova_2177_ui_weighted/nova-web`
-- `backend/supernova_2177_ui_weighted/nova-api`
-- `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
-- Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately.
+- `frontend-vite-basic` (retained because it contains protected duplicate
+  `supernovacore.py` and participates in the protected-core safe-check contract)
+- `backend/supernova_2177_ui_weighted/nova-web` (retained; nested legacy audit required before cleanup)
+- `backend/supernova_2177_ui_weighted/nova-api` (retained; nested legacy audit required before cleanup)
+- `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` (retained; import/wrapper/test-sensitive)
+- Project-level `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately. See `../LOCAL_DOCKER_COMPOSE_AUDIT.md`.
 
 ## Cleanup Policy
 
 - The only active/default frontend is `frontend-social-seven`.
 - The active backend is `backend/app.py`.
 - The Railway compatibility entrypoint is `app.py`.
-- Local launchers should keep `frontend-social-seven` as the active/default FE7 path. `frontend-nova` was deleted after launcher retirement and fresh reference checks; restore it only by reverting the deletion PR.
+- Local launchers should keep `frontend-social-seven` as the active/default FE7 path. `frontend-nova`, `frontend-professional`, `frontend-vite-3d`, `frontend-next`, and `frontend-social-six` were deleted after launcher retirement and fresh reference checks; restore them only by reverting their deletion PRs. The `frontend-vite-3d` deletion proceeded with owner-accepted external Vercel/API-route risk documented in `../FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. The `frontend-next` deletion proceeded with owner-accepted external deployment/auth/API-route risk documented in `../FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`. The `frontend-social-six` deletion proceeded with owner-accepted external Supabase/Vercel/Railway/auth/API-route risk documented in `../FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
+- `frontend-vite-basic` is retained, not a normal cleanup candidate. Any future
+  change to that folder requires a dedicated protected-core-safe plan.
 - All other top-level frontend folders are legacy/off-path unless a future PR explicitly promotes one after reference, package, and deployment checks.
 - `backend/supernova_2177_ui_weighted/supernovacore.py` is protected core. Do not edit, move, rename, delete, reformat, or copy its logic during cleanup.
+- Nested legacy surfaces under `backend/supernova_2177_ui_weighted/` are documented in `../NESTED_LEGACY_SURFACES_AUDIT.md`; do not delete `nova-web`, `nova-api`, or `transcendental_resonance_frontend` without satisfying the audit gates.
+- Local Docker Compose config is documented in `../LOCAL_DOCKER_COMPOSE_AUDIT.md`; do not update, retire, or rely on the stale `./frontend` service without a dedicated Docker smoke pass.
 - Legacy folders are eligible for staged cleanup only after reference checks for package files, deployment config, Dockerfiles, README/docs, scripts, imports, and CI/workflows.
 - Do not delete legacy source folders in broad mixed cleanup PRs. Prefer one target folder or one generated-artifact class per deletion PR.
 - If a legacy folder is referenced by local launchers, update or retire those launcher references in the same explicit cleanup PR before deletion.

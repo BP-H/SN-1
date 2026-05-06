@@ -12,6 +12,18 @@ SuperNova Core contract or changing production behavior.
 This PR is documentation-first. It does not delete legacy source folders, change
 runtime behavior, change deployment config, or edit protected core files.
 
+Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` pauses broad cleanup after
+the completed launcher/source retirements and deployment-sensitive audits. Treat
+manual alpha smoke, branch protection, and durable media storage as higher
+priority than additional legacy deletion until that checkpoint changes.
+Legacy frontend source deletion is closed out in
+`LEGACY_FRONTEND_CLEANUP_CLOSEOUT.md`; use it as the handoff back to alpha
+smoke/product work.
+
+Cleanup inventories are read-only. Retained/deferred entries are not deletion
+approval, and completed/deleted entries should not be reintroduced as active
+candidates.
+
 ## Protected Core
 
 Absolute protected file:
@@ -76,20 +88,19 @@ Additional checks:
 | Legacy surface | Reference findings | Risk classification | Future cleanup direction |
 | --- | --- | --- | --- |
 | `super-nova-2177/frontend-nova` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, or runtime references. `start_frontend_nova.ps1` was removed with the source folder. | Completed first explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
-| `super-nova-2177/frontend-professional` | Referenced by cleanup docs, `REPO_STATUS.md`, `scripts/list_cleanup_candidates.py`, `run_local.py`, `start_supernova.ps1`, and `start_frontend_professional.ps1`; package self-reference. | Launcher-sensitive. | Consider after `frontend-nova` cleanup pattern is proven. |
-| `super-nova-2177/frontend-next` | Referenced by cleanup/security docs, `REPO_STATUS.md`, `run_local.py`, `start_supernova.ps1`, `start_frontend_next.ps1`, and `frontend-social-six` docs; has `Dockerfile` and package files. | Deployment/security-sensitive legacy Next app. | Do not delete until a legacy Next deployment assessment confirms it is unused. |
-| `super-nova-2177/frontend-social-six` | Referenced by auth/security docs, cleanup docs, RSC/Next assessment, `REPO_STATUS.md`, launchers, `Dockerfile`, and social auth setup docs. | Auth-history-sensitive legacy social frontend. | Defer until a dedicated social-six retirement assessment. |
-| `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
-| `super-nova-2177/frontend-vite-3d` | Referenced by cleanup docs, `REPO_STATUS.md`, launchers, `package.json`, and its own `vercel.json`; prior assessment notes Vercel-style API routes. | Deployment-sensitive. | Defer until deployment/API route audit. |
-| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web` | Referenced by nested cleanup/security docs, `REPO_STATUS.md`, package/lockfile files, Next config, internal comments, and universe docs. | Nested legacy app and dependency-sensitive. | Keep under nested backend/lockfile cleanup plan. |
-| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api` | Referenced by `REPO_STATUS.md` and its own `index.py`. | Low visible reference count, but nested backend-sensitive. | Assess with nested backend cleanup, not frontend cleanup. |
-| `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` | Referenced by `REPO_STATUS.md`, many nested docs, install scripts, utility imports, compatibility wrappers, and tests. | Do not touch. Active legacy Python UI package. | Do not delete or rename without a compatibility and test audit. |
+| `super-nova-2177/frontend-professional` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, runtime, or local launcher dependency. The unified launcher keeps only a retired/off-path handoff to Social Seven. | Completed explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
+| `super-nova-2177/frontend-next` | Deleted after runnable local launcher retirement and fresh repo-local reference checks. Dedicated deployment/auth/security audit found a standalone Next package, Dockerfile, Supabase auth dependencies, and an `app/api/ai` route; the owner explicitly accepted the remaining external deployment/auth/API-route uncertainty before deletion. | Completed deployment/auth-sensitive legacy source deletion. | Roll back with a single revert if the retired source, Dockerfile, Supabase auth surface, or `/api/ai` handler are needed again. |
+| `super-nova-2177/frontend-social-six` | Deleted after fresh repo-local reference checks, with `start_frontend_social_six.ps1` removed and local launcher entries retired. Dedicated auth/deployment audit found a standalone Next package, Dockerfile, Supabase auth dependencies, `SOCIAL_AUTH_SETUP.md`, and an `app/api/ai` route; the owner explicitly accepted the remaining external Supabase/Vercel/Railway/auth/API-route uncertainty before deletion. | Completed auth/deployment-sensitive legacy source deletion. | Roll back with a single revert if the retired source, launcher, Dockerfile, Supabase auth surface, or `/api/ai` handler are needed again. |
+| `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive and retained. | Do not delete, retire, move, or refactor in cleanup; any change needs a separate protected-core-safe plan. |
+| `super-nova-2177/frontend-vite-3d` | Deleted after runnable local launcher retirement and fresh repo-local reference checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers; the owner explicitly accepted the remaining external Vercel/API-route uncertainty before deletion. | Completed deployment-sensitive legacy source deletion. | Roll back with a single revert if the retired source or Vercel-style API handlers are needed again. |
+| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web` | Dedicated nested-surface audit found a standalone Next app with package/lock/config files, API stubs, app routes, and universe docs references. | Nested legacy app; dependency/security/deployment-sensitive. | Keep retained until manual deployment checks, dependency strategy, and universe UI preservation decisions are complete. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
+| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api` | Dedicated nested-surface audit found a small standalone FastAPI service with Dockerfile and sample `/api`, `/healthz`, and `/feed` routes. | Low visible reference count, but nested backend/deployment-sensitive. | Keep retained until manual deployment checks confirm no project root or Docker/Railway path uses it. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
+| `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` | Dedicated nested-surface audit found a NiceGUI/Python UI package with install scripts, compatibility wrappers, imports, docs, and many tests. | High cleanup risk legacy Python UI package. | Do not delete, rename, or move without an import/wrapper/test migration plan. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
 
 ## Generated Artifact Findings
 
 Tracked generated candidates found in the roadmap assessment:
 
-- `super-nova-2177/frontend-vite-3d/tsconfig.tsbuildinfo`
 - `super-nova-2177/frontend-vite-basic/tsconfig.tsbuildinfo`
 
 The follow-up generated-artifact cleanup removes these tracked files only. Root
@@ -109,12 +120,32 @@ config.
 3. `frontend-nova` launcher retirement PR: completed.
 4. `frontend-nova` deletion PR: completed after fresh reference checks found no
    active package, deployment, workflow, or runtime references.
-5. Repeat the same pattern for `frontend-professional`.
-6. Separate assessments for `frontend-next`, `frontend-social-six`,
-   `frontend-vite-3d`, nested `nova-web`, and nested `nova-api`.
-7. Do not schedule `frontend-vite-basic` removal until the protected duplicate
+5. `frontend-professional` launcher retirement PR: completed.
+6. `frontend-professional` deletion PR: completed after fresh reference checks
+   found no active package, deployment, workflow, runtime, or local launcher
+   dependency.
+7. `frontend-vite-3d` launcher retirement PR: completed; source folder was
+   deleted after fresh repo-local checks and owner-accepted external
+   Vercel/API-route risk documented in
+   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
+8. `frontend-next` launcher retirement PR: completed; source folder was deleted
+   after fresh repo-local checks and owner-accepted external
+   deployment/auth/API-route risk documented in
+   `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
+9. `frontend-social-six` auth/deployment audit: completed; source folder and
+   launcher support were later deleted/retired after fresh repo-local checks and
+   owner-accepted external Supabase/Vercel/Railway/auth/API-route risk
+   documented in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
+10. Nested legacy surfaces audit: completed. `nova-web`, `nova-api`, and
+    `transcendental_resonance_frontend` remain retained; future cleanup requires
+    the gates in `NESTED_LEGACY_SURFACES_AUDIT.md`.
+11. Local Docker Compose audit: completed. Project-level
+    `super-nova-2177/docker-compose.yml` remains unchanged and is treated as
+    stale local-only because it still builds missing `./frontend`; see
+    `LOCAL_DOCKER_COMPOSE_AUDIT.md` before changing or retiring Compose files.
+12. Do not schedule `frontend-vite-basic` removal until the protected duplicate
    core file and safe-check contract have a dedicated plan.
-8. Do not schedule `transcendental_resonance_frontend` removal until imports,
+13. Do not schedule `transcendental_resonance_frontend` removal until imports,
    tests, install scripts, and compatibility wrappers are intentionally retired.
 
 ## Required Checks Before Any Future Deletion

@@ -13,11 +13,15 @@ date.
 Each checklist box is the pass marker. Mark it only when the expected behavior
 passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 
+For a fast post-router-split smoke pass, use `ALPHA_SMOKE_NOW.md` first, then
+return here for the fuller alpha release signoff. Record fast-smoke evidence in
+a dated copy of `ALPHA_SMOKE_SIGNOFF_TEMPLATE.md`.
+
 ## Account / Session
 
 - [ ] **Create account**
   - Expected: a new user can create an account and land in the active FE7 app.
-  - Quick test: sign up with a test username, species, and avatar if available.
+  - Quick test: sign up with a test username, choose Human or Organization, and confirm AI is not offered as a public account species.
 - [ ] **Sign in**
   - Expected: existing user can sign in and account-bound UI appears.
   - Quick test: sign in, reload, and confirm profile/account state persists.
@@ -36,6 +40,7 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **Create media post**
   - Expected: accepted media uploads attach to the post and render without overflow.
   - Quick test: post a small supported image and inspect feed/profile/mobile.
+  - Alpha persistence note: newly uploaded proposal images have a bounded DB-backed `data:image/...` fallback if the upload file disappears. Old posts whose upload file is already gone and whose stored record only contains a filename cannot be reconstructed from app code alone; restore those from a backup/source file if available. Persistent object storage remains the long-term production direction.
 - [ ] **Upload size rejection**
   - Expected: oversized image, video, and document uploads fail clearly without leaving partial files.
   - Quick test: try a deliberately oversized media/document upload in a staging or local environment.
@@ -49,11 +54,26 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Expected: signed-in user can vote and remove their vote; public reads remain public.
   - Quick test: vote on a post, refresh, then unvote.
 - [ ] **AI cursor settings and fallback**
-  - Expected: AI Settings explains server-key vs local-key modes, Test AI reports a clear status, and Brief/Draft show a fallback notice when AI is unavailable.
-  - Quick test: open AI Settings with no key, test with local keys disabled, then drag the cursor onto a post and try Brief and Draft.
+  - Expected: AI Settings explains server-key mode, does not store browser API keys, Test AI reports a clear status, and official AI Review / AI Comment actions open the shared delegate approval modal rather than posting generic helper text.
+  - Quick test: open AI Settings with no server key, confirm no local key field appears, then drag the cursor onto a post and try AI Review and AI Comment.
 - [ ] **AI review drafts**
-  - Expected: a signed-in `species=ai` account can create a draft vote/rationale from a post card, then approve or cancel it in AI Actions; nothing publishes before approval.
-  - Quick test: draft support/oppose/abstain with a short rationale, confirm no vote/comment appears, approve one draft, then verify exactly one AI vote and one rationale comment.
+  - Expected: a human/organization custodian can open the post-card AI modal, select an active AI delegate, generate a locked-charter review preview, then approve or cancel it in the modal or AI Actions; nothing publishes before approval.
+  - Quick test: create/select a delegate with the custom picker, generate a review from a post card, confirm fallback or model output references the actual post context and shows vote intent/reasoning/model/generation/hash metadata, approve one draft, confirm the success says it published as the delegate, then verify exactly one AI vote and one rationale comment. Generate another draft and cancel it; the cancel state should say nothing published.
+- [ ] **AI delegate custody**
+  - Expected: human/organization accounts can create an AI delegate through AI Genesis at `/settings/ai-delegates`; public signup does not offer standalone AI accounts; ordinary users cannot create System AI actors or use `supernova-ai`.
+  - Quick test: create a delegate with one AI name/call-sign and one to five traits, open its `/ai/<delegate>` profile, confirm its AI/profile/persona badges, generation source/model metadata, disable/re-enable it, then request a locked-charter review from a post card. If the creation page shows `USERNAME`, `DISPLAY NAME`, or `PUBLIC DESCRIPTION`, the deployment is stale or serving the wrong route.
+- [ ] **AI persona custody controls**
+  - Expected: custodian controls update only the current model/API label or disable future actions; provider settings do not store raw keys; there is no normal Delete AI button and official AI reasoning/persona history cannot be silently rewritten.
+  - Quick test: inspect `/settings/ai-delegates` and `/ai/<delegate>` for custody-as-accountability copy, provider connection labels, raw-key deferral copy, required disable reason, disabled status, autonomy preferences, future-independence/legal-status notes, and explicit no-delete behavior.
+- [ ] **AI-authored comment drafts**
+  - Expected: human/organization custodians can open the shared AI modal from a post comment surface, select an active delegate, generate a sealed AI-authored comment preview, and approve/cancel without editing the official AI text.
+  - Quick test: create a delegate, open comments on a post, generate an AI-authored comment with a short focus, verify the modal is compact on mobile, uses the custom delegate picker, references the actual post/comment context, shows delegate/provenance/content hash/generation source metadata, approve one draft and confirm it publishes as the delegate, then cancel another and confirm nothing publishes.
+- [ ] **AI-authored post drafts from composer**
+  - Expected: composer AI opens the shared modal from both compact and expanded composer states, lets the user select or create a delegate, generates a sealed AI-authored post draft, and publishes as the selected AI delegate only after approval.
+  - Quick test: open the compact composer AI button, select a delegate, generate an AI post, approve it, and confirm one AI-labeled post appears. Generate another and cancel it; confirm nothing publishes.
+- [ ] **System AI advisory review**
+  - Expected: proposal detail shows a SuperNova AI Review card with System AI custody, locked-policy metadata, reasoning hash, and no automatic execution.
+  - Quick test: open a proposal detail page, inspect the SuperNova AI card and vote/review ledger, then confirm normal vote/comment controls still require user action.
 - [ ] **Weighted support display**
   - Expected: feed vote bars and profile visual-grid support badges use the same weighted species logic; normal profile cards rely on their existing vote bar instead of an extra percent label.
   - Quick test: compare the same visual post in feed and the profile Visuals grid.
@@ -207,3 +227,12 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **FE7 metadata and nested-route assets**
   - Expected: production pages expose SuperNova title/description/social metadata and nested routes load shared assets from absolute paths such as `/spinner.svg`.
   - Quick test: open a proposal/profile nested route, trigger a loading state if practical, and inspect page metadata/source in a preview build.
+
+## Advisory E2E
+
+- [ ] **Minimal FE7 Playwright smoke**
+  - Expected: the advisory Playwright smoke scaffold boots the active FE7 app and verifies the signed-out home/feed shell plus `/about`.
+  - Quick test: from `super-nova-2177/frontend-social-seven`, run `npm run test:e2e` after `npx playwright install chromium`. Keep this advisory until backend-seeded and mobile E2E coverage is broader and stable.
+- [ ] **Optional real-backend public smoke**
+  - Expected: with `PLAYWRIGHT_REAL_BACKEND=1` and `NEXT_PUBLIC_API_URL` pointed at local/staging backend, FE7 verifies backend health/status/feed public reads and renders either public feed content or the clean empty state without signing in or writing data.
+  - Quick test: run `npm run test:e2e:real`; if the backend is unavailable, the spec should skip with a clear advisory message.
