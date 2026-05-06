@@ -7,6 +7,7 @@ import traceback
 import types
 from pathlib import Path
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -24,6 +25,31 @@ _RUNTIME_CACHE: Dict[str, Any] | None = None
 
 def _sqlite_url(path: Path) -> str:
     return f"sqlite:///{path.resolve().as_posix()}"
+
+
+def safe_database_backend(engine_url: Any) -> str:
+    """Return a public-safe database backend label without credentials."""
+    clean = str(engine_url or "").strip()
+    if not clean:
+        return "not_configured"
+
+    parsed = urlparse(clean)
+    scheme = (parsed.scheme or clean.split(":", 1)[0]).lower()
+    if scheme in {"postgres", "postgresql", "postgresql+psycopg2", "postgresql+asyncpg"}:
+        return "postgresql"
+    if scheme.startswith("sqlite"):
+        return "sqlite"
+    if scheme:
+        return scheme
+    return "configured"
+
+
+def public_database_status(engine_url: Any) -> Dict[str, Any]:
+    """Build public-safe database status fields for health/status payloads."""
+    return {
+        "db_configured": bool(str(engine_url or "").strip()),
+        "db_backend": safe_database_backend(engine_url),
+    }
 
 
 def _configure_database_environment() -> tuple[str, str]:
@@ -193,10 +219,11 @@ def runtime_status(runtime: Dict[str, Any] | None = None) -> Dict[str, Any]:
     current = runtime or load_supernova_runtime()
     error = current.get("error")
     routes = current.get("core_routes") or []
+    database_status = public_database_status(current.get("db_engine_url"))
     return {
         "supernova_available": bool(current.get("available")),
         "core_mounted": bool(current.get("core_app")),
-        "db_engine_url": current.get("db_engine_url"),
+        **database_status,
         "database_url_source": current.get("database_url_source"),
         "core_routes_count": len(routes),
         "core_routes": routes,
