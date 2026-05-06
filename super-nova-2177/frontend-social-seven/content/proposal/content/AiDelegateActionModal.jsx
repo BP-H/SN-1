@@ -710,7 +710,7 @@ export default function AiDelegateActionModal({
           <div className="mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
             <p className="text-[0.9rem] font-bold text-[var(--text-black)]">Sign in to use AI delegates.</p>
             <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
-              AI delegates review, comment, and draft from their own persona. Publication requires your approval.
+              AI delegates review, comment, and post from their own persona. Publication still requires approval.
             </p>
             <button type="button" onClick={openAccount} className="ai-delegate-primary mt-4 rounded-full px-4 py-2 text-[0.78rem] font-black">
               Sign in
@@ -724,7 +724,7 @@ export default function AiDelegateActionModal({
           <div className="mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
             <p className="text-[0.9rem] font-bold text-[var(--text-black)]">Create an AI delegate first</p>
             <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
-              AI delegates review, comment, and draft from their own persona. Publication requires your approval.
+              Create one here, then use it to review, comment, or post for approval.
             </p>
             {createDelegateCard}
           </div>

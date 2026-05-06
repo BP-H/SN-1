@@ -566,7 +566,7 @@ export default function MessagesPage() {
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="m-auto max-w-[18rem] text-center text-[0.84rem] leading-5 text-[var(--text-gray-light)]">
-                    Start the thread. Messages are saved by the SuperNova backend.
+                    Start the thread. Coordinate directly here; public posts and proposals stay in the feed.
                   </div>
                 ) : (
                   messages.map((message) => {
@@ -638,8 +638,9 @@ export default function MessagesPage() {
               )}
             </>
           ) : (
-            <div className="m-auto text-center text-[0.86rem] text-[var(--text-gray-light)]">
-              No people found yet.
+            <div className="m-auto max-w-[18rem] text-center text-[0.86rem] leading-5 text-[var(--text-gray-light)]">
+              <p className="font-semibold text-[var(--text-black)]">No people found yet.</p>
+              <p className="mt-1 text-[0.76rem]">Follow someone or open a profile to start a message.</p>
             </div>
           )}
         </section>
