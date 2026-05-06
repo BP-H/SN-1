@@ -7,6 +7,10 @@ bugs, especially around uploaded images.
 Pair this with `DATA_PRESERVATION_PREFLIGHT.md` before release promotion or any
 future SN-1 sync preview.
 
+For the concrete future SN-2 to SN-1 branch handoff, use
+`SN1_SYNC_PREFLIGHT_2026-05-06.md` and keep the sync as a non-default branch
+first.
+
 ## Active Deployment Roots
 
 - Active FE7 deploy root: `super-nova-2177/frontend-social-seven`

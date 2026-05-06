@@ -433,6 +433,55 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         ]:
             self.assertIn(expected, deploy)
 
+    def test_sn1_sync_preflight_documents_non_default_branch_and_data_preservation(self):
+        preflight = (REPO_ROOT / "SN1_SYNC_PREFLIGHT_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+        release = (REPO_ROOT / "ALPHA_RELEASE_READINESS.md").read_text(encoding="utf-8")
+        media = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "SN-1 Sync Preflight - 2026-05-06",
+            "SN-2 controlled alpha/preview gates are green through PR #73",
+            "SN-2 `master` branch protection is still not verified enabled",
+            "non-default branch first",
+            "sn2-alpha-sync-2026-05-06",
+            "Do not merge SN-1 `master`",
+            "Preserve `DATABASE_URL`",
+            "Preserve `UPLOADS_DIR`",
+            "Preserve `NEXT_PUBLIC_API_URL`",
+            "database backup",
+            "upload/media backup",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+            "Existing posts and images disappear only if",
+            "git remote -v",
+            "git fetch sn2 master",
+            "git remote get-url origin",
+            "git switch -c sn2-alpha-sync-2026-05-06 sn2/master",
+            "git push -u origin sn2-alpha-sync-2026-05-06",
+            "git push origin master",
+            "python scripts/public_data_snapshot.py <current-backend-url>",
+            "python scripts/public_data_snapshot.py <sn1-preview-backend-url>",
+            "proposal IDs and titles",
+            "sampled media URLs",
+            "/uploads/...",
+            "HTTP 200 with image content type",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "/health",
+            "/supernova-status",
+            "/proposals?filter=latest&limit=30",
+            "Owner explicitly approves the SN-1 `master` merge",
+            "SN-1 sync was not performed",
+        ]:
+            self.assertIn(expected, preflight)
+
+        self.assertIn("SN1_SYNC_PREFLIGHT_2026-05-06.md", release)
+        self.assertIn("sn2-alpha-sync-2026-05-06", release)
+        self.assertIn("SN1_SYNC_PREFLIGHT_2026-05-06.md", media)
+
 
 if __name__ == "__main__":
     unittest.main()
