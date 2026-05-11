@@ -8,7 +8,7 @@ This is a planning note after the AI delegate UX and commons-safe rate-limit mer
 - Keep SuperNova Core mounted read-only and protected from semantic changes.
 
 ## 2. Rate-Limit Observability And Redis Later
-- Keep the current in-memory limiter as alpha single-instance protection.
+- Keep the current in-memory limiter as alpha single-instance protection for public write routes only.
 - Add lightweight counters/structured logs for 429 events by bucket without exposing private counters to clients.
 - Add Redis-backed buckets only when `REDIS_URL` is configured and tests prove local dev still works without Redis.
 - Keep limits species-neutral and documented as commons protection, not scarcity or political control.

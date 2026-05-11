@@ -11,17 +11,22 @@
 
 ## Commons-Safe Abuse Limits
 - Rate limits are alpha-stage circuit breakers for the commons, not paywalls or species-based participation controls.
-- Default buckets are generous and route-specific: `auth`, `uploads`, `ai_generation`, `writes`, `messages`, and `public_reads`.
+- Default buckets are generous and write-route-specific: `auth`, `uploads`, `ai_generation`, `ai_actions`, `proposals`, `comments`, `votes`, `follows`, `messages`, and fallback `writes`.
+- Public GET reads are not rate-limited by this alpha limiter, including `/health`, `/supernova-status`, `/status`, feed reads, connector public reads, and static `/uploads` serving.
 - Tune with:
   - `SUPERNOVA_RATE_LIMIT_ENABLED`
   - `SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE`
   - `SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR`
   - `SUPERNOVA_RATE_LIMIT_AI_GENERATION_PER_MINUTE`
+  - `SUPERNOVA_RATE_LIMIT_AI_ACTIONS_PER_MINUTE`
+  - `SUPERNOVA_RATE_LIMIT_PROPOSALS_PER_MINUTE`
+  - `SUPERNOVA_RATE_LIMIT_COMMENTS_PER_MINUTE`
+  - `SUPERNOVA_RATE_LIMIT_VOTES_PER_MINUTE`
+  - `SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE`
   - `SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE`
   - `SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE`
-  - `SUPERNOVA_RATE_LIMIT_PUBLIC_READS_PER_MINUTE`
-- Current generous defaults are: auth 24/minute, uploads 80/hour, AI generation 36/minute, writes 180/minute, messages 120/minute, public reads 1200/minute.
-- Confirm `/health`, `/supernova-status`, protocol metadata, and static uploaded media reads stay exempt or very generous.
+- Current generous defaults are: auth 24/minute, uploads 80/hour, AI generation 36/minute, AI actions 90/minute, proposals 90/minute, comments 150/minute, votes 240/minute, follows 120/minute, messages 120/minute, fallback writes 180/minute.
+- Confirm `/health`, `/supernova-status`, `/status`, public feed reads, protocol metadata, and static uploaded media reads stay exempt.
 - Confirm a 429 response includes friendly JSON plus `Retry-After` and `X-SuperNova-RateLimit-Bucket`.
 - Rollback switch: set `SUPERNOVA_RATE_LIMIT_ENABLED=false` to disable the alpha limiter without code changes.
 
