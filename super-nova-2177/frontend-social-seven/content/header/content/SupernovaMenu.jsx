@@ -126,6 +126,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
           {[
             { label: "Home", icon: IoHomeOutline, action: goHome },
             { label: "Discover protocol feed", icon: IoGitNetworkOutline, action: () => go("/proposals") },
+            { label: "For AI readers", icon: IoSparklesOutline, action: () => go("/for-ai") },
             { label: "Saved posts", icon: IoBookmarkOutline, action: () => go("/bookmarks") },
             {
               label: "Messages and replies",

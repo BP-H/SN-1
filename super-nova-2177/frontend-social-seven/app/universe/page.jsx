@@ -110,6 +110,7 @@ export default function UniversePage() {
               <a href={UNIVERSE_MANIFEST_URL} target="_blank" rel="noopener noreferrer">
                 Read universe.fork.json
               </a>
+              <Link href="/for-ai">For AI readers</Link>
             </div>
           </aside>
         </div>

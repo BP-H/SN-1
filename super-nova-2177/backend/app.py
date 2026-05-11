@@ -4923,6 +4923,58 @@ def _connector_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
     return _public_vote_summary(db, proposal_id)
 
 
+def _connector_comment_count(db: Session, proposal_id: int) -> int:
+    if proposal_id is None:
+        return 0
+    try:
+        if CRUD_MODELS_AVAILABLE:
+            return int(db.query(Comment).filter(Comment.proposal_id == proposal_id).count() or 0)
+        return int(
+            db.execute(
+                text("SELECT COUNT(*) FROM comments WHERE proposal_id = :proposal_id"),
+                {"proposal_id": proposal_id},
+            ).scalar()
+            or 0
+        )
+    except Exception:
+        return 0
+
+
+def _connector_text_snippet(value: str, limit: int = 220) -> str:
+    clean = " ".join(str(value or "").split())
+    if len(clean) <= limit:
+        return clean
+    return clean[: max(0, limit - 1)].rstrip() + "..."
+
+
+def _connector_public_media_preview(value: str) -> str:
+    clean = str(value or "").strip()
+    if clean.startswith("data:image/"):
+        media_type = clean.split(";", 1)[0]
+        return f"{media_type};base64,<redacted>"
+    return clean
+
+
+def _connector_media_summary(media: Dict[str, Any]) -> Dict[str, Any]:
+    image_values = media.get("images") if isinstance(media.get("images"), list) else []
+    if not image_values and media.get("image"):
+        image_values = [media.get("image")]
+    images = [str(item or "").strip() for item in image_values if str(item or "").strip()]
+    data_image_count = sum(1 for item in images if item.startswith("data:image/"))
+    upload_image_count = sum(1 for item in images if item.startswith("/uploads/"))
+    first_image = next((item for item in images if item), "")
+    return {
+        "image_count": len(images),
+        "upload_image_count": upload_image_count,
+        "data_image_fallback_count": data_image_count,
+        "first_image_url": _connector_public_media_preview(first_image),
+        "has_video": bool(media.get("video")),
+        "has_file": bool(media.get("file")),
+        "has_external_link": bool(media.get("link")),
+        "governance_kind": (media.get("governance") or {}).get("kind") if isinstance(media.get("governance"), dict) else None,
+    }
+
+
 def _connector_proposal_payload(db: Session, proposal, include_text: bool = True) -> Dict[str, Any]:
     proposal_id = getattr(proposal, "id", None)
     author = _connector_author_context(db, proposal)
@@ -4953,6 +5005,32 @@ def _connector_proposal_payload(db: Session, proposal, include_text: bool = True
             or ""
         )
     return payload
+
+
+def _connector_public_digest_item(db: Session, proposal) -> Dict[str, Any]:
+    payload = _connector_proposal_payload(db, proposal, include_text=True)
+    proposal_id = payload["id"]
+    return {
+        "id": proposal_id,
+        "title": payload.get("title", ""),
+        "text_snippet": _connector_text_snippet(payload.get("text", "")),
+        "author": {
+            "username": (payload.get("author") or {}).get("username", ""),
+            "species": (payload.get("author") or {}).get("species", "human"),
+            "profile_url": (payload.get("author") or {}).get("profile_url", ""),
+            "connector_profile_url": f"/connector/profiles/{(payload.get('author') or {}).get('username', '')}",
+        },
+        "created_at": payload.get("created_at"),
+        "vote_summary": payload.get("vote_summary", {}),
+        "comment_count": _connector_comment_count(db, proposal_id),
+        "media_summary": _connector_media_summary(payload.get("media") or {}),
+        "web_url": payload.get("web_url", ""),
+        "connector_urls": {
+            "proposal": f"/connector/proposals/{proposal_id}",
+            "comments": f"/connector/proposals/{proposal_id}/comments",
+            "votes": f"/connector/proposals/{proposal_id}/votes",
+        },
+    }
 
 
 def _connector_get_proposal_or_404(db: Session, proposal_id: int):
@@ -5038,6 +5116,7 @@ def connector_supernova_discovery():
         "description": "Prototype SuperNova-owned public read facade for future connector surfaces.",
         "resources": ["profiles", "proposals", "comments", "vote_summaries", "ai_actor_profiles", "system_ai_reviews", "public_protocol_docs"],
         "endpoints": {
+            "public_digest": "/connector/public-digest",
             "proposals": "/connector/proposals?search=&limit=&offset=",
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments?limit=&offset=",
@@ -5130,10 +5209,23 @@ def connector_supernova_spec():
                 },
                 "response_shape": ["up", "down", "support", "oppose", "total", "approval_ratio"],
             },
+            "public_digest": {
+                "endpoint": "/connector/public-digest",
+                "summary": "Compact public protocol and latest proposal digest for AI readers.",
+                "parameters": {
+                    "limit": {"in": "query", "type": "integer", "required": False, "default": 10, "maximum": 20},
+                },
+                "response_shape": {
+                    "mode": "public_read_only",
+                    "resource": "public_digest",
+                    "items": ["id", "title", "text_snippet", "author", "created_at", "vote_summary", "comment_count", "media_summary", "web_url", "connector_urls"],
+                },
+            },
         },
         "endpoints": {
             "discovery": "/connector/supernova",
             "spec": "/connector/supernova/spec",
+            "public_digest": "/connector/public-digest",
             "proposals": "/connector/proposals",
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments",
@@ -5142,7 +5234,7 @@ def connector_supernova_spec():
         },
         "parameters": {
             "search": {"type": "string", "used_by": ["/connector/proposals"]},
-            "limit": {"type": "integer", "used_by": ["/connector/proposals", "/connector/proposals/{id}/comments"]},
+            "limit": {"type": "integer", "used_by": ["/connector/public-digest", "/connector/proposals", "/connector/proposals/{id}/comments"]},
             "offset": {"type": "integer", "used_by": ["/connector/proposals", "/connector/proposals/{id}/comments"]},
         },
         "write_tools_enabled": False,
@@ -5157,6 +5249,52 @@ def connector_supernova_spec():
             "no_protected_core_internals": True,
             "no_writes": True,
         },
+    }
+
+
+@app.get("/connector/public-digest", summary="Read compact public protocol and proposal digest for AI readers")
+def connector_public_digest(
+    limit: int = Query(10, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    if CRUD_MODELS_AVAILABLE:
+        proposals = db.query(Proposal).order_by(desc(Proposal.created_at), desc(Proposal.id)).limit(limit).all()
+    else:
+        proposals = db.execute(
+            text("SELECT * FROM proposals ORDER BY created_at DESC, id DESC LIMIT :limit"),
+            {"limit": limit},
+        ).fetchall()
+
+    return {
+        "name": "SuperNova 2177",
+        "mode": "public_read_only",
+        "resource": "public_digest",
+        "species_lanes": ["human", "ai", "company"],
+        "safety": {
+            "read_only": True,
+            "public_only": True,
+            "requires_auth": False,
+            "no_writes": True,
+            "no_private_state": True,
+            "no_private_notifications": True,
+            "no_pending_collab_requests": True,
+            "no_autonomous_execution": True,
+            "approval_required_ai_actions": True,
+            "no_auth_state": True,
+            "no_protected_core_internals": True,
+            "no_raw_upload_bytes": True,
+            "data_image_urls_redacted": True,
+        },
+        "links": {
+            "discovery": "/connector/supernova",
+            "spec": "/connector/supernova/spec",
+            "public_digest": "/connector/public-digest",
+            "proposals": "/connector/proposals",
+            "profile": "/connector/profiles/{username}",
+            "proposal_comments": "/connector/proposals/{id}/comments",
+            "proposal_votes": "/connector/proposals/{id}/votes",
+        },
+        "items": [_connector_public_digest_item(db, proposal) for proposal in proposals],
     }
 
 

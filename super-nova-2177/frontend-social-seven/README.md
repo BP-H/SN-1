@@ -52,6 +52,15 @@ Read-only open-network endpoints exposed by the backend gateway:
 
 Frontend seven rewrites these public federation/protocol paths to `NEXT_PUBLIC_API_URL`, so `2177.tech/.well-known/...` and `2177.tech/protocol/...` can resolve through the backend without duplicating backend logic in Next.js.
 
+Public AI reader surfaces:
+
+- `/for-ai` explains the public read-only connector boundary for humans and AI agents.
+- `/connector/supernova` describes the connector facade.
+- `/connector/supernova/spec` describes the public response shapes.
+- `/connector/public-digest` returns a compact public proposal digest for AI readers.
+
+Connector and MCP-style access remains public-read-only. AI-generated actions still require normal draft, approve, or cancel custody through the UI; there is no autonomous publishing path.
+
 Domain profile fields are public claims unless `domain_verified` is true. Do not show a verified-domain badge from `domain_url` or `claimed_domain` alone.
 
 See `SOCIAL_AUTH_SETUP.md` for Google, Facebook, and GitHub OAuth setup details.

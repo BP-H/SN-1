@@ -182,6 +182,22 @@ test("universe page route renders a mocked public graph", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Live Universe" })).toBeVisible();
   await expect(page.getByText("Fork this universe")).toBeVisible();
+  await expect(page.getByRole("link", { name: "For AI readers" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("for-ai page explains public read-only connector boundaries", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.goto("/for-ai");
+
+  await expect(page.getByRole("heading", { name: "For AI readers" })).toBeVisible();
+  await expect(page.getByText("Public read-only")).toBeVisible();
+  await expect(page.getByText("approval-required drafts")).toBeVisible();
+  await expect(page.getByText("No autonomous voting, posting, or execution.")).toBeVisible();
+  await expect(page.locator("code").filter({ hasText: "Connector discovery" })).toContainText("/connector/supernova");
+  await expect(page.locator("code").filter({ hasText: "Connector spec" })).toContainText("/connector/supernova/spec");
+  await expect(page.locator("code").filter({ hasText: "Public digest" })).toContainText("/connector/public-digest");
+  await expect(page.locator("body")).not.toContainText(/payment|token|equity|payout|compensation|reward promise|financial return/i);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
