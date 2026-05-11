@@ -135,6 +135,7 @@ def seed_public_context():
             userInitials="BO",
             author_type="ai",
             author_id=bob.id,
+            image="data:image/png;base64," + ("a" * 180),
             voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
         )
         db.add_all([node, primary, other])
@@ -208,6 +209,7 @@ def seed_public_context():
 seeded = seed_public_context()
 discovery = client.get("/connector/supernova")
 spec = client.get("/connector/supernova/spec")
+digest = client.get("/connector/public-digest?limit=10")
 proposal_list = client.get("/connector/proposals?search=Connector&limit=10&offset=0")
 proposal_detail = client.get(f"/connector/proposals/{seeded['primary_id']}")
 proposal_votes = client.get(f"/connector/proposals/{seeded['primary_id']}/votes")
@@ -215,12 +217,15 @@ comments = client.get(f"/connector/proposals/{seeded['primary_id']}/comments?lim
 profile = client.get("/connector/profiles/alice")
 missing_profile = client.get("/connector/profiles/missing-user")
 write_attempt = client.post("/connector/proposals", json={"title": "no writes"})
+digest_write_attempt = client.post("/connector/public-digest", json={"title": "no writes"})
 
 result = {
     "discovery_status": discovery.status_code,
     "discovery": discovery.json(),
     "spec_status": spec.status_code,
     "spec": spec.json(),
+    "digest_status": digest.status_code,
+    "digest": digest.json(),
     "list_status": proposal_list.status_code,
     "list": proposal_list.json(),
     "detail_status": proposal_detail.status_code,
@@ -233,6 +238,7 @@ result = {
     "profile": profile.json(),
     "missing_profile_status": missing_profile.status_code,
     "write_attempt_status": write_attempt.status_code,
+    "digest_write_attempt_status": digest_write_attempt.status_code,
 }
 print("PUBLIC_GPT_CONNECTOR_RESULT=" + json.dumps(result, sort_keys=True))
 """
@@ -256,6 +262,7 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertIn("proposals", discovery["resources"])
         self.assertIn("comments", discovery["resources"])
         self.assertEqual(discovery["endpoints"]["spec"], "/connector/supernova/spec")
+        self.assertEqual(discovery["endpoints"]["public_digest"], "/connector/public-digest")
         self.assertEqual(discovery["endpoints"]["proposal_votes"], "/connector/proposals/{id}/votes")
 
     def test_spec_endpoint_describes_public_read_only_facade(self):
@@ -276,6 +283,7 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertTrue(spec["safety"]["no_protected_core_internals"])
 
         self.assertEqual(spec["endpoints"]["proposals"], "/connector/proposals")
+        self.assertEqual(spec["endpoints"]["public_digest"], "/connector/public-digest")
         self.assertEqual(spec["endpoints"]["proposal"], "/connector/proposals/{id}")
         self.assertEqual(spec["endpoints"]["proposal_comments"], "/connector/proposals/{id}/comments")
         self.assertEqual(spec["endpoints"]["proposal_votes"], "/connector/proposals/{id}/votes")
@@ -287,6 +295,46 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertIn("proposals", spec["resources"])
         self.assertIn("comments", spec["resources"])
         self.assertIn("vote_summaries", spec["resources"])
+        self.assertIn("public_digest", spec["resources"])
+
+    def test_public_digest_endpoint_returns_ai_readable_public_protocol_summary(self):
+        self.assertEqual(self.result["digest_status"], 200)
+        digest = self.result["digest"]
+        self.assertEqual(digest["name"], "SuperNova 2177")
+        self.assertEqual(digest["mode"], "public_read_only")
+        self.assertEqual(digest["resource"], "public_digest")
+        self.assertEqual(digest["species_lanes"], ["human", "ai", "company"])
+        self.assertTrue(digest["safety"]["read_only"])
+        self.assertTrue(digest["safety"]["public_only"])
+        self.assertTrue(digest["safety"]["no_writes"])
+        self.assertTrue(digest["safety"]["no_private_state"])
+        self.assertTrue(digest["safety"]["no_autonomous_execution"])
+        self.assertTrue(digest["safety"]["approval_required_ai_actions"])
+        self.assertEqual(digest["links"]["discovery"], "/connector/supernova")
+        self.assertEqual(digest["links"]["spec"], "/connector/supernova/spec")
+        self.assertEqual(digest["links"]["proposals"], "/connector/proposals")
+        self.assertEqual(digest["links"]["profile"], "/connector/profiles/{username}")
+        self.assertEqual(digest["links"]["proposal_comments"], "/connector/proposals/{id}/comments")
+        self.assertEqual(digest["links"]["proposal_votes"], "/connector/proposals/{id}/votes")
+
+        items = digest["items"]
+        self.assertGreaterEqual(len(items), 2)
+        primary = next(item for item in items if item["title"] == "Connector Public Proposal")
+        self.assertEqual(primary["text_snippet"], "Public connector body mentioning @bob.")
+        self.assertEqual(primary["author"]["username"], "alice")
+        self.assertEqual(primary["author"]["species"], "human")
+        self.assertEqual(primary["comment_count"], 2)
+        self.assertEqual(primary["vote_summary"]["total"], 2)
+        self.assertTrue(primary["web_url"].endswith(f"/proposals/{primary['id']}"))
+        self.assertEqual(primary["connector_urls"]["proposal"], f"/connector/proposals/{primary['id']}")
+        self.assertEqual(primary["connector_urls"]["comments"], f"/connector/proposals/{primary['id']}/comments")
+        self.assertEqual(primary["connector_urls"]["votes"], f"/connector/proposals/{primary['id']}/votes")
+        self.assertEqual(primary["media_summary"]["image_count"], 1)
+
+        redacted = next(item for item in items if item["title"] == "Other Public Proposal")
+        self.assertEqual(redacted["author"]["species"], "ai")
+        self.assertEqual(redacted["media_summary"]["data_image_fallback_count"], 1)
+        self.assertEqual(redacted["media_summary"]["first_image_url"], "data:image/png;base64,<redacted>")
 
     def test_spec_endpoint_does_not_expose_runtime_or_private_fields(self):
         spec_text = json.dumps(self.result["spec"], sort_keys=True).lower()
@@ -296,6 +344,8 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
             "hashed_password",
             "secret_key",
             "database_url",
+            "postgres://",
+            "postgresql://",
             "sys.path",
             "os.getcwd",
             "filesystem",
@@ -305,6 +355,31 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         ]
         for value in forbidden:
             self.assertNotIn(value, spec_text)
+
+    def test_public_digest_does_not_expose_private_state_or_raw_media_bytes(self):
+        digest_text = json.dumps(self.result["digest"], sort_keys=True).lower()
+        forbidden = [
+            "private_notification_sentinel",
+            "alice@example.test",
+            "bob@example.test",
+            "cara@example.test",
+            "hashed_password",
+            "secret_key",
+            "database_url",
+            "postgres://",
+            "postgresql://",
+            "sys.path",
+            "os.getcwd",
+            "filesystem",
+            "access_token",
+            "cookie",
+            "cara",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ]
+        for value in forbidden:
+            self.assertNotIn(value, digest_text)
+        self.assertIn("data:image/png;base64,<redacted>", digest_text)
+        self.assertIn(self.result["digest_write_attempt_status"], (405, 404))
 
     def test_connector_proposal_list_and_detail_return_compact_public_data(self):
         self.assertEqual(self.result["list_status"], 200)

@@ -2982,6 +2982,156 @@ html[data-theme="light"] .mention-autocomplete-panel {
     0 0 18px rgba(255, 79, 143, 0.08);
 }
 
+.for-ai-page {
+  min-height: 100dvh;
+  padding: calc(var(--header-offset) + 1rem) max(1rem, env(safe-area-inset-left)) calc(6rem + env(safe-area-inset-bottom));
+  background:
+    linear-gradient(180deg, rgba(255, 79, 143, 0.08), transparent 18rem),
+    var(--backgroundGray);
+  color: var(--text-black);
+}
+
+.for-ai-shell {
+  margin: 0 auto;
+  display: grid;
+  width: min(100%, 58rem);
+  gap: 1rem;
+}
+
+.for-ai-hero,
+.for-ai-panel {
+  border: 1px solid var(--horizontal-line);
+  border-radius: 0.75rem;
+  background: var(--background-white);
+  box-shadow: 0 16px 42px rgba(20, 24, 35, 0.08);
+}
+
+.for-ai-hero {
+  display: grid;
+  gap: 0.8rem;
+  padding: clamp(1.15rem, 4vw, 2rem);
+}
+
+.for-ai-hero h1,
+.for-ai-panel h2 {
+  margin: 0;
+  color: var(--text-black);
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.for-ai-hero h1 {
+  font-size: clamp(2rem, 7vw, 4rem);
+  line-height: 0.96;
+}
+
+.for-ai-hero p,
+.for-ai-panel p,
+.for-ai-panel li {
+  color: var(--text-gray-light);
+  line-height: 1.65;
+}
+
+.for-ai-kicker {
+  margin: 0;
+  color: var(--pink) !important;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.for-ai-species-row,
+.for-ai-route-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.for-ai-species-row span,
+.for-ai-route-list code,
+.for-ai-primary-link {
+  border: 1px solid var(--horizontal-line);
+  border-radius: 0.6rem;
+  background: var(--backgroundGray);
+}
+
+.for-ai-species-row span {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.for-ai-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.for-ai-panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+}
+
+.for-ai-panel ul,
+.for-ai-panel ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.for-ai-wide-panel {
+  gap: 0.85rem;
+}
+
+.for-ai-route-list {
+  flex-direction: column;
+}
+
+.for-ai-route-list code {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem;
+  color: var(--text-black);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.for-ai-route-list code span {
+  color: var(--text-gray-light);
+  font-family: var(--font-sans, inherit);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.for-ai-note {
+  margin: 0;
+}
+
+.for-ai-primary-link {
+  justify-self: start;
+  padding: 0.7rem 0.9rem;
+  color: var(--pink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+html[data-theme="light"] .for-ai-hero,
+html[data-theme="light"] .for-ai-panel {
+  border-color: rgba(17, 24, 39, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+@media (min-width: 760px) {
+  .for-ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .for-ai-panel {
+    padding: 1.15rem;
+  }
+}
+
 .universe-page {
   position: fixed;
   inset: var(--header-offset) 0 calc(5.3rem + env(safe-area-inset-bottom, 0px)) 0;
