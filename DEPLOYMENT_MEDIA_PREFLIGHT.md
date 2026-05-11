@@ -7,6 +7,9 @@ bugs, especially around uploaded images.
 Pair this with `DATA_PRESERVATION_PREFLIGHT.md` before release promotion or any
 future SN-1 sync preview.
 
+For durable media/storage readiness and future object-storage migration gates,
+see `MEDIA_STORAGE_DURABILITY_PLAN.md`.
+
 For the concrete future SN-2 to SN-1 branch handoff, use
 `SN1_SYNC_PREFLIGHT_2026-05-06.md` and keep the sync as a non-default branch
 first.
@@ -76,6 +79,12 @@ For a structured read-only snapshot, run:
 
 ```powershell
 python scripts/public_data_snapshot.py <backend-url>
+```
+
+For a read-only upload/media MIME inventory, run:
+
+```powershell
+python scripts/media_inventory.py <backend-url>
 ```
 
 ## Rollback
