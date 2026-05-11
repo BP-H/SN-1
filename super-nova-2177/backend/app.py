@@ -439,7 +439,11 @@ async def cache_control_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def commons_rate_limit_middleware(request: Request, call_next):
-    bucket, retry_after = rate_limit_attempt(request, jwt_module=jwt, settings_getter=get_settings)
+    bucket, retry_after, rate_limit_metadata = rate_limit_attempt(
+        request,
+        jwt_module=jwt,
+        settings_getter=get_settings,
+    )
     if retry_after is not None:
         return JSONResponse(
             status_code=429,
@@ -447,7 +451,10 @@ async def commons_rate_limit_middleware(request: Request, call_next):
                 "detail": RATE_LIMIT_FRIENDLY_DETAIL,
                 "error_code": "rate_limited",
                 "bucket": bucket,
+                "identity_type": rate_limit_metadata.get("identity_type", "ip"),
                 "retry_after_seconds": retry_after,
+                "limit": rate_limit_metadata.get("limit"),
+                "window_seconds": rate_limit_metadata.get("window_seconds"),
             },
             headers={
                 "Retry-After": str(retry_after),

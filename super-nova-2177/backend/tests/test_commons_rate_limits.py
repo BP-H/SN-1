@@ -72,9 +72,19 @@ for path in (project_root, backend_dir):
 
 import backend.app as backend_app
 import commons_rate_limits
+try:
+    import backend.commons_rate_limits as app_rate_limits
+except Exception:
+    app_rate_limits = commons_rate_limits
 
 client = TestClient(backend_app.app)
-commons_rate_limits._reset_rate_limit_state_for_tests()
+
+def reset_rate_limits():
+    commons_rate_limits._reset_rate_limit_state_for_tests()
+    if app_rate_limits is not commons_rate_limits:
+        app_rate_limits._reset_rate_limit_state_for_tests()
+
+reset_rate_limits()
 
 def response_payload(response):
     try:
@@ -96,22 +106,36 @@ class CommonsRateLimitTests(unittest.TestCase):
         module_text = (PROJECT_ROOT / "backend" / "commons_rate_limits.py").read_text(encoding="utf-8")
 
         self.assertIn("from .commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt", app_text)
-        self.assertIn("rate_limit_attempt(request, jwt_module=jwt, settings_getter=get_settings)", app_text)
+        self.assertIn("rate_limit_attempt(", app_text)
+        self.assertIn("rate_limit_metadata", app_text)
         self.assertNotIn("RATE_LIMIT_BUCKET_CONFIG", app_text)
         self.assertNotIn("def _rate_limit_path_bucket", app_text)
         self.assertIn("RATE_LIMIT_BUCKET_CONFIG", module_text)
         self.assertIn("def _rate_limit_path_bucket", module_text)
+        self.assertIn('"proposals"', module_text)
+        self.assertIn('"comments"', module_text)
+        self.assertIn('"votes"', module_text)
+        self.assertIn('"follows"', module_text)
+        self.assertIn('"ai_actions"', module_text)
+        self.assertNotIn('"public_reads"', module_text)
 
     def test_auth_bucket_returns_friendly_429_and_status_is_exempt(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             first = response_payload(client.post("/auth/login", json={}))
             second = response_payload(client.post("/auth/login", json={}))
+            health_hits = [response_payload(client.get("/health")) for _ in range(3)]
             status_hits = [response_payload(client.get("/supernova-status")) for _ in range(3)]
+            proposal_hits = [
+                response_payload(client.get("/proposals?filter=latest&limit=30"))
+                for _ in range(3)
+            ]
             print("RATE_LIMIT_RESULT=" + json.dumps({
                 "first": first,
                 "second": second,
+                "health_hits": health_hits,
                 "status_hits": status_hits,
+                "proposal_hits": proposal_hits,
             }, sort_keys=True))
             """
         )
@@ -120,7 +144,6 @@ class CommonsRateLimitTests(unittest.TestCase):
             {
                 "SUPERNOVA_RATE_LIMIT_ENABLED": "true",
                 "SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE": "1",
-                "SUPERNOVA_RATE_LIMIT_PUBLIC_READS_PER_MINUTE": "1",
             },
         )
 
@@ -128,9 +151,18 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertEqual(result["second"]["status"], 429)
         self.assertEqual(result["second"]["body"]["error_code"], "rate_limited")
         self.assertEqual(result["second"]["body"]["bucket"], "auth")
+        self.assertEqual(result["second"]["body"]["identity_type"], "ip")
+        self.assertEqual(result["second"]["body"]["limit"], 1)
+        self.assertEqual(result["second"]["body"]["window_seconds"], 60)
         self.assertIn("commons stays reachable", result["second"]["body"]["detail"])
         self.assertTrue(result["second"]["retry_after"])
+        serialized_429 = json.dumps(result["second"]["body"], sort_keys=True).lower()
+        for forbidden in ("postgres://", "postgresql://", "database_url", "password", "secret"):
+            self.assertNotIn(forbidden, serialized_429)
+        self.assertTrue(all(hit["status"] != 429 for hit in result["health_hits"]))
         self.assertTrue(all(hit["status"] != 429 for hit in result["status_hits"]))
+        self.assertTrue(all(hit["status"] != 429 for hit in result["proposal_hits"]))
+        self.assertTrue(all(hit["bucket"] is None for hit in result["proposal_hits"]))
 
     def test_rate_limit_breach_logs_sanitized_observability_event(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -160,7 +192,7 @@ class CommonsRateLimitTests(unittest.TestCase):
                 stream.seek(0)
                 stream.truncate(0)
 
-                commons_rate_limits._reset_rate_limit_state_for_tests()
+                reset_rate_limits()
                 token = backend_app._create_wrapper_access_token("sensitive-alice", user_id=8675309)
                 user_headers = {
                     "Authorization": f"Bearer {token}",
@@ -208,24 +240,49 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertNotIn("8675309", result["user_log"])
         self.assertNotIn("198.51.100.9", result["user_log"])
 
-    def test_ai_upload_and_write_buckets_are_route_specific(self):
+    def test_write_buckets_are_route_specific_and_get_reads_remain_unlimited(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
-            ai_first = response_payload(client.post("/connector/actions/draft-ai-delegate-comment", json={}))
-            ai_second = response_payload(client.post("/connector/actions/draft-ai-delegate-comment", json={}))
-            commons_rate_limits._reset_rate_limit_state_for_tests()
-            upload_first = response_payload(client.post("/upload-image", json={}))
-            upload_second = response_payload(client.post("/upload-image", json={}))
-            commons_rate_limits._reset_rate_limit_state_for_tests()
-            write_first = response_payload(client.post("/comments", json={}))
-            write_second = response_payload(client.post("/comments", json={}))
+            def limited_pair(path, method="post"):
+                first = response_payload(getattr(client, method)(path, json={}))
+                second = response_payload(getattr(client, method)(path, json={}))
+                return {"first": first, "second": second}
+
+            ai_generation = limited_pair("/connector/actions/draft-ai-delegate-comment")
+            reset_rate_limits()
+            ai_action = limited_pair("/connector/actions/not-a-real-action/cancel")
+            reset_rate_limits()
+            upload = limited_pair("/upload-image")
+            reset_rate_limits()
+            proposal = limited_pair("/proposals")
+            reset_rate_limits()
+            comment = limited_pair("/comments")
+            reset_rate_limits()
+            vote = limited_pair("/votes")
+            reset_rate_limits()
+            comment_vote = limited_pair("/comments/123/votes")
+            reset_rate_limits()
+            follow = limited_pair("/follows")
+            reset_rate_limits()
+            message = limited_pair("/messages")
+            reset_rate_limits()
+            fallback_write = limited_pair("/profile/alice", method="patch")
+            public_feed_hits = [
+                response_payload(client.get("/proposals?filter=latest&limit=30"))
+                for _ in range(4)
+            ]
             print("RATE_LIMIT_RESULT=" + json.dumps({
-                "ai_first": ai_first,
-                "ai_second": ai_second,
-                "upload_first": upload_first,
-                "upload_second": upload_second,
-                "write_first": write_first,
-                "write_second": write_second,
+                "ai_generation": ai_generation,
+                "ai_action": ai_action,
+                "upload": upload,
+                "proposal": proposal,
+                "comment": comment,
+                "vote": vote,
+                "comment_vote": comment_vote,
+                "follow": follow,
+                "message": message,
+                "fallback_write": fallback_write,
+                "public_feed_hits": public_feed_hits,
             }, sort_keys=True))
             """
         )
@@ -234,20 +291,77 @@ class CommonsRateLimitTests(unittest.TestCase):
             {
                 "SUPERNOVA_RATE_LIMIT_ENABLED": "true",
                 "SUPERNOVA_RATE_LIMIT_AI_GENERATION_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_AI_ACTIONS_PER_MINUTE": "1",
                 "SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR": "1",
+                "SUPERNOVA_RATE_LIMIT_PROPOSALS_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_COMMENTS_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_VOTES_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE": "1",
                 "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE": "1",
             },
         )
 
-        self.assertNotEqual(result["ai_first"]["status"], 429)
-        self.assertEqual(result["ai_second"]["status"], 429)
-        self.assertEqual(result["ai_second"]["body"]["bucket"], "ai_generation")
-        self.assertNotEqual(result["upload_first"]["status"], 429)
-        self.assertEqual(result["upload_second"]["status"], 429)
-        self.assertEqual(result["upload_second"]["body"]["bucket"], "uploads")
-        self.assertNotEqual(result["write_first"]["status"], 429)
-        self.assertEqual(result["write_second"]["status"], 429)
-        self.assertEqual(result["write_second"]["body"]["bucket"], "writes")
+        expected_buckets = {
+            "ai_generation": "ai_generation",
+            "ai_action": "ai_actions",
+            "upload": "uploads",
+            "proposal": "proposals",
+            "comment": "comments",
+            "vote": "votes",
+            "comment_vote": "votes",
+            "follow": "follows",
+            "message": "messages",
+            "fallback_write": "writes",
+        }
+        for key, bucket in expected_buckets.items():
+            self.assertNotEqual(result[key]["first"]["status"], 429, key)
+            self.assertEqual(result[key]["second"]["status"], 429, key)
+            self.assertEqual(result[key]["second"]["body"]["bucket"], bucket, key)
+        self.assertTrue(all(hit["status"] != 429 for hit in result["public_feed_hits"]))
+        self.assertTrue(all(hit["bucket"] is None for hit in result["public_feed_hits"]))
+
+    def test_upload_rate_limit_rejection_does_not_create_partial_file(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            upload_root = Path(backend_app.uploads_dir)
+            upload_root.mkdir(parents=True, exist_ok=True)
+            png = b"\\x89PNG\\r\\n\\x1a\\n" + b"0" * 64
+            before = sorted(path.name for path in upload_root.iterdir())
+            first = response_payload(client.post(
+                "/upload-image",
+                files={"file": ("first.png", png, "image/png")},
+            ))
+            after_first = sorted(path.name for path in upload_root.iterdir())
+            second = response_payload(client.post(
+                "/upload-image",
+                files={"file": ("second.png", png, "image/png")},
+            ))
+            after_second = sorted(path.name for path in upload_root.iterdir())
+            print("RATE_LIMIT_RESULT=" + json.dumps({
+                "first": first,
+                "second": second,
+                "before_count": len(before),
+                "after_first_count": len(after_first),
+                "after_second_count": len(after_second),
+                "created_after_first": len(after_first) - len(before),
+                "created_after_second": len(after_second) - len(after_first),
+            }, sort_keys=True))
+            """
+        )
+        result = run_rate_probe(
+            probe,
+            {
+                "SUPERNOVA_RATE_LIMIT_ENABLED": "true",
+                "SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR": "1",
+            },
+        )
+
+        self.assertEqual(result["first"]["status"], 200)
+        self.assertEqual(result["second"]["status"], 429)
+        self.assertEqual(result["second"]["body"]["bucket"], "uploads")
+        self.assertEqual(result["created_after_first"], 1)
+        self.assertEqual(result["created_after_second"], 0)
 
     def test_authenticated_user_keying_is_separate_and_switch_can_disable(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -260,7 +374,7 @@ class CommonsRateLimitTests(unittest.TestCase):
             alice_second = response_payload(client.post("/connector/actions/draft-ai-delegate-review", json={}, headers=headers_alice))
             bob_first = response_payload(client.post("/connector/actions/draft-ai-delegate-review", json={}, headers=headers_bob))
             os.environ["SUPERNOVA_RATE_LIMIT_ENABLED"] = "false"
-            commons_rate_limits._reset_rate_limit_state_for_tests()
+            reset_rate_limits()
             disabled_first = response_payload(client.post("/auth/login", json={}))
             disabled_second = response_payload(client.post("/auth/login", json={}))
             print("RATE_LIMIT_RESULT=" + json.dumps({
@@ -296,11 +410,16 @@ class CommonsRateLimitTests(unittest.TestCase):
             "SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE",
             "SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR",
             "SUPERNOVA_RATE_LIMIT_AI_GENERATION_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_AI_ACTIONS_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_PROPOSALS_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_COMMENTS_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_VOTES_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE",
             "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE",
             "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE",
-            "SUPERNOVA_RATE_LIMIT_PUBLIC_READS_PER_MINUTE",
         ]:
             self.assertIn(name, checklist)
+        self.assertIn("Public GET reads are not rate-limited", checklist)
         self.assertIn("SUPERNOVA_RATE_LIMIT_ENABLED=false", checklist)
         self.assertIn("not paywalls", checklist)
         self.assertIn("Redis-backed buckets only when `REDIS_URL` is configured", sprint)

@@ -13,9 +13,13 @@ RATE_LIMIT_BUCKET_CONFIG: Dict[str, Dict[str, int | str]] = {
     "auth": {"env": "SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE", "default": 24, "window": 60},
     "uploads": {"env": "SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR", "default": 80, "window": 3600},
     "ai_generation": {"env": "SUPERNOVA_RATE_LIMIT_AI_GENERATION_PER_MINUTE", "default": 36, "window": 60},
+    "ai_actions": {"env": "SUPERNOVA_RATE_LIMIT_AI_ACTIONS_PER_MINUTE", "default": 90, "window": 60},
+    "proposals": {"env": "SUPERNOVA_RATE_LIMIT_PROPOSALS_PER_MINUTE", "default": 90, "window": 60},
+    "comments": {"env": "SUPERNOVA_RATE_LIMIT_COMMENTS_PER_MINUTE", "default": 150, "window": 60},
+    "votes": {"env": "SUPERNOVA_RATE_LIMIT_VOTES_PER_MINUTE", "default": 240, "window": 60},
+    "follows": {"env": "SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE", "default": 120, "window": 60},
     "writes": {"env": "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE", "default": 180, "window": 60},
     "messages": {"env": "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE", "default": 120, "window": 60},
-    "public_reads": {"env": "SUPERNOVA_RATE_LIMIT_PUBLIC_READS_PER_MINUTE", "default": 1200, "window": 60},
 }
 RATE_LIMIT_FRIENDLY_DETAIL = (
     "Slow down for a moment so the commons stays reachable. "
@@ -52,7 +56,7 @@ def _rate_limit_path_bucket(method: str, path: str) -> Optional[str]:
         return None
     if clean_path.startswith(("/.well-known/", "/protocol", "/core")):
         return None
-    if clean_method == "GET" and clean_path.startswith("/uploads/"):
+    if clean_method == "GET":
         return None
     if clean_method == "POST" and (
         clean_path.startswith("/auth/")
@@ -63,19 +67,29 @@ def _rate_limit_path_bucket(method: str, path: str) -> Optional[str]:
         clean_path.startswith("/upload-") or clean_path.startswith("/uploads")
     ):
         return "uploads"
+    if clean_method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
     if clean_method == "POST" and (
         "/draft-ai-" in clean_path
         or clean_path == "/ai/delegates/persona-draft"
         or clean_path == "/connector/actions/draft-ai-review"
     ):
         return "ai_generation"
+    if clean_path.startswith("/connector/actions"):
+        return "ai_actions"
     if clean_path.startswith("/messages"):
-        return "messages" if clean_method in {"POST", "PUT", "PATCH", "DELETE"} else "public_reads"
-    if clean_method in {"POST", "PUT", "PATCH", "DELETE"}:
-        return "writes"
-    if clean_method == "GET":
-        return "public_reads"
-    return None
+        return "messages"
+    if clean_path.startswith("/comments/") and clean_path.endswith("/votes"):
+        return "votes"
+    if clean_path.startswith("/comments"):
+        return "comments"
+    if clean_path.startswith(("/votes", "/system-vote")):
+        return "votes"
+    if clean_path.startswith("/follows"):
+        return "follows"
+    if clean_path.startswith("/proposals") or clean_path.startswith(("/proposal-collabs", "/decide", "/runs")):
+        return "proposals"
+    return "writes"
 
 
 def _rate_limit_config(bucket: str) -> tuple[int, int]:
@@ -118,15 +132,22 @@ def rate_limit_attempt(
     *,
     jwt_module: Any = None,
     settings_getter: Optional[Callable[[], Any]] = None,
-) -> tuple[Optional[str], Optional[int]]:
+) -> tuple[Optional[str], Optional[int], Dict[str, int | str]]:
     if not _rate_limit_enabled():
-        return None, None
+        return None, None, {}
     bucket = _rate_limit_path_bucket(request.method, request.url.path)
     if not bucket:
-        return None, None
+        return None, None, {}
     limit, window_seconds = _rate_limit_config(bucket)
     now = time.monotonic()
     identity = _rate_limit_identity(request, jwt_module=jwt_module, settings_getter=settings_getter)
+    identity_type = _rate_limit_identity_type(identity)
+    metadata: Dict[str, int | str] = {
+        "bucket": bucket,
+        "identity_type": identity_type,
+        "limit": limit,
+        "window_seconds": window_seconds,
+    }
     key = f"{bucket}:{identity}"
     with _RATE_LIMIT_LOCK:
         attempts = _RATE_LIMIT_WINDOWS.setdefault(key, deque())
@@ -135,7 +156,7 @@ def rate_limit_attempt(
             attempts.popleft()
         if len(attempts) >= limit:
             retry_after = max(1, int(window_seconds - (now - attempts[0])) + 1)
-            identity_type = _rate_limit_identity_type(identity)
+            metadata["retry_after_seconds"] = retry_after
             RATE_LIMIT_LOGGER.info(
                 "rate_limit_exceeded bucket=%s identity_type=%s retry_after=%s limit=%s window_seconds=%s",
                 bucket,
@@ -151,9 +172,9 @@ def rate_limit_attempt(
                     "supernova_rate_limit_window_seconds": window_seconds,
                 },
             )
-            return bucket, retry_after
+            return bucket, retry_after, metadata
         attempts.append(now)
-    return bucket, None
+    return bucket, None, metadata
 
 
 def _reset_rate_limit_state_for_tests() -> None:

@@ -62,7 +62,7 @@ vote helpers merely to reduce `app.py` line count.
 - Dependencies kept in `app.py`: FastAPI middleware registration, `jwt`, `get_settings`
 - Models/tables: none; single-instance in-memory alpha buckets
 - Auth: derives identity from bearer token where available, falls back to IP
-- Frontend surfaces: all API routes indirectly
+- Frontend surfaces: write routes indirectly; public GET/read routes remain exempt
 - Existing tests: `test_commons_rate_limits.py`
 - Risk: low, already extracted
 - Notes: Redis-backed counters are deferred; rollback switch remains
