@@ -37,6 +37,7 @@ import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
 import ProposalAuthorHeader from "./ProposalAuthorHeader";
+import ProposalVoteSummary from "./ProposalVoteSummary";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
@@ -879,12 +880,7 @@ function ProposalCard({
         </div>
       </div>
 
-      {supportSummary && (
-        <div className="proposal-support-summary mt-2 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em]">
-          <IoCheckmark className="text-[0.82rem]" />
-          <span className="truncate">{supportSummary}</span>
-        </div>
-      )}
+      <ProposalVoteSummary supportSummary={supportSummary} />
 
       {isOwner && collabInviteOpen && (
         <div
