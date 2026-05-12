@@ -8,6 +8,9 @@ Use this checklist before tagging a release or promoting a deployment. It is int
   candidate with commit SHA, FE7 URL, MCP URLs, smoke results, rollback target,
   known exceptions, owner, and date.
 - [ ] PRs pass the local safe PR gates workflow for deterministic backend tests, `check_safe.py --local-only`, FE7 `npm ci`/lint/build, and protected core zero diff.
+- [ ] SN-1 `master` branch protection is enabled or consciously deferred
+  using `BRANCH_PROTECTION_SETUP.md`, with only `Backend local deterministic
+  checks` and `FE7 local deterministic checks` required at first.
 - [ ] Backup/restore readiness is confirmed using `BACKUP_RESTORE_RUNBOOK.md` (inventory, backup path, restore drill plan, and rollback path).
 - [ ] `python scripts/check_safe.py --local-only`
 - [ ] `python scripts/check_safe.py`
