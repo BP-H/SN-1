@@ -30,7 +30,8 @@ async function mockPublicBackend(
       likes: [],
       dislikes: [],
     },
-  ]
+  ],
+  options = {}
 ) {
   await page.route("**/proposals?**", async (route) => {
     await route.fulfill({
@@ -78,6 +79,9 @@ async function mockPublicBackend(
   });
 
   await page.route("**/notifications?**", async (route) => {
+    if (options.notificationsDelayMs) {
+      await new Promise((resolve) => setTimeout(resolve, options.notificationsDelayMs));
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -86,8 +90,12 @@ async function mockPublicBackend(
   });
 }
 
-async function seedPasswordSession(page) {
-  await page.addInitScript(() => {
+async function seedPasswordSession(page, { reseedOnReload = true } = {}) {
+  await page.addInitScript(({ reseedOnReload: shouldReseed }) => {
+    if (!shouldReseed && window.localStorage.getItem("supernova_e2e_password_seed_used") === "1") {
+      return;
+    }
+    window.localStorage.setItem("supernova_e2e_password_seed_used", "1");
     window.sessionStorage.setItem(
       "supernova_password_session",
       JSON.stringify({
@@ -98,7 +106,7 @@ async function seedPasswordSession(page) {
         species: "human",
       })
     );
-  });
+  }, { reseedOnReload });
 }
 
 function aiReviewAction(id = "draft-review-smoke") {
@@ -324,6 +332,38 @@ test("mocked image post keeps media after reload", async ({ page }) => {
 
   await expect(page.getByText("The mocked upload image should still render after the feed reloads.")).toBeVisible();
   await expect(page.locator('img[src*="/uploads/smoke-image.png"]').first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("password sign-out returns to public state after one click", async ({ page }) => {
+  await seedPasswordSession(page, { reseedOnReload: false });
+  await mockPublicBackend(page, undefined, { notificationsDelayMs: 350 });
+
+  await page.goto("/profile");
+
+  await expect(page.getByRole("main").getByText("e2e-human")).toBeVisible();
+  await expect(page.getByText("Password account")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByText("Tap to sign in or create an account.")).toBeVisible();
+  await expect(page.getByText("e2e-human")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.sessionStorage.getItem("supernova_password_session")))
+    .toBeNull();
+
+  await page.waitForTimeout(450);
+
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByText("e2e-human")).toHaveCount(0);
+
+  await page.reload();
+
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByText("Tap to sign in or create an account.")).toBeVisible();
+  await expect(page.getByText("e2e-human")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
