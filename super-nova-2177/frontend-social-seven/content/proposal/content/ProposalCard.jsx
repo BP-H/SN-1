@@ -21,11 +21,10 @@ import {
   IoTimeOutline,
 } from "react-icons/io5";
 import AiDelegateActionModal from "./AiDelegateActionModal";
-import DisplayComments from "./DisplayComments";
-import InsertComment from "./InsertComment";
 import ProposalActionBar from "./ProposalActionBar";
 import ProposalAuthorHeader from "./ProposalAuthorHeader";
 import ProposalCollabPanel from "./ProposalCollabPanel";
+import ProposalCommentsSection from "./ProposalCommentsSection";
 import ProposalMediaBlock from "./ProposalMediaBlock";
 import ProposalOptionsMenu from "./ProposalOptionsMenu";
 import ProposalTextContent from "./ProposalTextContent";
@@ -951,109 +950,33 @@ function ProposalCard({
           userVote={userVote}
         />
 
-        {/* Comments section */}
-        {(showComments || isDetailPage) && (
-          <div className="comments-section flex min-w-0 flex-col gap-2 rounded-[15px] bg-[rgba(255,255,255,0.03)] p-2">
-            <div className="flex min-w-0 items-center justify-between gap-3 px-1">
-              <span className="truncate text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-                Comments
-              </span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openAiActionModal("comment");
-                  }}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--horizontal-line)] text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
-                  aria-label="Generate AI comment"
-                  title="Generate AI comment"
-                  aria-expanded={aiActionModalMode === "comment"}
-                >
-                  <IoSparklesOutline className="text-[0.82rem]" />
-                </button>
-                <span className="rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
-                  {localComments.length}
-                </span>
-              </div>
-            </div>
-            <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-              <InsertComment
-                setErrorMsg={setErrorMsg}
-                setNotify={setNotify}
-                proposalId={id}
-                setLocalComments={setLocalComments}
-                parentComment={null}
-                onCancelReply={() => setReplyTarget(null)}
-              />
-            </div>
-            <div className="comments-thread-list flex min-w-0 flex-col gap-2">
-              {threadedComments.length === 0 ? (
-                <div className="rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.035] px-3 py-3 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
-                  <p className="font-semibold text-[var(--text-black)]">No comments yet.</p>
-                  <p className="mt-1">Start the discussion, or ask an AI delegate to draft one for approval.</p>
-                </div>
-              ) : threadedComments.map(({ comment, index, depth }) => {
-                const commentId = comment.id ?? "";
-                const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
-                const isActiveReplyTarget = Boolean(
-                  replyTarget?.id && commentId && String(replyTarget.id) === String(commentId)
-                );
-                const isDeletedComment = Boolean(comment.deleted || comment.user === "[deleted]");
-                const isCommentAuthor = Boolean(
-                  comment.user &&
-                    userData?.name &&
-                    String(comment.user).toLowerCase() === String(userData.name).toLowerCase()
-                );
-                const canDeleteComment = Boolean(!isDeletedComment && commentId && isCommentAuthor);
-                return (
-                  <DisplayComments
-                    key={commentId || `${comment.user || "comment"}-${index}`}
-                    commentId={commentId}
-                    proposalId={id}
-                    name={comment.user}
-                    image={comment.user_img}
-                    species={comment.species}
-                    comment={comment.comment}
-                    likes={comment.likes}
-                    dislikes={comment.dislikes}
-                    canDelete={canDeleteComment}
-                    canEdit={Boolean(!isDeletedComment && commentId && isCommentAuthor)}
-                    deleting={String(deletingCommentId || "") === String(commentId)}
-                    onDelete={() => handleDeleteComment(commentId)}
-                    onEdit={handleEditComment}
-                    onReply={(target) => {
-                      setReplyTarget(target);
-                      setShowComments(true);
-                    }}
-                    onAskAi={(target) => {
-                      const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
-                      openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`, target?.id || null);
-                    }}
-                    replyingToName={parent?.user || ""}
-                    depth={depth}
-                    setErrorMsg={setErrorMsg}
-                    setNotify={setNotify}
-                  >
-                    {isActiveReplyTarget && (
-                      <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-                        <InsertComment
-                          setErrorMsg={setErrorMsg}
-                          setNotify={setNotify}
-                          proposalId={id}
-                          setLocalComments={setLocalComments}
-                          parentComment={replyTarget}
-                          onCancelReply={() => setReplyTarget(null)}
-                        />
-                      </div>
-                    )}
-                  </DisplayComments>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <ProposalCommentsSection
+          aiActionModalMode={aiActionModalMode}
+          commentsById={commentsById}
+          currentUsername={userData?.name}
+          deletingCommentId={deletingCommentId}
+          isDetailPage={isDetailPage}
+          localComments={localComments}
+          onAskAi={(target) => {
+            const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
+            openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`, target?.id || null);
+          }}
+          onCancelReply={() => setReplyTarget(null)}
+          onDeleteComment={handleDeleteComment}
+          onEditComment={handleEditComment}
+          onGenerateAiComment={() => openAiActionModal("comment")}
+          onReply={(target) => {
+            setReplyTarget(target);
+            setShowComments(true);
+          }}
+          proposalId={id}
+          replyTarget={replyTarget}
+          setErrorMsg={setErrorMsg}
+          setLocalComments={setLocalComments}
+          setNotify={setNotify}
+          showComments={showComments}
+          threadedComments={threadedComments}
+        />
       </div>
       <AiDelegateActionModal
         open={Boolean(aiActionModalMode)}
