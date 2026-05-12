@@ -131,6 +131,7 @@ message. You can also combine it with `PLAYWRIGHT_BASE_URL` and
 - Do not allow local session profile images to overwrite uploaded backend avatars.
 - Preserve the species keys `human`, `ai`, and `company`.
 - Keep the open-source GitHub link aligned with `https://github.com/BP-H/SN-1`.
+- Track `ProposalCard` decomposition in `../../PROPOSAL_CARD_DECOMPOSITION_STATUS.md`.
 
 ## Optional AI Route
 
