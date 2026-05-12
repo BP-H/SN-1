@@ -101,36 +101,83 @@ async function seedPasswordSession(page) {
   });
 }
 
-async function mockAiActionQueue(page) {
+function aiReviewAction(id = "draft-review-smoke") {
+  return {
+    id,
+    action_type: "draft_ai_review",
+    status: "draft",
+    target_type: "proposal",
+    target_id: 2177001,
+    created_at: "2026-05-05T00:00:00Z",
+    draft_payload: {
+      proposal_id: 2177001,
+      proposal_title: "Smoke proposal from Playwright",
+      intended_choice: "support",
+      rationale: "The delegate supports this smoke proposal after chartered review.",
+      ai_actor_display_name: "Smoke Delegate",
+      custody_label: "delegate of @e2e-human",
+      autonomy_preferences: { reviews: "custodian_approval_required" },
+      model_identity: "supernova-protocol-charter-v1",
+      generation_source: "deterministic_fallback_no_key",
+      content_hash: "content-hash-smoke",
+      reasoning_hash: "reasoning-hash-smoke",
+      confidence: 0.82,
+    },
+  };
+}
+
+function aiCommentAction() {
+  return {
+    id: "draft-comment-smoke",
+    action_type: "draft_ai_comment",
+    status: "draft",
+    target_type: "proposal",
+    target_id: 2177001,
+    created_at: "2026-05-05T00:00:00Z",
+    draft_payload: {
+      proposal_id: 2177001,
+      proposal_title: "Smoke proposal from Playwright",
+      generated_comment: "Smoke Delegate offers a concise public comment.",
+      ai_actor_display_name: "Smoke Delegate",
+      custody_label: "delegate of @e2e-human",
+      autonomy_preferences: { posts: "custodian_approval_required" },
+      model_identity: "supernova-protocol-charter-v1",
+      generation_source: "deterministic_fallback_no_key",
+      content_hash: "content-hash-comment",
+      confidence: 0.77,
+    },
+  };
+}
+
+function aiPostAction() {
+  return {
+    id: "draft-post-smoke",
+    action_type: "draft_ai_post",
+    status: "draft",
+    target_type: "proposal",
+    target_id: 2177001,
+    created_at: "2026-05-05T00:00:00Z",
+    draft_payload: {
+      generated_title: "AI-authored smoke draft",
+      generated_post_body: "Smoke Delegate proposes one labeled public post.",
+      ai_actor_display_name: "Smoke Delegate",
+      custody_label: "delegate of @e2e-human",
+      autonomy_preferences: { posts: "custodian_approval_required" },
+      model_identity: "supernova-protocol-charter-v1",
+      generation_source: "deterministic_fallback_no_key",
+      content_hash: "content-hash-post",
+      confidence: 0.74,
+    },
+  };
+}
+
+async function mockAiActionQueue(page, actions = [aiReviewAction()]) {
   await page.route("**/connector/actions?**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        actions: [
-          {
-            id: "draft-review-smoke",
-            action_type: "draft_ai_review",
-            status: "draft",
-            target_type: "proposal",
-            target_id: 2177001,
-            created_at: "2026-05-05T00:00:00Z",
-            draft_payload: {
-              proposal_id: 2177001,
-              proposal_title: "Smoke proposal from Playwright",
-              intended_choice: "support",
-              rationale: "The delegate supports this smoke proposal after chartered review.",
-              ai_actor_display_name: "Smoke Delegate",
-              custody_label: "delegate of @e2e-human",
-              autonomy_preferences: { reviews: "custodian_approval_required" },
-              model_identity: "supernova-protocol-charter-v1",
-              generation_source: "deterministic_fallback_no_key",
-              content_hash: "content-hash-smoke",
-              reasoning_hash: "reasoning-hash-smoke",
-              confidence: 0.82,
-            },
-          },
-        ],
+        actions,
       }),
     });
   });
@@ -142,6 +189,48 @@ async function mockAiActionQueue(page) {
       body: JSON.stringify({ collabs: [] }),
     });
   });
+}
+
+async function mockAiReviewEndpoints(page, actionId) {
+  const calls = { approve: 0, cancel: 0 };
+
+  await page.route(`**/connector/actions/${actionId}/approve-ai-review`, async (route) => {
+    calls.approve += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        summary: {
+          proposal_id: 2177001,
+          actor: "Smoke Delegate",
+          vote: {
+            proposal_id: 2177001,
+            voter: "Smoke Delegate",
+            voter_type: "ai",
+            normalized_vote: "support",
+          },
+          comment: {
+            id: "comment-smoke-ai-review",
+            proposal_id: 2177001,
+            userName: "Smoke Delegate",
+            author_type: "ai",
+            body: "The delegate supports this smoke proposal after chartered review.",
+          },
+        },
+      }),
+    });
+  });
+
+  await page.route(`**/connector/actions/${actionId}/cancel`, async (route) => {
+    calls.cancel += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "canceled" }),
+    });
+  });
+
+  return calls;
 }
 
 test("signed-out home feed renders without obvious runtime errors", async ({ page }) => {
@@ -262,7 +351,7 @@ test("AI Genesis renders without offering standalone AI account signup", async (
 test("AI Actions queue exposes manual approve and cancel semantics", async ({ page }) => {
   await seedPasswordSession(page);
   await mockPublicBackend(page);
-  await mockAiActionQueue(page);
+  await mockAiActionQueue(page, [aiReviewAction(), aiCommentAction(), aiPostAction()]);
 
   await page.goto("/");
   await expect(page.getByText("smoke-human")).toBeVisible();
@@ -278,9 +367,78 @@ test("AI Actions queue exposes manual approve and cancel semantics", async ({ pa
 
   await expect(page.getByText("Pending approval-required actions")).toBeVisible();
   await expect(page.getByText("Approval publishes exactly one AI vote and one rationale comment.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Approve$/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Cancel$/ })).toBeVisible();
-  await expect(page.locator('[title="Cancel prevents publication."]')).toBeVisible();
+  await expect(page.getByText("Approval publishes exactly one AI-authored comment.")).toBeVisible();
+  await expect(page.getByText("Approval publishes exactly one AI-authored post.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Approve$/ })).toHaveCount(3);
+  await expect(page.getByRole("button", { name: /^Cancel$/ })).toHaveCount(3);
+  await expect(page.locator('[title="Cancel prevents publication."]')).toHaveCount(3);
   await expect(page.locator("body")).not.toContainText(/autonomous publishing/i);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("AI Actions approval waits for an explicit click and publishes one labeled review", async ({ page }) => {
+  const action = aiReviewAction("approve-review-smoke");
+  const calls = await mockAiReviewEndpoints(page, action.id);
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiActionQueue(page, [action]);
+
+  await page.goto("/");
+  await expect(page.getByText("smoke-human")).toBeVisible();
+  await page.locator('[aria-label="SuperNova AI cursor"]').waitFor();
+
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new CustomEvent("supernova:ai-actions-refresh", {
+        detail: { notice: "Smoke AI Actions opened." },
+      })
+    );
+  });
+
+  const reviewCard = page.locator(".ai-action-card").filter({ hasText: "AI review draft" });
+  await expect(reviewCard).toContainText("Smoke Delegate");
+  await expect(reviewCard).toContainText("Approval publishes exactly one AI vote and one rationale comment.");
+  expect(calls.approve).toBe(0);
+  expect(calls.cancel).toBe(0);
+
+  await reviewCard.getByRole("button", { name: /^Approve$/ }).click();
+
+  await expect.poll(() => calls.approve).toBe(1);
+  expect(calls.cancel).toBe(0);
+  await expect(page.getByText("Published as Smoke Delegate.")).toBeVisible();
+  await expect(reviewCard).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("AI Actions cancel prevents publication without approval", async ({ page }) => {
+  const action = aiReviewAction("cancel-review-smoke");
+  const calls = await mockAiReviewEndpoints(page, action.id);
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiActionQueue(page, [action]);
+
+  await page.goto("/");
+  await expect(page.getByText("smoke-human")).toBeVisible();
+  await page.locator('[aria-label="SuperNova AI cursor"]').waitFor();
+
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new CustomEvent("supernova:ai-actions-refresh", {
+        detail: { notice: "Smoke AI Actions opened." },
+      })
+    );
+  });
+
+  const reviewCard = page.locator(".ai-action-card").filter({ hasText: "AI review draft" });
+  await expect(reviewCard.getByRole("button", { name: /^Cancel$/ })).toBeVisible();
+  expect(calls.approve).toBe(0);
+  expect(calls.cancel).toBe(0);
+
+  await reviewCard.getByRole("button", { name: /^Cancel$/ }).click();
+
+  await expect.poll(() => calls.cancel).toBe(1);
+  expect(calls.approve).toBe(0);
+  await expect(page.getByText("Canceled - nothing published.")).toBeVisible();
+  await expect(reviewCard).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
