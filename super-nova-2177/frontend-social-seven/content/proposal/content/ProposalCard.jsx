@@ -37,10 +37,11 @@ import InsertComment from "./InsertComment";
 import MediaGallery from "./MediaGallery";
 import PdfPager from "./PdfPager";
 import ProposalAuthorHeader from "./ProposalAuthorHeader";
+import ProposalTextContent from "./ProposalTextContent";
 import ProposalVoteSummary from "./ProposalVoteSummary";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
-import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
+import { normalizeLinkHref } from "@/utils/linkify";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
@@ -997,24 +998,13 @@ function ProposalCard({
                 </button>
               </div>
             </div>
-          ) : localText && (
-            <div className="flex min-w-0 flex-col gap-1">
-              <p
-                className="post-text text-[0.94rem] leading-6 break-words text-[var(--transparent-black)]"
-                style={readMore ? undefined : { maxHeight: "7.5rem", overflow: "hidden" }}
-              >
-                <LinkifiedText text={localText} enableMentions validMentionUsernames={verifiedMentions} />
-              </p>
-              {(localText.length > 220 || (localText.match(/\n/g) || []).length >= 4) && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setReadMore((v) => !v); }}
-                  className="w-fit text-[0.82rem] font-medium text-[var(--neon-blue)]"
-                >
-                  {readMore ? "Show Less" : "Read More"}
-                </button>
-              )}
-            </div>
+          ) : (
+            <ProposalTextContent
+              text={localText}
+              readMore={readMore}
+              onToggleReadMore={() => setReadMore((value) => !value)}
+              verifiedMentions={verifiedMentions}
+            />
           )}
 
           {isDecisionProposal && (
