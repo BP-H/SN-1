@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IoMdBookmark } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
@@ -16,18 +14,11 @@ import {
 import {
   IoCheckmark,
   IoClose,
-  IoCreateOutline,
-  IoEllipsisHorizontal,
-  IoPersonAddOutline,
-  IoPersonCircleOutline,
-  IoPersonRemoveOutline,
-  IoChatbubbleOutline,
   IoFlashOutline,
   IoHandLeftOutline,
   IoShieldCheckmarkOutline,
   IoSparklesOutline,
   IoTimeOutline,
-  IoTrashOutline,
 } from "react-icons/io5";
 import AiDelegateActionModal from "./AiDelegateActionModal";
 import DisplayComments from "./DisplayComments";
@@ -35,6 +26,7 @@ import InsertComment from "./InsertComment";
 import ProposalActionBar from "./ProposalActionBar";
 import ProposalAuthorHeader from "./ProposalAuthorHeader";
 import ProposalMediaBlock from "./ProposalMediaBlock";
+import ProposalOptionsMenu from "./ProposalOptionsMenu";
 import ProposalTextContent from "./ProposalTextContent";
 import ProposalVoteSummary from "./ProposalVoteSummary";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
@@ -787,98 +779,35 @@ function ProposalCard({
           userHref={userHref}
         />
 
-        {/* Species icon badge - replaces text label */}
-        <div ref={optionsMenuRef} className="relative">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setMenuOpen((value) => !value);
-            }}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-gray-light)] hover:bg-white/[0.07]"
-            aria-label="Post options"
-          >
-            <IoEllipsisHorizontal />
-          </button>
-          {menuOpen && (
-            <div className="proposal-options-menu absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[rgba(10,13,19,0.96)] p-1 text-[0.76rem] shadow-[var(--shadow)] backdrop-blur-xl">
-              {profileDomainHref && authorName && (
-                <Link
-                  href={userHref}
-                  scroll
-                  onClick={() => setMenuOpen(false)}
-                  className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
-                >
-                  <IoPersonCircleOutline /> View profile
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={handleToggleBookmark}
-                className={`flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] ${
-                  bookmarked ? "text-[var(--blue)]" : ""
-                }`}
-              >
-                <IoMdBookmark /> {bookmarked ? "Saved" : "Save"}
-              </button>
-              {isOwner ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditText(localText || "");
-                      setEditing(true);
-                      setMenuOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
-                  >
-                    <IoCreateOutline /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCollabInviteOpen((value) => !value);
-                      setCollabStatus("");
-                      setCollabError("");
-                      setMenuOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
-                  >
-                    <IoPersonAddOutline /> Invite collab
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={ownerBusy}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left text-[var(--pink)] hover:bg-white/[0.07] disabled:opacity-50"
-                  >
-                    <IoTrashOutline /> Delete
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleMessageAuthor}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07]"
-                  >
-                    <IoChatbubbleOutline /> Message
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleToggleFollow}
-                    disabled={followBusy}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-3 py-2 text-left hover:bg-white/[0.07] disabled:opacity-50"
-                  >
-                    {followingAuthor ? <IoPersonRemoveOutline /> : <IoPersonAddOutline />}
-                    {followingAuthor ? "Unfollow" : "Follow"}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        <ProposalOptionsMenu
+          authorName={authorName}
+          bookmarked={bookmarked}
+          followBusy={followBusy}
+          followingAuthor={followingAuthor}
+          isOwner={isOwner}
+          menuOpen={menuOpen}
+          onDelete={handleDelete}
+          onEdit={() => {
+            setEditText(localText || "");
+            setEditing(true);
+            setMenuOpen(false);
+          }}
+          onInviteCollab={() => {
+            setCollabInviteOpen((value) => !value);
+            setCollabStatus("");
+            setCollabError("");
+            setMenuOpen(false);
+          }}
+          onMessageAuthor={handleMessageAuthor}
+          onProfileClick={() => setMenuOpen(false)}
+          onToggleBookmark={handleToggleBookmark}
+          onToggleFollow={handleToggleFollow}
+          onToggleMenu={() => setMenuOpen((value) => !value)}
+          optionsMenuRef={optionsMenuRef}
+          ownerBusy={ownerBusy}
+          profileDomainHref={profileDomainHref}
+          userHref={userHref}
+        />
       </div>
 
       <ProposalVoteSummary supportSummary={supportSummary} />
