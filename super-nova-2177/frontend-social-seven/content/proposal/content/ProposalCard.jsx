@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FaCommentAlt, FaLink, FaShare } from "react-icons/fa";
 import { IoMdBookmark } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
@@ -30,10 +29,10 @@ import {
   IoTimeOutline,
   IoTrashOutline,
 } from "react-icons/io5";
-import LikesDeslikes from "./LikesDeslikes";
 import AiDelegateActionModal from "./AiDelegateActionModal";
 import DisplayComments from "./DisplayComments";
 import InsertComment from "./InsertComment";
+import ProposalActionBar from "./ProposalActionBar";
 import ProposalAuthorHeader from "./ProposalAuthorHeader";
 import ProposalMediaBlock from "./ProposalMediaBlock";
 import ProposalTextContent from "./ProposalTextContent";
@@ -1054,26 +1053,8 @@ function ProposalCard({
           />
         </div>
 
-        {/* Unified action bar: voting, comments, and share */}
-        <div
-          className="post-action-bar mt-0.5 flex w-full items-center gap-2 rounded-[0.8rem] px-1.5 py-1.5"
-          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-        >
-          {/* Left: voting controls */}
-          <div className="min-w-0 flex-1">
-            <LikesDeslikes
-              setErrorMsg={setErrorMsg}
-              initialLikes={likes.length}
-              initialDislikes={dislikes.length}
-              initialLikesList={likes}
-              initialDislikesList={dislikes}
-              initialClicked={userVote || null}
-              proposalId={id}
-            />
-          </div>
-
-          {/* Right: comment and share */}
-          <div className="flex shrink-0 items-center gap-1.5">
+        <ProposalActionBar
+          aiReviewButton={(
             <button
               type="button"
               onClick={() => openAiActionModal("review")}
@@ -1088,65 +1069,22 @@ function ProposalCard({
             >
               <IoSparklesOutline className="text-[0.9rem]" />
             </button>
-            {/* Comment toggle */}
-            <button
-              type="button"
-              onClick={() => setShowComments((v) => !v)}
-              className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors ${
-                showComments
-                  ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                  : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
-              }`}
-            >
-              <FaCommentAlt className="text-[0.72rem]" />
-              <span className="text-[0.75rem] font-medium">{localComments.length}</span>
-            </button>
-
-            {/* Share */}
-            <div ref={shareMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setShareMenuOpen((value) => !value)}
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-                  copied || shareMenuOpen
-                    ? "bg-[rgba(255,255,255,0.12)] text-[var(--pink)]"
-                    : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
-                }`}
-                title={copied ? "Link copied!" : "Share"}
-                aria-label="Share"
-                aria-haspopup="menu"
-                aria-expanded={shareMenuOpen}
-              >
-                <FaShare className="text-[0.78rem]" />
-              </button>
-              {shareMenuOpen && (
-                <div
-                  role="menu"
-                  className="absolute bottom-10 right-0 z-30 w-40 overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-1.5 text-[0.78rem] font-semibold text-[var(--text-black)] shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={handleMessageShare}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-2.5 py-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.08)]"
-                  >
-                    <IoChatbubbleOutline className="text-[0.95rem] text-[var(--pink)]" />
-                    Send in DM
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={handleShareLink}
-                    className="flex w-full items-center gap-2 rounded-[0.7rem] px-2.5 py-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.08)]"
-                  >
-                    <FaLink className="text-[0.78rem] text-[var(--pink)]" />
-                    {copied ? "Copied" : "Share link"}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+          )}
+          commentCount={localComments.length}
+          copied={copied}
+          dislikes={dislikes}
+          likes={likes}
+          onMessageShare={handleMessageShare}
+          onShareLink={handleShareLink}
+          onToggleComments={() => setShowComments((value) => !value)}
+          onToggleShareMenu={() => setShareMenuOpen((value) => !value)}
+          proposalId={id}
+          setErrorMsg={setErrorMsg}
+          shareMenuOpen={shareMenuOpen}
+          shareMenuRef={shareMenuRef}
+          showComments={showComments}
+          userVote={userVote}
+        />
 
         {/* Comments section */}
         {(showComments || isDetailPage) && (
