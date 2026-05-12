@@ -237,6 +237,7 @@ class CommentRoutesExtractionTests(unittest.TestCase):
     def test_comment_routes_are_registered_from_dedicated_router(self):
         app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
         module_text = (BACKEND_DIR / "routers" / "comments.py").read_text(encoding="utf-8")
+        public_connector_text = (BACKEND_DIR / "routers" / "public_connector.py").read_text(encoding="utf-8")
 
         self.assertIn("from .routers.comments import create_comments_router", app_text)
         self.assertIn("app.include_router(create_comments_router(", app_text)
@@ -255,16 +256,16 @@ class CommentRoutesExtractionTests(unittest.TestCase):
             '"/comments"',
             '"/comments/{comment_id}"',
             '"/comments/{comment_id}/votes"',
-            '"/connector/proposals/{proposal_id}/comments"',
         ]:
             self.assertIn(f"router.add_api_route(\n        {path}", module_text)
+        self.assertNotIn('"/connector/proposals/{proposal_id}/comments"', module_text)
+        self.assertIn('@router.get("/connector/proposals/{proposal_id}/comments"', public_connector_text)
 
         registered = {}
         expected = {
             "/comments": {"GET", "POST"},
             "/comments/{comment_id}": {"PATCH", "DELETE"},
             "/comments/{comment_id}/votes": {"POST", "DELETE"},
-            "/connector/proposals/{proposal_id}/comments": {"GET"},
         }
         for route in backend_app.app.routes:
             path = getattr(route, "path", "")

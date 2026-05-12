@@ -5,7 +5,6 @@ from fastapi import APIRouter
 
 def create_comments_router(
     *,
-    connector_get_proposal_comments_endpoint: Callable,
     list_comments_endpoint: Callable,
     add_comment_endpoint: Callable,
     update_comment_endpoint: Callable,
@@ -15,12 +14,6 @@ def create_comments_router(
 ) -> APIRouter:
     router = APIRouter()
 
-    router.add_api_route(
-        "/connector/proposals/{proposal_id}/comments",
-        connector_get_proposal_comments_endpoint,
-        methods=["GET"],
-        summary="Read public proposal comments through the connector facade",
-    )
     router.add_api_route(
         "/comments",
         list_comments_endpoint,
