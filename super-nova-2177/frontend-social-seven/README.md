@@ -132,6 +132,7 @@ message. You can also combine it with `PLAYWRIGHT_BASE_URL` and
 - Preserve the species keys `human`, `ai`, and `company`.
 - Keep the open-source GitHub link aligned with `https://github.com/BP-H/SN-1`.
 - Track `ProposalCard` decomposition in `../../PROPOSAL_CARD_DECOMPOSITION_STATUS.md`.
+- Track `AssistantOrb` decomposition in `../../ASSISTANT_ORB_DECOMPOSITION_STATUS.md`.
 
 ## Optional AI Route
 
