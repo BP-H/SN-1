@@ -220,15 +220,17 @@ export function UserProvider({ children }) {
       setAuthLoading(false);
     };
 
+    const sessionRequestEpoch = authEpochRef.current;
     supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
+      if (!mounted || sessionRequestEpoch !== authEpochRef.current) return;
       applySessionState(data?.session ?? null);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
+      if (event === "INITIAL_SESSION" && sessionRequestEpoch !== authEpochRef.current) return;
       applySessionState(nextSession ?? null);
     });
 
@@ -660,7 +662,11 @@ export function UserProvider({ children }) {
   const signOut = useCallback(async () => {
     authEpochRef.current += 1;
     clearBackendAuthSession();
+    setSession(null);
     setPasswordAuth(null);
+    setStoredProfile(readStorage(GUEST_STORAGE_KEY) || {});
+    setSocialProfileLookup({ key: "", status: "idle" });
+    setAuthLoading(false);
     let signOutError = null;
 
     if (supabase && isSupabaseConfigured) {
@@ -671,10 +677,6 @@ export function UserProvider({ children }) {
         signOutError = error;
       }
     }
-
-    setSession(null);
-    setStoredProfile(readStorage(GUEST_STORAGE_KEY) || {});
-    setSocialProfileLookup({ key: "", status: "idle" });
 
     if (signOutError) {
       console.warn("SuperNova sign out cleared local session after provider sign-out failed.", signOutError);
