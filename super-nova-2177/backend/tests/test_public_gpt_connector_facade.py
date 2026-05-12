@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_DIR = PROJECT_ROOT / "backend"
 
 
 def run_probe(probe: str) -> dict:
@@ -248,6 +249,37 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.result = run_probe(PROBE)
+
+    def test_public_connector_routes_are_registered_from_dedicated_router(self):
+        app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
+        module_text = (BACKEND_DIR / "routers" / "public_connector.py").read_text(encoding="utf-8")
+
+        self.assertIn("from .routers.public_connector import create_public_connector_router", app_text)
+        self.assertIn("app.include_router(create_public_connector_router(", app_text)
+        for app_decorator in [
+            '@app.get("/connector/supernova"',
+            '@app.get("/connector/supernova/spec"',
+            '@app.get("/connector/public-digest"',
+            '@app.get("/connector/proposals"',
+            '@app.get("/connector/proposals/{proposal_id}"',
+            '@app.get("/connector/proposals/{proposal_id}/comments"',
+            '@app.get("/connector/proposals/{proposal_id}/votes"',
+            '@app.get("/connector/profiles/{username}"',
+        ]:
+            self.assertNotIn(app_decorator, app_text)
+
+        for router_decorator in [
+            '@router.get("/connector/supernova"',
+            '@router.get("/connector/supernova/spec"',
+            '@router.get("/connector/public-digest"',
+            '@router.get("/connector/proposals"',
+            '@router.get("/connector/proposals/{proposal_id}"',
+            '@router.get("/connector/proposals/{proposal_id}/comments"',
+            '@router.get("/connector/proposals/{proposal_id}/votes"',
+            '@router.get("/connector/profiles/{username}"',
+        ]:
+            self.assertIn(router_decorator, module_text)
+        self.assertNotIn("@router.post", module_text)
 
     def test_discovery_endpoint_is_public_read_only_without_write_tools(self):
         discovery = self.result["discovery"]
