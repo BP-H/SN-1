@@ -43,18 +43,18 @@ SECRET_VALUE_PATTERNS = {
 }
 
 SENSITIVE_KEY_NAMES = {
-    "access_token",
-    "api_key",
+    "accesstoken",
+    "apikey",
     "authorization",
     "cookie",
     "cookies",
-    "database_url",
-    "db_url",
+    "databaseurl",
+    "dburl",
     "email",
-    "hashed_password",
+    "hashedpassword",
     "password",
-    "private_notifications",
-    "refresh_token",
+    "privatenotifications",
+    "refreshtoken",
     "secret",
     "token",
 }
@@ -116,6 +116,10 @@ def _walk_keys(value: Any, path: str = "$"):
             yield from _walk_keys(item, f"{path}[{index}]")
 
 
+def normalize_sensitive_key_name(key: Any) -> str:
+    return re.sub(r"[\s_.-]+", "", str(key or "").strip().lower())
+
+
 def scan_public_payload(payload: Any) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     for path, value in _walk_values(payload):
@@ -126,7 +130,7 @@ def scan_public_payload(payload: Any) -> list[dict[str, str]]:
             if pattern.search(clean):
                 findings.append({"path": path, "kind": name})
     for path, key in _walk_keys(payload):
-        normalized = key.lower()
+        normalized = normalize_sensitive_key_name(key)
         if normalized in SENSITIVE_KEY_NAMES:
             findings.append({"path": path, "kind": "sensitive_key_name"})
     return findings
