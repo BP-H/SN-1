@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FaCommentAlt, FaFileAlt, FaLink, FaShare } from "react-icons/fa";
+import { FaCommentAlt, FaLink, FaShare } from "react-icons/fa";
 import { IoMdBookmark } from "react-icons/io";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
@@ -34,9 +34,8 @@ import LikesDeslikes from "./LikesDeslikes";
 import AiDelegateActionModal from "./AiDelegateActionModal";
 import DisplayComments from "./DisplayComments";
 import InsertComment from "./InsertComment";
-import MediaGallery from "./MediaGallery";
-import PdfPager from "./PdfPager";
 import ProposalAuthorHeader from "./ProposalAuthorHeader";
+import ProposalMediaBlock from "./ProposalMediaBlock";
 import ProposalTextContent from "./ProposalTextContent";
 import ProposalVoteSummary from "./ProposalVoteSummary";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
@@ -679,6 +678,8 @@ function ProposalCard({
   const videoThumbnailFallback = youtubeId
     ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`
     : "";
+  const displayVideoUrl = displayVideo ? getFullImageUrl(displayVideo) : "";
+  const videoEmbedUrl = displayVideo ? getEmbedUrl(displayVideo) : "";
 
   useEffect(() => {
     const handlePostAction = (event) => {
@@ -1032,102 +1033,26 @@ function ProposalCard({
             </div>
           )}
 
-          {displayImages.length > 0 && (
-            <MediaGallery
-              images={displayImages}
-              layout={mediaLayout}
-              title={title}
-              getUrl={getFullImageUrl}
-            />
-          )}
-
-          {displayVideo && (
-            <>
-              {youtubeId && !videoOpen ? (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setVideoOpen(true); }}
-                  className="mobile-media-bleed relative aspect-video w-full overflow-hidden rounded-[1.15rem] bg-[var(--gray)] shadow-sm"
-                >
-                  <img
-                    src={videoThumbnail}
-                    alt={title}
-                    className="h-full w-full object-cover"
-                    onError={(e) => { if (e.currentTarget.src !== videoThumbnailFallback) e.currentTarget.src = videoThumbnailFallback; }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(255,59,48,0.94)] text-[1.4rem] text-white shadow-[0_0_24px_rgba(255,59,48,0.45)]">▶</span>
-                  </div>
-                </button>
-              ) : youtubeId ? (
-                <>
-                  {!videoLoaded && (
-                    <div className="mobile-media-bleed flex h-52 w-full items-center justify-center rounded-[18px] bg-[var(--gray)] shadow-sm">
-                      <img src="/spinner.svg" alt="loading" />
-                    </div>
-                  )}
-                  <div className={`mobile-media-bleed aspect-video w-full overflow-hidden rounded-[18px] bg-[var(--gray)] shadow-sm ${videoLoaded ? "" : "hidden"}`}>
-                    <iframe
-                      src={getEmbedUrl(displayVideo)}
-                      title="Video"
-                      width="100%"
-                      height="100%"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      onLoad={() => setVideoLoaded(true)}
-                      className="h-full w-full"
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="mobile-media-bleed aspect-video w-full overflow-hidden rounded-[18px] bg-[var(--gray)] shadow-sm">
-                  <video
-                    src={getFullImageUrl(displayVideo)}
-                    controls
-                    preload="metadata"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              )}
-            </>
-          )}
+          <ProposalMediaBlock
+            displayFile={displayFile}
+            displayImages={displayImages}
+            displayLink={displayLink}
+            displayVideo={displayVideo}
+            displayVideoUrl={displayVideoUrl}
+            getImageUrl={getFullImageUrl}
+            isPdfFile={isPdfFile}
+            mediaLayout={mediaLayout}
+            onOpenVideo={() => setVideoOpen(true)}
+            onVideoLoaded={() => setVideoLoaded(true)}
+            title={title}
+            videoEmbedUrl={videoEmbedUrl}
+            videoLoaded={videoLoaded}
+            videoOpen={videoOpen}
+            videoThumbnail={videoThumbnail}
+            videoThumbnailFallback={videoThumbnailFallback}
+            youtubeId={youtubeId}
+          />
         </div>
-
-        {displayLink && (
-          <div className="flex items-center gap-3 rounded-[0.8rem] bg-[rgba(255,255,255,0.05)] p-4 hover:bg-[rgba(255,255,255,0.08)] transition-colors">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--blue)] text-white shadow-[var(--shadow-blue)]">
-              <FaLink className="text-[1.2rem]" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <a href={displayLink} target="_blank" rel="noopener noreferrer"
-                className="truncate block text-[0.85rem] font-medium text-[var(--neon-blue)] hover:underline"
-                onClick={(e) => e.stopPropagation()}>
-                {displayLink}
-              </a>
-            </div>
-          </div>
-        )}
-
-        {displayFile && isPdfFile && (
-          <div className="mobile-media-bleed">
-            <PdfPager src={displayFile} title={`${title || "Post"} PDF`} />
-          </div>
-        )}
-
-        {displayFile && !isPdfFile && (
-          <a
-            href={displayFile}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex w-fit cursor-pointer items-center gap-2 rounded-full bg-[var(--blue)] px-3 py-2 text-white shadow-[var(--shadow-blue)]"
-          >
-            <FaFileAlt className="text-[1.2rem]" />
-            <p>View document</p>
-          </a>
-        )}
 
         {/* Unified action bar: voting, comments, and share */}
         <div
