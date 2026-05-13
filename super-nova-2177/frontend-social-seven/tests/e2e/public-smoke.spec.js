@@ -675,7 +675,7 @@ test("published duplicate AI comment request says already posted", async ({ page
   await page.getByRole("button", { name: /^Comment$/ }).click();
 
   await expect.poll(() => draftRequests).toBe(1);
-  await expect(page.locator(".ai-delegate-notice").filter({ hasText: /already posted an AI-authored comment/i })).toBeVisible();
+  await expect(page.locator(".ai-delegate-notice").filter({ hasText: /already posted a standalone AI-authored comment/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Comment ready" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Approve AI draft" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Cancel AI draft. Nothing will be published." })).toHaveCount(0);

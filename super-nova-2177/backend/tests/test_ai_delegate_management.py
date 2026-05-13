@@ -518,6 +518,24 @@ class AiDelegateManagementTests(unittest.TestCase):
                 headers=alice_headers,
             )
             delegate = created.json().get("delegate")
+            db = backend_app.SessionLocal()
+            try:
+                alice = db.query(backend_app.Harmonizer).filter(backend_app.Harmonizer.username == "alice").first()
+                comment_target = backend_app.Proposal(
+                    title="Delegate Comment Target",
+                    description="Separate proposal for AI comment generation path.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=alice.id,
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                db.add(comment_target)
+                db.commit()
+                db.refresh(comment_target)
+                comment_target_id = comment_target.id
+            finally:
+                db.close()
             review = client.post(
                 "/connector/actions/draft-ai-delegate-review",
                 json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
@@ -525,7 +543,7 @@ class AiDelegateManagementTests(unittest.TestCase):
             )
             comment = client.post(
                 "/connector/actions/draft-ai-delegate-comment",
-                json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"], "focus": "Manual review."},
+                json={"username": "alice", "proposal_id": comment_target_id, "ai_actor_id": delegate["id"], "focus": "Manual review."},
                 headers=alice_headers,
             )
             invalid_persona = client.post(
@@ -651,6 +669,19 @@ class AiDelegateManagementTests(unittest.TestCase):
                     link="https://example.test/ocean-robots",
                     voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
                 )
+                contextual_comment_target = backend_app.Proposal(
+                    title="Manual Ocean Robots Comment",
+                    description="This proposal asks humans, ORGs, and AI delegates to manually review ocean sensor robot safety before any public deployment.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=seeded["alice_id"],
+                    image=json.dumps(["ocean-robot.png"]),
+                    video="ocean-robot-demo.mp4",
+                    file="ocean-safety-notes.pdf",
+                    link="https://example.test/ocean-robots",
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
                 risky = backend_app.Proposal(
                     title="Hidden Automation Switch",
                     description="This plan would auto-execute changes without approval after a private webhook is triggered.",
@@ -669,12 +700,14 @@ class AiDelegateManagementTests(unittest.TestCase):
                     author_id=seeded["alice_id"],
                     voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
                 )
-                db.add_all([contextual, risky, other])
+                db.add_all([contextual, contextual_comment_target, risky, other])
                 db.commit()
                 db.refresh(contextual)
+                db.refresh(contextual_comment_target)
                 db.refresh(risky)
                 db.refresh(other)
                 contextual_id = contextual.id
+                contextual_comment_id = contextual_comment_target.id
                 risky_id = risky.id
                 other_id = other.id
             finally:
@@ -689,7 +722,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "/connector/actions/draft-ai-delegate-comment",
                 json={
                     "username": "alice",
-                    "proposal_id": contextual_id,
+                    "proposal_id": contextual_comment_id,
                     "ai_actor_id": delegate["id"],
                     "focus": "Mention sensor review.",
                 },
@@ -880,6 +913,20 @@ class AiDelegateManagementTests(unittest.TestCase):
         assistant = (PROJECT_ROOT / "frontend-social-seven" / "content" / "AssistantOrb.jsx").read_text(
             encoding="utf-8"
         )
+        assistant_bundle = "\n".join(
+            [
+                assistant,
+                (PROJECT_ROOT / "frontend-social-seven" / "content" / "assistant" / "AssistantAiActionDetails.jsx").read_text(
+                    encoding="utf-8"
+                ),
+                (PROJECT_ROOT / "frontend-social-seven" / "content" / "assistant" / "AssistantAiActionsList.jsx").read_text(
+                    encoding="utf-8"
+                ),
+                (PROJECT_ROOT / "frontend-social-seven" / "content" / "assistant" / "AssistantSettingsPanel.jsx").read_text(
+                    encoding="utf-8"
+                ),
+            ]
+        )
         proposal_card = (
             PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "content" / "ProposalCard.jsx"
         ).read_text(encoding="utf-8")
@@ -899,17 +946,17 @@ class AiDelegateManagementTests(unittest.TestCase):
             PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "Proposal.jsx"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("generationSourceLabel", assistant)
-        self.assertIn("payload.generation_source", assistant)
-        self.assertIn("Generation", assistant)
-        self.assertIn("Approval publishes exactly one AI-authored comment.", assistant)
-        self.assertIn("Open AI Actions", assistant)
+        self.assertIn("generationSourceLabel", assistant_bundle)
+        self.assertIn("payload.generation_source", assistant_bundle)
+        self.assertIn("Generation", assistant_bundle)
+        self.assertIn("Approval publishes exactly one AI-authored comment.", assistant_bundle)
+        self.assertIn("Open AI Actions", assistant_bundle)
         self.assertIn("Published as ${connectorActionActorLabel(action)}", assistant)
         self.assertIn("Canceled - nothing published.", assistant)
         self.assertIn("supernova:post-created", assistant)
         self.assertIn("vote-recorded", assistant)
         self.assertIn("comment-posted", assistant)
-        self.assertIn("Fallback draft - backend AI key not configured", assistant)
+        self.assertIn("Fallback draft - backend AI key not configured", assistant_bundle)
         self.assertIn("AiDelegateActionModal", proposal_card)
         self.assertIn('mode={aiActionModalMode}', proposal_card)
         self.assertIn("openAiActionModal", proposal_card)
@@ -934,8 +981,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertNotIn("Apply to composer", ai_modal)
         self.assertIn("/connector/actions/draft-ai-delegate-post", ai_modal)
         self.assertIn("approve-ai-post", ai_modal)
-        self.assertIn("AI post draft", assistant)
-        self.assertIn("Approval publishes exactly one AI-authored post.", assistant)
+        self.assertIn("AI post draft", assistant_bundle)
+        self.assertIn("Approval publishes exactly one AI-authored post.", assistant_bundle)
         self.assertIn("Review ready", ai_modal)
         self.assertIn("Comment ready", ai_modal)
         self.assertIn("AiDelegatePicker", ai_modal)
@@ -1035,6 +1082,10 @@ class AiDelegateManagementTests(unittest.TestCase):
         account_modal = (frontend_root / "content" / "profile" / "AccountModal.jsx").read_text(encoding="utf-8")
         user_context = (frontend_root / "content" / "profile" / "UserContext.jsx").read_text(encoding="utf-8")
         assistant = (frontend_root / "content" / "AssistantOrb.jsx").read_text(encoding="utf-8")
+        assistant_settings = (
+            frontend_root / "content" / "assistant" / "AssistantSettingsPanel.jsx"
+        ).read_text(encoding="utf-8")
+        assistant_bundle = assistant + "\n" + assistant_settings
         ai_route = (frontend_root / "app" / "api" / "ai" / "route.js").read_text(encoding="utf-8")
         settings = (frontend_root / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(encoding="utf-8")
         ai_profile = (frontend_root / "app" / "ai" / "[username]" / "page.jsx").read_text(encoding="utf-8")
@@ -1047,7 +1098,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("normalizePublicAccountSpecies", user_context)
         self.assertNotIn("KEY_STORAGE", assistant)
         self.assertNotIn("OpenAI API key for local testing", assistant)
-        self.assertIn("does not store browser keys", assistant)
+        self.assertIn("does not store browser keys", assistant_bundle)
         self.assertIn("client_keys_allowed: false", ai_route)
         self.assertNotIn("ALLOW_CLIENT_AI_KEY", ai_route)
         self.assertIn("Provider connection", settings)
@@ -1653,7 +1704,7 @@ class AiDelegateManagementTests(unittest.TestCase):
             result["duplicate_pending"]["summary"]["existing_action_id"],
             result["duplicate_pending"]["action_proposal"]["id"],
         )
-        self.assertIn("pending comment draft", result["duplicate_pending"]["summary"]["message"])
+        self.assertIn("pending standalone comment draft", result["duplicate_pending"]["summary"]["message"])
         self.assertEqual(result["after_duplicate_pending"]["actions"], result["after_first"]["actions"])
         self.assertEqual(result["canceled_status"], 200)
         self.assertEqual(result["after_cancel"]["comments"], result["before"]["comments"])
@@ -1681,46 +1732,84 @@ class AiDelegateManagementTests(unittest.TestCase):
             """
             created = create_delegate(ai_name="Nova", traits=["Science", "Ethics"])
             delegate = created.json()["delegate"]
-            db = backend_app.SessionLocal()
-            try:
-                alice = db.query(backend_app.Harmonizer).filter(backend_app.Harmonizer.username == "alice").first()
-                proposal = db.query(backend_app.Proposal).filter(backend_app.Proposal.id == seeded["proposal_id"]).first()
-                vibe = backend_app.VibeNode(name="comment-reply-target", author_id=alice.id)
-                db.add(vibe)
-                db.commit()
-                db.refresh(vibe)
-                parent = backend_app.Comment(
-                    proposal_id=proposal.id,
-                    content="Could the sensor review include a public safety checklist before deployment?",
-                    author_id=alice.id,
-                    vibenode_id=vibe.id,
-                    created_at=datetime.datetime.utcnow(),
-                )
-                db.add(parent)
-                db.commit()
-                db.refresh(parent)
-                parent_id = parent.id
-            finally:
-                db.close()
+            other_created = create_delegate(ai_name="Atlas", traits=["Governance"])
+            other_delegate = other_created.json()["delegate"]
+
+            first_top_level = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Offer one standalone comment.",
+                },
+                headers=alice_headers,
+            )
+            first_action_id = first_top_level.json()["action_proposal"]["id"]
+            approve_first = client.post(f"/connector/actions/{first_action_id}/approve-ai-comment", headers=alice_headers)
+            duplicate_standalone = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Try another standalone comment.",
+                },
+                headers=alice_headers,
+            )
+
+            other_top_level = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": other_delegate["id"],
+                    "focus": "A second delegate can speak once on the post.",
+                },
+                headers=alice_headers,
+            )
+            other_action_id = other_top_level.json()["action_proposal"]["id"]
+            approve_other = client.post(f"/connector/actions/{other_action_id}/approve-ai-comment", headers=alice_headers)
+            reply_parent_id = approve_other.json().get("summary", {}).get("comment_id")
 
             draft = client.post(
                 "/connector/actions/draft-ai-delegate-comment",
                 json={
                     "username": "alice",
                     "proposal_id": seeded["proposal_id"],
-                    "parent_comment_id": parent_id,
+                    "parent_comment_id": reply_parent_id,
                     "ai_actor_id": delegate["id"],
-                    "focus": "Answer the safety checklist question directly.",
+                    "focus": "Reply to the other delegate instead of posting another standalone comment.",
                 },
                 headers=alice_headers,
             )
             action_id = draft.json()["action_proposal"]["id"]
             approve = client.post(f"/connector/actions/{action_id}/approve-ai-comment", headers=alice_headers)
+            duplicate_reply = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "parent_comment_id": reply_parent_id,
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Try a second reply to the same delegate comment.",
+                },
+                headers=alice_headers,
+            )
             result = {
+                "first_top_level_status": first_top_level.status_code,
+                "approve_first_status": approve_first.status_code,
+                "duplicate_standalone_status": duplicate_standalone.status_code,
+                "duplicate_standalone": duplicate_standalone.json(),
+                "other_top_level_status": other_top_level.status_code,
+                "approve_other_status": approve_other.status_code,
+                "reply_parent_id": reply_parent_id,
                 "draft_status": draft.status_code,
                 "draft_summary": draft.json().get("summary"),
                 "approve_status": approve.status_code,
                 "approve_summary": approve.json().get("summary"),
+                "duplicate_reply_status": duplicate_reply.status_code,
+                "duplicate_reply": duplicate_reply.json(),
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -1728,15 +1817,28 @@ class AiDelegateManagementTests(unittest.TestCase):
 
         result = run_delegate_probe(probe)
 
+        self.assertEqual(result["first_top_level_status"], 200, result)
+        self.assertEqual(result["approve_first_status"], 200, result)
+        self.assertEqual(result["duplicate_standalone_status"], 200, result)
+        self.assertTrue(result["duplicate_standalone"]["duplicate"])
+        self.assertEqual(result["duplicate_standalone"]["summary"]["duplicate_scope"], "top_level_comment")
+        self.assertIn("standalone", result["duplicate_standalone"]["summary"]["message"])
+        self.assertEqual(result["other_top_level_status"], 200, result)
+        self.assertEqual(result["approve_other_status"], 200, result)
+        self.assertTrue(result["reply_parent_id"])
         self.assertEqual(result["draft_status"], 200, result)
         self.assertTrue(result["draft_summary"]["parent_comment_id"])
-        self.assertIn("safety checklist", result["draft_summary"]["generated_comment"])
+        self.assertIn("replying to", result["draft_summary"]["generated_comment"].lower())
         self.assertEqual(result["approve_status"], 200, result)
         self.assertEqual(
             result["approve_summary"]["comment"]["parent_comment_id"],
             result["draft_summary"]["parent_comment_id"],
         )
         self.assertEqual(result["approve_summary"]["comment"]["species"], "ai")
+        self.assertEqual(result["duplicate_reply_status"], 200, result)
+        self.assertTrue(result["duplicate_reply"]["duplicate"])
+        self.assertEqual(result["duplicate_reply"]["summary"]["duplicate_scope"], "comment_reply")
+        self.assertIn("reply", result["duplicate_reply"]["summary"]["message"])
 
 
 if __name__ == "__main__":
