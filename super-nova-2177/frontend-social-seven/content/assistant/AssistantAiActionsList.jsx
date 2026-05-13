@@ -1,6 +1,6 @@
 "use client";
 
-import { IoCheckmark, IoClose } from "react-icons/io5";
+import AssistantAiActionButtons from "./AssistantAiActionButtons";
 import AssistantAiActionDetails, { assistantAiActionConfidenceLabel } from "./AssistantAiActionDetails";
 import AssistantStatusBox from "./AssistantStatusBox";
 
@@ -152,33 +152,14 @@ export default function AssistantAiActionsList({
                   <span className="text-[0.68rem] text-[var(--text-gray-light)]">
                     {[connectorActionCreatedAt(action), confidenceLabel].filter(Boolean).join(" - ")}
                   </span>
-                  <div className="flex items-center gap-2">
-                    {isApprovableDraft ? (
-                      <button
-                        type="button"
-                        onClick={() => onApprove(action)}
-                        disabled={Boolean(busyId)}
-                        className="ai-action-approve-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
-                      >
-                        <IoCheckmark className="text-[0.85rem]" />
-                        {isApproving ? "Approving..." : "Approve"}
-                      </button>
-                    ) : (
-                      <span className="ai-action-disabled-pill rounded-full px-3 py-1.5 text-[0.68rem] font-semibold">
-                        Approve soon
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onCancel(action)}
-                      disabled={Boolean(busyId)}
-                      className="ai-cursor-secondary-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold disabled:opacity-55"
-                      title="Cancel prevents publication."
-                    >
-                      <IoClose className="text-[0.85rem]" />
-                      {isCanceling ? "Canceling..." : "Cancel"}
-                    </button>
-                  </div>
+                  <AssistantAiActionButtons
+                    canApprove={isApprovableDraft}
+                    disabled={Boolean(busyId)}
+                    isApproving={isApproving}
+                    isCanceling={isCanceling}
+                    onApprove={() => onApprove(action)}
+                    onCancel={() => onCancel(action)}
+                  />
                 </div>
               </article>
             );
