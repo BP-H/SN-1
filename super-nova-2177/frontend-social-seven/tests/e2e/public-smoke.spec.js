@@ -456,6 +456,33 @@ test("AI delegate picker prefers generated handles over generic labels and keeps
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("AI Genesis settings list falls back from generic delegate names to handles", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiDelegates(page, [
+    smokeDelegate({
+      id: 177,
+      username: "nova-abc123",
+      display_name: "SuperNova AI delegate",
+      custody_label: "Delegate of @e2e-human",
+    }),
+    smokeDelegate({
+      id: 178,
+      username: "nova-ethics",
+      display_name: "Nova Ethics Reviewer",
+      custody_label: "Delegate of @e2e-human",
+    }),
+  ]);
+
+  await page.goto("/settings/ai-delegates");
+
+  await expect(page.getByRole("heading", { name: "AI Genesis" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "@nova-abc123" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Nova Ethics Reviewer" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "SuperNova AI delegate" })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("newly created AI delegate remains selected after delegate refresh", async ({ page }) => {
   let createRequests = 0;
   const existingDelegate = smokeDelegate({

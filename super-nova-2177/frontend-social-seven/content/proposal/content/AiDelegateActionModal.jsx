@@ -20,12 +20,13 @@ import {
   formatBackendAuthErrorMessage,
   requireBackendAuthSession,
 } from "@/utils/authSession";
-import { useUser } from "@/content/profile/UserContext";
-import AiDelegatePicker, {
+import {
   delegateDisplayLabel,
   delegateKey,
   delegateUsername,
-} from "./AiDelegatePicker";
+} from "@/utils/aiDelegateLabels";
+import { useUser } from "@/content/profile/UserContext";
+import AiDelegatePicker from "./AiDelegatePicker";
 
 function compactHash(value) {
   if (!value) return "";

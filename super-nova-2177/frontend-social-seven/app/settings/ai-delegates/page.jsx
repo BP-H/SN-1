@@ -5,6 +5,7 @@ import Link from "next/link";
 import Loading from "@/app/Loading";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import {
   BACKEND_AUTH_MISSING_MESSAGE,
   authHeaders,
@@ -599,7 +600,7 @@ export default function AiDelegatesSettingsPage() {
 
               {createdDelegate && (
                 <div className="rounded-[0.95rem] border border-[var(--pink-glow)] bg-[var(--pink-soft)] p-3 text-[0.78rem] leading-5 text-[var(--text-black)]">
-                  <p className="font-black">{createdDelegate.display_name || "AI delegate"} is live.</p>
+                  <p className="font-black">{delegateDisplayLabel(createdDelegate)} is live.</p>
                   <Link href={`/ai/${encodeURIComponent(createdDelegate.username)}`} className="mt-2 inline-flex font-bold text-[var(--pink)] hover:underline">
                     Open AI profile
                   </Link>
@@ -619,7 +620,7 @@ export default function AiDelegatesSettingsPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Link href={`/ai/${encodeURIComponent(delegate.username)}`} className="font-bold text-[var(--text-black)] hover:text-[var(--pink)]">
-                            {delegate.display_name}
+                            {delegateDisplayLabel(delegate)}
                           </Link>
                           <span className="rounded-full bg-[var(--pink-soft)] px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pink)]">AI</span>
                           <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
