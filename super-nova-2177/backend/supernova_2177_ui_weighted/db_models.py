@@ -85,6 +85,17 @@ except Exception:  # pragma: no cover - optional dependency
 from typing import TYPE_CHECKING
 import datetime # Ensure datetime is imported for default values
 
+try:
+    from password_hashing import (
+        hash_password_strict,
+        verify_password_with_legacy_upgrade,
+    )
+except Exception:  # pragma: no cover - supports package imports
+    from ..password_hashing import (
+        hash_password_strict,
+        verify_password_with_legacy_upgrade,
+    )
+
 # NOTE: In a real project, DATABASE_URL and SessionLocal would typically be imported from a central config/db module.
 # For this extraction, we'll keep it self-contained for clarity, assuming it would be integrated.
 # DATABASE_URL = "postgresql+asyncpg://<username>:<password>@<hostname>/<database>"  # Example format
@@ -216,13 +227,15 @@ class Harmonizer(Base):
 
     def set_password(self, password: str) -> None:
         """Hash ``password`` and store it on the model."""
-        self.hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        self.hashed_password = hash_password_strict(password)
 
     def verify_password(self, password: str) -> bool:
         """Return ``True`` if ``password`` matches the stored hash."""
-        return (
-            hashlib.sha256(password.encode()).hexdigest() == self.hashed_password
+        verified, _legacy_sha = verify_password_with_legacy_upgrade(
+            password,
+            self.hashed_password,
         )
+        return verified
 
 
 class VibeNode(Base):
@@ -804,8 +817,7 @@ def seed_default_users() -> None:
             if session.query(Harmonizer).filter_by(username=username).first():
                 continue
 
-            # Very small “hash” for demo purposes only – **not** production-secure
-            hashed = hashlib.sha256(username.encode()).hexdigest()
+            hashed = hash_password_strict(username)
 
             # Branded e-mail addresses
             email = f"{username}@supernova.dev"

@@ -1,7 +1,5 @@
-import base64
 import datetime
 import hashlib
-import hmac
 import json
 import os
 import re
@@ -52,14 +50,20 @@ def _load_supernova_runtime():
     return runtime
 
 try:
-    import auth_utils
-except Exception:  # pragma: no cover - auth helpers may be unavailable in partial environments
-    auth_utils = None
-
-try:
     from .commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt
+
+try:
+    from .password_hashing import (
+        hash_password_strict as _hash_password_strict,
+        verify_password_with_legacy_upgrade as _verify_password_with_legacy_upgrade,
+    )
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from password_hashing import (
+        hash_password_strict as _hash_password_strict,
+        verify_password_with_legacy_upgrade as _verify_password_with_legacy_upgrade,
+    )
 
 try:
     from .ai_media_prompt_inputs import (
@@ -152,9 +156,6 @@ SUPER_NOVA_ERROR = _runtime.get('error')
 SUPER_NOVA_CORE_APP = _runtime.get('core_app')
 SUPER_NOVA_CORE_ROUTES = _runtime.get('core_routes') or []
 DELETED_COMMENT_TEXT = "[deleted]"
-LEGACY_SHA256_LENGTH = 64
-PBKDF2_HASH_PREFIX = "pbkdf2_sha256"
-PBKDF2_ITERATIONS = int(os.environ.get("PASSWORD_PBKDF2_ITERATIONS", "260000"))
 
 
 def _env_int_at_least(name: str, default: int, minimum: int) -> int:
@@ -351,68 +352,6 @@ CRUD_MODELS_AVAILABLE = all(
 )
 
 
-def _is_legacy_sha256_hash(value: str) -> bool:
-    candidate = (value or "").strip().lower()
-    return len(candidate) == LEGACY_SHA256_LENGTH and all(char in "0123456789abcdef" for char in candidate)
-
-
-def _b64encode_bytes(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
-
-
-def _b64decode_bytes(value: str) -> bytes:
-    padding = "=" * (-len(value) % 4)
-    return base64.urlsafe_b64decode(f"{value}{padding}".encode("ascii"))
-
-
-def _hash_password_pbkdf2(password: str) -> str:
-    salt = os.urandom(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS)
-    return f"{PBKDF2_HASH_PREFIX}${PBKDF2_ITERATIONS}${_b64encode_bytes(salt)}${_b64encode_bytes(digest)}"
-
-
-def _verify_password_pbkdf2(password: str, hashed_password: str) -> bool:
-    try:
-        prefix, iterations, salt, digest = (hashed_password or "").split("$", 3)
-        if prefix != PBKDF2_HASH_PREFIX:
-            return False
-        iteration_count = int(iterations)
-        expected = _b64decode_bytes(digest)
-        actual = hashlib.pbkdf2_hmac(
-            "sha256",
-            password.encode("utf-8"),
-            _b64decode_bytes(salt),
-            iteration_count,
-        )
-        return hmac.compare_digest(actual, expected)
-    except Exception:
-        return False
-
-
-def _hash_password_strict(password: str) -> str:
-    """Create new password hashes without falling back to unsalted SHA-256."""
-    if auth_utils and hasattr(auth_utils, "pwd_context"):
-        try:
-            return auth_utils.pwd_context.hash(password)
-        except Exception:
-            pass
-    return _hash_password_pbkdf2(password)
-
-
-def _verify_password_with_legacy_upgrade(password: str, hashed_password: str) -> tuple[bool, bool]:
-    stored_hash = (hashed_password or "").strip()
-    if not stored_hash:
-        return False, False
-    if stored_hash.startswith(f"{PBKDF2_HASH_PREFIX}$"):
-        return _verify_password_pbkdf2(password, stored_hash), False
-    if _is_legacy_sha256_hash(stored_hash):
-        return hashlib.sha256(password.encode()).hexdigest() == stored_hash.lower(), True
-    if not auth_utils or not hasattr(auth_utils, "pwd_context"):
-        return False, False
-    try:
-        return bool(auth_utils.pwd_context.verify(password, stored_hash)), False
-    except Exception:
-        return False, False
 WORKFLOW_MODELS_AVAILABLE = all(
     model is not None for model in (Decision, Run)
 )
