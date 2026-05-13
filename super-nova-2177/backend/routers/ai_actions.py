@@ -11,6 +11,15 @@ from ai_delegate_duplicate_guard import (
     _find_existing_ai_delegate_comment,
     _safe_int,
 )
+from connector_action_response_helpers import (
+    connector_action_list_response,
+    connector_cancel_action_response,
+    connector_draft_ai_review_summary,
+    connector_draft_collab_request_summary,
+    connector_draft_comment_summary,
+    connector_draft_proposal_summary,
+    connector_draft_vote_summary,
+)
 
 
 def create_ai_actions_router(
@@ -100,13 +109,12 @@ def create_ai_actions_router(
             .order_by(desc(connector_action_proposal_model.created_at), desc(connector_action_proposal_model.id))
         )
         rows = query.offset(safe_offset).limit(safe_limit).all()
-        return {
-            "ok": True,
-            "actions": [serialize_connector_action(row) for row in rows],
-            "count": len(rows),
-            "limit": safe_limit,
-            "offset": safe_offset,
-        }
+        return connector_action_list_response(
+            rows,
+            limit=safe_limit,
+            offset=safe_offset,
+            serialize_connector_action=serialize_connector_action,
+        )
 
     @router.post("/connector/actions/{action_id}/cancel", summary="Cancel an authenticated draft connector action")
     def connector_cancel_action(
@@ -132,15 +140,10 @@ def create_ai_actions_router(
             action.status = "canceled"
             db.commit()
             db.refresh(action)
-            return {
-                "ok": True,
-                "action": serialize_connector_action(action),
-                "executed": False,
-                "safety": {
-                    "canceled_only": True,
-                    "no_write_action_performed": True,
-                },
-            }
+            return connector_cancel_action_response(
+                action,
+                serialize_connector_action=serialize_connector_action,
+            )
         except Exception as exc:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to cancel connector action: {str(exc)}")
@@ -154,13 +157,13 @@ def create_ai_actions_router(
         actor = connector_require_actor(authorization, db, payload.username)
         proposal = connector_get_proposal_or_404(db, payload.proposal_id)
         choice = normalize_connector_vote_choice(payload.choice)
-        summary = {
-            "action": "draft_vote",
-            "actor": getattr(actor, "username", ""),
-            "proposal_id": getattr(proposal, "id", payload.proposal_id),
-            "proposal_title": connector_proposal_title(proposal),
-            **choice,
-        }
+        summary = connector_draft_vote_summary(
+            actor=actor,
+            proposal=proposal,
+            fallback_proposal_id=payload.proposal_id,
+            proposal_title=connector_proposal_title(proposal),
+            choice=choice,
+        )
         try:
             record = create_connector_action_draft(
                 db,
@@ -191,22 +194,17 @@ def create_ai_actions_router(
         confidence = connector_confidence(payload.confidence)
         actor_metadata = ai_delegate_actor_metadata(actor)
         reasoning_hash = hash_text(rationale)
-        summary = {
-            "action": "draft_ai_review",
-            "actor": getattr(actor, "username", ""),
-            "actor_species": "ai",
-            **actor_metadata,
-            "proposal_id": getattr(proposal, "id", payload.proposal_id),
-            "proposal_title": connector_proposal_title(proposal),
-            "rationale": rationale,
-            "reasoning_summary": rationale,
-            "reasoning_hash": reasoning_hash,
-            "confidence": confidence,
-            **choice,
-            "sealed_reasoning": False,
-            "reasoning_source": "ai_actor_submitted_draft",
-            "approval_effect": "Publish one AI vote and one AI rationale comment.",
-        }
+        summary = connector_draft_ai_review_summary(
+            actor=actor,
+            proposal=proposal,
+            fallback_proposal_id=payload.proposal_id,
+            proposal_title=connector_proposal_title(proposal),
+            actor_metadata=actor_metadata,
+            rationale=rationale,
+            reasoning_hash=reasoning_hash,
+            confidence=confidence,
+            choice=choice,
+        )
         try:
             record = create_connector_action_draft(
                 db,
@@ -546,13 +544,13 @@ def create_ai_actions_router(
         body = (payload.body or payload.comment or "").strip()
         if not body:
             raise HTTPException(status_code=400, detail="comment body is required")
-        summary = {
-            "action": "draft_comment",
-            "actor": getattr(actor, "username", ""),
-            "proposal_id": getattr(proposal, "id", payload.proposal_id),
-            "proposal_title": connector_proposal_title(proposal),
-            "body": body,
-        }
+        summary = connector_draft_comment_summary(
+            actor=actor,
+            proposal=proposal,
+            fallback_proposal_id=payload.proposal_id,
+            proposal_title=connector_proposal_title(proposal),
+            body=body,
+        )
         try:
             record = create_connector_action_draft(
                 db,
@@ -583,12 +581,11 @@ def create_ai_actions_router(
             raise HTTPException(status_code=400, detail="title is required")
         if not body:
             raise HTTPException(status_code=400, detail="body is required")
-        summary = {
-            "action": "draft_proposal",
-            "actor": getattr(actor, "username", ""),
-            "title": title,
-            "body": body,
-        }
+        summary = connector_draft_proposal_summary(
+            actor=actor,
+            title=title,
+            body=body,
+        )
         try:
             record = create_connector_action_draft(
                 db,
@@ -625,13 +622,14 @@ def create_ai_actions_router(
         if not collaborator:
             raise HTTPException(status_code=404, detail="Collaborator not found")
 
-        summary = {
-            "action": "draft_collab_request",
-            "actor": getattr(actor, "username", ""),
-            "proposal_id": getattr(proposal, "id", payload.proposal_id),
-            "proposal_title": connector_proposal_title(proposal),
-            "collaborator_username": getattr(collaborator, "username", collaborator_username),
-        }
+        summary = connector_draft_collab_request_summary(
+            actor=actor,
+            proposal=proposal,
+            fallback_proposal_id=payload.proposal_id,
+            proposal_title=connector_proposal_title(proposal),
+            collaborator=collaborator,
+            fallback_collaborator_username=collaborator_username,
+        )
         try:
             record = create_connector_action_draft(
                 db,
