@@ -526,8 +526,8 @@ test("published duplicate AI comment request says already posted", async ({ page
         executed: false,
         duplicate: true,
         action_proposal: {
-          id: null,
-          status: "published",
+          id: "executed-comment-action",
+          status: "executed",
           action_type: "draft_ai_comment",
           target_type: "proposal_ai_comment",
           target_id: "2177001",
@@ -536,8 +536,8 @@ test("published duplicate AI comment request says already posted", async ({ page
           action: "duplicate_ai_comment",
           proposal_id: 2177001,
           ai_actor_id: 177,
-          existing_comment_id: 90210,
-          duplicate_reason: "published",
+          existing_action_id: "executed-comment-action",
+          duplicate_reason: "executed",
           message: "This AI delegate already has an AI-authored comment for this proposal.",
         },
         safety: {
@@ -550,7 +550,7 @@ test("published duplicate AI comment request says already posted", async ({ page
   });
 
   await page.goto("/");
-  await expect(page.getByText("smoke-human")).toBeVisible();
+  await expect(page.locator(".proposal-author-inline-name").filter({ hasText: "smoke-human" }).first()).toBeVisible();
   await page.locator(".post-action-bar").last().getByRole("button", { name: /^0$/ }).click();
   await page.getByRole("button", { name: "Generate AI comment" }).click();
   await expect(page.getByText("AI comment")).toBeVisible();

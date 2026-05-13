@@ -26,6 +26,7 @@ import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAuto
 import { useUser } from "@/content/profile/UserContext";
 import AssistantAiActionsList from "./assistant/AssistantAiActionsList";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
+import AssistantSettingsPanel from "./assistant/AssistantSettingsPanel";
 import AssistantStatusBox from "./assistant/AssistantStatusBox";
 
 const ORB_SIZE = 56;
@@ -923,63 +924,26 @@ export default function AssistantOrb() {
           onClose={closeActivePanel}
         >
           {settingsOpen && (
-            <div className="mt-3 flex flex-col gap-2">
-              <AssistantStatusBox className="rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
-                Drag the AI cursor onto a post, then choose AI Review or AI Comment for official delegate actions.
-                Generic summarize/test utilities use the server OPENAI_API_KEY when configured; the AI widget does not store browser keys.
-                AI delegate provider labels are managed in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
-              </AssistantStatusBox>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={testAi}
-                  disabled={aiTesting}
-                  className="rounded-full bg-[var(--pink)] px-3 py-2 text-[0.74rem] font-semibold text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
-                >
-                  {aiTesting ? "Testing..." : "Test AI"}
-                </button>
-              </div>
-              {aiSettingsNotice && (
-                <AssistantStatusBox tone="notice" className="rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
-                  {aiSettingsNotice}
-                </AssistantStatusBox>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setSettingsOpen(false);
-                  setActionsOpen(true);
-                  setConnectorActionsNotice("");
-                  loadConnectorActions();
-                  loadCollabRequests();
-                }}
-                className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
-              >
-                Open AI Actions
-              </button>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => openDelegateAction("review")}
-                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
-                >
-                  Use AI delegate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettingsOpen(false);
-                    setMenuOpen(false);
-                    setGhostVisible(false);
-                    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
-                    router.push("/settings/ai-delegates");
-                  }}
-                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
-                >
-                  Open AI Genesis
-                </button>
-              </div>
-            </div>
+            <AssistantSettingsPanel
+              aiTesting={aiTesting}
+              notice={aiSettingsNotice}
+              onTestAi={testAi}
+              onOpenActions={() => {
+                setSettingsOpen(false);
+                setActionsOpen(true);
+                setConnectorActionsNotice("");
+                loadConnectorActions();
+                loadCollabRequests();
+              }}
+              onUseAiDelegate={() => openDelegateAction("review")}
+              onOpenAiGenesis={() => {
+                setSettingsOpen(false);
+                setMenuOpen(false);
+                setGhostVisible(false);
+                dockRef.current?.classList.remove("ai-cursor-dock-hidden");
+                router.push("/settings/ai-delegates");
+              }}
+            />
           )}
 
           {commentOpen && (
