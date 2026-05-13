@@ -24,8 +24,7 @@ import {
 } from "@/utils/authSession";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
-import AssistantAiActionsList from "./assistant/AssistantAiActionsList";
-import AssistantCollabRequestsPanel from "./assistant/AssistantCollabRequestsPanel";
+import AssistantActionsPanel from "./assistant/AssistantActionsPanel";
 import AssistantCommentPanel from "./assistant/AssistantCommentPanel";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
 import AssistantReplyBox from "./assistant/AssistantReplyBox";
@@ -968,35 +967,30 @@ export default function AssistantOrb() {
           )}
 
           {actionsOpen && (
-            <div className="mt-3 flex flex-col gap-2">
-              <AssistantAiActionsList
-                actions={connectorActions}
-                busyId={connectorActionBusyId}
-                error={connectorActionsError}
-                loading={connectorActionsLoading}
-                notice={connectorActionsNotice}
-                onApprove={(action) => reviewConnectorAction(action, "approve")}
-                onCancel={(action) => reviewConnectorAction(action, "cancel")}
-                onRefresh={() => {
-                  setConnectorActionsNotice("");
-                  loadConnectorActions();
-                  loadCollabRequests();
-                }}
-                refreshDisabled={connectorActionsLoading || collabRequestsLoading}
-              />
-
-              <AssistantCollabRequestsPanel
-                error={collabRequestsError}
-                incomingCount={collabIncoming.length}
-                loading={collabRequestsLoading}
-                onOpenProfile={() => {
-                  setActionsOpen(false);
-                  setMenuOpen(false);
-                  if (userData?.name) router.push(`/users/${encodeURIComponent(userData.name)}`);
-                }}
-                outgoingCount={collabOutgoing.length}
-              />
-            </div>
+            <AssistantActionsPanel
+              actions={connectorActions}
+              busyId={connectorActionBusyId}
+              collabError={collabRequestsError}
+              collabIncomingCount={collabIncoming.length}
+              collabLoading={collabRequestsLoading}
+              collabOutgoingCount={collabOutgoing.length}
+              error={connectorActionsError}
+              loading={connectorActionsLoading}
+              notice={connectorActionsNotice}
+              onApprove={(action) => reviewConnectorAction(action, "approve")}
+              onCancel={(action) => reviewConnectorAction(action, "cancel")}
+              onOpenProfile={() => {
+                setActionsOpen(false);
+                setMenuOpen(false);
+                if (userData?.name) router.push(`/users/${encodeURIComponent(userData.name)}`);
+              }}
+              onRefresh={() => {
+                setConnectorActionsNotice("");
+                loadConnectorActions();
+                loadCollabRequests();
+              }}
+              refreshDisabled={connectorActionsLoading || collabRequestsLoading}
+            />
           )}
 
           <AssistantReplyBox busy={busy} reply={reply} />
