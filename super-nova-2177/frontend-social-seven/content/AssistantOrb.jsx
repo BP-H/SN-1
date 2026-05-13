@@ -25,6 +25,7 @@ import {
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 import AssistantAiActionsList from "./assistant/AssistantAiActionsList";
+import AssistantCollabRequestsPanel from "./assistant/AssistantCollabRequestsPanel";
 import AssistantCommentPanel from "./assistant/AssistantCommentPanel";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
 import AssistantSettingsPanel from "./assistant/AssistantSettingsPanel";
@@ -984,50 +985,17 @@ export default function AssistantOrb() {
                 refreshDisabled={connectorActionsLoading || collabRequestsLoading}
               />
 
-              <div className="mt-3 border-t border-white/[0.08] pt-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[0.74rem] font-semibold text-[var(--text-gray-light)]">
-                    Collab requests
-                  </p>
-                  <span className="ai-action-status-pill rounded-full px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.1em]">
-                    {collabIncoming.length + collabOutgoing.length}
-                  </span>
-                </div>
-
-                {collabRequestsLoading ? (
-                  <AssistantStatusBox className="mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
-                    Loading collab requests...
-                  </AssistantStatusBox>
-                ) : collabRequestsError ? (
-                  <AssistantStatusBox tone="error" className="mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
-                    {collabRequestsError}
-                  </AssistantStatusBox>
-                ) : collabIncoming.length === 0 && collabOutgoing.length === 0 ? (
-                  <AssistantStatusBox className="mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
-                    No pending collab requests.
-                  </AssistantStatusBox>
-                ) : (
-                  <div className="ai-action-card mt-2 rounded-[0.9rem] p-3">
-                    <p className="text-[0.78rem] font-semibold">
-                      {collabIncoming.length} incoming, {collabOutgoing.length} outgoing pending.
-                    </p>
-                    <p className="mt-1 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                      Use the people button on your profile header for approve, decline, and cancel controls.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActionsOpen(false);
-                        setMenuOpen(false);
-                        if (userData?.name) router.push(`/users/${encodeURIComponent(userData.name)}`);
-                      }}
-                      className="ai-cursor-secondary-button mt-3 rounded-full px-3 py-1.5 text-[0.7rem] font-semibold"
-                    >
-                      Open profile
-                    </button>
-                  </div>
-                )}
-              </div>
+              <AssistantCollabRequestsPanel
+                error={collabRequestsError}
+                incomingCount={collabIncoming.length}
+                loading={collabRequestsLoading}
+                onOpenProfile={() => {
+                  setActionsOpen(false);
+                  setMenuOpen(false);
+                  if (userData?.name) router.push(`/users/${encodeURIComponent(userData.name)}`);
+                }}
+                outgoingCount={collabOutgoing.length}
+              />
             </div>
           )}
 
