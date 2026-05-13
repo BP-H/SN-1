@@ -28,8 +28,8 @@ import AssistantAiActionsList from "./assistant/AssistantAiActionsList";
 import AssistantCollabRequestsPanel from "./assistant/AssistantCollabRequestsPanel";
 import AssistantCommentPanel from "./assistant/AssistantCommentPanel";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
+import AssistantReplyBox from "./assistant/AssistantReplyBox";
 import AssistantSettingsPanel from "./assistant/AssistantSettingsPanel";
-import AssistantStatusBox from "./assistant/AssistantStatusBox";
 
 const ORB_SIZE = 56;
 const DIAL_SIZE = 184;
@@ -999,11 +999,7 @@ export default function AssistantOrb() {
             </div>
           )}
 
-          {(busy || reply) && (
-            <AssistantStatusBox className="mt-3 max-h-36 overflow-y-auto rounded-[0.85rem] p-3 text-[0.78rem] leading-5">
-              {busy ? "Thinking..." : reply}
-            </AssistantStatusBox>
-          )}
+          <AssistantReplyBox busy={busy} reply={reply} />
         </AssistantOrbShell>
       )}
     </>
