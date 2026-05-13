@@ -179,8 +179,8 @@ function aiPostAction() {
   };
 }
 
-function smokeDelegate() {
-  return {
+function smokeDelegate(overrides = {}) {
+  const delegate = {
     id: 177,
     username: "e2e-human-smoke",
     display_name: "Smoke Delegate",
@@ -195,6 +195,7 @@ function smokeDelegate() {
       },
     },
   };
+  return { ...delegate, ...overrides };
 }
 
 async function mockAiActionQueue(page, actions = [aiReviewAction()]) {
@@ -417,6 +418,122 @@ test("AI Genesis renders without offering standalone AI account signup", async (
   await expect(accountPanel.getByRole("button", { name: "ORG" })).toBeVisible();
   await expect(accountPanel.getByRole("button", { name: /^AI$/ })).toHaveCount(0);
   await expect(accountPanel).toContainText("AI delegates are created after signup through AI Genesis.");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("AI delegate picker prefers generated handles over generic labels and keeps custom names", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiDelegates(page, [
+    smokeDelegate({
+      id: 177,
+      username: "nova-abc123",
+      display_name: "SuperNova AI delegate",
+      custody_label: "Delegate of @e2e-human",
+    }),
+    smokeDelegate({
+      id: 178,
+      username: "nova-ethics",
+      display_name: "Nova Ethics Reviewer",
+      custody_label: "Delegate of @e2e-human",
+    }),
+  ]);
+  await mockAiActionQueue(page, []);
+
+  await page.goto("/");
+  await expect(page.locator(".proposal-author-inline-name").filter({ hasText: "smoke-human" }).first()).toBeVisible();
+  await page.locator(".post-action-bar").last().getByRole("button", { name: /^0$/ }).click();
+  await page.getByRole("button", { name: "Generate AI comment" }).click();
+
+  const pickerButton = page.locator(".ai-delegate-picker-button");
+  await expect(pickerButton).toContainText("@nova-abc123");
+  await expect(pickerButton).not.toContainText("SuperNova AI delegate");
+
+  await pickerButton.click();
+  await page.getByRole("option", { name: /Nova Ethics Reviewer/ }).click();
+  await expect(pickerButton).toContainText("Nova Ethics Reviewer");
+  await expect(pickerButton).toContainText("@nova-ethics");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("newly created AI delegate remains selected after delegate refresh", async ({ page }) => {
+  let createRequests = 0;
+  const existingDelegate = smokeDelegate({
+    id: 177,
+    username: "e2e-human-smoke",
+    display_name: "Smoke Delegate",
+  });
+  const createdDelegate = smokeDelegate({
+    id: 178,
+    username: "nova-abc123",
+    display_name: "SuperNova AI delegate",
+    custody_label: "Delegate of @e2e-human",
+  });
+
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiActionQueue(page, []);
+
+  await page.route("**/ai/delegates/persona-draft", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        persona: {
+          ai_name: "Nova",
+          username: "nova-abc123",
+          display_name: "SuperNova AI delegate",
+          traits: ["AI Safety"],
+          persona_summary: "Nova reviews public proposals through the locked charter.",
+          public_description: "Nova reviews public proposals through the locked charter.",
+          persona_hash: "persona-hash-nova",
+          generation_source: "deterministic_fallback_no_key",
+        },
+      }),
+    });
+  });
+
+  await page.route("**/ai/delegates", async (route) => {
+    if (route.request().method() === "POST") {
+      createRequests += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, delegate: createdDelegate }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        delegates: [existingDelegate],
+        count: 1,
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.locator(".proposal-author-inline-name").filter({ hasText: "smoke-human" }).first()).toBeVisible();
+  await page.locator(".post-action-bar").last().getByRole("button", { name: /^0$/ }).click();
+  await page.getByRole("button", { name: "Generate AI comment" }).click();
+  await expect(page.locator(".ai-delegate-picker-button")).toContainText("Smoke Delegate");
+
+  await page.getByRole("button", { name: "Create another AI delegate" }).click();
+  const createCard = page.locator(".ai-delegate-create-card");
+  await createCard.locator("input").first().fill("Nova");
+  await createCard.getByRole("button", { name: "AI Safety" }).click();
+  await page.getByRole("button", { name: /Generate persona/ }).click();
+  await expect(page.getByText("Nova reviews public proposals through the locked charter.")).toBeVisible();
+  await page.getByRole("button", { name: "Approve and create AI delegate" }).click();
+
+  await expect.poll(() => createRequests).toBe(1);
+  const pickerButton = page.locator(".ai-delegate-picker-button");
+  await expect(pickerButton).toContainText("@nova-abc123");
+  await expect(pickerButton).not.toContainText("SuperNova AI delegate");
+  await expect(page.getByText("@nova-abc123 is ready.")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
