@@ -6,6 +6,7 @@ import Loading from "@/app/Loading";
 import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";
@@ -45,17 +46,26 @@ function LedgerGroup({ title, rows = [] }) {
           {rows.map((row, index) => {
             const hash = String(row.reasoning_hash || "");
             const compactHash = hash ? `${hash.slice(0, 8)}...${hash.slice(-5)}` : "";
-            const profileUrl = row.ai_actor_profile_url || (row.username ? `/users/${encodeURIComponent(row.username)}` : "");
+            const rowSpecies = String(row.species || "").toLowerCase();
+            const profileUrl =
+              row.ai_actor_profile_url ||
+              (row.username
+                ? `/${rowSpecies === "ai" ? "ai" : "users"}/${encodeURIComponent(row.username)}`
+                : "");
+            const rowLabel =
+              rowSpecies === "ai"
+                ? delegateDisplayLabel(row)
+                : row.display_name || row.username || "Unknown";
             return (
               <article key={`${row.username || title}-${index}`} className="rounded-[0.8rem] bg-white/[0.035] p-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     {profileUrl ? (
                       <Link href={profileUrl} className="font-bold text-[var(--text-black)] hover:text-[var(--pink)]">
-                        {row.display_name || row.username || "Unknown"}
+                        {rowLabel}
                       </Link>
                     ) : (
-                      <span className="font-bold text-[var(--text-black)]">{row.display_name || row.username || "Unknown"}</span>
+                      <span className="font-bold text-[var(--text-black)]">{rowLabel}</span>
                     )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       <span className="rounded-full bg-[var(--pink-soft)] px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">

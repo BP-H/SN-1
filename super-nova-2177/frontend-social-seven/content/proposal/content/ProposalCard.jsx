@@ -32,6 +32,7 @@ import ProposalVoteSummary from "./ProposalVoteSummary";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import { normalizeLinkHref } from "@/utils/linkify";
+import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
@@ -1013,11 +1014,10 @@ function ProposalCard({
             }));
           }
           const draftPayload = draftAction?.draft_payload || {};
-          const actorName =
-            draftPayload.ai_actor_display_name ||
-            draftPayload.display_name ||
-            draftPayload.ai_actor_username ||
-            "AI delegate";
+          const actorName = delegateDisplayLabel({
+            display_name: draftPayload.ai_actor_display_name || draftPayload.display_name,
+            username: draftPayload.ai_actor_username,
+          }) || "AI delegate";
           setNotify?.([`Published as ${actorName}.`]);
           refreshFeeds();
         }}

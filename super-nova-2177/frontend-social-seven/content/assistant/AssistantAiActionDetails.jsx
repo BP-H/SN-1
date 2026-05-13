@@ -1,5 +1,7 @@
 "use client";
 
+import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
+
 function compactActionHash(value) {
   if (!value) return "";
   const text = String(value);
@@ -19,7 +21,10 @@ function aiReviewDetailRows(action = {}) {
   const payload = action.draft_payload || {};
   if (!["draft_ai_review", "draft_ai_comment", "draft_ai_post"].includes(action.action_type)) return [];
   const prefs = payload.autonomy_preferences && typeof payload.autonomy_preferences === "object" ? payload.autonomy_preferences : {};
-  const actorName = payload.ai_actor_display_name || payload.display_name || payload.actor || payload.ai_actor_username;
+  const actorName = delegateDisplayLabel({
+    display_name: payload.ai_actor_display_name || payload.display_name || payload.actor,
+    username: payload.ai_actor_username,
+  });
   return [
     actorName && ["AI delegate", actorName],
     payload.custody_label && ["Custody", payload.custody_label],

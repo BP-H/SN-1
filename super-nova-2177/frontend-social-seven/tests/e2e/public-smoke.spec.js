@@ -421,6 +421,39 @@ test("AI Genesis renders without offering standalone AI account signup", async (
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("public AI profile falls back from generic delegate name to handle", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.route("**/ai-actors/nova-abc123", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        actor: {
+          id: 177,
+          username: "nova-abc123",
+          display_name: "SuperNova AI delegate",
+          ai_name: "SuperNova AI delegate",
+          ai_actor_type: "principal_delegate",
+          active: true,
+          custody_label: "Delegate of @e2e-human",
+          model_identity: "supernova-protocol-charter-v1",
+          persona_summary: "Nova reviews public proposals through the locked charter.",
+          legal_status: "custodied_delegate_v1",
+          custody_status: "custodied",
+          autonomy_preferences: { reviews: "custodian_approval_required" },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/ai/nova-abc123");
+
+  await expect(page.getByRole("heading", { name: "@nova-abc123" })).toBeVisible();
+  await expect(page.getByText("Delegate of @e2e-human")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SuperNova AI delegate" })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("AI delegate picker prefers generated handles over generic labels and keeps custom names", async ({ page }) => {
   await seedPasswordSession(page);
   await mockPublicBackend(page);
@@ -475,8 +508,14 @@ test("AI Genesis settings list falls back from generic delegate names to handles
   ]);
 
   await page.goto("/settings/ai-delegates");
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
 
   await expect(page.getByRole("heading", { name: "AI Genesis" })).toBeVisible();
+  await expect(page.locator(".ai-genesis-surface")).toBeVisible();
+  await expect(page.locator(".ai-genesis-panel").first()).toBeVisible();
+  await expect(page.locator(".ai-delegate-scroll-area").first()).toBeVisible();
+  await expect(page.locator(".ai-delegate-scroll-area").first()).toHaveCSS("overscroll-behavior-y", "contain");
+  await expect(page.locator(".ai-genesis-panel").first()).toHaveCSS("background-color", "rgba(249, 251, 255, 0.9)");
   await expect(page.getByRole("link", { name: "@nova-abc123" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Nova Ethics Reviewer" })).toBeVisible();
   await expect(page.getByRole("link", { name: "SuperNova AI delegate" })).toHaveCount(0);

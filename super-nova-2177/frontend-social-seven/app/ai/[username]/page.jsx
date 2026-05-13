@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import Loading from "@/app/Loading";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 
 function compactHash(value) {
   if (!value) return "unrecorded";
@@ -12,7 +14,7 @@ function compactHash(value) {
 }
 
 function actorInitials(actor) {
-  const source = actor?.display_name || actor?.username || "AI";
+  const source = (delegateDisplayLabel(actor) || "AI").replace(/^@+/, "");
   return source
     .split(/\s+/)
     .map((part) => part[0])
@@ -61,7 +63,8 @@ function Badge({ children, tone = "neutral" }) {
   );
 }
 
-export default function AiActorPage({ params }) {
+export default function AiActorPage() {
+  const params = useParams();
   const { userData, isAuthenticated } = useUser();
   const username = params?.username || "";
   const [state, setState] = useState({ loading: true, actor: null, error: "" });
@@ -98,7 +101,7 @@ export default function AiActorPage({ params }) {
   const modelLabel = actor?.model_identity || "supernova-protocol-charter-v1";
   const providerConnection = actor?.provider_connection || {};
   const textProvider = providerConnection.text || {};
-  const title = actor?.display_name || actor?.ai_name || actor?.username || "AI Actor";
+  const title = delegateDisplayLabel(actor) || "AI Actor";
   const currentUsername = String(userData?.name || "").trim().toLowerCase();
   const custodyLabel = String(actor?.custody_label || "").trim().toLowerCase();
   const isCustodian = Boolean(
