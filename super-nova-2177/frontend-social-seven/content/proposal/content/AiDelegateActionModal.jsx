@@ -21,7 +21,11 @@ import {
   requireBackendAuthSession,
 } from "@/utils/authSession";
 import { useUser } from "@/content/profile/UserContext";
-import AiDelegatePicker from "./AiDelegatePicker";
+import AiDelegatePicker, {
+  delegateDisplayLabel,
+  delegateKey,
+  delegateUsername,
+} from "./AiDelegatePicker";
 
 function compactHash(value) {
   if (!value) return "";
@@ -65,19 +69,47 @@ function mediaIndicators(target = {}) {
 }
 
 function selectedDelegatePayload(delegate = {}) {
-  if (!delegate?.id) return { ai_actor_username: delegate?.username };
+  if (!delegate?.id) return { ai_actor_username: delegateUsername(delegate) };
   return { ai_actor_id: Number(delegate.id) };
 }
 
 function delegatePublishName(summary = {}, fallbackDelegate = {}) {
+  const summaryDelegate = {
+    display_name: summary.ai_actor_display_name || summary.display_name,
+    username: summary.ai_actor_username || summary.actor,
+  };
+  const hasSummaryIdentity = Boolean(summaryDelegate.display_name || delegateUsername(summaryDelegate));
+  const hasFallbackIdentity = Boolean(fallbackDelegate?.display_name || delegateUsername(fallbackDelegate));
   return (
-    summary.ai_actor_display_name ||
-    summary.display_name ||
-    fallbackDelegate.display_name ||
-    summary.ai_actor_username ||
-    fallbackDelegate.username ||
+    (hasSummaryIdentity ? delegateDisplayLabel(summaryDelegate) : "") ||
+    (hasFallbackIdentity ? delegateDisplayLabel(fallbackDelegate) : "") ||
     "AI delegate"
   );
+}
+
+function normalizeCreatedDelegate(delegate = {}, fallback = {}) {
+  const username = delegateUsername(delegate) || delegateUsername(fallback);
+  if (!username && !delegate?.id) return null;
+  return {
+    ...fallback,
+    ...delegate,
+    username,
+    display_name: delegate?.display_name || fallback.display_name || username,
+    active: delegate?.active !== false,
+  };
+}
+
+function mergeDelegateList(delegates = [], preferredDelegate = null) {
+  if (!preferredDelegate) return delegates;
+  const preferredKey = delegateKey(preferredDelegate);
+  if (!preferredKey) return delegates;
+  let found = false;
+  const merged = delegates.map((delegate) => {
+    if (delegateKey(delegate) !== preferredKey) return delegate;
+    found = true;
+    return { ...preferredDelegate, ...delegate };
+  });
+  return found ? merged : [preferredDelegate, ...merged];
 }
 
 const MINI_GENESIS_TRAITS = [
@@ -171,7 +203,7 @@ export default function AiDelegateActionModal({
   const selectedDelegate = useMemo(() => {
     if (!activeDelegates.length) return null;
     return (
-      activeDelegates.find((delegate) => String(delegate.id || "") === String(selectedDelegateId || "")) ||
+      activeDelegates.find((delegate) => delegateKey(delegate) === String(selectedDelegateId || "")) ||
       activeDelegates[0]
     );
   }, [activeDelegates, selectedDelegateId]);
@@ -254,7 +286,7 @@ export default function AiDelegateActionModal({
   }, [initialFocus, open, mode, target?.id]);
 
   const loadDelegates = useCallback(
-    async (signal) => {
+    async (signal, preferredDelegate = null) => {
       setLoadingDelegates(true);
       setError("");
       try {
@@ -264,10 +296,13 @@ export default function AiDelegateActionModal({
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload?.detail || "Unable to load AI delegates.");
-        const nextDelegates = Array.isArray(payload.delegates) ? payload.delegates : [];
+        const nextDelegates = mergeDelegateList(
+          Array.isArray(payload.delegates) ? payload.delegates : [],
+          preferredDelegate
+        );
         setDelegates(nextDelegates);
         const firstActive = nextDelegates.find((delegate) => delegate?.active);
-        setSelectedDelegateId((current) => current || (firstActive?.id ? String(firstActive.id) : ""));
+        setSelectedDelegateId((current) => current || (firstActive ? delegateKey(firstActive) : ""));
       } catch (err) {
         if (err?.name !== "AbortError") {
           setDelegates([]);
@@ -379,6 +414,7 @@ export default function AiDelegateActionModal({
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           ai_name: genesisName.trim(),
+          display_name: genesisName.trim(),
           persona_traits: genesisTraits,
           human_seed: genesisSeed,
           persona_draft: genesisDraft,
@@ -386,11 +422,17 @@ export default function AiDelegateActionModal({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to create AI delegate.");
-      const created = payload.delegate;
-      await loadDelegates();
-      if (created?.id) setSelectedDelegateId(String(created.id));
+      const created = normalizeCreatedDelegate(payload.delegate, {
+        username: genesisDraft?.username || miniHandlePreview(userData?.name, genesisName),
+        display_name: genesisName.trim(),
+        ai_name: genesisName.trim(),
+        active: true,
+      });
+      await loadDelegates(undefined, created);
+      const createdKey = delegateKey(created);
+      if (createdKey) setSelectedDelegateId(createdKey);
       setCreateHandoffOpen(false);
-      setNotice(`${created?.display_name || genesisName.trim()} is ready.`);
+      setNotice(`${created ? delegateDisplayLabel(created) : genesisName.trim()} is ready.`);
       setGenesisName("");
       setGenesisSeed("");
       setGenesisTraitQuery("");
@@ -830,7 +872,7 @@ export default function AiDelegateActionModal({
                 <div className="min-w-0 flex-1">
                   <AiDelegatePicker
                     delegates={activeDelegates}
-                    value={selectedDelegateId || String(selectedDelegate?.id || "")}
+                    value={selectedDelegateId || delegateKey(selectedDelegate)}
                     onChange={(nextId) => {
                       setSelectedDelegateId(nextId);
                       setDraftAction(null);
