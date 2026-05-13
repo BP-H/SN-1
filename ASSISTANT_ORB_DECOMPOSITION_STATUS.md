@@ -1,20 +1,27 @@
 # AssistantOrb Decomposition Status
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
 
 This checkpoint records the current FE7 `AssistantOrb.jsx` decomposition status. Keep future work incremental: one seam per PR, visual/display shell first, and no state, mutation, API, or custody semantic movement until focused regression tests exist.
 
 ## Current Measurement
 
 - Current approximate `AssistantOrb.jsx` line count: 1116 lines.
-- File measured: `super-nova-2177/frontend-social-seven/content/AssistantOrb.jsx`.
-- Measurement source: current workspace after PR #156 was merged into SN-1 `master`.
+- Current approximate `AssistantAiActionsList.jsx` line count: 189 lines.
+- Files measured:
+  - `super-nova-2177/frontend-social-seven/content/AssistantOrb.jsx`
+  - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionsList.jsx`
+- Measurement source: current workspace after PR #158 was merged into SN-1 `master`.
 
 ## Extracted Components
 
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantOrbShell.jsx`: assistant panel shell/header display.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionsList.jsx`: AI Actions list/card display shell.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionDetails.jsx`: AI-authored draft detail rows, generation label, compact hashes, and confidence helper.
+
+## Duplicate Pending Draft UX
+
+Duplicate pending AI comment drafts now reopen in the same AI delegate modal for approve/cancel instead of sending the user to the AI Actions list. The existing draft stays the single approval target; the UI should not create a second pending card, publish automatically, or imply autonomous execution.
 
 ## Current Responsibilities
 
@@ -55,11 +62,25 @@ The following responsibilities should stay in `AssistantOrb.jsx` until there is 
 - approve/cancel handlers
 - AI custody/approve/cancel semantics
 - API calls
-- refresh event behavior
+- AI Actions queue refresh behavior
 - auth/session assumptions
-- notification and query invalidation side effects
+- notification side effects
+- query invalidation side effects
 - comment send behavior
 - drag/dock pointer behavior
+
+## Manual FE Smoke Checklist
+
+Use this checklist after any future AssistantOrb seam extraction:
+
+- Open and close the AssistantOrb.
+- Drag and dock the orb, then confirm return-to-dock still works.
+- Open and close the AI Settings panel.
+- Open the AI Actions list.
+- Attempt a duplicate pending AI comment and confirm the existing draft reopens in the same AI delegate modal.
+- Confirm approve/cancel buttons remain explicit.
+- Confirm no copy suggests autonomous publishing.
+- Confirm refresh events still update the AI Actions list and related notices.
 
 ## Safety Rule
 
