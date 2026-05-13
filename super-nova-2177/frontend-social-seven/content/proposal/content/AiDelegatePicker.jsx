@@ -4,9 +4,57 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { IoAdd, IoChevronDown, IoCheckmark } from "react-icons/io5";
 import { avatarDisplayUrl } from "@/utils/avatar";
 
+const GENERIC_DELEGATE_LABELS = new Set([
+  "ai delegate",
+  "generic ai delegate",
+  "supernova ai delegate",
+  "generic supernova ai delegate",
+]);
+
+function cleanDelegateText(value) {
+  return String(value || "").trim();
+}
+
+export function delegateUsername(delegate = {}) {
+  const source = delegate || {};
+  return cleanDelegateText(
+    source.username ||
+      source.ai_actor_username ||
+      source.selected_ai_actor_username ||
+      source.handle
+  ).replace(/^@+/, "");
+}
+
+export function delegateKey(delegate = {}) {
+  const source = delegate || {};
+  const id = source?.id;
+  if (id !== null && id !== undefined && id !== "") return String(id);
+  return delegateUsername(source);
+}
+
+export function delegateHandleLabel(delegate = {}) {
+  const username = delegateUsername(delegate);
+  return username ? `@${username}` : "";
+}
+
+export function delegateDisplayLabel(delegate = {}) {
+  const source = delegate || {};
+  const displayName = cleanDelegateText(
+    source.display_name ||
+      source.ai_actor_display_name ||
+      source.selected_ai_actor_display_name ||
+      source.ai_name ||
+      source.name
+  );
+  const handle = delegateHandleLabel(source);
+  if (!displayName) return handle || "AI";
+  if (GENERIC_DELEGATE_LABELS.has(displayName.toLowerCase())) return handle || displayName;
+  return displayName;
+}
+
 function delegateInitials(delegate = {}) {
-  const label = delegate.display_name || delegate.username || "AI";
-  return String(label).slice(0, 2).toUpperCase();
+  const label = delegateDisplayLabel(delegate);
+  return String(label).replace(/^@+/, "").slice(0, 2).toUpperCase();
 }
 
 function delegateProviderLabel(delegate = {}) {
@@ -28,15 +76,18 @@ function DelegateAvatar({ delegate, defaultAvatar }) {
 
 function DelegateSummary({ delegate, defaultAvatar, compact = false }) {
   const traits = Array.isArray(delegate?.persona_traits) ? delegate.persona_traits.slice(0, compact ? 2 : 3) : [];
+  const handle = delegateHandleLabel(delegate);
+  const custodyLabel = delegate.custody_label || "Custodied AI delegate";
+  const detailLabel = [handle, custodyLabel].filter(Boolean).join(" - ");
   return (
     <span className="flex min-w-0 flex-1 items-center gap-3 text-left">
       <DelegateAvatar delegate={delegate} defaultAvatar={defaultAvatar} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.82rem] font-black text-[var(--text-black)]">
-          {delegate.display_name || delegate.username}
+          {delegateDisplayLabel(delegate)}
         </span>
         <span className="mt-0.5 block truncate text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
-          {delegate.custody_label || "Custodied AI delegate"}
+          {detailLabel}
         </span>
         <span className="mt-1 flex flex-wrap gap-1">
           {traits.map((trait) => (
@@ -63,7 +114,7 @@ export default function AiDelegatePicker({
   const pickerRef = useRef(null);
   const selectedDelegate = useMemo(() => {
     if (!delegates.length) return null;
-    return delegates.find((delegate) => String(delegate.id || "") === String(value || "")) || delegates[0];
+    return delegates.find((delegate) => delegateKey(delegate) === String(value || "")) || delegates[0];
   }, [delegates, value]);
 
   useEffect(() => {
@@ -99,16 +150,16 @@ export default function AiDelegatePicker({
       {open && canOpenMenu && (
         <div className="ai-delegate-picker-menu" role="listbox">
           {delegates.map((delegate) => {
-            const isSelected = String(delegate.id || "") === String(selectedDelegate.id || "");
+            const isSelected = delegateKey(delegate) === delegateKey(selectedDelegate);
             return (
               <button
-                key={delegate.id || delegate.username}
+                key={delegateKey(delegate) || delegateUsername(delegate)}
                 type="button"
                 className={`ai-delegate-picker-option ${isSelected ? "is-selected" : ""}`}
                 role="option"
                 aria-selected={isSelected}
                 onClick={() => {
-                  onChange?.(String(delegate.id || ""));
+                  onChange?.(delegateKey(delegate));
                   setOpen(false);
                 }}
               >

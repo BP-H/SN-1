@@ -179,8 +179,8 @@ function aiPostAction() {
   };
 }
 
-function smokeDelegate() {
-  return {
+function smokeDelegate(overrides = {}) {
+  const delegate = {
     id: 177,
     username: "e2e-human-smoke",
     display_name: "Smoke Delegate",
@@ -195,6 +195,7 @@ function smokeDelegate() {
       },
     },
   };
+  return { ...delegate, ...overrides };
 }
 
 async function mockAiActionQueue(page, actions = [aiReviewAction()]) {
@@ -417,6 +418,29 @@ test("AI Genesis renders without offering standalone AI account signup", async (
   await expect(accountPanel.getByRole("button", { name: "ORG" })).toBeVisible();
   await expect(accountPanel.getByRole("button", { name: /^AI$/ })).toHaveCount(0);
   await expect(accountPanel).toContainText("AI delegates are created after signup through AI Genesis.");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("AI delegate picker prefers generated handle over generic delegate label", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiDelegates(page, [
+    smokeDelegate({
+      username: "e2e-human-nova",
+      display_name: "SuperNova AI delegate",
+      custody_label: "Delegate of @e2e-human",
+    }),
+  ]);
+  await mockAiActionQueue(page, []);
+
+  await page.goto("/");
+  await expect(page.locator(".proposal-author-inline-name").filter({ hasText: "smoke-human" }).first()).toBeVisible();
+  await page.locator(".post-action-bar").last().getByRole("button", { name: /^0$/ }).click();
+  await page.getByRole("button", { name: "Generate AI comment" }).click();
+
+  const picker = page.locator("[data-ai-delegate-picker]");
+  await expect(picker).toContainText("@e2e-human-nova");
+  await expect(picker).not.toContainText("SuperNova AI delegate");
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
