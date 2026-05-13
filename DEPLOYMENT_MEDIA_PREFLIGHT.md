@@ -126,6 +126,10 @@ mutates the database, uploads or deletes media, or prints raw `data:image/...`
 bodies. This production smoke is advisory/manual for now; do not add it as a
 required branch-protection gate until it is stable for scheduled/live checks.
 
+
+Latest recorded production verification:
+`AI_MEDIA_PROMPT_PREFLIGHT_VERIFICATION_2026-05-13.md`.
+
 ## Rollback
 
 If media breaks after deploy:
