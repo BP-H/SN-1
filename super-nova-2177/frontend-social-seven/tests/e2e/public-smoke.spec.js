@@ -498,10 +498,13 @@ test("duplicate AI comment draft request shows one existing action notice", asyn
   await page.getByRole("button", { name: /^Comment$/ }).click();
 
   await expect.poll(() => draftRequests).toBe(1);
-  await expect(page.locator(".ai-delegate-notice").filter({ hasText: /already has a pending comment draft/i })).toBeVisible();
-  await expect(page.getByText("Pending approval-required actions")).toBeVisible();
-  await expect(page.locator(".ai-action-notice").filter({ hasText: /already has a pending comment draft/i })).toBeVisible();
-  await expect(page.locator(".ai-action-card").filter({ hasText: "AI comment draft" })).toHaveCount(1);
+  await expect(page.locator(".ai-delegate-notice").filter({ hasText: /reopened here for approve\/cancel/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Comment ready" })).toBeVisible();
+  await expect(page.getByText("Smoke Delegate offers a concise public comment.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve AI draft" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel AI draft. Nothing will be published." })).toBeVisible();
+  await expect(page.getByText("Pending approval-required actions")).toHaveCount(0);
+  await expect(page.locator(".ai-action-card").filter({ hasText: "AI comment draft" })).toHaveCount(0);
   await expect(page.getByText("Comment ready. Approve or cancel here.")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
