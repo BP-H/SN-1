@@ -468,6 +468,19 @@ export default function AiDelegateActionModal({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(cleanError(payload?.detail, "Unable to generate AI draft."));
+      if (payload?.duplicate) {
+        const duplicateNotice =
+          payload?.summary?.message ||
+          "This AI delegate already has a comment for this proposal. Review the existing draft or published comment.";
+        setDraftAction(null);
+        setNotice(duplicateNotice);
+        window.dispatchEvent(
+          new CustomEvent("supernova:ai-actions-refresh", {
+            detail: { notice: duplicateNotice },
+          })
+        );
+        return;
+      }
       setDraftAction({
         id: payload?.action_proposal?.id,
         action_type: payload?.action_proposal?.action_type || modeConfig.draftType,

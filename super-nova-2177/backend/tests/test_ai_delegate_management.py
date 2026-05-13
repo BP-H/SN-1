@@ -1491,6 +1491,191 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["approve_summary"]["comment"]["user"].startswith("alice-nova"))
         self.assertEqual(result["approve_summary"]["comment"]["species"], "ai")
 
+    def test_ai_delegate_comment_duplicate_guard_is_per_delegate_and_per_proposal(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova", traits=["Science", "Ethics"])
+            delegate = created.json()["delegate"]
+            other_created = create_delegate(ai_name="Atlas", traits=["Governance"])
+            other_delegate = other_created.json()["delegate"]
+            db = backend_app.SessionLocal()
+            try:
+                alice = db.query(backend_app.Harmonizer).filter(backend_app.Harmonizer.username == "alice").first()
+                second_proposal = backend_app.Proposal(
+                    title="Second Delegate Target",
+                    description="A second proposal for duplicate-guard boundary checks.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=alice.id,
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                db.add(second_proposal)
+                db.commit()
+                db.refresh(second_proposal)
+                second_proposal_id = second_proposal.id
+            finally:
+                db.close()
+
+            before = counts()
+            first_draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Offer one official comment.",
+                },
+                headers=alice_headers,
+            )
+            after_first = counts()
+            duplicate_pending = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Try to queue another comment.",
+                },
+                headers=alice_headers,
+            )
+            after_duplicate_pending = counts()
+            first_action_id = first_draft.json()["action_proposal"]["id"]
+            canceled = client.post(f"/connector/actions/{first_action_id}/cancel", headers=alice_headers)
+            after_cancel = counts()
+
+            second_draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Queue the final approved comment after cancellation.",
+                },
+                headers=alice_headers,
+            )
+            second_action_id = second_draft.json()["action_proposal"]["id"]
+            after_second_draft = counts()
+            approve = client.post(f"/connector/actions/{second_action_id}/approve-ai-comment", headers=alice_headers)
+            after_approve = counts()
+            duplicate_published = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Try to queue after publication.",
+                },
+                headers=alice_headers,
+            )
+            after_duplicate_published = counts()
+            other_delegate_draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": other_delegate["id"],
+                    "focus": "Different delegate, same proposal.",
+                },
+                headers=alice_headers,
+            )
+            same_delegate_other_proposal = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": second_proposal_id,
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Same delegate, different proposal.",
+                },
+                headers=alice_headers,
+            )
+            review_draft = client.post(
+                "/connector/actions/draft-ai-delegate-review",
+                json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
+                headers=alice_headers,
+            )
+            vote_draft = client.post(
+                "/connector/actions/draft-vote",
+                json={"username": "alice", "proposal_id": seeded["proposal_id"], "choice": "support"},
+                headers=alice_headers,
+            )
+            human_comment = client.post(
+                "/comments",
+                json={
+                    "user": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "comment": "Human custodian can still comment normally.",
+                    "species": "human",
+                },
+                headers=alice_headers,
+            )
+            after_allowed = counts()
+            duplicate_text = json.dumps(
+                [duplicate_pending.json(), duplicate_published.json()],
+                sort_keys=True,
+            ).lower()
+            result = {
+                "before": before,
+                "first_draft_status": first_draft.status_code,
+                "duplicate_pending_status": duplicate_pending.status_code,
+                "duplicate_pending": duplicate_pending.json(),
+                "canceled_status": canceled.status_code,
+                "second_draft_status": second_draft.status_code,
+                "approve_status": approve.status_code,
+                "duplicate_published_status": duplicate_published.status_code,
+                "duplicate_published": duplicate_published.json(),
+                "other_delegate_draft_status": other_delegate_draft.status_code,
+                "same_delegate_other_proposal_status": same_delegate_other_proposal.status_code,
+                "review_draft_status": review_draft.status_code,
+                "review_draft": review_draft.json(),
+                "vote_draft_status": vote_draft.status_code,
+                "human_comment_status": human_comment.status_code,
+                "after_first": after_first,
+                "after_duplicate_pending": after_duplicate_pending,
+                "after_cancel": after_cancel,
+                "after_second_draft": after_second_draft,
+                "after_approve": after_approve,
+                "after_duplicate_published": after_duplicate_published,
+                "after_allowed": after_allowed,
+                "duplicate_text": duplicate_text,
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["first_draft_status"], 200)
+        self.assertEqual(result["after_first"]["actions"], result["before"]["actions"] + 1)
+        self.assertEqual(result["duplicate_pending_status"], 200)
+        self.assertTrue(result["duplicate_pending"]["duplicate"])
+        self.assertEqual(
+            result["duplicate_pending"]["summary"]["existing_action_id"],
+            result["duplicate_pending"]["action_proposal"]["id"],
+        )
+        self.assertIn("pending comment draft", result["duplicate_pending"]["summary"]["message"])
+        self.assertEqual(result["after_duplicate_pending"]["actions"], result["after_first"]["actions"])
+        self.assertEqual(result["canceled_status"], 200)
+        self.assertEqual(result["after_cancel"]["comments"], result["before"]["comments"])
+        self.assertEqual(result["second_draft_status"], 200)
+        self.assertEqual(result["after_second_draft"]["actions"], result["after_first"]["actions"] + 1)
+        self.assertEqual(result["approve_status"], 200)
+        self.assertEqual(result["after_approve"]["comments"], result["before"]["comments"] + 1)
+        self.assertEqual(result["duplicate_published_status"], 200)
+        self.assertTrue(result["duplicate_published"]["duplicate"])
+        self.assertTrue(result["duplicate_published"]["summary"]["existing_action_id"] or result["duplicate_published"]["summary"]["existing_comment_id"])
+        self.assertEqual(result["after_duplicate_published"]["actions"], result["after_second_draft"]["actions"])
+        self.assertEqual(result["other_delegate_draft_status"], 200)
+        self.assertEqual(result["same_delegate_other_proposal_status"], 200)
+        self.assertEqual(result["review_draft_status"], 200)
+        self.assertTrue(result["review_draft"]["duplicate"])
+        self.assertEqual(result["vote_draft_status"], 200)
+        self.assertEqual(result["human_comment_status"], 200)
+        self.assertEqual(result["after_allowed"]["comments"], result["before"]["comments"] + 2)
+        self.assertEqual(result["after_allowed"]["actions"], result["after_second_draft"]["actions"] + 3)
+        for forbidden in ("api_key", "database_url", "postgres://", "hashed_password", "password"):
+            self.assertNotIn(forbidden, result["duplicate_text"])
+
     def test_ai_delegate_comment_on_comment_publishes_as_nested_ai_reply(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
