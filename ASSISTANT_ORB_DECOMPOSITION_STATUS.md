@@ -6,22 +6,25 @@ This checkpoint records the current FE7 `AssistantOrb.jsx` decomposition status.
 
 ## Current Measurement
 
-- Current approximate `AssistantOrb.jsx` line count: 1116 lines.
-- Current approximate `AssistantAiActionsList.jsx` line count: 189 lines.
+- Current approximate `AssistantOrb.jsx` line count: 1117 lines.
+- Current approximate `AssistantAiActionsList.jsx` line count: 190 lines.
 - Files measured:
   - `super-nova-2177/frontend-social-seven/content/AssistantOrb.jsx`
   - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionsList.jsx`
-- Measurement source: current workspace after PR #158 was merged into SN-1 `master`.
+- Measurement source: current workspace after PR #160 was merged into SN-1 `master`.
 
 ## Extracted Components
 
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantOrbShell.jsx`: assistant panel shell/header display.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionsList.jsx`: AI Actions list/card display shell.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionDetails.jsx`: AI-authored draft detail rows, generation label, compact hashes, and confidence helper.
+- `super-nova-2177/frontend-social-seven/content/assistant/AssistantStatusBox.jsx`: shared notice, loading, error, and empty-state display shell.
 
 ## Duplicate Pending Draft UX
 
 Duplicate pending AI comment drafts now reopen in the same AI delegate modal for approve/cancel instead of sending the user to the AI Actions list. The existing draft stays the single approval target; the UI should not create a second pending card, publish automatically, or imply autonomous execution.
+
+Already-published duplicate AI comments now say they were already posted instead of describing the state as pending. Published duplicates should not show approve/cancel draft controls.
 
 ## Current Responsibilities
 
@@ -31,7 +34,7 @@ Duplicate pending AI comment drafts now reopen in the same AI delegate modal for
 - assistant dial/menu layout and panel placement
 - active panel switching
 - AI settings, comment, AI Actions, busy, and reply panel state
-- AI Actions queue loading, empty, error, and notice display
+- AI Actions queue loading, empty, error, and notice state selection
 - draft approve/cancel controls for queued AI Actions
 - direct comment composer state and send flow
 - notifications/notices such as AI settings notice, connector action notice, and collab request errors
@@ -44,16 +47,16 @@ Duplicate pending AI comment drafts now reopen in the same AI delegate modal for
 
 Future decomposition should start with display shells that receive already-computed props and callbacks from `AssistantOrb`:
 
-1. Empty/loading/error display shell.
+1. Assistant settings panel display shell, leaving model/API state, notices, auth/session assumptions, and backend calls in `AssistantOrb.jsx`.
 2. AI action draft button row display shell, leaving approve/cancel handlers in `AssistantOrb.jsx`.
-3. Assistant settings panel display shell, leaving model/API state and notice behavior in `AssistantOrb.jsx`.
-4. Direct comment panel display shell, leaving comment send state and API behavior in `AssistantOrb.jsx`.
+3. Direct comment panel display shell, leaving comment send state and API behavior in `AssistantOrb.jsx`.
+4. Collab request summary display shell, leaving load/error state and navigation behavior in `AssistantOrb.jsx`.
 
 Each extraction should preserve existing copy, classes, mobile behavior, and light/dark behavior unless a tiny test-only adjustment is explicitly needed.
 
 ## Recommended Next Seam
 
-The next safest seam is the empty/loading/error display shell for assistant panels. It is visual-only and should receive already-computed `loading`, `error`, `notice`, and empty-state props. Keep approval buttons, cancel buttons, API calls, query invalidation, and refresh events in `AssistantOrb.jsx`.
+The next safest seam is the Assistant settings panel display shell, but only if it stays display-only. Keep model/API state, settings notices, auth/session assumptions, backend calls, routing, and AI custody behavior in `AssistantOrb.jsx`.
 
 ## Do Not Move Yet
 
@@ -76,8 +79,11 @@ Use this checklist after any future AssistantOrb seam extraction:
 - Open and close the AssistantOrb.
 - Drag and dock the orb, then confirm return-to-dock still works.
 - Open and close the AI Settings panel.
+- Confirm the AI Settings status box still renders.
 - Open the AI Actions list.
+- Confirm AI Actions empty, loading, error, and notice boxes still render.
 - Attempt a duplicate pending AI comment and confirm the existing draft reopens in the same AI delegate modal.
+- Attempt an already-published duplicate AI comment and confirm it says already posted, not pending.
 - Confirm approve/cancel buttons remain explicit.
 - Confirm no copy suggests autonomous publishing.
 - Confirm refresh events still update the AI Actions list and related notices.
