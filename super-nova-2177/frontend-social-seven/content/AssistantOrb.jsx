@@ -13,7 +13,6 @@ import {
   IoPlanetOutline,
   IoSparklesOutline,
 } from "react-icons/io5";
-import { RiVoiceAiFill } from "react-icons/ri";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { API_BASE_URL } from "@/utils/apiBase";
 import {
@@ -26,14 +25,12 @@ import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAuto
 import { useUser } from "@/content/profile/UserContext";
 import AssistantActionsPanel from "./assistant/AssistantActionsPanel";
 import AssistantCommentPanel from "./assistant/AssistantCommentPanel";
+import AssistantDockMenu from "./assistant/AssistantDockMenu";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
 import AssistantReplyBox from "./assistant/AssistantReplyBox";
 import AssistantSettingsPanel from "./assistant/AssistantSettingsPanel";
 
 const ORB_SIZE = 56;
-const DIAL_SIZE = 184;
-
-const AiWidgetIcon = ({ className = "" }) => <RiVoiceAiFill className={className} />;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -831,83 +828,22 @@ export default function AssistantOrb() {
 
   const floatingUi = (
     <>
-      {ghostVisible && (
-        <div
-          ref={orbRef}
-          data-ai-cursor-root
-          className={`fixed z-[2147482500] ${dragging ? "" : "transition-[left,top,opacity,transform] duration-500 ease-out"} ${
-            returning ? "ai-cursor-returning scale-75 opacity-60" : "scale-100 opacity-100"
-          }`}
-          style={{ left: pos.x, top: pos.y, touchAction: "none" }}
-        >
-          <button
-            data-ai-cursor-root
-            type="button"
-            onPointerDown={startDrag}
-            aria-label="Drag SuperNova AI cursor"
-            className={`ai-cursor-core flex h-14 w-14 items-center justify-center rounded-full text-white ${
-              dragging ? "scale-105 cursor-grabbing" : "cursor-grab"
-            }`}
-          >
-            <AiWidgetIcon className="text-[1.7rem]" />
-          </button>
-        </div>
-      )}
-
-      {dragging && hoverTarget && (
-        <div
-          data-ai-cursor-root
-          className="ai-cursor-tooltip pointer-events-none fixed z-[2147482502] max-w-[15rem] rounded-full px-3 py-2 text-[0.72rem] font-semibold backdrop-blur-xl"
-          style={{
-            left: clamp(pos.x - 82, 8, window.innerWidth - 248),
-            top: Math.max(80, pos.y - 44),
-          }}
-        >
-          Targeting {hoverTarget.title}
-        </div>
-      )}
-
-      {menuOpen && (
-        <>
-          <div
-            data-ai-cursor-root
-            className="pointer-events-none fixed z-[2147482500] rounded-full ai-cursor-dial"
-            style={{
-              left: pos.x + ORB_SIZE / 2 - DIAL_SIZE / 2,
-              top: pos.y + ORB_SIZE / 2 - DIAL_SIZE / 2,
-              "--ai-dial-size": `${DIAL_SIZE}px`,
-            }}
-          />
-          {actions.map((item) => {
-            const Icon = item.icon;
-            const buttonSize = item.size === "primary" ? 46 : 42;
-            const centerX = pos.x + ORB_SIZE / 2;
-            const centerY = pos.y + ORB_SIZE / 2;
-            const signalActive = item.action === lastSignal;
-            return (
-              <button
-                key={item.action}
-                data-ai-cursor-root
-                data-active={signalActive ? "true" : "false"}
-                data-tone={item.tone || "neutral"}
-                type="button"
-                onClick={() => runAction(item.action)}
-                className="ai-cursor-action-button fixed z-[2147482502] flex items-center justify-center rounded-full backdrop-blur-xl transition-transform active:scale-95"
-                style={{
-                  left: clamp(centerX + item.dx - buttonSize / 2, 8, window.innerWidth - buttonSize - 8),
-                  top: clamp(centerY + item.dy - buttonSize / 2, 72, window.innerHeight - buttonSize - 8),
-                  width: buttonSize,
-                  height: buttonSize,
-                }}
-                aria-label={item.label}
-                title={item.label}
-              >
-                <Icon className={item.size === "primary" ? "text-[1.16rem]" : "text-[1rem]"} />
-              </button>
-            );
-          })}
-        </>
-      )}
+      <AssistantDockMenu
+        actions={actions}
+        dragging={dragging}
+        ghostVisible={ghostVisible}
+        hoverTarget={hoverTarget}
+        lastSignal={lastSignal}
+        menuOpen={menuOpen}
+        onAction={runAction}
+        onPointerDown={startDrag}
+        orbRef={orbRef}
+        orbSize={ORB_SIZE}
+        pos={pos}
+        returning={returning}
+        viewportHeight={typeof window !== "undefined" ? window.innerHeight : 0}
+        viewportWidth={typeof window !== "undefined" ? window.innerWidth : 0}
+      />
 
       {(settingsOpen || commentOpen || actionsOpen || busy || reply) && (
         <AssistantOrbShell
@@ -1001,19 +937,12 @@ export default function AssistantOrb() {
 
   return (
     <>
-      <button
-        ref={dockRef}
-        data-ai-cursor-root
-        type="button"
+      <AssistantDockMenu
+        dockHidden={dockHidden}
+        dockRef={dockRef}
         onPointerDown={startDrag}
-        aria-label="SuperNova AI cursor"
-        aria-hidden={dockHidden}
-        className={`mobile-topbar-action ai-cursor-dock flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-all duration-150 ${
-          dockHidden ? "ai-cursor-dock-hidden pointer-events-none opacity-0" : "opacity-100"
-        }`}
-      >
-        <AiWidgetIcon className="text-[1.12rem]" />
-      </button>
+        variant="dock"
+      />
 
       {mounted && typeof document !== "undefined" ? createPortal(floatingUi, document.body) : null}
     </>
