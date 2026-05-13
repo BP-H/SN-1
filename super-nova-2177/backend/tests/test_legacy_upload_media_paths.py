@@ -18,7 +18,7 @@ for path in (ROOT, BACKEND_DIR):
 import backend.app as backend_app  # noqa: E402
 
 
-def run_image_probe(probe: str) -> dict:
+def run_image_probe(probe: str, extra_env=None) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "image_fallback.sqlite"
         env = os.environ.copy()
@@ -33,6 +33,7 @@ def run_image_probe(probe: str) -> dict:
                 "UPLOADS_DIR": str(Path(tmpdir) / "uploads"),
             }
         )
+        env.update(extra_env or {})
         env.pop("RAILWAY_ENVIRONMENT", None)
         completed = subprocess.run(
             [sys.executable, "-c", probe],
@@ -104,6 +105,113 @@ class LegacyUploadMediaPathTests(unittest.TestCase):
 
         self.assertEqual(media["image"], "/uploads/existing-alpha-image.png")
         self.assertEqual(media["images"], ["/uploads/existing-alpha-image.png"])
+
+    def test_ai_generation_uses_backend_media_origin_and_inline_upload_image_data(self):
+        probe = textwrap.dedent(
+            """
+            import json
+            import sys
+            from pathlib import Path
+            from types import SimpleNamespace
+
+            project_root = Path.cwd()
+            backend_dir = project_root / "backend"
+            for path in (project_root, backend_dir):
+                path_text = str(path)
+                if path_text not in sys.path:
+                    sys.path.insert(0, path_text)
+
+            import backend.app as backend_app
+
+            captured = {}
+
+            class FakeResponse:
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+                def read(self):
+                    payload = {
+                        "generated_comment": "The image shows visible context for the proposal.",
+                        "reasoning_summary": "Image and text were reviewed together.",
+                        "reasoning_text": "The model received image content and proposal text.",
+                    }
+                    return json.dumps({"choices": [{"message": {"content": json.dumps(payload)}}]}).encode("utf-8")
+
+            def fake_urlopen(request, timeout=0):
+                captured["body"] = json.loads(request.data.decode("utf-8"))
+                return FakeResponse()
+
+            backend_app.urllib.request.urlopen = fake_urlopen
+            Path(backend_app.uploads_dir).mkdir(parents=True, exist_ok=True)
+            (Path(backend_app.uploads_dir) / "vision-source.png").write_bytes(
+                b"\\x89PNG\\r\\n\\x1a\\n" + (b"\\x00" * 64)
+            )
+            proposal = SimpleNamespace(
+                id=42,
+                title="Visual Harbor Plan",
+                description="Coordinate the harbor cleanup with the attached image as evidence.",
+                userName="alice",
+                author_type="human",
+                image="vision-source.png",
+                video="",
+                file="",
+                link="",
+                payload={},
+                voting_deadline=None,
+            )
+            generated = backend_app._generate_locked_ai_delegate_comment(
+                proposal=proposal,
+                actor_payload={
+                    "display_name": "Nova Vision",
+                    "ai_actor_username": "nova-vision",
+                    "model_identity": "mock-gpt-mini",
+                    "ai_actor_context": {
+                        "traits": ["Visual analysis"],
+                        "persona_summary": "Looks carefully at visible context.",
+                    },
+                },
+                focus="Use the attached image and text together.",
+            )
+            message_content = captured["body"]["messages"][1]["content"]
+            text_part = message_content[0]["text"]
+            image_urls = [
+                part.get("image_url", {}).get("url")
+                for part in message_content
+                if part.get("type") == "image_url"
+            ]
+            context = backend_app._proposal_public_context(proposal)
+            result = {
+                "generation_source": generated.get("generation_source"),
+                "generated_comment": generated.get("generated_comment"),
+                "public_context_image_urls": context.get("media", {}).get("image_urls", []),
+                "image_urls": image_urls,
+                "text_part": text_part,
+            }
+            print("IMAGE_FALLBACK_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_image_probe(
+            probe,
+            extra_env={
+                "PUBLIC_BASE_URL": "https://2177.tech",
+                "NEXT_PUBLIC_API_URL": "https://sn-1-production.up.railway.app",
+                "OPENAI_API_KEY": "test-openai-key",
+                "OPENAI_MODEL": "mock-gpt-mini",
+            },
+        )
+
+        self.assertEqual(result["generation_source"], "openai")
+        self.assertIn("image", result["generated_comment"].lower())
+        self.assertEqual(
+            result["public_context_image_urls"],
+            ["https://sn-1-production.up.railway.app/uploads/vision-source.png"],
+        )
+        self.assertTrue(any(url.startswith("data:image/png;base64,") for url in result["image_urls"]))
+        self.assertFalse(any(url.startswith("https://2177.tech/uploads/") for url in result["image_urls"]))
+        self.assertIn("[image data sent as OpenAI image_url input]", result["text_part"])
+        self.assertNotIn("data:image/png;base64,", result["text_part"])
 
     def test_created_proposal_image_survives_missing_upload_file(self):
         probe = textwrap.dedent(
