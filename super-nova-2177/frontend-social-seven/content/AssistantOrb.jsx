@@ -21,6 +21,7 @@ import {
   formatBackendAuthErrorMessage,
   requireBackendAuthSession,
 } from "@/utils/authSession";
+import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 import AssistantActionsPanel from "./assistant/AssistantActionsPanel";
@@ -72,13 +73,10 @@ function hasUsableAiReply(response, payload = {}) {
 
 function connectorActionActorLabel(action = {}) {
   const payload = action.draft_payload || {};
-  return (
-    payload.ai_actor_display_name ||
-    payload.display_name ||
-    payload.actor ||
-    payload.ai_actor_username ||
-    "AI delegate"
-  );
+  return delegateDisplayLabel({
+    display_name: payload.ai_actor_display_name || payload.display_name || payload.actor,
+    username: payload.ai_actor_username,
+  }) || "AI delegate";
 }
 
 export default function AssistantOrb() {

@@ -375,7 +375,7 @@ export default function AiDelegatesSettingsPage() {
     <main className="social-shell">
       <section
         data-ai-genesis-flow="call-sign-v2"
-        className="mx-auto max-w-4xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6"
+        className="ai-genesis-surface mx-auto max-w-4xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-3xl">
@@ -421,7 +421,7 @@ export default function AiDelegatesSettingsPage() {
 
         {isAuthenticated && (
           <>
-            <form onSubmit={createDelegate} className="mt-5 grid gap-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 sm:p-5">
+            <form onSubmit={createDelegate} className="ai-genesis-panel mt-5 grid gap-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 sm:p-5">
               <div>
                 <p className="text-[0.78rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">Create AI Delegate</p>
                 <h2 className="mt-1 text-[1.08rem] font-black text-[var(--text-black)]">Name the AI, choose traits, generate a persona, then approve.</h2>
@@ -474,7 +474,7 @@ export default function AiDelegatesSettingsPage() {
                   </label>
                 </div>
 
-                <div className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.025] p-3">
+                <div className="ai-genesis-subpanel rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.025] p-3">
                   <p className="text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Trait domains, 1-5</p>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                     <input
@@ -504,7 +504,7 @@ export default function AiDelegatesSettingsPage() {
                       </div>
                     </div>
                   )}
-                  <div className="mt-3 max-h-48 overflow-y-auto pr-1">
+                  <div className="ai-delegate-scroll-area mt-3 max-h-48 overflow-y-auto pr-1">
                     <div className="flex flex-wrap gap-2">
                       {availableTraits.map((trait) => (
                         <button
@@ -524,7 +524,7 @@ export default function AiDelegatesSettingsPage() {
                 </div>
               </div>
 
-              <details className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-3 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+              <details className="ai-genesis-subpanel rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-3 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
                 <summary className="cursor-pointer text-[0.74rem] font-black uppercase tracking-[0.12em] text-[var(--text-black)]">
                   Safety and custody notes
                 </summary>
@@ -551,7 +551,7 @@ export default function AiDelegatesSettingsPage() {
               </div>
 
               {personaDraft && (
-                <div className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
+                <div className="ai-genesis-subpanel rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-[1rem] font-black text-[var(--text-black)]">{personaDraft.display_name || form.ai_name}</p>
                     <span className="rounded-full bg-[var(--pink-soft)] px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">AI</span>
@@ -610,12 +610,12 @@ export default function AiDelegatesSettingsPage() {
 
             <div className="mt-5 grid gap-3">
               {delegates.length === 0 ? (
-                <div className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 text-[0.86rem] text-[var(--text-gray-light)]">
+                <div className="ai-genesis-panel rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 text-[0.86rem] text-[var(--text-gray-light)]">
                   No AI delegates yet. Create one above, then use post, comment, or composer AI buttons to generate drafts for approval.
                 </div>
               ) : (
                 delegates.map((delegate) => (
-                  <article key={delegate.id} className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4">
+                  <article key={delegate.id} className="ai-genesis-panel rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -647,7 +647,7 @@ export default function AiDelegatesSettingsPage() {
                             Last custody event: {delegate.disable_event_type || "custody update"} - {delegate.disable_reason}
                           </p>
                         )}
-                        <div className="mt-3 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.03] p-3">
+                        <div className="ai-genesis-subpanel mt-3 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.03] p-3">
                           <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
                             Declared autonomy preferences
                           </p>
@@ -688,7 +688,7 @@ export default function AiDelegatesSettingsPage() {
                             This changes runtime metadata only; it does not rewrite persona history or prior reasoning.
                           </p>
                         </div>
-                        <div className="mt-3 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.03] p-3">
+                        <div className="ai-genesis-subpanel mt-3 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.03] p-3">
                           <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
                             Provider connection
                           </p>

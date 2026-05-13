@@ -713,7 +713,7 @@ export default function AiDelegateActionModal({
           ))}
         </div>
       )}
-      <div className="mt-2 grid max-h-24 grid-cols-2 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-3">
+      <div className="ai-delegate-scroll-area mt-2 grid max-h-24 grid-cols-2 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-3">
         {filteredGenesisTraits.map((trait) => {
           const selected = genesisTraits.includes(trait);
           return (
@@ -875,7 +875,7 @@ export default function AiDelegateActionModal({
                 {target.text && String(target.text).length > 180 && (
                   <details className="mt-2 text-[0.72rem] text-[var(--text-gray-light)]">
                     <summary className="cursor-pointer font-bold text-[var(--pink)]">More context</summary>
-                    <p className="mt-1 max-h-24 overflow-y-auto leading-5">{target.text}</p>
+                    <p className="ai-delegate-scroll-area mt-1 max-h-24 overflow-y-auto leading-5">{target.text}</p>
                   </details>
                 )}
               </div>
@@ -988,7 +988,7 @@ export default function AiDelegateActionModal({
                 {(summary.generated_title || summary.title) && (
                   <p className="mt-2 text-[0.88rem] font-black text-[var(--text-black)]">{summary.generated_title || summary.title}</p>
                 )}
-                <p className="mt-2 max-h-44 overflow-y-auto whitespace-pre-line text-[0.82rem] leading-5 text-[var(--text-black)]">
+                <p className="ai-delegate-scroll-area mt-2 max-h-44 overflow-y-auto whitespace-pre-line text-[0.82rem] leading-5 text-[var(--text-black)]">
                   {summary.generated_post_body || summary.body || "AI-authored post generated from the locked charter."}
                 </p>
                 {(summary.governance_framing || summary.media_caption_guidance) && (
