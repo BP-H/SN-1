@@ -64,6 +64,7 @@ test.describe("real backend public reads", () => {
     const feed = await readJson(request, "/proposals?filter=latest&limit=30");
     expect(feed.response.ok()).toBeTruthy();
     const posts = Array.isArray(feed.body) ? feed.body : [];
+    const firstProposalWithId = posts.find((post) => post?.id !== undefined && post?.id !== null);
 
     await page.goto("/");
     const body = page.locator("body");
@@ -75,6 +76,18 @@ test.describe("real backend public reads", () => {
       await expect(page.getByText("No posts yet.")).toBeVisible();
     } else {
       await expect(body).toContainText(new RegExp(candidates.map(escapeRegExp).join("|")));
+    }
+
+    if (firstProposalWithId) {
+      const previewImage = await request.get(
+        `/proposals/${encodeURIComponent(firstProposalWithId.id)}/opengraph-image`,
+        {
+          failOnStatusCode: false,
+          timeout: 12_000,
+        }
+      );
+      expect(previewImage.ok()).toBeTruthy();
+      expect(previewImage.headers()["content-type"] || "").toContain("image/png");
     }
   });
 });
