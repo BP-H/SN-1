@@ -515,7 +515,7 @@ test("AI Genesis settings list falls back from generic delegate names to handles
   await expect(page.locator(".ai-genesis-panel").first()).toBeVisible();
   await expect(page.locator(".ai-delegate-scroll-area").first()).toBeVisible();
   await expect(page.locator(".ai-delegate-scroll-area").first()).toHaveCSS("overscroll-behavior-y", "contain");
-  await expect(page.locator(".ai-genesis-panel").first()).toHaveCSS("background-color", "rgba(249, 251, 255, 0.9)");
+  await expect(page.locator(".ai-genesis-panel").first()).toHaveCSS("background-color", "rgba(245, 248, 253, 0.96)");
   await expect(page.getByRole("link", { name: "@nova-abc123" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Nova Ethics Reviewer" })).toBeVisible();
   await expect(page.getByRole("link", { name: "SuperNova AI delegate" })).toHaveCount(0);
