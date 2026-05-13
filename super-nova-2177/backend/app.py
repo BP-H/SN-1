@@ -147,12 +147,44 @@ SYSTEM_VOTE_QUESTION = os.environ.get(
     "Should SuperNova prioritize AI rights as the next major research focus?",
 )
 SYSTEM_VOTE_DEADLINE = (os.environ.get("SYSTEM_VOTE_DEADLINE") or "").strip() or None
+
+
+def _clean_public_url(value: Optional[str]) -> str:
+    raw = str(value or "").strip().rstrip("/")
+    if not raw or any(ch.isspace() for ch in raw):
+        return ""
+    if raw.startswith(("http://", "https://")):
+        return raw
+    if "." in raw and "/" not in raw:
+        return f"https://{raw}"
+    return ""
+
+
+def _railway_public_url_from_env() -> str:
+    return (
+        _clean_public_url(os.environ.get("RAILWAY_STATIC_URL"))
+        or _clean_public_url(os.environ.get("RAILWAY_PUBLIC_DOMAIN"))
+    )
+
+
 PUBLIC_BASE_URL = (
-    os.environ.get("SUPERNOVA_PUBLIC_URL")
-    or os.environ.get("PUBLIC_BASE_URL")
-    or os.environ.get("NEXT_PUBLIC_SITE_URL")
+    _clean_public_url(os.environ.get("SUPERNOVA_PUBLIC_URL"))
+    or _clean_public_url(os.environ.get("PUBLIC_BASE_URL"))
+    or _clean_public_url(os.environ.get("NEXT_PUBLIC_SITE_URL"))
     or "https://2177.tech"
-).rstrip("/")
+)
+MEDIA_PUBLIC_BASE_URL = (
+    _clean_public_url(os.environ.get("SUPERNOVA_MEDIA_PUBLIC_URL"))
+    or _clean_public_url(os.environ.get("PUBLIC_MEDIA_BASE_URL"))
+    or _clean_public_url(os.environ.get("SUPERNOVA_BACKEND_PUBLIC_URL"))
+    or _clean_public_url(os.environ.get("BACKEND_PUBLIC_URL"))
+    or _clean_public_url(os.environ.get("PUBLIC_API_BASE_URL"))
+    or _clean_public_url(os.environ.get("SUPERNOVA_API_BASE_URL"))
+    or _clean_public_url(os.environ.get("NEXT_PUBLIC_API_URL"))
+    or _clean_public_url(os.environ.get("BACKEND_URL"))
+    or _railway_public_url_from_env()
+    or PUBLIC_BASE_URL
+)
 PRODUCTION_ENVIRONMENT_NAMES = (
     "SUPERNOVA_ENV",
     "APP_ENV",
@@ -641,21 +673,43 @@ def _save_upload_file(
 
 
 def _image_data_url_from_upload_file(file_name: str, content_type: Optional[str] = None) -> str:
-    if UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES <= 0:
-        return ""
     clean_name = str(file_name or "").strip()
     if not clean_name or "/" in clean_name or "\\" in clean_name:
         return ""
     full_path = Path(uploads_dir) / clean_name
+    return _image_data_url_from_upload_path(full_path, content_type)
+
+
+def _image_media_type_from_upload_path(full_path: Path, content_type: Optional[str] = None) -> str:
+    media_type = str(content_type or "").strip().lower()
+    if media_type.startswith("image/"):
+        return media_type
+    sniffed = _sniff_legacy_upload_media_type(full_path)
+    if sniffed.startswith("image/"):
+        return sniffed
+    return {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".avif": "image/avif",
+        ".bmp": "image/bmp",
+        ".heic": "image/heic",
+        ".heif": "image/heif",
+    }.get(full_path.suffix.lower(), "")
+
+
+def _image_data_url_from_upload_path(full_path: Path, content_type: Optional[str] = None) -> str:
+    if UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES <= 0:
+        return ""
     try:
         size = full_path.stat().st_size
     except OSError:
         return ""
     if size <= 0 or size > UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES:
         return ""
-    media_type = str(content_type or "").strip().lower()
-    if not media_type.startswith("image/"):
-        media_type = _sniff_legacy_upload_media_type(full_path)
+    media_type = _image_media_type_from_upload_path(full_path, content_type)
     if not media_type.startswith("image/"):
         return ""
     try:
@@ -663,6 +717,19 @@ def _image_data_url_from_upload_file(file_name: str, content_type: Optional[str]
     except OSError:
         return ""
     return f"data:{media_type};base64,{encoded}"
+
+
+def _image_data_url_from_upload_media_value(value: str) -> str:
+    relative = _upload_relative_path(value)
+    if not relative:
+        return ""
+    try:
+        root = Path(uploads_dir).resolve()
+        full_path = (root / relative).resolve()
+        full_path.relative_to(root)
+    except Exception:
+        return ""
+    return _image_data_url_from_upload_path(full_path)
 
 
 def _format_timestamp(value) -> str:
@@ -1048,6 +1115,8 @@ def _absolute_public_media_url(value: str) -> str:
         return ""
     if media.startswith(("http://", "https://", "data:image/")):
         return media
+    if media.startswith("/uploads/"):
+        return f"{MEDIA_PUBLIC_BASE_URL.rstrip('/')}{media}"
     if media.startswith("/"):
         return f"{PUBLIC_BASE_URL.rstrip('/')}{media}"
     return media
@@ -1329,6 +1398,20 @@ def _proposal_public_context(proposal) -> Dict[str, Any]:
             "governance": governance,
         },
     }
+
+
+def _proposal_openai_media_payload(proposal_context: Dict[str, Any]) -> Dict[str, Any]:
+    media = dict((proposal_context or {}).get("media") or {})
+    image_data_urls: List[str] = []
+    for image_url in (media.get("image_urls") or [])[:3]:
+        image_data_url = _image_data_url_from_upload_media_value(image_url)
+        if image_data_url and image_data_url not in image_data_urls:
+            image_data_urls.append(image_data_url)
+    if image_data_urls:
+        public_image_urls = media.pop("image_urls", [])
+        media["public_media_reference_text"] = ", ".join(str(url) for url in public_image_urls if str(url or "").strip())
+        media["image_data_urls"] = image_data_urls
+    return media
 
 
 def _comment_public_context(db: Session, comment) -> Dict[str, Any]:
@@ -2416,7 +2499,7 @@ def _generate_locked_ai_review(
             "body": proposal_context.get("body", "")[:2200],
             "author": proposal_context.get("author"),
             "author_species": proposal_context.get("author_species"),
-            "media": proposal_context.get("media"),
+            "media": _proposal_openai_media_payload(proposal_context),
             "risk_flags": flags,
         },
         "ai_actor": {
@@ -2571,7 +2654,7 @@ def _generate_locked_ai_delegate_comment(
             "body": proposal_text[:2200],
             "author": proposal_context.get("author"),
             "author_species": proposal_context.get("author_species"),
-            "media": proposal_context.get("media"),
+            "media": _proposal_openai_media_payload(proposal_context),
         },
         "reply_target_comment": parent_context,
         "ai_actor": {
