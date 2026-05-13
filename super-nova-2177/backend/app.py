@@ -62,6 +62,29 @@ except ImportError:  # pragma: no cover - supports running backend/app.py direct
     from commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt
 
 try:
+    from .ai_media_prompt_inputs import (
+        absolute_public_media_url,
+        clean_public_url,
+        collect_openai_image_urls,
+        image_data_url_from_upload_file,
+        image_data_url_from_upload_media_value,
+        proposal_openai_media_payload,
+        redact_image_data_urls,
+        resolve_media_public_base_url,
+    )
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from ai_media_prompt_inputs import (
+        absolute_public_media_url,
+        clean_public_url,
+        collect_openai_image_urls,
+        image_data_url_from_upload_file,
+        image_data_url_from_upload_media_value,
+        proposal_openai_media_payload,
+        redact_image_data_urls,
+        resolve_media_public_base_url,
+    )
+
+try:
     from .status_routes import build_supernova_runtime_payload, create_status_router
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from status_routes import build_supernova_runtime_payload, create_status_router
@@ -147,43 +170,14 @@ SYSTEM_VOTE_QUESTION = os.environ.get(
     "Should SuperNova prioritize AI rights as the next major research focus?",
 )
 SYSTEM_VOTE_DEADLINE = (os.environ.get("SYSTEM_VOTE_DEADLINE") or "").strip() or None
-
-
-def _clean_public_url(value: Optional[str]) -> str:
-    raw = str(value or "").strip().rstrip("/")
-    if not raw or any(ch.isspace() for ch in raw):
-        return ""
-    if raw.startswith(("http://", "https://")):
-        return raw
-    if "." in raw and "/" not in raw:
-        return f"https://{raw}"
-    return ""
-
-
-def _railway_public_url_from_env() -> str:
-    return (
-        _clean_public_url(os.environ.get("RAILWAY_STATIC_URL"))
-        or _clean_public_url(os.environ.get("RAILWAY_PUBLIC_DOMAIN"))
-    )
-
-
 PUBLIC_BASE_URL = (
-    _clean_public_url(os.environ.get("SUPERNOVA_PUBLIC_URL"))
-    or _clean_public_url(os.environ.get("PUBLIC_BASE_URL"))
-    or _clean_public_url(os.environ.get("NEXT_PUBLIC_SITE_URL"))
+    clean_public_url(os.environ.get("SUPERNOVA_PUBLIC_URL"))
+    or clean_public_url(os.environ.get("PUBLIC_BASE_URL"))
+    or clean_public_url(os.environ.get("NEXT_PUBLIC_SITE_URL"))
     or "https://2177.tech"
 )
-MEDIA_PUBLIC_BASE_URL = (
-    _clean_public_url(os.environ.get("SUPERNOVA_MEDIA_PUBLIC_URL"))
-    or _clean_public_url(os.environ.get("PUBLIC_MEDIA_BASE_URL"))
-    or _clean_public_url(os.environ.get("SUPERNOVA_BACKEND_PUBLIC_URL"))
-    or _clean_public_url(os.environ.get("BACKEND_PUBLIC_URL"))
-    or _clean_public_url(os.environ.get("PUBLIC_API_BASE_URL"))
-    or _clean_public_url(os.environ.get("SUPERNOVA_API_BASE_URL"))
-    or _clean_public_url(os.environ.get("NEXT_PUBLIC_API_URL"))
-    or _clean_public_url(os.environ.get("BACKEND_URL"))
-    or _railway_public_url_from_env()
-    or PUBLIC_BASE_URL
+MEDIA_PUBLIC_BASE_URL = resolve_media_public_base_url(
+    public_base_url=PUBLIC_BASE_URL,
 )
 PRODUCTION_ENVIRONMENT_NAMES = (
     "SUPERNOVA_ENV",
@@ -673,63 +667,23 @@ def _save_upload_file(
 
 
 def _image_data_url_from_upload_file(file_name: str, content_type: Optional[str] = None) -> str:
-    clean_name = str(file_name or "").strip()
-    if not clean_name or "/" in clean_name or "\\" in clean_name:
-        return ""
-    full_path = Path(uploads_dir) / clean_name
-    return _image_data_url_from_upload_path(full_path, content_type)
-
-
-def _image_media_type_from_upload_path(full_path: Path, content_type: Optional[str] = None) -> str:
-    media_type = str(content_type or "").strip().lower()
-    if media_type.startswith("image/"):
-        return media_type
-    sniffed = _sniff_legacy_upload_media_type(full_path)
-    if sniffed.startswith("image/"):
-        return sniffed
-    return {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-        ".avif": "image/avif",
-        ".bmp": "image/bmp",
-        ".heic": "image/heic",
-        ".heif": "image/heif",
-    }.get(full_path.suffix.lower(), "")
-
-
-def _image_data_url_from_upload_path(full_path: Path, content_type: Optional[str] = None) -> str:
-    if UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES <= 0:
-        return ""
-    try:
-        size = full_path.stat().st_size
-    except OSError:
-        return ""
-    if size <= 0 or size > UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES:
-        return ""
-    media_type = _image_media_type_from_upload_path(full_path, content_type)
-    if not media_type.startswith("image/"):
-        return ""
-    try:
-        encoded = base64.b64encode(full_path.read_bytes()).decode("ascii")
-    except OSError:
-        return ""
-    return f"data:{media_type};base64,{encoded}"
+    return image_data_url_from_upload_file(
+        file_name,
+        uploads_dir=uploads_dir,
+        max_bytes=UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES,
+        content_type=content_type,
+        sniff_media_type=_sniff_legacy_upload_media_type,
+    )
 
 
 def _image_data_url_from_upload_media_value(value: str) -> str:
-    relative = _upload_relative_path(value)
-    if not relative:
-        return ""
-    try:
-        root = Path(uploads_dir).resolve()
-        full_path = (root / relative).resolve()
-        full_path.relative_to(root)
-    except Exception:
-        return ""
-    return _image_data_url_from_upload_path(full_path)
+    return image_data_url_from_upload_media_value(
+        value,
+        uploads_dir=uploads_dir,
+        max_bytes=UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES,
+        upload_relative_path=_upload_relative_path,
+        sniff_media_type=_sniff_legacy_upload_media_type,
+    )
 
 
 def _format_timestamp(value) -> str:
@@ -1110,16 +1064,12 @@ def _upload_media_file_exists(value: str) -> bool:
 
 
 def _absolute_public_media_url(value: str) -> str:
-    media = _uploads_url(value)
-    if not media:
-        return ""
-    if media.startswith(("http://", "https://", "data:image/")):
-        return media
-    if media.startswith("/uploads/"):
-        return f"{MEDIA_PUBLIC_BASE_URL.rstrip('/')}{media}"
-    if media.startswith("/"):
-        return f"{PUBLIC_BASE_URL.rstrip('/')}{media}"
-    return media
+    return absolute_public_media_url(
+        value,
+        uploads_url=_uploads_url,
+        public_base_url=PUBLIC_BASE_URL,
+        media_public_base_url=MEDIA_PUBLIC_BASE_URL,
+    )
 
 
 def _image_data_urls_from_payload(payload: Dict) -> List[str]:
@@ -1401,17 +1351,13 @@ def _proposal_public_context(proposal) -> Dict[str, Any]:
 
 
 def _proposal_openai_media_payload(proposal_context: Dict[str, Any]) -> Dict[str, Any]:
-    media = dict((proposal_context or {}).get("media") or {})
-    image_data_urls: List[str] = []
-    for image_url in (media.get("image_urls") or [])[:3]:
-        image_data_url = _image_data_url_from_upload_media_value(image_url)
-        if image_data_url and image_data_url not in image_data_urls:
-            image_data_urls.append(image_data_url)
-    if image_data_urls:
-        public_image_urls = media.pop("image_urls", [])
-        media["public_media_reference_text"] = ", ".join(str(url) for url in public_image_urls if str(url or "").strip())
-        media["image_data_urls"] = image_data_urls
-    return media
+    return proposal_openai_media_payload(
+        proposal_context,
+        uploads_dir=uploads_dir,
+        max_bytes=UPLOAD_IMAGE_DB_FALLBACK_MAX_BYTES,
+        upload_relative_path=_upload_relative_path,
+        sniff_media_type=_sniff_legacy_upload_media_type,
+    )
 
 
 def _comment_public_context(db: Session, comment) -> Dict[str, Any]:
@@ -1727,46 +1673,11 @@ def _with_generation_metadata(payload: Dict[str, Any], *, generation_source: str
 
 
 def _collect_openai_image_urls(value: Any, *, limit: int = 4) -> List[str]:
-    urls: List[str] = []
-
-    def visit(item: Any) -> None:
-        if len(urls) >= limit:
-            return
-        if isinstance(item, dict):
-            for key, nested in item.items():
-                key_text = str(key or "").lower()
-                if key_text in {"image_url", "image_urls", "image_data_url", "image_data_urls", "public_image_urls"}:
-                    visit(nested)
-                elif isinstance(nested, (dict, list, tuple)):
-                    visit(nested)
-            return
-        if isinstance(item, (list, tuple)):
-            for nested in item:
-                visit(nested)
-                if len(urls) >= limit:
-                    break
-            return
-        text_value = str(item or "").strip()
-        if not text_value:
-            return
-        if text_value.startswith(("http://", "https://", "data:image/")) and text_value not in urls:
-            urls.append(text_value)
-
-    visit(value)
-    return urls[:limit]
+    return collect_openai_image_urls(value, limit=limit)
 
 
 def _redact_image_data_urls(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _redact_image_data_urls(nested) for key, nested in value.items()}
-    if isinstance(value, list):
-        return [_redact_image_data_urls(item) for item in value]
-    if isinstance(value, tuple):
-        return [_redact_image_data_urls(item) for item in value]
-    text_value = str(value or "")
-    if text_value.startswith("data:image/"):
-        return "[image data sent as OpenAI image_url input]"
-    return value
+    return redact_image_data_urls(value)
 
 
 def _generate_with_openai_or_fallback(
