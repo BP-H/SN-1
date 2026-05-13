@@ -9,14 +9,30 @@ files were changed.
 
 - Repository: `BP-H/SN-1`
 - Branch checked: `master`
-- Current observed master SHA: `7c3ed643e69d99439bc0267c7500a7c35be21ea1`
+- Current observed master SHA after PR #181: `46e18f5c1e05b1d334ef352d7aa4bb2e6397b3fe`
 - PR #177 is merged: AI media prompt input helpers extracted.
 - PR #179 is merged: AI media prompt preflight verification recorded.
 - PR #178 is merged: AI media prompt preflight script/doc baseline is on
   current master.
 
-Current master includes all three changes. The observed merge order on master
-is #177, #179, then #178, with #178 carrying the final master SHA above.
+Current master includes those changes plus PR #181.
+
+## Post-PR #181 Password Hashing Verification
+
+PR #181 is merged on `master` and fixed the pre-release password hashing
+inconsistency:
+
+- shared `super-nova-2177/backend/password_hashing.py` now owns PBKDF2
+  hashing, PBKDF2 verification, legacy SHA-256 detection, legacy SHA-256
+  verification, and the combined verify/upgrade helper.
+- `backend/app.py` now imports the shared PBKDF2/legacy helpers instead of
+  carrying a duplicate local implementation.
+- `Harmonizer.set_password` no longer creates raw SHA-256 password hashes.
+- `seed_default_users` no longer creates raw SHA-256 password hashes.
+- legacy SHA-256 login compatibility and successful-login upgrade behavior are
+  preserved.
+- no DB schema change, production mass migration, auth-session behavior change,
+  or auth route path change was performed.
 
 ## Branch Protection
 
@@ -152,6 +168,27 @@ Result:
 - raw `data:image/...` bodies were redacted in script diagnostics
 - HEAD probe returned HTTP 200 with `image/png`
 - no frontend-origin fallback warning appeared when `--backend-url` was set
+
+## Final Release-Prep Rerun After PR #181
+
+The following read-only production helpers were rerun after PR #181 was merged:
+
+- `python scripts/public_data_snapshot.py https://sn-1-production.up.railway.app`
+- `python scripts/media_inventory.py https://sn-1-production.up.railway.app --limit 30 --max-urls 20 --timeout 10 --max-bytes 1024`
+- `python scripts/smoke_public_ai_reader.py https://sn-1-production.up.railway.app`
+- `python scripts/smoke_ai_media_prompt_inputs.py --backend-url https://sn-1-production.up.railway.app --sample-upload-path /uploads/560bea7b7b094bb49516f45f71d3dda6.png --check-url`
+
+Rerun result:
+
+- public data snapshot endpoints returned 200 and proposal sample count was 23.
+- media inventory checked 20 upload/media candidates and flagged 0.
+- public AI reader smoke returned 200 for connector routes, `public_read_only`
+  mode, required safety flags, and 0 unsafe findings.
+- AI media prompt preflight resolved media to
+  `https://sn-1-production.up.railway.app` and the sample upload probe returned
+  HTTP 200 with `image/png`.
+- no production writes, environment changes, DB reset, upload changes, or schema
+  changes were performed.
 
 ## Advisory Notes
 

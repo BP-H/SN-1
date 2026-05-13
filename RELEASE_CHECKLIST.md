@@ -14,7 +14,10 @@ Use this checklist before tagging a release or promoting a deployment. It is int
 - [ ] The latest branch-protection verification note is reviewed, starting with
   `BRANCH_PROTECTION_VERIFICATION_2026-05-12.md`.
 - [ ] The latest SN-1 release-candidate verification note is reviewed, starting
-  with `SN1_RELEASE_CANDIDATE_VERIFICATION_2026-05-13.md`.
+  with [SN1_RELEASE_CANDIDATE_VERIFICATION_2026-05-13.md](SN1_RELEASE_CANDIDATE_VERIFICATION_2026-05-13.md).
+- [ ] The current alpha release notes are reviewed, starting with
+  [SN1_ALPHA_RELEASE_NOTES_2026-05-13.md](SN1_ALPHA_RELEASE_NOTES_2026-05-13.md).
+- [ ] Confirm GitHub branch protection required checks are enforced in settings.
 - [ ] Backup/restore readiness is confirmed using `BACKUP_RESTORE_RUNBOOK.md` (inventory, backup path, restore drill plan, and rollback path).
 - [ ] `python scripts/check_safe.py --local-only`
 - [ ] `python scripts/check_safe.py`
