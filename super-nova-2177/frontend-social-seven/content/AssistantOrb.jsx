@@ -26,6 +26,7 @@ import {
 } from "@/utils/authSession";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
+import AssistantOrbShell from "./assistant/AssistantOrbShell";
 
 const ORB_SIZE = 56;
 const DIAL_SIZE = 184;
@@ -1016,37 +1017,20 @@ export default function AssistantOrb() {
       )}
 
       {(settingsOpen || commentOpen || actionsOpen || busy || reply) && (
-        <div
-          data-ai-cursor-root
-          className="ai-cursor-panel fixed z-[2147482503] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-[1rem] p-3 backdrop-blur-xl"
-          style={floatingPanelStyle}
+        <AssistantOrbShell
+          panelStyle={floatingPanelStyle}
+          title={settingsOpen ? "AI Settings" : commentOpen ? "Comment" : actionsOpen ? "AI Actions" : "AI Cursor"}
+          subtitle={
+            settingsOpen
+              ? "Drag onto a post, then choose Brief or Draft"
+              : actionsOpen
+              ? "Approve or cancel drafts"
+              : target
+              ? target.title
+              : "Drag onto a post first"
+          }
+          onClose={closeActivePanel}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--pink)]">
-                {settingsOpen ? "AI Settings" : commentOpen ? "Comment" : actionsOpen ? "AI Actions" : "AI Cursor"}
-              </p>
-              <p className="truncate text-[0.82rem] text-[var(--text-gray-light)]">
-                {settingsOpen
-                  ? "Drag onto a post, then choose Brief or Draft"
-                  : actionsOpen
-                  ? "Approve or cancel drafts"
-                  : target
-                  ? target.title
-                  : "Drag onto a post first"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={closeActivePanel}
-              className="ai-cursor-panel-icon-button flex h-8 w-8 items-center justify-center rounded-full text-[0.9rem] font-semibold"
-              aria-label="Close popup"
-              title="Close popup"
-            >
-              <IoClose />
-            </button>
-          </div>
-
           {settingsOpen && (
             <div className="mt-3 flex flex-col gap-2">
               <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
@@ -1325,7 +1309,7 @@ export default function AssistantOrb() {
               {busy ? "Thinking..." : reply}
             </div>
           )}
-        </div>
+        </AssistantOrbShell>
       )}
     </>
   );
