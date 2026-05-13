@@ -13,6 +13,8 @@ Use this checklist before tagging a release or promoting a deployment. It is int
   checks` and `FE7 local deterministic checks` required at first.
 - [ ] The latest branch-protection verification note is reviewed, starting with
   `BRANCH_PROTECTION_VERIFICATION_2026-05-12.md`.
+- [ ] The latest SN-1 release-candidate verification note is reviewed, starting
+  with `SN1_RELEASE_CANDIDATE_VERIFICATION_2026-05-13.md`.
 - [ ] Backup/restore readiness is confirmed using `BACKUP_RESTORE_RUNBOOK.md` (inventory, backup path, restore drill plan, and rollback path).
 - [ ] `python scripts/check_safe.py --local-only`
 - [ ] `python scripts/check_safe.py`
