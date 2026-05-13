@@ -29,6 +29,13 @@ def _safe_int(value: Any) -> Optional[int]:
         return None
 
 
+def _payload_parent_comment_id(*payloads: Dict[str, Any]) -> Optional[int]:
+    for payload in payloads:
+        if isinstance(payload, dict) and "parent_comment_id" in payload:
+            return _safe_int(payload.get("parent_comment_id"))
+    return None
+
+
 def _same_ai_delegate_payload(
     payload: Dict[str, Any],
     *,
@@ -58,6 +65,7 @@ def _find_existing_ai_delegate_comment(
     ai_actor_id: Optional[int],
     ai_actor_username: str,
     delegate_harmonizer_user_id: Optional[int],
+    parent_comment_id: Optional[int],
     action_types: tuple[str, ...] = ("draft_ai_comment", "draft_ai_review"),
 ) -> Dict[str, Any]:
     if connector_action_proposal_model is not None:
@@ -87,16 +95,25 @@ def _find_existing_ai_delegate_comment(
                 ai_actor_username=ai_actor_username,
                 delegate_harmonizer_user_id=delegate_harmonizer_user_id,
             ):
+                row_parent_comment_id = _payload_parent_comment_id(draft_payload, result_payload)
+                if row_parent_comment_id != parent_comment_id:
+                    continue
                 return {"action": row, "comment": None, "status": getattr(row, "status", "")}
 
     if comment_model is not None and delegate_harmonizer_user_id is not None:
-        comment = (
+        query = (
             db.query(comment_model)
             .filter(comment_model.proposal_id == proposal_id)
             .filter(comment_model.author_id == delegate_harmonizer_user_id)
-            .order_by(desc(comment_model.id))
-            .first()
         )
+        if hasattr(comment_model, "parent_comment_id"):
+            if parent_comment_id is None:
+                query = query.filter(comment_model.parent_comment_id.is_(None))
+            else:
+                query = query.filter(comment_model.parent_comment_id == parent_comment_id)
+        elif parent_comment_id is not None:
+            return {}
+        comment = query.order_by(desc(comment_model.id)).first()
         if comment:
             return {"action": None, "comment": comment, "status": "published"}
 
@@ -117,14 +134,19 @@ def _duplicate_ai_delegate_comment_response(
     existing_action_id = getattr(action, "id", None) if action is not None else None
     existing_comment_id = getattr(comment, "id", None) if comment is not None else None
     status = existing.get("status") or "existing"
+    is_reply_scope = parent_comment_id is not None
     if status == "draft":
         action_type = getattr(action, "action_type", "") if action is not None else ""
         if action_type == "draft_ai_review":
-            message = "This AI delegate already has a pending review draft that would publish an AI-authored comment for this proposal. Review or cancel the existing draft in AI Actions."
+            message = "This AI delegate already has a pending review draft that would publish a standalone AI-authored comment for this proposal."
+        elif is_reply_scope:
+            message = "This AI delegate already has a pending reply draft for this comment."
         else:
-            message = "This AI delegate already has a pending comment draft for this proposal. Review or cancel the existing draft in AI Actions."
+            message = "This AI delegate already has a pending standalone comment draft for this proposal."
+    elif is_reply_scope:
+        message = "This AI delegate already has an AI-authored reply under this comment."
     else:
-        message = "This AI delegate already has an AI-authored comment for this proposal."
+        message = "This AI delegate already has a standalone AI-authored comment for this proposal."
     return {
         "ok": True,
         "mode": "duplicate_guard",
@@ -147,6 +169,7 @@ def _duplicate_ai_delegate_comment_response(
             "ai_actor_username": ai_actor_username,
             "existing_action_id": existing_action_id,
             "existing_comment_id": existing_comment_id,
+            "duplicate_scope": "comment_reply" if is_reply_scope else "top_level_comment",
             "duplicate_reason": status,
             "message": message,
         },
@@ -411,6 +434,7 @@ def create_ai_actions_router(
                 ai_actor_id=_safe_int(actor_payload.get("id")),
                 ai_actor_username=str(actor_payload.get("username") or ""),
                 delegate_harmonizer_user_id=_safe_int(actor_payload.get("harmonizer_user_id")),
+                parent_comment_id=None,
             )
             if duplicate:
                 return _duplicate_ai_delegate_comment_response(
@@ -530,6 +554,7 @@ def create_ai_actions_router(
             ai_actor_id=_safe_int(actor_payload.get("id")),
             ai_actor_username=str(actor_payload.get("username") or ""),
             delegate_harmonizer_user_id=_safe_int(actor_payload.get("harmonizer_user_id")),
+            parent_comment_id=parent_comment_id,
         )
         if duplicate:
             return _duplicate_ai_delegate_comment_response(

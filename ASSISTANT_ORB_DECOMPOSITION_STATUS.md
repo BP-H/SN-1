@@ -6,12 +6,16 @@ This checkpoint records the current FE7 `AssistantOrb.jsx` decomposition status.
 
 ## Current Measurement
 
-- Current approximate `AssistantOrb.jsx` line count: 1063 lines.
-- Current approximate `AssistantAiActionsList.jsx` line count: 190 lines.
+- Current approximate `AssistantOrb.jsx` line count: 877 lines.
+- Current approximate `AssistantActionsPanel.jsx` line count: 42 lines.
+- Current approximate `AssistantAiActionsList.jsx` line count: 163 lines.
+- Current approximate `AssistantDockMenu.jsx` line count: 123 lines.
 - Files measured:
   - `super-nova-2177/frontend-social-seven/content/AssistantOrb.jsx`
+  - `super-nova-2177/frontend-social-seven/content/assistant/AssistantActionsPanel.jsx`
   - `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionsList.jsx`
-- Measurement source: current workspace after PR #164 was merged into SN-1 `master`.
+  - `super-nova-2177/frontend-social-seven/content/assistant/AssistantDockMenu.jsx`
+- Measurement source: current workspace after PR #171 was merged into SN-1 `master`.
 
 ## Extracted Components
 
@@ -21,6 +25,11 @@ This checkpoint records the current FE7 `AssistantOrb.jsx` decomposition status.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantStatusBox.jsx`: shared notice, loading, error, and empty-state display shell.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantSettingsPanel.jsx`: AI Settings panel explanatory copy, status box, and settings button display shell.
 - `super-nova-2177/frontend-social-seven/content/assistant/AssistantCommentPanel.jsx`: direct comment panel textarea, mention autocomplete slot, and submit/cancel button display shell.
+- `super-nova-2177/frontend-social-seven/content/assistant/AssistantCollabRequestsPanel.jsx`: collab request summary/count display shell.
+- `super-nova-2177/frontend-social-seven/content/assistant/AssistantAiActionButtons.jsx`: AI action approve/cancel button row display shell.
+- `super-nova-2177/frontend-social-seven/content/assistant/AssistantReplyBox.jsx`: assistant reply/result and busy display shell.
+- `super-nova-2177/frontend-social-seven/content/assistant/AssistantActionsPanel.jsx`: AI Actions panel wrapper for the actions list and collab request summary.
+- `super-nova-2177/frontend-social-seven/content/assistant/AssistantDockMenu.jsx`: dock button, ghost cursor, targeting tooltip, and radial dial/menu display shell.
 
 ## Duplicate Pending Draft UX
 
@@ -39,12 +48,17 @@ The direct comment panel display is extracted, but `AssistantOrb.jsx` still owns
 `AssistantOrb.jsx` currently owns a broad set of UI and behavior responsibilities:
 
 - orb dock, drag, return-to-dock, ghost, and open/close state
-- assistant dial/menu layout and panel placement
+- drag/dock pointer behavior
+- position state
+- open/close state
 - active panel switching
+- panel placement
 - AI settings, comment, AI Actions, busy, and reply panel state
 - AI settings model/API state, notices, backend calls, routing callbacks, and auth/session assumptions
+- AI request/fallback state
 - AI Actions queue loading, empty, error, and notice state selection
 - draft approve/cancel controls for queued AI Actions
+- duplicate guard handling for AI delegate drafts
 - direct comment composer state, mention autocomplete state, caret behavior, submit/cancel handlers, and send flow
 - notifications/notices such as AI settings notice, connector action notice, and collab request errors
 - API calls for local AI replies, connector actions, collab requests, and comments
@@ -52,20 +66,11 @@ The direct comment panel display is extracted, but `AssistantOrb.jsx` still owns
 - post update events such as `supernova:post-action`
 - auth/session assumptions used before writes or delegate actions
 
-## Safest Display-Only Extraction Order
+## Next Architecture Phase
 
-Future decomposition should start with display shells that receive already-computed props and callbacks from `AssistantOrb`:
+Frontend AssistantOrb display decomposition is now mostly complete. The next recommended phase is backend cleanup or dependency maintenance rather than moving more AssistantOrb state.
 
-1. Collab request summary display shell, leaving load/error state, request accept/decline handlers, routing/navigation behavior, backend calls, notices, and auth assumptions in `AssistantOrb.jsx`.
-2. AI action draft button row display shell, leaving approve/cancel handlers in `AssistantOrb.jsx`.
-3. Assistant reply/result display shell, leaving AI request state and fallback behavior in `AssistantOrb.jsx`.
-4. Assistant dial/menu button display shell, leaving drag/dock pointer behavior and active panel state in `AssistantOrb.jsx`.
-
-Each extraction should preserve existing copy, classes, mobile behavior, and light/dark behavior unless a tiny test-only adjustment is explicitly needed.
-
-## Recommended Next Seam
-
-The next safest seam is the collab request summary display shell, but only if it stays display-only. Keep load/error state, request accept/decline handlers, routing/navigation behavior, backend calls, notices, and auth assumptions in `AssistantOrb.jsx`.
+Do not move AssistantOrb state, mutations, API calls, queue refresh, or custody semantics unless focused regression tests are added first. Future frontend work should be driven by a specific bug or a narrowly tested state-management seam.
 
 ## Do Not Move Yet
 
@@ -85,10 +90,15 @@ The following responsibilities should stay in `AssistantOrb.jsx` until there is 
 
 ## Manual FE Smoke Checklist
 
-Use this checklist after any future AssistantOrb seam extraction:
+Use this checklist before the next architecture phase:
 
 - Open and close the AssistantOrb.
-- Drag and dock the orb, then confirm return-to-dock still works.
+- Confirm the orb appears in the mobile topbar.
+- Confirm drag starts.
+- Confirm the ghost cursor follows.
+- Confirm dock return works.
+- Confirm the dial/menu opens.
+- Confirm each dial button opens the expected panel.
 - Open and close the AI Settings panel.
 - Confirm the Assistant settings panel still renders.
 - Confirm the AI Settings status box still renders.
