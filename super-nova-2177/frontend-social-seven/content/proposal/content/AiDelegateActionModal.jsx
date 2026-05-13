@@ -428,11 +428,13 @@ export default function AiDelegateActionModal({
     const existingActionId = payload?.summary?.existing_action_id || payload?.action_proposal?.id;
     const existingCommentId = payload?.summary?.existing_comment_id;
     const duplicateReason = String(payload?.summary?.duplicate_reason || payload?.action_proposal?.status || "").toLowerCase();
-    const postedDuplicateNotice = isReview
+    const duplicateActionType = payload?.action_proposal?.action_type || modeConfig.draftType;
+    const finalDuplicateReasons = ["approved", "complete", "completed", "done", "executed", "posted", "published"];
+    const postedDuplicateNotice = isReview || duplicateActionType === "draft_ai_review"
       ? "This AI delegate already posted its AI review vote and comment for this proposal."
       : "This AI delegate already posted an AI-authored comment for this proposal.";
     const isPublishedDuplicate =
-      Boolean(existingCommentId) || ["approved", "published", "posted"].includes(duplicateReason);
+      Boolean(existingCommentId) || finalDuplicateReasons.includes(duplicateReason);
     if (isPublishedDuplicate) {
       setDraftAction(null);
       setNotice(postedDuplicateNotice);
@@ -464,7 +466,7 @@ export default function AiDelegateActionModal({
     } catch {
       setDraftAction(null);
       setNotice(
-        ["approved", "published", "posted"].includes(duplicateReason)
+        finalDuplicateReasons.includes(duplicateReason)
           ? postedDuplicateNotice
           : "This AI delegate already has a pending draft for this proposal."
       );
