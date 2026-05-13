@@ -87,6 +87,48 @@ For a read-only upload/media MIME inventory, run:
 python scripts/media_inventory.py <backend-url>
 ```
 
+## AI Media Prompt Preflight
+
+AI delegate image-aware drafts need `/uploads/...` media references to resolve
+through a backend/media origin, not a frontend-only public site. Before a
+deploy, verify that one of these values points at the intended backend or
+durable media origin:
+
+- `SUPERNOVA_MEDIA_PUBLIC_URL`
+- `PUBLIC_MEDIA_BASE_URL`
+- `SUPERNOVA_BACKEND_PUBLIC_URL`
+- `BACKEND_PUBLIC_URL`
+- `PUBLIC_API_BASE_URL`
+- `SUPERNOVA_API_BASE_URL`
+- `NEXT_PUBLIC_API_URL`
+- `BACKEND_URL`
+- Railway public URL/domain values when Railway hosts the backend
+
+If none of these are configured, media prompt inputs may fall back to
+`SUPERNOVA_PUBLIC_URL`, `PUBLIC_BASE_URL`, `NEXT_PUBLIC_SITE_URL`, or
+`https://2177.tech`. That is acceptable only when that origin also serves
+`/uploads/...`; otherwise AI image prompts can resolve through the wrong host.
+
+Run the advisory preflight in dry mode:
+
+```powershell
+python scripts/smoke_ai_media_prompt_inputs.py --backend-url <backend-url> --sample-upload-path /uploads/<sample-image>
+```
+
+To probe the resolved sample upload with read-only HEAD/GET requests:
+
+```powershell
+python scripts/smoke_ai_media_prompt_inputs.py --backend-url <backend-url> --sample-upload-path /uploads/<sample-image> --check-url
+```
+
+The helper prints `PASS`, `WARN`, and `FAIL` lines. It never writes files,
+mutates the database, uploads or deletes media, or prints raw `data:image/...`
+bodies. This production smoke is advisory/manual for now; do not add it as a
+required branch-protection gate until it is stable for scheduled/live checks.
+
+Latest recorded production verification:
+`AI_MEDIA_PROMPT_PREFLIGHT_VERIFICATION_2026-05-13.md`.
+
 ## Rollback
 
 If media breaks after deploy:
