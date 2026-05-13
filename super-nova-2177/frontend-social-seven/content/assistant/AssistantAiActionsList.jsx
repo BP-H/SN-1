@@ -2,6 +2,7 @@
 
 import { IoCheckmark, IoClose } from "react-icons/io5";
 import AssistantAiActionDetails, { assistantAiActionConfidenceLabel } from "./AssistantAiActionDetails";
+import AssistantStatusBox from "./AssistantStatusBox";
 
 function connectorActionLabel(actionType = "") {
   const labels = {
@@ -99,23 +100,23 @@ export default function AssistantAiActionsList({
       </div>
 
       {notice && (
-        <div className="ai-action-notice rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
+        <AssistantStatusBox tone="notice" className="rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
           {notice}
-        </div>
+        </AssistantStatusBox>
       )}
 
       {loading ? (
-        <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.78rem]">
+        <AssistantStatusBox className="rounded-[0.85rem] p-3 text-[0.78rem]">
           Loading AI Actions...
-        </div>
+        </AssistantStatusBox>
       ) : error ? (
-        <div className="ai-action-error rounded-[0.85rem] p-3 text-[0.78rem]">
+        <AssistantStatusBox tone="error" className="rounded-[0.85rem] p-3 text-[0.78rem]">
           {error}
-        </div>
+        </AssistantStatusBox>
       ) : actions.length === 0 ? (
-        <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.78rem]">
+        <AssistantStatusBox className="rounded-[0.85rem] p-3 text-[0.78rem]">
           No draft actions waiting. AI review drafts, AI-authored comment drafts, vote drafts, and collab requests will appear here before anything publishes.
-        </div>
+        </AssistantStatusBox>
       ) : (
         <div className="ai-actions-list flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
           {actions.map((action) => {

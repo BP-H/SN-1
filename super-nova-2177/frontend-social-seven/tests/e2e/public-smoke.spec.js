@@ -509,6 +509,63 @@ test("duplicate AI comment draft request shows one existing action notice", asyn
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("published duplicate AI comment request says already posted", async ({ page }) => {
+  let draftRequests = 0;
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiDelegates(page);
+  await mockAiActionQueue(page, []);
+  await page.route("**/connector/actions/draft-ai-delegate-comment", async (route) => {
+    draftRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        mode: "duplicate_guard",
+        executed: false,
+        duplicate: true,
+        action_proposal: {
+          id: null,
+          status: "published",
+          action_type: "draft_ai_comment",
+          target_type: "proposal_ai_comment",
+          target_id: "2177001",
+        },
+        summary: {
+          action: "duplicate_ai_comment",
+          proposal_id: 2177001,
+          ai_actor_id: 177,
+          existing_comment_id: 90210,
+          duplicate_reason: "published",
+          message: "This AI delegate already has an AI-authored comment for this proposal.",
+        },
+        safety: {
+          duplicate_guard: true,
+          no_execution: true,
+          no_write_action_performed: true,
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByText("smoke-human")).toBeVisible();
+  await page.locator(".post-action-bar").last().getByRole("button", { name: /^0$/ }).click();
+  await page.getByRole("button", { name: "Generate AI comment" }).click();
+  await expect(page.getByText("AI comment")).toBeVisible();
+
+  await page.getByRole("button", { name: /^Comment$/ }).click();
+
+  await expect.poll(() => draftRequests).toBe(1);
+  await expect(page.locator(".ai-delegate-notice").filter({ hasText: /already posted an AI-authored comment/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Comment ready" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Approve AI draft" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cancel AI draft. Nothing will be published." })).toHaveCount(0);
+  await expect(page.locator(".ai-delegate-notice")).not.toContainText(/pending draft|pending review|reopened here/i);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("AI Actions approval waits for an explicit click and publishes one labeled review", async ({ page }) => {
   const action = aiReviewAction("approve-review-smoke");
   const calls = await mockAiReviewEndpoints(page, action.id);

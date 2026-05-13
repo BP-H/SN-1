@@ -26,6 +26,7 @@ import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAuto
 import { useUser } from "@/content/profile/UserContext";
 import AssistantAiActionsList from "./assistant/AssistantAiActionsList";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
+import AssistantStatusBox from "./assistant/AssistantStatusBox";
 
 const ORB_SIZE = 56;
 const DIAL_SIZE = 184;
@@ -923,11 +924,11 @@ export default function AssistantOrb() {
         >
           {settingsOpen && (
             <div className="mt-3 flex flex-col gap-2">
-              <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
+              <AssistantStatusBox className="rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
                 Drag the AI cursor onto a post, then choose AI Review or AI Comment for official delegate actions.
                 Generic summarize/test utilities use the server OPENAI_API_KEY when configured; the AI widget does not store browser keys.
                 AI delegate provider labels are managed in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
-              </div>
+              </AssistantStatusBox>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -939,9 +940,9 @@ export default function AssistantOrb() {
                 </button>
               </div>
               {aiSettingsNotice && (
-                <div className="ai-action-notice rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
+                <AssistantStatusBox tone="notice" className="rounded-[0.8rem] px-3 py-2 text-[0.74rem]">
                   {aiSettingsNotice}
-                </div>
+                </AssistantStatusBox>
               )}
               <button
                 type="button"
@@ -1048,17 +1049,17 @@ export default function AssistantOrb() {
                 </div>
 
                 {collabRequestsLoading ? (
-                  <div className="ai-cursor-result-box mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
+                  <AssistantStatusBox className="mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
                     Loading collab requests...
-                  </div>
+                  </AssistantStatusBox>
                 ) : collabRequestsError ? (
-                  <div className="ai-action-error mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
+                  <AssistantStatusBox tone="error" className="mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
                     {collabRequestsError}
-                  </div>
+                  </AssistantStatusBox>
                 ) : collabIncoming.length === 0 && collabOutgoing.length === 0 ? (
-                  <div className="ai-cursor-result-box mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
+                  <AssistantStatusBox className="mt-2 rounded-[0.85rem] p-3 text-[0.78rem]">
                     No pending collab requests.
-                  </div>
+                  </AssistantStatusBox>
                 ) : (
                   <div className="ai-action-card mt-2 rounded-[0.9rem] p-3">
                     <p className="text-[0.78rem] font-semibold">
@@ -1085,9 +1086,9 @@ export default function AssistantOrb() {
           )}
 
           {(busy || reply) && (
-            <div className="ai-cursor-result-box mt-3 max-h-36 overflow-y-auto rounded-[0.85rem] p-3 text-[0.78rem] leading-5">
+            <AssistantStatusBox className="mt-3 max-h-36 overflow-y-auto rounded-[0.85rem] p-3 text-[0.78rem] leading-5">
               {busy ? "Thinking..." : reply}
-            </div>
+            </AssistantStatusBox>
           )}
         </AssistantOrbShell>
       )}

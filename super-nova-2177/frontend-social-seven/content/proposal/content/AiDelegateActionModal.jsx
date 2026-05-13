@@ -427,13 +427,21 @@ export default function AiDelegateActionModal({
   const reopenDuplicateDraft = async (payload = {}) => {
     const existingActionId = payload?.summary?.existing_action_id || payload?.action_proposal?.id;
     const existingCommentId = payload?.summary?.existing_comment_id;
+    const duplicateReason = String(payload?.summary?.duplicate_reason || payload?.action_proposal?.status || "").toLowerCase();
+    const postedDuplicateNotice = isReview
+      ? "This AI delegate already posted its AI review vote and comment for this proposal."
+      : "This AI delegate already posted an AI-authored comment for this proposal.";
+    const isPublishedDuplicate =
+      Boolean(existingCommentId) || ["approved", "published", "posted"].includes(duplicateReason);
+    if (isPublishedDuplicate) {
+      setDraftAction(null);
+      setNotice(postedDuplicateNotice);
+      return;
+    }
+
     if (!existingActionId) {
       setDraftAction(null);
-      setNotice(
-        existingCommentId
-          ? "This AI delegate already has an AI-authored comment for this proposal."
-          : "This AI delegate already has a pending or published AI-authored draft for this proposal."
-      );
+      setNotice("This AI delegate already has a pending AI-authored draft for this proposal.");
       return;
     }
 
@@ -455,7 +463,11 @@ export default function AiDelegateActionModal({
       setNotice("This AI delegate already has a pending draft for this proposal. It is reopened here for approve/cancel.");
     } catch {
       setDraftAction(null);
-      setNotice("This AI delegate already has a pending draft for this proposal.");
+      setNotice(
+        ["approved", "published", "posted"].includes(duplicateReason)
+          ? postedDuplicateNotice
+          : "This AI delegate already has a pending draft for this proposal."
+      );
     }
   };
 
