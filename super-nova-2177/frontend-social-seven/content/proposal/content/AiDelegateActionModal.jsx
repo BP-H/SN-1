@@ -221,6 +221,9 @@ export default function AiDelegateActionModal({
   const isReview = mode === "review";
   const isComment = mode === "comment";
   const isAiPost = mode === "ai_post";
+  const draftActionType = draftAction?.action_type || modeConfig.draftType;
+  const draftIsReview = draftActionType === "draft_ai_review";
+  const draftIsAiPost = draftActionType === "draft_ai_post";
   const canGenerate = Boolean(
     userData?.name &&
       selectedDelegate &&
@@ -421,6 +424,41 @@ export default function AiDelegateActionModal({
     return [...existing, ...loaded].filter((url) => String(url || "").startsWith("data:image/")).slice(0, 3);
   };
 
+  const reopenDuplicateDraft = async (payload = {}) => {
+    const existingActionId = payload?.summary?.existing_action_id || payload?.action_proposal?.id;
+    const existingCommentId = payload?.summary?.existing_comment_id;
+    if (!existingActionId) {
+      setDraftAction(null);
+      setNotice(
+        existingCommentId
+          ? "This AI delegate already has an AI-authored comment for this proposal."
+          : "This AI delegate already has a pending or published AI-authored draft for this proposal."
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/connector/actions?status=draft&limit=50`, {
+        headers: authHeaders(),
+      });
+      const queue = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(queue?.detail || "Unable to load the existing AI draft.");
+      const existingAction = (Array.isArray(queue?.actions) ? queue.actions : []).find(
+        (action) => String(action?.id || "") === String(existingActionId)
+      );
+      if (!existingAction) throw new Error("Existing AI draft is no longer pending.");
+      setDraftAction({
+        id: existingAction.id,
+        action_type: existingAction.action_type || payload?.action_proposal?.action_type || modeConfig.draftType,
+        draft_payload: existingAction.draft_payload || payload?.summary || {},
+      });
+      setNotice("This AI delegate already has a pending draft for this proposal. It is reopened here for approve/cancel.");
+    } catch {
+      setDraftAction(null);
+      setNotice("This AI delegate already has a pending draft for this proposal.");
+    }
+  };
+
   const generateDraft = async () => {
     if (busy || !canGenerate) return;
     setBusy(true);
@@ -469,16 +507,7 @@ export default function AiDelegateActionModal({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(cleanError(payload?.detail, "Unable to generate AI draft."));
       if (payload?.duplicate) {
-        const duplicateNotice =
-          payload?.summary?.message ||
-          "This AI delegate already has a comment for this proposal. Review the existing draft or published comment.";
-        setDraftAction(null);
-        setNotice(duplicateNotice);
-        window.dispatchEvent(
-          new CustomEvent("supernova:ai-actions-refresh", {
-            detail: { notice: duplicateNotice },
-          })
-        );
+        await reopenDuplicateDraft(payload);
         return;
       }
       setDraftAction({
@@ -508,9 +537,15 @@ export default function AiDelegateActionModal({
     try {
       requireBackendAuthSession();
       const actorName = delegatePublishName(summary, selectedDelegate);
+      const approveEndpoint =
+        draftAction.action_type === "draft_ai_review"
+          ? `${API_BASE_URL}/connector/actions/${draftAction.id}/approve-ai-review`
+          : draftAction.action_type === "draft_ai_post"
+          ? `${API_BASE_URL}/connector/actions/${draftAction.id}/approve-ai-post`
+          : `${API_BASE_URL}/connector/actions/${draftAction.id}/approve-ai-comment`;
       const endpoint =
         action === "approve"
-          ? modeConfig.approveEndpoint(draftAction.id)
+          ? approveEndpoint
           : `${API_BASE_URL}/connector/actions/${draftAction.id}/cancel`;
       const response = await fetch(endpoint, {
         method: "POST",
@@ -875,7 +910,7 @@ export default function AiDelegateActionModal({
                   <IoVideocamOutline />
                 </button>
               </div>
-            ) : isAiPost && draftAction ? (
+            ) : draftIsAiPost && draftAction ? (
               <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-3">
                 <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">
                   AI post ready
@@ -905,9 +940,9 @@ export default function AiDelegateActionModal({
             ) : draftAction ? (
               <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-4">
                 <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">
-                  {isReview ? "Review ready" : "Comment ready"}
+                  {draftIsReview ? "Review ready" : "Comment ready"}
                 </p>
-                {isReview ? (
+                {draftIsReview ? (
                   <>
                     <p className="mt-2 text-[0.95rem] font-black text-[var(--text-black)]">
                       Vote intent: {summary.intended_choice || summary.normalized_vote || "review"}
