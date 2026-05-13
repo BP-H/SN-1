@@ -25,6 +25,7 @@ import {
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 import AssistantAiActionsList from "./assistant/AssistantAiActionsList";
+import AssistantCommentPanel from "./assistant/AssistantCommentPanel";
 import AssistantOrbShell from "./assistant/AssistantOrbShell";
 import AssistantSettingsPanel from "./assistant/AssistantSettingsPanel";
 import AssistantStatusBox from "./assistant/AssistantStatusBox";
@@ -947,41 +948,22 @@ export default function AssistantOrb() {
           )}
 
           {commentOpen && (
-            <div className="mt-3 flex flex-col gap-2">
-              <div className="relative">
-                <textarea
-                  ref={commentInputRef}
-                  value={commentText}
-                  onChange={(event) => {
-                    setCommentText(event.target.value);
-                    mentionAutocomplete.trackCaret(event.currentTarget);
-                  }}
-                  onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
-                  onKeyDown={mentionAutocomplete.handleKeyDown}
-                  onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
-                  placeholder="Write a comment..."
-                  className="ai-cursor-field min-h-24 w-full rounded-[0.85rem] px-3 py-2 text-[0.84rem] outline-none"
-                />
-                <MentionAutocomplete controller={mentionAutocomplete} withinAiCursor />
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeActivePanel}
-                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.76rem] font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={submitComment}
-                  disabled={!commentText.trim() || commentSending}
-                  className="rounded-full bg-[var(--pink)] px-4 py-2 text-[0.76rem] font-semibold text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
-                >
-                  {commentSending ? "Posting..." : "Post"}
-                </button>
-              </div>
-            </div>
+            <AssistantCommentPanel
+              commentInputRef={commentInputRef}
+              value={commentText}
+              onChange={(event) => {
+                setCommentText(event.target.value);
+                mentionAutocomplete.trackCaret(event.currentTarget);
+              }}
+              onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+              onKeyDown={mentionAutocomplete.handleKeyDown}
+              onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+              mentionAutocompleteNode={<MentionAutocomplete controller={mentionAutocomplete} withinAiCursor />}
+              onCancel={closeActivePanel}
+              onSubmit={submitComment}
+              submitDisabled={!commentText.trim() || commentSending}
+              submitting={commentSending}
+            />
           )}
 
           {actionsOpen && (
