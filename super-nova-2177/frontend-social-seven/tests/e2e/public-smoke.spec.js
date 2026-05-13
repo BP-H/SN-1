@@ -179,6 +179,24 @@ function aiPostAction() {
   };
 }
 
+function smokeDelegate() {
+  return {
+    id: 177,
+    username: "e2e-human-smoke",
+    display_name: "Smoke Delegate",
+    active: true,
+    custody_label: "Delegate of @e2e-human",
+    persona_traits: ["AI Safety", "Governance"],
+    model_identity: "supernova-protocol-charter-v1",
+    provider_connection: {
+      text: {
+        provider_label: "supernova",
+        model_label: "supernova-protocol-charter-v1",
+      },
+    },
+  };
+}
+
 async function mockAiActionQueue(page, actions = [aiReviewAction()]) {
   await page.route("**/connector/actions?**", async (route) => {
     await route.fulfill({
@@ -195,6 +213,20 @@ async function mockAiActionQueue(page, actions = [aiReviewAction()]) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ collabs: [] }),
+    });
+  });
+}
+
+async function mockAiDelegates(page, delegates = [smokeDelegate()]) {
+  await page.route("**/ai/delegates", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        delegates,
+        count: delegates.length,
+      }),
     });
   });
 }
@@ -413,6 +445,64 @@ test("AI Actions queue exposes manual approve and cancel semantics", async ({ pa
   await expect(page.getByRole("button", { name: /^Cancel$/ })).toHaveCount(3);
   await expect(page.locator('[title="Cancel prevents publication."]')).toHaveCount(3);
   await expect(page.locator("body")).not.toContainText(/autonomous publishing/i);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("duplicate AI comment draft request shows one existing action notice", async ({ page }) => {
+  let draftRequests = 0;
+  const existingCommentAction = aiCommentAction();
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiDelegates(page);
+  await mockAiActionQueue(page, [existingCommentAction]);
+  await page.route("**/connector/actions/draft-ai-delegate-comment", async (route) => {
+    draftRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        mode: "duplicate_guard",
+        executed: false,
+        duplicate: true,
+        action_proposal: {
+          id: existingCommentAction.id,
+          status: "draft",
+          action_type: "draft_ai_comment",
+          target_type: "proposal_ai_comment",
+          target_id: "2177001",
+        },
+        summary: {
+          action: "duplicate_ai_comment",
+          proposal_id: 2177001,
+          ai_actor_id: 177,
+          existing_action_id: existingCommentAction.id,
+          message:
+            "This AI delegate already has a pending comment draft for this proposal. Review or cancel the existing draft in AI Actions.",
+        },
+        safety: {
+          duplicate_guard: true,
+          no_execution: true,
+          no_write_action_performed: true,
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByText("smoke-human")).toBeVisible();
+  await page.locator(".post-action-bar").last().getByRole("button", { name: /^0$/ }).click();
+  await page.getByRole("button", { name: "Generate AI comment" }).click();
+  await expect(page.getByText("AI comment")).toBeVisible();
+
+  await page.getByRole("button", { name: /^Comment$/ }).click();
+
+  await expect.poll(() => draftRequests).toBe(1);
+  await expect(page.locator(".ai-delegate-notice").filter({ hasText: /already has a pending comment draft/i })).toBeVisible();
+  await expect(page.getByText("Pending approval-required actions")).toBeVisible();
+  await expect(page.locator(".ai-action-notice").filter({ hasText: /already has a pending comment draft/i })).toBeVisible();
+  await expect(page.locator(".ai-action-card").filter({ hasText: "AI comment draft" })).toHaveCount(1);
+  await expect(page.getByText("Comment ready. Approve or cancel here.")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
