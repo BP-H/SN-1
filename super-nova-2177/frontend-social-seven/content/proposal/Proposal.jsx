@@ -66,7 +66,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
 
   const openComposerWithMedia = (type) => {
     if (!isAuthenticated) {
-      requireAccount("Sign in to attach media and post on SuperNova.");
+      requireAccount(t("composer.signInAttachMedia"));
       return;
     }
     setPendingMediaPicker(type);
@@ -75,7 +75,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
 
   const openComposerWithAi = () => {
     if (!isAuthenticated) {
-      requireAccount("Sign in to create AI delegate posts on SuperNova.");
+      requireAccount(t("composer.signInAiPosts"));
       return;
     }
     setPendingAiOpen(true);
@@ -171,7 +171,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
               prompt={t("composer.shareThoughts")}
               onOpen={() => {
                 if (!isAuthenticated) {
-                  requireAccount("Sign in to post on SuperNova.");
+                  requireAccount(t("composer.signInToPost"));
                   return;
                 }
                 setDiscard(false);
@@ -199,7 +199,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
           <section className="mobile-feed-panel social-panel rounded-[1rem] px-3 py-3">
             <div className="mb-2 flex items-center gap-2 px-1 text-[0.72rem] font-bold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
               <IoPeopleOutline className="text-[var(--pink)]" />
-              People
+              {t("feed.people")}
             </div>
             <div className="hide-scrollbar flex gap-2 overflow-x-auto pb-1">
               {peopleData.map((person) => {
@@ -237,14 +237,14 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
             Array.from({ length: 3 }).map((_, index) => <CardLoading key={index} />)
           ) : isError ? (
             <div className="mobile-feed-panel social-panel rounded-[28px] px-6 py-10 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-              <p className="font-semibold text-[var(--text-black)]">Could not load proposals.</p>
-              <p className="mt-1">{error?.message || "The backend did not return posts."}</p>
+              <p className="font-semibold text-[var(--text-black)]">{t("feed.couldNotLoadProposals")}</p>
+              <p className="mt-1">{error?.message || t("feed.backendNoPosts")}</p>
               <button
                 type="button"
                 onClick={() => refetch()}
                 className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)]"
               >
-                Retry
+                {t("common.retry")}
               </button>
             </div>
           ) : posts.length > 0 ? (
@@ -297,13 +297,13 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                   disabled={isFetchingNextPage}
                   className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-3 text-center text-[0.86rem] font-bold text-[var(--text-black)] disabled:opacity-60"
                 >
-                  {isFetchingNextPage ? "Loading..." : "Load more"}
+                  {isFetchingNextPage ? t("common.loading") : t("feed.loadMore")}
                 </button>
               )}
             </>
           ) : (
             <div className="mobile-feed-panel social-panel rounded-[28px] px-6 py-10 text-center font-semibold text-gray-500">
-              No proposals found.
+              {t("feed.noProposals")}
             </div>
           )}
         </div>

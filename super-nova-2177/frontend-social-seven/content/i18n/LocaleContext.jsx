@@ -52,6 +52,14 @@ function validPreference(value) {
   return normalizeLocale(raw) || AUTO_PREFERENCE;
 }
 
+function safeDecodePreference(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
+}
+
 function readStoredPreference() {
   if (typeof window === "undefined") return AUTO_PREFERENCE;
   const localPreference = window.localStorage.getItem(LOCALE_STORAGE_KEY);
@@ -61,7 +69,7 @@ function readStoredPreference() {
     .map((item) => item.trim())
     .find((item) => item.startsWith(`${LOCALE_COOKIE_NAME}=`))
     ?.split("=")[1];
-  return validPreference(cookiePreference ? decodeURIComponent(cookiePreference) : "");
+  return validPreference(cookiePreference ? safeDecodePreference(cookiePreference) : "");
 }
 
 function writeLocaleCookie(preference) {

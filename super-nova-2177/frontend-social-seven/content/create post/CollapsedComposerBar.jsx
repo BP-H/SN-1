@@ -59,15 +59,15 @@ export default function CollapsedComposerBar({
         <button type="button" onClick={onFile} className="composer-icon-button composer-collapsed-action" aria-label={t("composer.addDocument")}>
           <IoDocumentTextOutline className="text-[1rem]" />
         </button>
-        <button type="button" onClick={onAi} className="composer-icon-button composer-collapsed-action text-[var(--pink)]" aria-label="AI post" title="AI post">
+        <button type="button" onClick={onAi} className="composer-icon-button composer-collapsed-action text-[var(--pink)]" aria-label={t("composer.aiPost")} title={t("composer.aiPost")}>
           <IoSparklesOutline className="text-[1rem]" />
         </button>
         <button
           type="button"
           onClick={onOpen}
           className="composer-collapsed-send"
-          aria-label="Post"
-          title="Post"
+          aria-label={t("composer.post")}
+          title={t("composer.post")}
         >
           <IoSend className="text-[1rem]" />
         </button>
