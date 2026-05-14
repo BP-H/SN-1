@@ -106,11 +106,14 @@ export function LocaleProvider({ children }) {
   const locale = preference === AUTO_PREFERENCE ? detectedLocale : preference;
   const safeLocale = SUPPORTED_CODES.has(locale) ? locale : DEFAULT_LOCALE;
   const localeMeta = SUPPORTED_LOCALES.find((item) => item.code === safeLocale) || SUPPORTED_LOCALES[0];
+  const direction = localeMeta.direction === "rtl" ? "rtl" : "ltr";
 
   useEffect(() => {
     document.documentElement.lang = safeLocale;
+    document.documentElement.dir = direction;
     document.documentElement.dataset.locale = safeLocale;
-  }, [safeLocale]);
+    document.documentElement.dataset.localeDirection = direction;
+  }, [direction, safeLocale]);
 
   const setPreference = useCallback((nextPreference) => {
     const safePreference = validPreference(nextPreference);
