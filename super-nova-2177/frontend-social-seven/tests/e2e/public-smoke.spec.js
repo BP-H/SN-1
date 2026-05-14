@@ -522,6 +522,38 @@ test("for-ai page explains public read-only connector boundaries", async ({ page
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("for-ai page follows Spanish language preference", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("supernova-locale-preference", "es");
+  });
+
+  await page.goto("/for-ai");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(page.getByRole("heading", { name: "Para lectores de IA" })).toBeVisible();
+  await expect(page.getByText("Lectura pública")).toBeVisible();
+  await expect(page.getByText("Sin voto, publicación ni ejecución autónoma.")).toBeVisible();
+  await expect(page.locator("code").filter({ hasText: "Digest público" })).toContainText("/connector/public-digest");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("for-ai page follows Korean language preference", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("supernova-locale-preference", "ko");
+  });
+
+  await page.goto("/for-ai");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(page.getByRole("heading", { name: "AI 독자를 위해" })).toBeVisible();
+  await expect(page.getByText("공개 읽기 전용")).toBeVisible();
+  await expect(page.getByText("자율 투표, 게시, 실행은 없습니다.")).toBeVisible();
+  await expect(page.locator("code").filter({ hasText: "공개 다이제스트" })).toContainText("/connector/public-digest");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("mocked image post keeps media after reload", async ({ page }) => {
   await mockPublicBackend(page, [
     {
