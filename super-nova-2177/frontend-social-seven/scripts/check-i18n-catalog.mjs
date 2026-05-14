@@ -47,7 +47,7 @@ function assert(condition, message) {
 
 const { SUPPORTED_LOCALES, DEFAULT_LOCALE, messages } = loadCatalog();
 const supportedCodes = SUPPORTED_LOCALES.map((locale) => locale.code);
-const expectedCodes = ["ko", "en", "es"];
+const expectedCodes = ["ko", "en", "es", "zh", "hi", "ar", "pt", "fr"];
 
 assert(DEFAULT_LOCALE === "en", `Expected DEFAULT_LOCALE to be en, got ${DEFAULT_LOCALE}`);
 assert(

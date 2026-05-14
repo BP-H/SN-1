@@ -458,10 +458,16 @@ test("supernova menu saves language preference and localizes shell labels", asyn
   const menu = page.locator(".supernova-menu-drawer");
   await expect(menu.getByText("Language")).toBeVisible();
   await expect(menu.getByRole("button", { name: "한국어" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "中文" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "हिन्दी" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "العربية" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Português" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Français" })).toBeVisible();
 
   await menu.getByRole("button", { name: "Español" }).click();
 
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
   await expect(menu.getByText("Cuenta", { exact: true })).toBeVisible();
   await expect(menu.getByRole("button", { name: "Iniciar sesión" })).toBeVisible();
   await expect(menu.getByRole("button", { name: "Inicio" })).toBeVisible();
@@ -551,6 +557,23 @@ test("for-ai page follows Korean language preference", async ({ page }) => {
   await expect(page.getByText("공개 읽기 전용")).toBeVisible();
   await expect(page.getByText("자율 투표, 게시, 실행은 없습니다.")).toBeVisible();
   await expect(page.locator("code").filter({ hasText: "공개 다이제스트" })).toContainText("/connector/public-digest");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("for-ai page follows Arabic preference with rtl document direction", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("supernova-locale-preference", "ar");
+  });
+
+  await page.goto("/for-ai");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(page.getByRole("heading", { name: "لقراء AI" })).toBeVisible();
+  await expect(page.getByText("قراءة عامة فقط")).toBeVisible();
+  await expect(page.getByText("لا يوجد تصويت أو نشر أو تنفيذ ذاتي.")).toBeVisible();
+  await expect(page.locator("code").filter({ hasText: "ملخص عام" })).toContainText("/connector/public-digest");
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
