@@ -3,20 +3,14 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import {
-  IoDocumentTextOutline,
-  IoImageOutline,
-  IoPeopleOutline,
-  IoSend,
-  IoSparklesOutline,
-  IoVideocamOutline,
-} from "react-icons/io5";
+import { IoPeopleOutline } from "react-icons/io5";
 import { SearchInputContext } from "@/app/LayoutClient";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 import CreatePost from "../create post/CreatePost";
+import CollapsedComposerBar from "../create post/CollapsedComposerBar";
 import InputFields from "../create post/InputFields";
 import CardLoading from "../CardLoading";
 import FilterHeader from "../filters/FilterHeader";
@@ -168,86 +162,23 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
 
         <section className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
           {discard ? (
-            <div className="flex items-center gap-2.5">
-              {userAvatar ? (
-                <img
-                  src={userAvatar}
-                  alt="profile"
-                  onError={(event) => {
-                    event.currentTarget.src = defaultAvatar;
-                  }}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bgGray text-[0.72rem] font-semibold">
-                  {(userData?.name || "SN").slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    requireAccount("Sign in to post on SuperNova.");
-                    return;
-                  }
-                  setDiscard(false);
-                }}
-                className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.03)] px-3.5 py-2.5 text-left text-[0.88rem] text-[var(--text-gray-light)]"
-              >
-                Share your thoughts...
-              </button>
-
-              <div className="flex shrink-0 items-center gap-1.5 text-[var(--text-gray-light)]">
-                <button
-                  type="button"
-                  onClick={() => openComposerWithMedia("image")}
-                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full"
-                  aria-label="Add media"
-                >
-                  <IoImageOutline className="text-[1rem]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openComposerWithMedia("video")}
-                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full"
-                  aria-label="Add video"
-                >
-                  <IoVideocamOutline className="text-[1rem]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openComposerWithMedia("file")}
-                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full"
-                  aria-label="Add document"
-                >
-                  <IoDocumentTextOutline className="text-[1rem]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={openComposerWithAi}
-                  className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full text-[var(--pink)]"
-                  aria-label="AI post"
-                  title="AI post"
-                >
-                  <IoSparklesOutline className="text-[1rem]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isAuthenticated) {
-                      requireAccount("Sign in to post on SuperNova.");
-                      return;
-                    }
-                    setDiscard(false);
-                  }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)]"
-                  aria-label="Post"
-                  title="Post"
-                >
-                  <IoSend className="text-[1rem]" />
-                </button>
-              </div>
-            </div>
+            <CollapsedComposerBar
+              avatarSrc={userAvatar}
+              avatarFallback={userData?.name || "SN"}
+              defaultAvatar={defaultAvatar}
+              prompt="Share your thoughts..."
+              onOpen={() => {
+                if (!isAuthenticated) {
+                  requireAccount("Sign in to post on SuperNova.");
+                  return;
+                }
+                setDiscard(false);
+              }}
+              onImage={() => openComposerWithMedia("image")}
+              onVideo={() => openComposerWithMedia("video")}
+              onFile={() => openComposerWithMedia("file")}
+              onAi={openComposerWithAi}
+            />
           ) : (
             <InputFields
               embedded

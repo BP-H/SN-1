@@ -452,9 +452,8 @@ export function UserProvider({ children }) {
         if (!prev) return prev;
         const nextAuth = {
           ...prev,
-          token: payload.access_token || prev.token,
           username: nextStored.customName || prev.username,
-          email: payload.email || prev.email || "",
+          email: prev.email || "",
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
           species: normalizePublicAccountSpecies(nextStored.species) || "human",
         };

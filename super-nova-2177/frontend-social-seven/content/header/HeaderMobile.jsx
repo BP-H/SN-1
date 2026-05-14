@@ -20,7 +20,6 @@ const READ_PREFIX = "supernova_dm_seen::";
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 
 export default function HeaderMobile({
-  showSettings,
   setShowSettings,
 }) {
   const router = useRouter();
@@ -119,6 +118,16 @@ export default function HeaderMobile({
     router.push("/");
   };
 
+  const openOwnProfile = () => {
+    if (!isAuthenticated) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    setShowSettings(false);
+    const username = userData?.name?.trim();
+    router.push(username ? `/users/${encodeURIComponent(username)}` : "/profile");
+  };
+
   const items = [
     { key: "home", label: "Home", icon: IoHome, onClick: goHome },
     {
@@ -151,13 +160,7 @@ export default function HeaderMobile({
       key: "profile",
       label: "Profile",
       icon: IoPersonOutline,
-      onClick: () => {
-        if (!isAuthenticated) {
-          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
-          return;
-        }
-        setShowSettings((value) => !value);
-      },
+      onClick: openOwnProfile,
     },
   ];
 
@@ -165,7 +168,7 @@ export default function HeaderMobile({
     if (key === "home") return pathname === "/";
     if (key === "discover") return pathname.startsWith("/proposals");
     if (key === "messages") return pathname.startsWith("/messages");
-    if (key === "profile") return pathname.startsWith("/profile") || showSettings;
+    if (key === "profile") return pathname.startsWith("/profile") || pathname.startsWith("/users/");
     return false;
   };
 

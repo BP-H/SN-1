@@ -23,9 +23,10 @@ export default function HeaderWrapper({
   const universeMode = pathname?.startsWith("/universe");
 
   useEffect(() => {
-    const openAccount = () => {
+    const openAccount = (event) => {
+      const requestedMode = event?.detail?.mode === "create" ? "create" : "login";
       setAuthIntent({
-        mode: "login",
+        mode: requestedMode,
         nonce: Date.now(),
       });
       setErrorMsg([]);

@@ -88,6 +88,22 @@ async function mockPublicBackend(
       body: JSON.stringify([]),
     });
   });
+
+  await page.route("**/supernova-menu**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        orgs: [{ name: "Smoke ORG", posts: 2 }],
+        agents: [{ name: "Smoke Delegate" }],
+        status: { metrics: { total_vibenodes: 3, community_wellspring: 8 } },
+        network: { node_count: 3 },
+        capabilities: [
+          { key: "public_read", label: "Public read-only connector", available: true },
+        ],
+      }),
+    });
+  });
 }
 
 async function seedPasswordSession(page, { reseedOnReload = true } = {}) {
@@ -306,6 +322,93 @@ test("light post options menu keeps items flat until hover", async ({ page }) =>
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("account create events open create mode directly", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+  });
+
+  const accountPanel = page.locator(".profile-auth-card");
+  await expect(accountPanel.getByRole("button", { name: "Create account" })).toBeVisible();
+  await expect(accountPanel.getByPlaceholder("Email")).toBeVisible();
+  await expect(accountPanel.getByRole("button", { name: "Human" })).toBeVisible();
+  await expect(accountPanel.getByRole("button", { name: "ORG" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("mobile profile nav opens own public profile when signed in", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await page.route("**/profile/e2e-human", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        username: "e2e-human",
+        display_name: "e2e-human",
+        species: "human",
+        avatar_url: "",
+        bio: "E2E human profile.",
+      }),
+    });
+  });
+  await page.route("**/social-users?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([]),
+    });
+  });
+  await page.route("**/proposal-collabs?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ collabs: [] }),
+    });
+  });
+  await page.route("**/follows/status?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ following: false }),
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto("/");
+  await page.locator("[data-mobile-nav]").getByRole("button", { name: "Profile" }).click();
+
+  await expect(page.getByRole("heading", { name: "e2e-human" })).toBeVisible();
+  await expect(page.getByRole("main").getByText("e2e-human").first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("collapsed composer stays aligned on narrow mobile", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto("/");
+
+  const metrics = await page.locator(".composer-collapsed-bar").first().evaluate((bar) => {
+    const prompt = bar.querySelector(".composer-collapsed-prompt").getBoundingClientRect();
+    const actions = [...bar.querySelectorAll(".composer-collapsed-action, .composer-collapsed-send")]
+      .map((element) => element.getBoundingClientRect());
+    return {
+      promptWidth: prompt.width,
+      promptHeight: prompt.height,
+      actionWidths: actions.map((rect) => rect.width),
+      sameRow: actions.every((rect) => Math.abs(rect.top - prompt.top) < 5),
+    };
+  });
+
+  expect(metrics.promptWidth).toBeGreaterThan(80);
+  expect(metrics.promptHeight).toBeLessThanOrEqual(42);
+  expect(metrics.actionWidths.every((width) => width >= 30 && width <= 38)).toBeTruthy();
+  expect(metrics.sameRow).toBeTruthy();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("empty signed-out feed shows the first-user create cue", async ({ page }) => {
   await mockPublicBackend(page, []);
   await page.goto("/");
@@ -315,6 +418,35 @@ test("empty signed-out feed shows the first-user create cue", async ({ page }) =
     page.getByText("Start the commons with a post, proposal, image, or AI delegate draft.")
   ).toBeVisible();
   await expect(page.getByRole("main").getByRole("button", { name: "Create post" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("supernova menu exposes account and theme controls safely", async ({ page }) => {
+  await seedPasswordSession(page, { reseedOnReload: false });
+  await mockPublicBackend(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("supernova-theme", "light");
+  });
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Open SuperNova menu" }).click();
+  const menu = page.locator(".supernova-menu-drawer");
+  await expect(menu.getByText("Account")).toBeVisible();
+  await expect(menu.getByRole("button", { name: /View my profile/ })).toBeVisible();
+  await expect(menu.getByRole("button", { name: /Profile settings/ })).toBeVisible();
+  await expect(menu.getByRole("button", { name: /Sign out/ })).toBeVisible();
+
+  await menu.getByRole("button", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await menu.getByRole("button", { name: /Sign out/ }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.sessionStorage.getItem("supernova_password_session")))
+    .toBeNull();
+
+  await page.getByRole("button", { name: "Open SuperNova menu" }).click();
+  await expect(page.locator(".supernova-menu-drawer").getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(page.locator(".supernova-menu-drawer").getByRole("button", { name: "Create account" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
@@ -386,6 +518,55 @@ test("mocked image post keeps media after reload", async ({ page }) => {
 
   await expect(page.getByText("The mocked upload image should still render after the feed reloads.")).toBeVisible();
   await expect(page.locator('img[src*="/uploads/smoke-image.png"]').first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("composer shows posting progress while create request is pending", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+
+  let releasePost;
+  const releasePostPromise = new Promise((resolve) => {
+    releasePost = resolve;
+  });
+  await page.route("**/proposals", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    await releasePostPromise;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: 2177999,
+        title: "Progress smoke post",
+        text: "Progress smoke post body",
+        userName: "e2e-human",
+        userInitials: "EH",
+        author_type: "human",
+        time: new Date("2026-05-13T00:00:00Z").toISOString(),
+        media: { image: "", images: [], layout: "carousel", governance: null, video: "", link: "", file: "" },
+        comments: [],
+        likes: [],
+        dislikes: [],
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByText("Post, propose, or ask AI...").click();
+  await page.getByPlaceholder("Share your idea, update, or question").fill("Progress smoke post body");
+  await page.locator('button[aria-label="Post"]').last().click();
+
+  await expect(page.getByText(/Posting|Uploading and posting|Starting post/)).toBeVisible();
+  await expect(page.getByText(/keep this tab open/i)).toBeVisible();
+  await expect(page.locator(".composer-publish-progress")).toBeVisible();
+
+  releasePost();
+
+  await expect(page.locator(".composer-publish-progress")).toHaveCount(0);
+  await expect(page.getByText("Post, propose, or ask AI...")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
