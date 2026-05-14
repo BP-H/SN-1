@@ -44,6 +44,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const { userData, defaultAvatar, isAuthenticated, signOut } = useUser();
   const { localeLabel, preference, setPreference, supportedLocales, t } = useI18n();
   const [theme, setTheme] = useState("light");
+  const [languageOpen, setLanguageOpen] = useState(false);
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const { data, isLoading } = useQuery({
@@ -66,6 +67,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
     setTheme(localStorage.getItem("supernova-theme") || "light");
+    setLanguageOpen(false);
   }, [open]);
 
   if (!open || typeof document === "undefined") return null;
@@ -114,6 +116,19 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
       console.warn("SuperNova menu sign out cleared local state but provider sign-out reported an error.", error);
     }
   };
+
+  const languageOptions = [
+    {
+      key: "auto",
+      label: t("language.autoWithLocale", { locale: localeLabel }),
+    },
+    ...supportedLocales.map((item) => ({
+      key: item.code,
+      label: item.nativeLabel || item.label,
+    })),
+  ];
+  const selectedLanguageLabel =
+    languageOptions.find((item) => item.key === preference)?.label || t("language.autoWithLocale", { locale: localeLabel });
 
   return createPortal(
     <div className="supernova-menu-backdrop fixed inset-0 z-[2147483600] bg-black/60 backdrop-blur-[10px]" onClick={onClose}>
@@ -239,35 +254,44 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
 
         <section className="supernova-menu-section mx-3 mb-4 rounded-[1rem] px-3 py-3">
           <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--pink)]">{t("language.language")}</p>
-          <div className="mt-2 grid gap-1">
-            {[
-              {
-                key: "auto",
-                label: t("language.autoWithLocale", { locale: localeLabel }),
-                icon: IoLanguageOutline,
-              },
-              ...supportedLocales.map((item) => ({
-                key: item.code,
-                label: item.nativeLabel || item.label,
-                icon: IoLanguageOutline,
-              })),
-            ].map((item) => {
-              const Icon = item.icon;
-              const active = preference === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setPreference(item.key)}
-                  className={`supernova-menu-row ${active ? "bg-white/[0.055]" : ""}`}
-                  aria-pressed={active}
-                >
-                  <span className="supernova-menu-row-icon"><Icon /></span>
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {active && <span className="h-2 w-2 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />}
-                </button>
-              );
-            })}
+          <div className="mt-2 grid gap-2">
+            <button
+              type="button"
+              onClick={() => setLanguageOpen((value) => !value)}
+              className="supernova-menu-row"
+              aria-expanded={languageOpen}
+            >
+              <span className="supernova-menu-row-icon"><IoLanguageOutline /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{t("language.language")}</span>
+                <span className="mt-0.5 block truncate text-[0.72rem] font-semibold text-[var(--text-gray-light)]">
+                  {selectedLanguageLabel}
+                </span>
+              </span>
+              <IoChevronForward
+                className={`shrink-0 text-[var(--text-gray-light)] transition-transform ${languageOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+
+            {languageOpen && (
+              <div className="supernova-language-options grid gap-1 rounded-[0.95rem] p-1">
+                {languageOptions.map((item) => {
+                  const active = preference === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setPreference(item.key)}
+                      className={`supernova-language-option ${active ? "active" : ""}`}
+                      aria-pressed={active}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {active && <span className="h-2 w-2 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 

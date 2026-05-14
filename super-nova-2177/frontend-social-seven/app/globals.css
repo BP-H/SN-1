@@ -40,18 +40,18 @@
   --pink-glow: rgba(255, 79, 143, 0.3);
   --blue: #5e8dfa;
   --blue-soft: rgba(94, 141, 250, 0.14);
-  --gray: rgba(17, 24, 39, 0.098);
-  --backgroundGray: #eceff7;
+  --gray: rgba(17, 24, 39, 0.078);
+  --backgroundGray: #eef2f8;
   --surface: rgba(255, 255, 255, 0.97);
   --surface-strong: rgba(255, 255, 255, 0.995);
   --text-black: #161924;
   --transparent-black: rgba(25, 31, 45, 0.88);
   --transparent-white: rgba(17, 24, 39, 0.78);
-  --transparent-gray: rgba(17, 24, 39, 0.124);
+  --transparent-gray: rgba(17, 24, 39, 0.105);
   --text-gray-light: #60697c;
-  --horizontal-line: rgba(17, 24, 39, 0.155);
-  --shadow: 0 15px 32px rgba(25, 30, 48, 0.165);
-  --shadow-header: 0 13px 30px rgba(25, 30, 48, 0.15);
+  --horizontal-line: rgba(17, 24, 39, 0.125);
+  --shadow: 0 14px 30px rgba(25, 30, 48, 0.135);
+  --shadow-header: 0 12px 28px rgba(25, 30, 48, 0.12);
   --shadow-pink: 0 0 18px rgba(255, 79, 143, 0.22);
   --shadow-blue: 0 0 18px rgba(94, 141, 250, 0.18);
   --neon-blue: #5e8dfa;
@@ -59,8 +59,9 @@
 
 html[data-theme="light"] body {
   background:
-    radial-gradient(circle at 50% -8rem, rgba(255, 79, 143, 0.082), transparent 22rem),
-    linear-gradient(180deg, #f5f7fc 0%, #ebeff7 48%, #f6f8fd 100%);
+    radial-gradient(circle at 52% -7rem, rgba(255, 79, 143, 0.072), transparent 22rem),
+    radial-gradient(circle at 92% 12rem, rgba(94, 141, 250, 0.052), transparent 20rem),
+    linear-gradient(180deg, #f7f9fd 0%, #eef2f8 48%, #f8faff 100%);
 }
 
 html,
@@ -330,11 +331,11 @@ html[data-theme="light"] .post-action-bar {
 
 [data-theme="light"] .bgWhiteTrue,
 [data-theme="light"] .social-panel {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 254, 0.97));
-  border: 1px solid rgba(17, 24, 39, 0.155);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(249, 251, 255, 0.965));
+  border: 1px solid rgba(17, 24, 39, 0.122);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    0 13px 30px rgba(25, 30, 48, 0.118);
+    0 12px 28px rgba(25, 30, 48, 0.102);
 }
 
 [data-theme="light"] .bgGray {
@@ -344,11 +345,11 @@ html[data-theme="light"] .post-action-bar {
 }
 
 html[data-theme="light"] :where(.social-shell, .mobile-feed-panel, .mobile-post-card, .messages-thread-pane, .profile-compact-card, .comments-section, .supernova-menu-drawer) :where([class^="bg-white/"], [class*=" bg-white/"]) {
-  background-color: rgba(17, 24, 39, 0.08);
+  background-color: rgba(17, 24, 39, 0.062);
 }
 
 html[data-theme="light"] :where(.social-shell, .mobile-feed-panel, .mobile-post-card, .messages-thread-pane, .profile-compact-card, .comments-section, .supernova-menu-drawer) :where([class^="border-white/"], [class*=" border-white/"]) {
-  border-color: rgba(17, 24, 39, 0.137);
+  border-color: rgba(17, 24, 39, 0.118);
 }
 
 .shell-fixed {
@@ -1451,6 +1452,30 @@ html[data-theme="light"] .composer-governance-button.active {
     box-shadow: var(--shadow-pink);
   }
 
+  .supernova-language-options {
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    background: rgba(255, 255, 255, 0.026);
+  }
+
+  .supernova-language-option {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    align-items: center;
+    gap: 0.55rem;
+    border-radius: 0.78rem;
+    padding: 0.54rem 0.7rem;
+    text-align: left;
+    font-size: 0.82rem;
+    font-weight: 750;
+    color: var(--text-black);
+  }
+
+  .supernova-language-option:hover,
+  .supernova-language-option.active {
+    background: rgba(255, 255, 255, 0.055);
+  }
+
   .ai-cursor-core {
     background:
       radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.92) 0 8%, transparent 9%),
@@ -1496,21 +1521,21 @@ html[data-theme="light"] .composer-governance-button.active {
 
   html[data-theme="light"] .mobile-feed-panel,
   html[data-theme="light"] .mobile-post-card {
-    background: rgba(255, 255, 255, 0.97);
-    border-color: rgba(17, 24, 39, 0.14);
+    background: rgba(255, 255, 255, 0.965);
+    border-color: rgba(17, 24, 39, 0.118);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.82),
-      0 12px 28px rgba(25, 30, 48, 0.14);
+      0 11px 26px rgba(25, 30, 48, 0.112);
   }
 
   html[data-theme="light"] .mobile-topbar,
   html[data-theme="light"] .mobile-bottom-nav {
     background: rgba(248, 249, 253, 0.94);
-    box-shadow: 0 10px 28px rgba(25, 30, 48, 0.12);
+    box-shadow: 0 10px 26px rgba(25, 30, 48, 0.1);
   }
 
   html[data-theme="light"] .mobile-bottom-nav {
-    box-shadow: 0 -12px 28px rgba(25, 30, 48, 0.12);
+    box-shadow: 0 -11px 26px rgba(25, 30, 48, 0.1);
   }
 
   html[data-theme="light"] .mobile-topbar .tint,
@@ -1752,15 +1777,26 @@ html[data-theme="light"] .composer-governance-button.active {
 
   html[data-theme="light"] .supernova-menu-section {
     background:
-      radial-gradient(circle at 12% 0%, rgba(255, 79, 143, 0.085), transparent 42%),
-      rgba(17, 24, 39, 0.035);
-    border-color: rgba(17, 24, 39, 0.075);
+      radial-gradient(circle at 12% 0%, rgba(255, 79, 143, 0.07), transparent 42%),
+      rgba(17, 24, 39, 0.026);
+    border-color: rgba(17, 24, 39, 0.065);
   }
 
   html[data-theme="light"] .supernova-menu-row:hover,
   html[data-theme="light"] .supernova-menu-row-icon,
   html[data-theme="light"] .supernova-menu-theme-button {
-    background: rgba(17, 24, 39, 0.045);
+    background: rgba(17, 24, 39, 0.038);
+  }
+
+  html[data-theme="light"] .supernova-language-options {
+    background: rgba(255, 255, 255, 0.58);
+    border-color: rgba(17, 24, 39, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  }
+
+  html[data-theme="light"] .supernova-language-option:hover,
+  html[data-theme="light"] .supernova-language-option.active {
+    background: rgba(17, 24, 39, 0.042);
   }
 
   html[data-theme="light"] .supernova-menu-theme-button {
@@ -1903,16 +1939,16 @@ html[data-theme="light"] .composer-collapsed-prompt {
 html[data-theme="light"] .mobile-topbar,
 html[data-theme="light"] .mobile-bottom-nav {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.72)),
-    rgba(255, 255, 255, 0.88) !important;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.68)),
+    rgba(255, 255, 255, 0.86) !important;
   box-shadow:
-    0 12px 32px rgba(25, 30, 48, 0.12),
+    0 11px 30px rgba(25, 30, 48, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.76) !important;
 }
 
 html[data-theme="light"] .mobile-bottom-nav {
   box-shadow:
-    0 -12px 32px rgba(25, 30, 48, 0.13),
+    0 -11px 30px rgba(25, 30, 48, 0.105),
     inset 0 1px 0 rgba(255, 255, 255, 0.76) !important;
 }
 
@@ -1934,12 +1970,12 @@ html[data-theme="light"] .mobile-profile-menu-button,
 html[data-theme="light"] .mobile-topbar-action,
 html[data-theme="light"] .composer-icon-button,
 html[data-theme="light"] .composer-governance-button {
-  background: rgba(255, 255, 255, 0.72) !important;
-  border: 1px solid rgba(17, 24, 39, 0.1) !important;
+  background: rgba(255, 255, 255, 0.68) !important;
+  border: 1px solid rgba(17, 24, 39, 0.086) !important;
   color: #293043 !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    0 8px 20px rgba(25, 30, 48, 0.08) !important;
+    0 7px 18px rgba(25, 30, 48, 0.064) !important;
 }
 
 html[data-theme="light"] .mobile-topbar .ai-cursor-dock {

@@ -456,7 +456,13 @@ test("supernova menu saves language preference and localizes shell labels", asyn
 
   await page.getByRole("button", { name: "Open SuperNova menu" }).click();
   const menu = page.locator(".supernova-menu-drawer");
-  await expect(menu.getByText("Language")).toBeVisible();
+  const languageToggle = menu.getByRole("button", { name: /Language/ });
+  await expect(languageToggle).toBeVisible();
+  await expect(languageToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(menu.getByRole("button", { name: "한국어" })).toHaveCount(0);
+
+  await languageToggle.click();
+  await expect(languageToggle).toHaveAttribute("aria-expanded", "true");
   await expect(menu.getByRole("button", { name: "한국어" })).toBeVisible();
   await expect(menu.getByRole("button", { name: "中文" })).toBeVisible();
   await expect(menu.getByRole("button", { name: "हिन्दी" })).toBeVisible();
