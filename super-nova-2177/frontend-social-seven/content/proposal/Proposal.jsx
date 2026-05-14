@@ -174,8 +174,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                 }
                 setDiscard(false);
               }}
-              onImage={() => openComposerWithMedia("image")}
-              onVideo={() => openComposerWithMedia("video")}
+              onMedia={() => openComposerWithMedia("media")}
               onFile={() => openComposerWithMedia("file")}
               onAi={openComposerWithAi}
             />

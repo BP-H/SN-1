@@ -678,6 +678,26 @@ html.messages-keyboard-open .mobile-bottom-shell {
   box-shadow: var(--shadow-pink);
 }
 
+.composer-publish-progress-fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.composer-publish-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.36), transparent);
+  transform: translateX(-100%);
+  animation: composerProgressSweep 1.25s linear infinite;
+}
+
+@keyframes composerProgressSweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @media (max-width: 390px) {
   .composer-collapsed-bar {
     grid-template-columns: auto minmax(5.65rem, 1fr) auto;

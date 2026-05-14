@@ -10,6 +10,7 @@ export default function MediaInput({
   className = "",
 }) {
   const titleMap = {
+    media: "Upload Media",
     image: "Upload Image",
     video: "Upload Video",
     file: "Upload File",

@@ -12,6 +12,7 @@ export default function ComposerPublishProgress({ progress, hasMedia = false, co
   return (
     <div
       className="composer-publish-progress rounded-[1.1rem] border border-[var(--horizontal-line)] px-4 py-4 text-[var(--text-black)]"
+      data-progress-percent={Math.round(percent)}
       role="status"
       aria-live="polite"
     >
@@ -36,7 +37,7 @@ export default function ComposerPublishProgress({ progress, hasMedia = false, co
 
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
         <div
-          className="h-full rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)] transition-[width] duration-500 ease-out"
+          className="composer-publish-progress-fill h-full rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)] transition-[width] duration-500 ease-out"
           style={{ width: `${percent}%` }}
         />
       </div>
