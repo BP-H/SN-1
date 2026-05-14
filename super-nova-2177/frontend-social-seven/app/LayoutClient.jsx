@@ -2,6 +2,7 @@
 
 import HeaderWrapper from "@/content/header/HeaderWrapper";
 import { ActiveBEProvider } from "@/content/ActiveBEContext";
+import { LocaleProvider } from "@/content/i18n/LocaleContext";
 import { UserProvider } from "@/content/profile/UserContext";
 import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
@@ -47,20 +48,22 @@ export default function LayoutClient({ children }) {
     <QueryClientProvider client={queryClient}>
       {errorMsg.length > 0 && <ErrorBanner messages={errorMsg} />}
       {notify.length > 0 && <Notification messages={notify} />}
-      <SearchInputContext.Provider value={{ inputRef, focusSearchInput }}>
-        <UserProvider>
-          <ActiveBEProvider>
-            <HeaderWrapper
-              showSettings={showSettings}
-              setShowSettings={setShowSettings}
-              setNotify={setNotify}
-              errorMsg={errorMsg}
-              setErrorMsg={setErrorMsg}
-            />
-            <main className="app-shell w-full">{children}</main>
-          </ActiveBEProvider>
-        </UserProvider>
-      </SearchInputContext.Provider>
+      <LocaleProvider>
+        <SearchInputContext.Provider value={{ inputRef, focusSearchInput }}>
+          <UserProvider>
+            <ActiveBEProvider>
+              <HeaderWrapper
+                showSettings={showSettings}
+                setShowSettings={setShowSettings}
+                setNotify={setNotify}
+                errorMsg={errorMsg}
+                setErrorMsg={setErrorMsg}
+              />
+              <main className="app-shell w-full">{children}</main>
+            </ActiveBEProvider>
+          </UserProvider>
+        </SearchInputContext.Provider>
+      </LocaleProvider>
     </QueryClientProvider>
   );
 }

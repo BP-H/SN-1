@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/content/i18n/LocaleContext";
+
 export default function MediaInput({
   type,
   icon,
@@ -9,11 +11,12 @@ export default function MediaInput({
   inputRef,
   className = "",
 }) {
+  const { t } = useI18n();
   const titleMap = {
-    media: "Upload Media",
-    image: "Upload Image",
-    video: "Upload Video",
-    file: "Upload File",
+    media: t("composer.uploadMedia"),
+    image: t("composer.uploadImage"),
+    video: t("composer.uploadVideo"),
+    file: t("composer.uploadFile"),
   };
 
   const inputId = `${type}Input`;

@@ -6,19 +6,22 @@ import {
   IoSend,
   IoSparklesOutline,
 } from "react-icons/io5";
+import { useI18n } from "@/content/i18n/LocaleContext";
 
 export default function CollapsedComposerBar({
   avatarSrc = "",
   avatarFallback = "SN",
   avatarStyle,
   defaultAvatar = "",
-  prompt = "Post, propose, or ask AI...",
+  prompt = "",
   onOpen,
   onMedia,
   onFile,
   onAi,
 }) {
+  const { t } = useI18n();
   const avatarInitials = String(avatarFallback || "SN").slice(0, 2).toUpperCase();
+  const promptLabel = prompt || t("composer.postPrompt");
 
   return (
     <div className="composer-collapsed-bar">
@@ -46,14 +49,14 @@ export default function CollapsedComposerBar({
         onClick={onOpen}
         className="composer-collapsed-prompt"
       >
-        {prompt}
+        {promptLabel}
       </button>
 
       <div className="composer-collapsed-actions text-[var(--text-gray-light)]">
-        <button type="button" onClick={onMedia} className="composer-icon-button composer-collapsed-action" aria-label="Add media">
+        <button type="button" onClick={onMedia} className="composer-icon-button composer-collapsed-action" aria-label={t("composer.addMedia")}>
           <IoImageOutline className="text-[1rem]" />
         </button>
-        <button type="button" onClick={onFile} className="composer-icon-button composer-collapsed-action" aria-label="Add document">
+        <button type="button" onClick={onFile} className="composer-icon-button composer-collapsed-action" aria-label={t("composer.addDocument")}>
           <IoDocumentTextOutline className="text-[1rem]" />
         </button>
         <button type="button" onClick={onAi} className="composer-icon-button composer-collapsed-action text-[var(--pink)]" aria-label="AI post" title="AI post">

@@ -10,6 +10,7 @@ import AssistantOrb from "../AssistantOrb";
 import NotificationsPanel from "./content/NotificationsPanel";
 import SupernovaMenu from "./content/SupernovaMenu";
 import { SearchInputContext } from "@/app/LayoutClient";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
@@ -24,6 +25,7 @@ export default function Header({
   setShowSettings,
 }) {
   const { focusSearchInput } = useContext(SearchInputContext);
+  const { t } = useI18n();
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -190,8 +192,8 @@ export default function Header({
                 setHeaderHidden(false);
               }}
               className="mobile-profile-menu-button relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-              aria-label="Open SuperNova menu"
-              title="Open SuperNova menu"
+              aria-label={t("header.openMenu")}
+              title={t("header.openMenu")}
             >
               <img
                 src={avatar}
@@ -210,7 +212,7 @@ export default function Header({
               type="button"
               onClick={goHome}
               className="min-w-0 flex-1 overflow-hidden text-left"
-              aria-label="Go home"
+              aria-label={t("header.goHome")}
             >
               <div className="flex items-center gap-1 overflow-hidden">
                 <span className="mobile-brand truncate text-[clamp(0.78rem,3.25vw,1rem)] font-black text-[var(--text-black)]">
@@ -237,8 +239,8 @@ export default function Header({
                 rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}
                 className="mobile-topbar-action hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bgGray text-[var(--text-black)] min-[390px]:flex"
-                aria-label="Open SuperNova GitHub repository"
-                title="Open SuperNova GitHub repository"
+                aria-label={t("header.openGithub")}
+                title={t("header.openGithub")}
               >
                 <FaGithub className="text-[1.12rem]" />
               </a>
@@ -249,7 +251,7 @@ export default function Header({
                   handleSearch();
                 }}
                 className="mobile-topbar-action flex h-10 w-10 shrink-0 items-center justify-center rounded-full bgGray text-[var(--text-black)]"
-                aria-label="Search"
+                aria-label={t("header.search")}
               >
                 <IoSearchOutline className="text-[1.12rem]" />
               </button>
@@ -266,7 +268,7 @@ export default function Header({
                   });
                 }}
                 className="mobile-topbar-action relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bgGray text-[var(--text-black)]"
-                aria-label="Notifications"
+                aria-label={t("header.notifications")}
               >
                 <IoNotificationsOutline className="text-[1.12rem]" />
                 {activityCount > 0 && (

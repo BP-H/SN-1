@@ -11,6 +11,7 @@ import {
   IoPersonOutline,
 } from "react-icons/io5";
 import LiquidGlass from "../liquid glass/LiquidGlass";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { authHeaders } from "@/utils/authSession";
@@ -24,6 +25,7 @@ export default function HeaderMobile({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useI18n();
   const { userData, isAuthenticated } = useUser();
   const [readMarkers, setReadMarkers] = useState({});
   const [isDesktopViewport, setIsDesktopViewport] = useState(null);
@@ -129,10 +131,10 @@ export default function HeaderMobile({
   };
 
   const items = [
-    { key: "home", label: "Home", icon: IoHome, onClick: goHome },
+    { key: "home", label: t("nav.home"), icon: IoHome, onClick: goHome },
     {
       key: "discover",
-      label: "Discover",
+      label: t("nav.discover"),
       icon: IoCompassOutline,
       onClick: () => { setShowSettings(false); router.push("/proposals"); },
     },
@@ -145,7 +147,7 @@ export default function HeaderMobile({
     },
     {
       key: "messages",
-      label: "Messages",
+      label: t("nav.messages"),
       icon: IoChatbubbleOutline,
       onClick: () => {
         if (!isAuthenticated) {
@@ -158,7 +160,7 @@ export default function HeaderMobile({
     },
     {
       key: "profile",
-      label: "Profile",
+      label: t("nav.profile"),
       icon: IoPersonOutline,
       onClick: openOwnProfile,
     },
@@ -186,7 +188,7 @@ export default function HeaderMobile({
                   <button
                     key={item.key}
                     type="button"
-                    aria-label="Create post"
+                    aria-label={t("common.createPost")}
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
                       event.stopPropagation();

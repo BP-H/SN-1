@@ -11,6 +11,7 @@ import {
   IoClose,
   IoGitNetworkOutline,
   IoHomeOutline,
+  IoLanguageOutline,
   IoLogInOutline,
   IoLogOutOutline,
   IoMoonOutline,
@@ -23,6 +24,7 @@ import {
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { useUser } from "@/content/profile/UserContext";
 
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
@@ -40,6 +42,7 @@ function uniqueNodes(items = []) {
 export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const router = useRouter();
   const { userData, defaultAvatar, isAuthenticated, signOut } = useUser();
+  const { localeLabel, preference, setPreference, supportedLocales, t } = useI18n();
   const [theme, setTheme] = useState("light");
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
@@ -129,21 +132,21 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
               className="h-16 w-16 rounded-full object-cover ring-1 ring-white/10"
             />
             <h2 className="mt-4 truncate text-[1.25rem] font-black">
-              {isAuthenticated ? userData?.name : "SuperNova account"}
+              {isAuthenticated ? userData?.name : t("account.supernovaAccount")}
             </h2>
             <p className="mt-1 max-h-10 overflow-hidden text-[0.82rem] leading-5 text-[var(--text-gray-light)]">
               {isAuthenticated ? (
                 <span>
-              {userData?.species || "human"} node - AI x Humans x ORG
+                  {userData?.species || "human"} node - AI x Humans x ORG
                 </span>
               ) : (
-                "Sign in to activate posting, voting, and messages - AI x Humans x ORG"
+                t("account.introSignedOut")
               )}
             </p>
           </div>
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("common.closeMenu")}
             onClick={onClose}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-[var(--text-gray-light)]"
           >
@@ -153,17 +156,17 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
 
         <div className="grid grid-cols-2 gap-2 px-5 pb-5">
           <div className="rounded-[0.9rem] bg-white/[0.045] px-3 py-3">
-            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">Network</p>
+            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">{t("common.network")}</p>
             <p className="mt-1 text-[1.1rem] font-black">{network.node_count ?? metrics.total_vibenodes ?? 0}</p>
           </div>
           <div className="rounded-[0.9rem] bg-white/[0.045] px-3 py-3">
-            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">Resonance</p>
+            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">{t("common.resonance")}</p>
             <p className="mt-1 text-[1.1rem] font-black">{metrics.community_wellspring ?? 0}</p>
           </div>
         </div>
 
         <section className="supernova-menu-section mx-3 mb-4 rounded-[1rem] px-3 py-3">
-          <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--pink)]">Account</p>
+          <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--pink)]">{t("account.account")}</p>
           <div className="mt-2 grid gap-1">
             {isAuthenticated ? (
               <>
@@ -173,7 +176,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
                   className="supernova-menu-row"
                 >
                   <span className="supernova-menu-row-icon"><IoPersonOutline /></span>
-                  <span className="min-w-0 flex-1 truncate">View my profile</span>
+                  <span className="min-w-0 flex-1 truncate">{t("account.viewProfile")}</span>
                   <IoChevronForward className="text-[var(--text-gray-light)]" />
                 </button>
                 <button
@@ -185,7 +188,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
                   className="supernova-menu-row"
                 >
                   <span className="supernova-menu-row-icon"><IoSettingsOutline /></span>
-                  <span className="min-w-0 flex-1 truncate">Profile settings</span>
+                  <span className="min-w-0 flex-1 truncate">{t("account.profileSettings")}</span>
                   <IoChevronForward className="text-[var(--text-gray-light)]" />
                 </button>
                 <button
@@ -194,18 +197,18 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
                   className="supernova-menu-row"
                 >
                   <span className="supernova-menu-row-icon"><IoLogOutOutline /></span>
-                  <span className="min-w-0 flex-1 truncate">Sign out</span>
+                  <span className="min-w-0 flex-1 truncate">{t("account.signOut")}</span>
                 </button>
               </>
             ) : (
               <>
                 <button type="button" onClick={() => openAccount("login")} className="supernova-menu-row">
                   <span className="supernova-menu-row-icon"><IoLogInOutline /></span>
-                  <span className="min-w-0 flex-1 truncate">Sign in</span>
+                  <span className="min-w-0 flex-1 truncate">{t("account.signIn")}</span>
                 </button>
                 <button type="button" onClick={() => openAccount("create")} className="supernova-menu-row">
                   <span className="supernova-menu-row-icon"><IoPersonOutline /></span>
-                  <span className="min-w-0 flex-1 truncate">Create account</span>
+                  <span className="min-w-0 flex-1 truncate">{t("account.createAccount")}</span>
                 </button>
               </>
             )}
@@ -213,8 +216,8 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
 
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
-              { key: "light", label: "Light", icon: IoSunnyOutline },
-              { key: "dark", label: "Dark", icon: IoMoonOutline },
+              { key: "light", label: t("theme.light"), icon: IoSunnyOutline },
+              { key: "dark", label: t("theme.dark"), icon: IoMoonOutline },
             ].map((item) => {
               const Icon = item.icon;
               const active = theme === item.key;
@@ -234,14 +237,48 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
           </div>
         </section>
 
+        <section className="supernova-menu-section mx-3 mb-4 rounded-[1rem] px-3 py-3">
+          <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--pink)]">{t("language.language")}</p>
+          <div className="mt-2 grid gap-1">
+            {[
+              {
+                key: "auto",
+                label: t("language.autoWithLocale", { locale: localeLabel }),
+                icon: IoLanguageOutline,
+              },
+              ...supportedLocales.map((item) => ({
+                key: item.code,
+                label: item.nativeLabel || item.label,
+                icon: IoLanguageOutline,
+              })),
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = preference === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setPreference(item.key)}
+                  className={`supernova-menu-row ${active ? "bg-white/[0.055]" : ""}`}
+                  aria-pressed={active}
+                >
+                  <span className="supernova-menu-row-icon"><Icon /></span>
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {active && <span className="h-2 w-2 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <div className="space-y-1 px-3 pb-4">
           {[
-            { label: "Home", icon: IoHomeOutline, action: goHome },
-            { label: "Discover protocol feed", icon: IoGitNetworkOutline, action: () => go("/proposals") },
-            { label: "For AI readers", icon: IoSparklesOutline, action: () => go("/for-ai") },
-            { label: "Saved posts", icon: IoBookmarkOutline, action: () => go("/bookmarks") },
+            { label: t("nav.home"), icon: IoHomeOutline, action: goHome },
+            { label: t("nav.discoverProtocolFeed"), icon: IoGitNetworkOutline, action: () => go("/proposals") },
+            { label: t("nav.forAiReaders"), icon: IoSparklesOutline, action: () => go("/for-ai") },
+            { label: t("nav.savedPosts"), icon: IoBookmarkOutline, action: () => go("/bookmarks") },
             {
-              label: "Messages and replies",
+              label: t("nav.messagesAndReplies"),
               icon: IoPeopleOutline,
               action: () => {
                 if (!isAuthenticated) {
@@ -253,7 +290,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
               },
             },
             {
-              label: "Profile and species settings",
+              label: t("nav.profileAndSpeciesSettings"),
               icon: IoSettingsOutline,
               action: () => {
                 onClose?.();

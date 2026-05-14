@@ -13,6 +13,7 @@ import { authHeaders, formatBackendAuthErrorMessage } from "@/utils/authSession"
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
@@ -91,6 +92,7 @@ function formatCountdown(deadlineString, nowMs) {
 }
 
 export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
+  const { t } = useI18n();
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
   const [pendingAiOpen, setPendingAiOpen] = useState(false);
@@ -446,7 +448,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               avatarFallback={userData?.name || "SN"}
               avatarStyle={userAvatarStyle}
               defaultAvatar={defaultAvatar}
-              prompt="Post, propose, or ask AI..."
+              prompt={t("composer.postPrompt")}
               onOpen={() => {
                 if (!isAuthenticated) {
                   requireAccount("Sign in to post on SuperNova.");

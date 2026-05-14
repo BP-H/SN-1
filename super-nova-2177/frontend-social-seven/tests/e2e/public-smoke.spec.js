@@ -450,6 +450,29 @@ test("supernova menu exposes account and theme controls safely", async ({ page }
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("supernova menu saves language preference and localizes shell labels", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Open SuperNova menu" }).click();
+  const menu = page.locator(".supernova-menu-drawer");
+  await expect(menu.getByText("Language")).toBeVisible();
+
+  await menu.getByRole("button", { name: "Turkce" }).click();
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "tr");
+  await expect(menu.getByText("Hesap", { exact: true })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Giris yap" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Ana sayfa" })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem("supernova-locale-preference")))
+    .toBe("tr");
+  await expect
+    .poll(() => page.evaluate(() => document.cookie.includes("supernova_locale=tr")))
+    .toBeTruthy();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("about page route renders the standalone page", async ({ page }) => {
   await page.goto("/about");
 
