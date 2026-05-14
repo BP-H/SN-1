@@ -856,6 +856,33 @@ test("AI Genesis settings list falls back from generic delegate names to handles
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("assistant settings checks logged-in delegates without generic server AI calls", async ({ page }) => {
+  let genericAiCalls = 0;
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+  await mockAiDelegates(page, [smokeDelegate()]);
+  await page.route("**/api/ai", async (route) => {
+    genericAiCalls += 1;
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error_code: "unexpected_generic_ai_call" }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.locator(".proposal-author-inline-name").filter({ hasText: "smoke-human" }).first()).toBeVisible();
+  await page.locator('[aria-label="SuperNova AI cursor"]').click({ force: true });
+
+  await expect(page.getByRole("button", { name: "Check my AI delegates" })).toBeVisible();
+  await expect(page.getByText("Generic server-key replies are disabled here")).toBeVisible();
+  await page.getByRole("button", { name: "Check my AI delegates" }).click();
+
+  await expect(page.getByText("1 AI delegate ready for approval-required drafts.")).toBeVisible();
+  await expect.poll(() => genericAiCalls).toBe(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("newly created AI delegate remains selected after delegate refresh", async ({ page }) => {
   let createRequests = 0;
   const existingDelegate = smokeDelegate({

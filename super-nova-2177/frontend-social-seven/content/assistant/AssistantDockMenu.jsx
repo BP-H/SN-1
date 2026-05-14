@@ -25,6 +25,7 @@ export default function AssistantDockMenu({
   orbSize = 56,
   pos = { x: 0, y: 0 },
   returning = false,
+  targetingLabel = "Targeting {title}",
   variant = "floating",
   viewportHeight = 0,
   viewportWidth = 0,
@@ -84,7 +85,7 @@ export default function AssistantDockMenu({
             top: Math.max(80, pos.y - 44),
           }}
         >
-          Targeting {hoverTarget.title}
+          {targetingLabel.replace("{title}", hoverTarget.title)}
         </div>
       )}
 

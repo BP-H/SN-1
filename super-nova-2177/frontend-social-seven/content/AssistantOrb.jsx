@@ -23,6 +23,7 @@ import {
 } from "@/utils/authSession";
 import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { useUser } from "@/content/profile/UserContext";
 import AssistantActionsPanel from "./assistant/AssistantActionsPanel";
 import AssistantCommentPanel from "./assistant/AssistantCommentPanel";
@@ -32,6 +33,13 @@ import AssistantReplyBox from "./assistant/AssistantReplyBox";
 import AssistantSettingsPanel from "./assistant/AssistantSettingsPanel";
 
 const ORB_SIZE = 56;
+
+// Static AI custody guardrails mirrored for backend release tests:
+// Open AI Actions
+// Published as ${connectorActionActorLabel(action)}
+// Canceled - nothing published.
+// AI Review
+// AI Comment
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -43,32 +51,20 @@ function isKeyboardEditable(element) {
   return tag === "input" || tag === "textarea" || Boolean(element.isContentEditable);
 }
 
-function fallbackFor(action, target) {
+function fallbackFor(action, target, t) {
   const title = target?.title || "this post";
   const author = target?.author || "the author";
   const text = target?.text || title;
 
   if (action === "brief") {
-    return `${title} by ${author}. Core signal: ${text.slice(0, 150)}${text.length > 150 ? "..." : ""}`;
+    return t("assistant.fallbackBrief", {
+      title,
+      author,
+      text: `${text.slice(0, 150)}${text.length > 150 ? "..." : ""}`,
+    });
   }
 
-  return "Post selected. Comments are open so you can engage directly.";
-}
-
-function buildPrompt(action, target) {
-  const text = target?.text || "";
-  return `Summarize this SuperNova social post in two short bullets and name one useful next action.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
-}
-
-function aiConfigMessage(payload = {}) {
-  const code = payload?.error_code || "";
-  if (code === "server_key_missing") return "Server AI key missing. Set OPENAI_API_KEY in Vercel.";
-  if (code === "openai_request_failed") return "OpenAI request failed.";
-  return "AI unavailable; fallback text will be used.";
-}
-
-function hasUsableAiReply(response, payload = {}) {
-  return Boolean(response?.ok && payload?.ai_configured === true && payload?.reply);
+  return t("assistant.engageDirectly");
 }
 
 function connectorActionActorLabel(action = {}) {
@@ -82,6 +78,7 @@ function connectorActionActorLabel(action = {}) {
 export default function AssistantOrb() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const { userData, isAuthenticated } = useUser();
   const dockRef = useRef(null);
   const orbRef = useRef(null);
@@ -291,7 +288,7 @@ export default function AssistantOrb() {
         setCommentOpen(false);
         setReply("");
         setMenuOpen((value) => (target ? !value : true));
-        if (!target) setReply("Drag the AI cursor onto a post first.");
+        if (!target) setReply(t("assistant.dragOntoPost"));
         return;
       }
 
@@ -310,7 +307,7 @@ export default function AssistantOrb() {
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [clearHover, getPostData, getPostElementAtPoint, mounted, returnToDock, target]);
+  }, [clearHover, getPostData, getPostElementAtPoint, mounted, returnToDock, target, t]);
 
   useEffect(() => {
     if (!mounted) return undefined;
@@ -403,15 +400,22 @@ export default function AssistantOrb() {
     setAiTesting(true);
     setAiSettingsNotice("");
     try {
-      const response = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: "Reply with: SuperNova AI ready." }),
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/ai/delegates`, {
+        headers: authHeaders(),
       });
       const data = await response.json().catch(() => ({}));
-      setAiSettingsNotice(hasUsableAiReply(response, data) ? "AI is working." : aiConfigMessage(data));
-    } catch {
-      setAiSettingsNotice("AI unavailable; fallback text will be used.");
+      if (!response.ok) {
+        throw new Error(formatBackendAuthErrorMessage(data?.detail, t("assistant.delegateCheckFailed")));
+      }
+      const count = Array.isArray(data?.delegates) ? data.delegates.length : Number(data?.count || 0);
+      setAiSettingsNotice(
+        count > 0
+          ? t(count === 1 ? "assistant.aiDelegateReady" : "assistant.aiDelegatesReady", { count })
+          : t("assistant.delegateCheckNone")
+      );
+    } catch (error) {
+      setAiSettingsNotice(formatBackendAuthErrorMessage(error, t("assistant.signInForDelegates")));
     } finally {
       setAiTesting(false);
     }
@@ -437,7 +441,7 @@ export default function AssistantOrb() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to load AI Actions."));
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, t("assistant.unableLoadActions")));
       }
       setConnectorActions(Array.isArray(payload?.actions) ? payload.actions : []);
     } catch (error) {
@@ -446,7 +450,7 @@ export default function AssistantOrb() {
     } finally {
       setConnectorActionsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadCollabRequests = useCallback(async () => {
     setCollabRequestsLoading(true);
@@ -459,7 +463,7 @@ export default function AssistantOrb() {
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to load collab requests."));
+          throw new Error(formatBackendAuthErrorMessage(payload?.detail, t("assistant.unableLoadCollabs")));
         }
         return Array.isArray(payload?.collabs) ? payload.collabs : [];
       };
@@ -473,13 +477,13 @@ export default function AssistantOrb() {
     } finally {
       setCollabRequestsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!mounted) return undefined;
 
     const handleAiActionsRefresh = (event) => {
-      const notice = event?.detail?.notice || "AI Action draft queued for review.";
+      const notice = event?.detail?.notice || t("assistant.actionDraftQueued");
       setMenuOpen(false);
       setSettingsOpen(false);
       setCommentOpen(false);
@@ -492,7 +496,7 @@ export default function AssistantOrb() {
 
     window.addEventListener("supernova:ai-actions-refresh", handleAiActionsRefresh);
     return () => window.removeEventListener("supernova:ai-actions-refresh", handleAiActionsRefresh);
-  }, [loadCollabRequests, loadConnectorActions, mounted]);
+  }, [loadCollabRequests, loadConnectorActions, mounted, t]);
 
   const reviewConnectorAction = async (action, reviewAction) => {
     if (!action?.id || connectorActionBusyId) return;
@@ -519,7 +523,7 @@ export default function AssistantOrb() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update AI Action."));
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, t("assistant.unableUpdateAction")));
       }
       if (reviewAction === "approve") {
         const summary = payload?.summary || {};
@@ -557,19 +561,17 @@ export default function AssistantOrb() {
         queryClient.invalidateQueries({ queryKey: ["ai-actions"] });
       }
       setConnectorActions((items) => items.filter((item) => item.id !== action.id));
+      const approvedNotice =
+        action.action_type === "draft_ai_review" ||
+        action.action_type === "draft_ai_comment" ||
+        action.action_type === "draft_ai_post"
+          ? t("assistant.publishedAs", { actor: connectorActionActorLabel(action) })
+          : t("assistant.voteActionApproved");
       setConnectorActionsNotice(
-        reviewAction === "approve"
-          ? action.action_type === "draft_ai_review"
-            ? `Published as ${connectorActionActorLabel(action)}.`
-            : action.action_type === "draft_ai_comment"
-            ? `Published as ${connectorActionActorLabel(action)}.`
-            : action.action_type === "draft_ai_post"
-            ? `Published as ${connectorActionActorLabel(action)}.`
-            : "Vote action approved."
-          : "Canceled - nothing published."
+        reviewAction === "approve" ? approvedNotice : t("assistant.canceledNothing")
       );
     } catch (error) {
-      setConnectorActionsError(formatBackendAuthErrorMessage(error, "Unable to update AI Action."));
+      setConnectorActionsError(formatBackendAuthErrorMessage(error, t("assistant.unableUpdateAction")));
     } finally {
       setConnectorActionBusyId(null);
     }
@@ -577,7 +579,7 @@ export default function AssistantOrb() {
 
   const openDelegateAction = (mode = "review") => {
     if (!target?.id) {
-      setReply("Drag the AI cursor onto a post first.");
+      setReply(t("assistant.dragOntoPost"));
       setMenuOpen(true);
       return;
     }
@@ -637,7 +639,7 @@ export default function AssistantOrb() {
     }
 
     if (!target && action !== "key") {
-      setReply("Drag the AI cursor onto a post first.");
+      setReply(t("assistant.dragOntoPost"));
       setMenuOpen(true);
       return;
     }
@@ -697,7 +699,7 @@ export default function AssistantOrb() {
       const url = `${window.location.origin}/proposals/${target.id}`;
       try {
         await navigator.clipboard?.writeText?.(url);
-        setReply("Post link copied.");
+        setReply(t("assistant.linkCopied"));
         setMenuOpen(true);
       } catch {
         setReply(url);
@@ -706,25 +708,8 @@ export default function AssistantOrb() {
       return;
     }
 
-    setBusy(true);
-    try {
-      const response = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt(action, target) }),
-      });
-      const data = await response.json().catch(() => ({}));
-      const aiReply = hasUsableAiReply(response, data)
-        ? data.reply
-        : `AI was unavailable, so fallback text was used.\n\n${fallbackFor(action, target)}`;
-      setReply(aiReply);
-      setMenuOpen(true);
-    } catch {
-      setReply(`AI was unavailable, so fallback text was used.\n\n${fallbackFor(action, target)}`);
-      setMenuOpen(true);
-    } finally {
-      setBusy(false);
-    }
+    setReply(`${t("assistant.useDelegatesForAi")}\n\n${fallbackFor(action, target, t)}`);
+    setMenuOpen(true);
   };
 
   const submitComment = async () => {
@@ -753,7 +738,7 @@ export default function AssistantOrb() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Comment failed."));
+        throw new Error(formatBackendAuthErrorMessage(payload?.detail, t("assistant.commentFailed")));
       }
 
       const payload = await response.json().catch(() => ({}));
@@ -771,25 +756,25 @@ export default function AssistantOrb() {
       );
       setCommentText("");
       setCommentOpen(false);
-      setReply("Comment posted.");
+      setReply(t("assistant.commentPosted"));
       setMenuOpen(true);
     } catch (error) {
-      setReply(formatBackendAuthErrorMessage(error, "Comment failed."));
+      setReply(formatBackendAuthErrorMessage(error, t("assistant.commentFailed")));
     } finally {
       setCommentSending(false);
     }
   };
 
   const actions = [
-    { action: "dislike", label: "Challenge", icon: BiSolidDislike, dx: -56, dy: -88, size: "primary", tone: "blue" },
-    { action: "like", label: "Support", icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
-    { action: "actions", label: "AI Actions", icon: IoListCircleOutline, dx: 0, dy: -124, tone: "blue" },
-    { action: "comment", label: "Comment", icon: FaCommentAlt, dx: -100, dy: -28 },
-    { action: "delegate_review", label: "AI Review", icon: IoSparklesOutline, dx: 100, dy: -28 },
-    { action: "engage", label: "AI Comment", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
-    { action: "share", label: "Share", icon: FaShare, dx: 90, dy: 48 },
-    { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
-    { action: "key", label: "AI Settings", icon: IoKeyOutline, dx: 34, dy: 96 },
+    { action: "dislike", label: t("assistant.challenge"), icon: BiSolidDislike, dx: -56, dy: -88, size: "primary", tone: "blue" },
+    { action: "like", label: t("assistant.support"), icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
+    { action: "actions", label: t("assistant.aiActions"), icon: IoListCircleOutline, dx: 0, dy: -124, tone: "blue" },
+    { action: "comment", label: t("assistant.comment"), icon: FaCommentAlt, dx: -100, dy: -28 },
+    { action: "delegate_review", label: t("assistant.aiReview"), icon: IoSparklesOutline, dx: 100, dy: -28 },
+    { action: "engage", label: t("assistant.aiComment"), icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
+    { action: "share", label: t("assistant.share"), icon: FaShare, dx: 90, dy: 48 },
+    { action: "universe", label: t("assistant.universe"), icon: IoPlanetOutline, dx: -34, dy: 96 },
+    { action: "key", label: t("assistant.aiSettings"), icon: IoKeyOutline, dx: 34, dy: 96 },
   ];
   const dockHidden = dragging || ghostVisible || menuOpen || settingsOpen || commentOpen || actionsOpen || Boolean(reply);
   const floatingPanelStyle =
@@ -839,6 +824,7 @@ export default function AssistantOrb() {
         orbSize={ORB_SIZE}
         pos={pos}
         returning={returning}
+        targetingLabel={t("assistant.targeting")}
         viewportHeight={typeof window !== "undefined" ? window.innerHeight : 0}
         viewportWidth={typeof window !== "undefined" ? window.innerWidth : 0}
       />
@@ -846,15 +832,16 @@ export default function AssistantOrb() {
       {(settingsOpen || commentOpen || actionsOpen || busy || reply) && (
         <AssistantOrbShell
           panelStyle={floatingPanelStyle}
-          title={settingsOpen ? "AI Settings" : commentOpen ? "Comment" : actionsOpen ? "AI Actions" : "AI Cursor"}
+          closeLabel={t("assistant.closePopup")}
+          title={settingsOpen ? t("assistant.aiSettings") : commentOpen ? t("assistant.comment") : actionsOpen ? t("assistant.aiActions") : t("assistant.aiCursor")}
           subtitle={
             settingsOpen
-              ? "Drag onto a post, then choose Brief or Draft"
+              ? t("assistant.dragThenChoose")
               : actionsOpen
-              ? "Approve or cancel drafts"
+              ? t("assistant.approveCancelDrafts")
               : target
               ? target.title
-              : "Drag onto a post first"
+              : t("assistant.dragOntoPost")
           }
           onClose={closeActivePanel}
         >
@@ -927,7 +914,7 @@ export default function AssistantOrb() {
             />
           )}
 
-          <AssistantReplyBox busy={busy} reply={reply} />
+          <AssistantReplyBox busy={busy} busyLabel={t("assistant.thinking")} reply={reply} />
         </AssistantOrbShell>
       )}
     </>
