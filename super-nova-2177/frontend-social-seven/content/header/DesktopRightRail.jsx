@@ -425,6 +425,12 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
             <g className="desktop-constellation-map" transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
               <circle className="desktop-constellation-depth" cx="140" cy="104" r="76" />
               <circle className="desktop-constellation-depth desktop-constellation-depth-wide" cx="140" cy="104" r="108" />
+              <g className="desktop-constellation-focus" aria-hidden="true">
+                <ellipse className="desktop-constellation-focus-ring focus-ring-one" cx="140" cy="104" rx="70" ry="36" />
+                <ellipse className="desktop-constellation-focus-ring focus-ring-two" cx="140" cy="104" rx="46" ry="24" />
+                <circle className="desktop-constellation-core-aura" cx="140" cy="104" r="28" />
+                <circle className="desktop-constellation-core" cx="140" cy="104" r="4.4" />
+              </g>
 
               {visualEdges.map((edge) => {
                 const active = selectedEdgeId === edge.id;
