@@ -18,6 +18,7 @@ import {
 import { API_BASE_URL } from "@/utils/apiBase";
 import { useUser } from "@/content/profile/UserContext";
 import AmbientConstellationCanvas from "@/content/universe/AmbientConstellationCanvas";
+import SocialConstellationCanvas from "@/content/universe/SocialConstellationCanvas";
 
 const SPECIES_LABELS = {
   human: "Human",
@@ -52,10 +53,6 @@ function compactNumber(value) {
 
 function speciesLabel(value) {
   return SPECIES_LABELS[value] || "Human";
-}
-
-function initials(username = "") {
-  return username.trim().slice(0, 2).toUpperCase() || "SN";
 }
 
 function clamp(value, min, max) {
@@ -380,7 +377,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       <div className="desktop-constellation-stage" aria-label="Live social constellation">
         <AmbientConstellationCanvas
           className="desktop-constellation-ambient"
-          density={isImmersive ? 44 : 34}
+          density={isImmersive ? 48 : 42}
           anchors={ambientAnchors}
           frameMs={isImmersive ? 42 : 48}
         />
@@ -395,117 +392,34 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
             <IoRefreshOutline />
           </button>
         </div>
-        <svg
-          viewBox="0 0 280 210"
-          role="img"
-          className="desktop-constellation-svg"
+        <SocialConstellationCanvas
+          className="desktop-constellation-canvas"
+          nodes={visualNodes}
+          edges={visualEdges}
+          selectedNodeId={selectedNodeId}
+          selectedEdgeId={selectedEdgeId}
+          currentUser={currentUser}
+          view={view}
+          isImmersive={isImmersive}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
           onWheel={handleWheel}
           onDoubleClick={resetView}
-        >
-          <defs>
-            <radialGradient id="constellation-core" cx="42%" cy="38%" r="65%">
-              <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
-              <stop offset="52%" stopColor="currentColor" stopOpacity="0.82" />
-              <stop offset="100%" stopColor="currentColor" stopOpacity="0.18" />
-            </radialGradient>
-            <filter id="constellation-glow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          <g className="desktop-constellation-orbit">
-            <g className="desktop-constellation-map" transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-              <circle className="desktop-constellation-depth" cx="140" cy="104" r="76" />
-              <circle className="desktop-constellation-depth desktop-constellation-depth-wide" cx="140" cy="104" r="108" />
-              <g className="desktop-constellation-focus" aria-hidden="true">
-                <ellipse className="desktop-constellation-focus-ring focus-ring-one" cx="140" cy="104" rx="70" ry="36" />
-                <ellipse className="desktop-constellation-focus-ring focus-ring-two" cx="140" cy="104" rx="46" ry="24" />
-                <circle className="desktop-constellation-core-aura" cx="140" cy="104" r="28" />
-                <circle className="desktop-constellation-core" cx="140" cy="104" r="4.4" />
-              </g>
-
-              {visualEdges.map((edge) => {
-                const active = selectedEdgeId === edge.id;
-                const width = isImmersive
-                  ? Math.max(0.16, Math.min(0.94, 0.18 + Number(edge.strength || 0) / 72))
-                  : Math.max(0.32, Math.min(1.55, 0.38 + Number(edge.strength || 0) / 35));
-                return (
-                  <g key={edge.id}>
-                    <line
-                      x1={edge.sourceNode.visualX}
-                      y1={edge.sourceNode.visualY}
-                      x2={edge.targetNode.visualX}
-                      y2={edge.targetNode.visualY}
-                      className={`desktop-constellation-edge ${active ? "is-active" : ""}`}
-                      strokeWidth={width}
-                    />
-                    <line
-                      x1={edge.sourceNode.visualX}
-                      y1={edge.sourceNode.visualY}
-                      x2={edge.targetNode.visualX}
-                      y2={edge.targetNode.visualY}
-                      className="desktop-constellation-edge-hit"
-                      onMouseEnter={() => {
-                        setSelectedEdgeId(edge.id);
-                        setSelectedNodeId("");
-                      }}
-                      onClick={() => {
-                        setSelectedEdgeId(edge.id);
-                        setSelectedNodeId("");
-                      }}
-                    />
-                  </g>
-                );
-              })}
-
-              {visualNodes.map((node, index) => {
-                const selected = selectedNodeId === node.id;
-                const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
-                const showLabel = !isImmersive || selected || current || node.radius >= 5.4;
-                return (
-                  <g
-                    key={node.id}
-                    className={`desktop-constellation-node desktop-node-${node.species || "human"} ${selected ? "is-selected" : ""} ${current ? "is-current" : ""}`}
-                    style={{ "--float-delay": `${(index % 6) * -0.45}s`, "--node-depth": node.depth }}
-                    transform={`translate(${node.visualX} ${node.visualY})`}
-                    onMouseEnter={() => {
-                      setSelectedNodeId(node.id);
-                      setSelectedEdgeId("");
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (dragMovedRef.current) return;
-                      setSelectedNodeId(node.id);
-                      setSelectedEdgeId("");
-                      if (isImmersive && node.username) {
-                        router.push(`/users/${encodeURIComponent(node.username)}`);
-                      }
-                    }}
-                  >
-                    <g className="desktop-node-float">
-                      <circle className="desktop-node-aura" r={node.radius + (isImmersive ? 5 : 7)} />
-                      <circle className="desktop-node-ring" r={node.radius + (isImmersive ? 2 : 3)} />
-                      <circle className="desktop-node-core" r={node.radius} filter="url(#constellation-glow)" />
-                      {showLabel && (
-                        <text className="desktop-node-label" textAnchor="middle" dy="0.32em">
-                          {initials(node.username)}
-                        </text>
-                      )}
-                    </g>
-                  </g>
-                );
-              })}
-            </g>
-          </g>
-        </svg>
+          onNodeSelect={(node) => {
+            setSelectedNodeId(node.id);
+            setSelectedEdgeId("");
+          }}
+          onEdgeSelect={(edge) => {
+            setSelectedEdgeId(edge.id);
+            setSelectedNodeId("");
+          }}
+          onNodeOpen={(node) => {
+            if (isImmersive && node.username && !dragMovedRef.current) {
+              router.push(`/users/${encodeURIComponent(node.username)}`);
+            }
+          }}
+        />
       </div>
 
       <div className="desktop-species-row">
@@ -561,7 +475,7 @@ export default function DesktopRightRail() {
     queryKey: ["desktop-social-graph", currentUser],
     enabled: isDesktopViewport === true,
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "14" });
+      const params = new URLSearchParams({ limit: "18" });
       if (currentUser) params.set("username", currentUser);
       const response = await fetch(`${API_BASE_URL}/social-graph?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to load constellation");
