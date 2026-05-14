@@ -17,7 +17,6 @@ import {
   IoShieldCheckmarkOutline,
   IoSparklesOutline,
   IoTimeOutline,
-  IoVideocamOutline,
 } from "react-icons/io5";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import LiquidGlass from "../liquid glass/LiquidGlass";
@@ -71,7 +70,6 @@ function InputFields({
   const [publishProgress, setPublishProgress] = useState(null);
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
-  const videoInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const previewSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
   const imagePreviewUrls = useMemo(() => {
@@ -174,8 +172,9 @@ function InputFields({
   useEffect(() => {
     if (!autoOpenMediaType) return;
     const inputMap = {
+      media: imageInputRef,
       image: imageInputRef,
-      video: videoInputRef,
+      video: imageInputRef,
       file: fileInputRef,
     };
     const now = Date.now();
@@ -238,6 +237,38 @@ function InputFields({
     });
   };
 
+  const applyImageFiles = async (imageFiles) => {
+    try {
+      const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
+      const compressedFiles = await Promise.all(
+        imageFiles.map(async (file, index) => {
+          const compressed = await imageCompression(file, options).catch(() => file);
+          return ensureNamedFile(compressed, file, index);
+        })
+      );
+      setSelectedFiles(compressedFiles);
+      setSelectedFile(compressedFiles[0]);
+      setMediaType("image");
+      setMediaLayout(compressedFiles.length > 1 ? mediaLayout : "carousel");
+      setMediaValue(
+        compressedFiles.length > 1 ? `${compressedFiles.length} images selected` : compressedFiles[0].name
+      );
+    } catch {
+      setSelectedFiles(imageFiles);
+      setSelectedFile(imageFiles[0]);
+      setMediaType("image");
+      setMediaLayout(imageFiles.length > 1 ? mediaLayout : "carousel");
+      setMediaValue(imageFiles.length > 1 ? `${imageFiles.length} images selected` : imageFiles[0].name);
+    }
+  };
+
+  const applyVideoFile = (fileObj) => {
+    setSelectedFile(fileObj);
+    setSelectedFiles([]);
+    setMediaType("video");
+    setMediaValue(fileObj.name);
+  };
+
   const handleFileChange = async (event, type) => {
     if (!isAuthenticated) {
       requireAccount("Sign in before attaching media.");
@@ -248,41 +279,31 @@ function InputFields({
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
-    if (type === "image") {
+    if (type === "media") {
+      const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+      const videoFiles = files.filter((file) => file.type.startsWith("video/"));
+      if (imageFiles.length > 0 && videoFiles.length > 0) {
+        setErrorMsg(["Choose either images or one video for this post. Mixed media albums are next, but not enabled yet."]);
+        event.target.value = null;
+        return;
+      }
+      if (videoFiles.length > 0) {
+        applyVideoFile(videoFiles[0]);
+      } else if (imageFiles.length > 0) {
+        await applyImageFiles(imageFiles);
+      } else {
+        setErrorMsg(["Choose an image or video file."]);
+      }
+    } else if (type === "image") {
       const imageFiles = files.filter((file) => file.type.startsWith("image/"));
       if (imageFiles.length === 0) {
         setErrorMsg(["Choose one or more image files."]);
         event.target.value = null;
         return;
       }
-      try {
-        const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
-        const compressedFiles = await Promise.all(
-          imageFiles.map(async (file, index) => {
-            const compressed = await imageCompression(file, options).catch(() => file);
-            return ensureNamedFile(compressed, file, index);
-          })
-        );
-        setSelectedFiles(compressedFiles);
-        setSelectedFile(compressedFiles[0]);
-        setMediaType("image");
-        setMediaLayout(compressedFiles.length > 1 ? mediaLayout : "carousel");
-        setMediaValue(
-          compressedFiles.length > 1 ? `${compressedFiles.length} images selected` : compressedFiles[0].name
-        );
-      } catch {
-        setSelectedFiles(imageFiles);
-        setSelectedFile(imageFiles[0]);
-        setMediaType("image");
-        setMediaLayout(imageFiles.length > 1 ? mediaLayout : "carousel");
-        setMediaValue(imageFiles.length > 1 ? `${imageFiles.length} images selected` : imageFiles[0].name);
-      }
+      await applyImageFiles(imageFiles);
     } else if (type === "video" && files[0].type.startsWith("video/")) {
-      const fileObj = files[0];
-      setSelectedFile(fileObj);
-      setSelectedFiles([]);
-      setMediaType("video");
-      setMediaValue(fileObj.name);
+      applyVideoFile(files[0]);
     } else if (type === "file") {
       const fileObj = files[0];
       setSelectedFile(fileObj);
@@ -480,6 +501,26 @@ function InputFields({
       setErrorMsg([formatBackendAuthErrorMessage(error, "Failed to create post.")]);
     },
   });
+
+  useEffect(() => {
+    if (!mutation.isPending) return undefined;
+    const timer = window.setInterval(() => {
+      setPublishProgress((current) => {
+        if (!current) return current;
+        const currentPercent = Math.max(0, Math.min(100, Number(current.percent) || 0));
+        const label = String(current.label || "").toLowerCase();
+        const cap = label.includes("refreshing") ? 96 : label.includes("posted") ? 100 : 88;
+        if (currentPercent >= cap) return current;
+        const remaining = cap - currentPercent;
+        const step = remaining > 24 ? 4 : remaining > 12 ? 2 : 1;
+        return {
+          ...current,
+          percent: Math.min(cap, currentPercent + step),
+        };
+      });
+    }, 650);
+    return () => window.clearInterval(timer);
+  }, [mutation.isPending]);
 
   const publish = () => {
     const errors = [];
@@ -988,19 +1029,12 @@ function InputFields({
             </div>
           )}
           <MediaInput
-            type="image"
+            type="media"
             icon={<IoImageOutline className="text-[1rem]" />}
-            accept="image/*"
+            accept="image/*,video/*"
             multiple
             inputRef={imageInputRef}
-            handleFileChange={(event) => handleFileChange(event, "image")}
-          />
-          <MediaInput
-            type="video"
-            icon={<IoVideocamOutline className="text-[1rem]" />}
-            accept="video/*"
-            inputRef={videoInputRef}
-            handleFileChange={(event) => handleFileChange(event, "video")}
+            handleFileChange={(event) => handleFileChange(event, "media")}
           />
           <MediaInput
             type="file"

@@ -4,6 +4,17 @@ const DEFAULT_SITE_URL = "https://2177.tech";
 const DATA_IMAGE_PATTERN = /data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi;
 const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|avif)(?:[?#].*)?$/i;
 
+function getYouTubeId(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+  return rawValue.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1] || "";
+}
+
+function youtubeThumbnailUrl(value) {
+  const videoId = getYouTubeId(value);
+  return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "";
+}
+
 function normalizeSiteUrl(value) {
   const rawValue = String(value || "").trim().replace(/\/+$/, "");
   if (!rawValue) return DEFAULT_SITE_URL;
@@ -70,6 +81,7 @@ export function proposalShareAuthor(proposal) {
 
 function collectImageCandidates(proposal) {
   const media = proposal?.media && typeof proposal.media === "object" ? proposal.media : {};
+  const videoThumbnail = youtubeThumbnailUrl(media.video || media.link || proposal?.video || proposal?.link);
   return [
     ...(Array.isArray(media.images) ? media.images : []),
     ...(Array.isArray(media.image_urls) ? media.image_urls : []),
@@ -77,10 +89,19 @@ function collectImageCandidates(proposal) {
     media.image_url,
     media.thumbnail,
     media.thumbnail_url,
+    media.video_thumbnail,
+    media.videoThumbnail,
+    media.video_poster,
+    media.poster,
+    videoThumbnail,
     proposal?.image,
     proposal?.image_url,
     proposal?.thumbnail,
     proposal?.thumbnail_url,
+    proposal?.video_thumbnail,
+    proposal?.videoThumbnail,
+    proposal?.video_poster,
+    proposal?.poster,
   ];
 }
 

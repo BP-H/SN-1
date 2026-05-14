@@ -561,12 +561,36 @@ test("composer shows posting progress while create request is pending", async ({
 
   await expect(page.getByText(/Posting|Uploading and posting|Starting post/)).toBeVisible();
   await expect(page.getByText(/keep this tab open/i)).toBeVisible();
-  await expect(page.locator(".composer-publish-progress")).toBeVisible();
+  const progress = page.locator(".composer-publish-progress");
+  await expect(progress).toBeVisible();
+  await expect
+    .poll(async () => Number(await progress.getAttribute("data-progress-percent")), { timeout: 5000 })
+    .toBeGreaterThan(52);
 
   releasePost();
 
   await expect(page.locator(".composer-publish-progress")).toHaveCount(0);
   await expect(page.getByText("Post, propose, or ask AI...")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("unified media picker accepts video without a separate video button", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+
+  await page.goto("/");
+
+  await expect(page.getByRole("button", { name: "Add media" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add video" })).toHaveCount(0);
+
+  await page.getByText("Post, propose, or ask AI...").click();
+  await page.locator("#mediaInput").setInputFiles({
+    name: "smoke-video.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from("mock video bytes"),
+  });
+
+  await expect(page.locator("video").first()).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 

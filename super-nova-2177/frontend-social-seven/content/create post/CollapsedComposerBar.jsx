@@ -5,7 +5,6 @@ import {
   IoImageOutline,
   IoSend,
   IoSparklesOutline,
-  IoVideocamOutline,
 } from "react-icons/io5";
 
 export default function CollapsedComposerBar({
@@ -15,8 +14,7 @@ export default function CollapsedComposerBar({
   defaultAvatar = "",
   prompt = "Post, propose, or ask AI...",
   onOpen,
-  onImage,
-  onVideo,
+  onMedia,
   onFile,
   onAi,
 }) {
@@ -52,11 +50,8 @@ export default function CollapsedComposerBar({
       </button>
 
       <div className="composer-collapsed-actions text-[var(--text-gray-light)]">
-        <button type="button" onClick={onImage} className="composer-icon-button composer-collapsed-action" aria-label="Add media">
+        <button type="button" onClick={onMedia} className="composer-icon-button composer-collapsed-action" aria-label="Add media">
           <IoImageOutline className="text-[1rem]" />
-        </button>
-        <button type="button" onClick={onVideo} className="composer-icon-button composer-collapsed-action" aria-label="Add video">
-          <IoVideocamOutline className="text-[1rem]" />
         </button>
         <button type="button" onClick={onFile} className="composer-icon-button composer-collapsed-action" aria-label="Add document">
           <IoDocumentTextOutline className="text-[1rem]" />
