@@ -623,6 +623,89 @@ html.messages-keyboard-open .mobile-bottom-shell {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.composer-collapsed-bar {
+  display: grid;
+  grid-template-columns: auto minmax(6.75rem, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.composer-collapsed-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+
+.composer-collapsed-prompt {
+  display: flex;
+  min-width: 0;
+  height: 2.45rem;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid var(--horizontal-line);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0 0.85rem;
+  text-align: left;
+  font-size: 0.84rem;
+  color: var(--text-gray-light);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.composer-collapsed-actions {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.composer-collapsed-action,
+.composer-collapsed-send {
+  display: flex;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.composer-collapsed-send {
+  background: var(--pink);
+  color: #fff;
+  box-shadow: var(--shadow-pink);
+}
+
+@media (max-width: 390px) {
+  .composer-collapsed-bar {
+    grid-template-columns: auto minmax(5.65rem, 1fr) auto;
+    gap: 0.4rem;
+  }
+
+  .composer-collapsed-avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .composer-collapsed-prompt {
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .composer-collapsed-actions {
+    gap: 0.18rem;
+  }
+
+  .composer-collapsed-action,
+  .composer-collapsed-send {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
 .composer-governance-strip {
   border: 1px solid rgba(255, 255, 255, 0.065);
   background: rgba(255, 255, 255, 0.035);
@@ -1290,6 +1373,64 @@ html[data-theme="light"] .composer-governance-button.active {
     display: none;
   }
 
+  .supernova-menu-section {
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255, 79, 143, 0.11), transparent 42%),
+      rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  }
+
+  .supernova-menu-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.95rem;
+    padding: 0.72rem 0.65rem;
+    text-align: left;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-black);
+  }
+
+  .supernova-menu-row:hover {
+    background: rgba(255, 255, 255, 0.055);
+  }
+
+  .supernova-menu-row-icon {
+    display: flex;
+    width: 2.15rem;
+    height: 2.15rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
+    color: var(--pink);
+  }
+
+  .supernova-menu-theme-button {
+    display: flex;
+    height: 2.35rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-gray-light);
+    font-size: 0.74rem;
+    font-weight: 800;
+  }
+
+  .supernova-menu-theme-button.active {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--pink);
+    color: #fff;
+    box-shadow: var(--shadow-pink);
+  }
+
   .ai-cursor-core {
     background:
       radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.92) 0 8%, transparent 9%),
@@ -1588,6 +1729,30 @@ html[data-theme="light"] .composer-governance-button.active {
   html[data-theme="light"] .supernova-menu-drawer [class*="text-[var(--text-gray-light)]"] {
     color: #7a8096 !important;
   }
+
+  html[data-theme="light"] .supernova-menu-section {
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255, 79, 143, 0.085), transparent 42%),
+      rgba(17, 24, 39, 0.035);
+    border-color: rgba(17, 24, 39, 0.075);
+  }
+
+  html[data-theme="light"] .supernova-menu-row:hover,
+  html[data-theme="light"] .supernova-menu-row-icon,
+  html[data-theme="light"] .supernova-menu-theme-button {
+    background: rgba(17, 24, 39, 0.045);
+  }
+
+  html[data-theme="light"] .supernova-menu-theme-button {
+    border-color: rgba(17, 24, 39, 0.075);
+    color: #596174;
+  }
+
+  html[data-theme="light"] .supernova-menu-theme-button.active {
+    background: var(--pink);
+    border-color: rgba(255, 79, 143, 0.3);
+    color: #fff;
+  }
 }
 
 @media (max-width: 420px) {
@@ -1681,6 +1846,12 @@ html[data-theme="light"] .composer-governance-button.active {
 .composer-governance-button {
   background: rgba(255, 255, 255, 0.075) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="light"] .composer-collapsed-prompt {
+  background: rgba(17, 24, 39, 0.035);
+  border-color: rgba(17, 24, 39, 0.085);
+  color: rgba(22, 25, 36, 0.62);
 }
 
 .vote-info-glass {

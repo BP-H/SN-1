@@ -21,7 +21,7 @@ import { useUser } from "@/content/profile/UserContext";
 const READ_PREFIX = "supernova_dm_seen::";
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 
-export default function DesktopNav({ showSettings, setShowSettings }) {
+export default function DesktopNav({ setShowSettings }) {
   const router = useRouter();
   const pathname = usePathname();
   const { userData, defaultAvatar, isAuthenticated } = useUser();
@@ -98,7 +98,9 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
       requireAccount();
       return;
     }
-    setShowSettings((value) => !value);
+    setShowSettings(false);
+    const username = userData?.name?.trim();
+    router.push(username ? `/users/${encodeURIComponent(username)}` : "/profile");
   };
 
   const triggerComposer = () => {
@@ -150,7 +152,7 @@ export default function DesktopNav({ showSettings, setShowSettings }) {
     if (key === "home") return pathname === "/";
     if (key === "discover") return pathname.startsWith("/proposals");
     if (key === "messages") return pathname.startsWith("/messages");
-    if (key === "profile") return pathname.startsWith("/profile") || showSettings;
+    if (key === "profile") return pathname.startsWith("/profile") || pathname.startsWith("/users/");
     return false;
   };
 

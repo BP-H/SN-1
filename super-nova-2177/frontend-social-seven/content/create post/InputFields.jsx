@@ -24,6 +24,7 @@ import LiquidGlass from "../liquid glass/LiquidGlass";
 import { useUser } from "../profile/UserContext";
 import ErrorMessage from "../Error";
 import MediaInput from "./Media";
+import ComposerPublishProgress from "./ComposerPublishProgress";
 import PdfPager from "../proposal/content/PdfPager";
 import AiDelegateActionModal from "../proposal/content/AiDelegateActionModal";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
@@ -67,6 +68,7 @@ function InputFields({
   const [pendingCollabInvitees, setPendingCollabInvitees] = useState([]);
   const [collabNotice, setCollabNotice] = useState("");
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(null);
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -367,6 +369,15 @@ function InputFields({
 
   const mutation = useMutation({
     mutationFn: async (newPost) => {
+      const hasMediaUpload = Boolean(
+        newPost.images?.length || newPost.image || newPost.file || newPost.video || newPost.link
+      );
+      setPublishProgress({
+        percent: 16,
+        label: hasMediaUpload ? "Preparing media" : "Preparing post",
+        detail: "Keep this tab open while SuperNova prepares your post.",
+      });
+
       const formData = new FormData();
       formData.append("title", newPost.title);
       formData.append("body", newPost.text);
@@ -396,6 +407,12 @@ function InputFields({
       if (newPost.video) formData.append("video_file", newPost.video, newPost.video.name || "video.mp4");
       if (newPost.link) formData.append("link", newPost.link);
 
+      setPublishProgress({
+        percent: hasMediaUpload ? 42 : 52,
+        label: hasMediaUpload ? "Uploading and posting" : "Posting",
+        detail: "Your post is being sent. Please keep this tab open until it finishes.",
+      });
+
       const response = await fetch(`${API_BASE_URL}/proposals`, {
         method: "POST",
         headers: authHeaders(),
@@ -411,10 +428,27 @@ function InputFields({
       }
 
       const createdPost = await response.json();
+      setPublishProgress({
+        percent: newPost.collabInvitees?.length ? 78 : 88,
+        label: "Refreshing feed",
+        detail: "SuperNova received the post and is updating the feed.",
+      });
       const collabSummary = await requestComposerCollabs(createdPost?.id, newPost.collabInvitees || []);
       return { post: createdPost, collabSummary };
     },
+    onMutate: () => {
+      setPublishProgress({
+        percent: 10,
+        label: "Starting post",
+        detail: "Keep this tab open while SuperNova starts publishing.",
+      });
+    },
     onSuccess: ({ post, collabSummary }) => {
+      setPublishProgress({
+        percent: 100,
+        label: "Posted",
+        detail: "Your post is live.",
+      });
       if (setPosts) {
         setPosts((oldPosts) => [post, ...oldPosts]);
       }
@@ -441,7 +475,10 @@ function InputFields({
       setCollabPromptUser(null);
       setCollabNotice("");
     },
-    onError: (error) => setErrorMsg([formatBackendAuthErrorMessage(error, "Failed to create post.")]),
+    onError: (error) => {
+      setPublishProgress(null);
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Failed to create post.")]);
+    },
   });
 
   const publish = () => {
@@ -784,7 +821,20 @@ function InputFields({
     voting_days: isDecisionMode ? votingDays : undefined,
   };
 
-  const renderContent = () => (
+  const publishHasMedia = Boolean(mediaValue || selectedFile || selectedFiles.length > 0);
+
+  const renderContent = () => {
+    if (mutation.isPending) {
+      return (
+        <ComposerPublishProgress
+          progress={publishProgress}
+          hasMedia={publishHasMedia}
+          collabCount={pendingCollabInvitees.length}
+        />
+      );
+    }
+
+    return (
     <div className="flex flex-col gap-3 text-[var(--text-black)]">
       <div className="relative">
         <textarea
@@ -1032,7 +1082,8 @@ function InputFields({
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <div className="w-full">

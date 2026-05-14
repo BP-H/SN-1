@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -11,10 +11,15 @@ import {
   IoClose,
   IoGitNetworkOutline,
   IoHomeOutline,
+  IoLogInOutline,
+  IoLogOutOutline,
+  IoMoonOutline,
   IoPeopleOutline,
   IoPersonCircleOutline,
+  IoPersonOutline,
   IoSettingsOutline,
   IoSparklesOutline,
+  IoSunnyOutline,
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
@@ -34,7 +39,8 @@ function uniqueNodes(items = []) {
 
 export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const router = useRouter();
-  const { userData, defaultAvatar, isAuthenticated } = useUser();
+  const { userData, defaultAvatar, isAuthenticated, signOut } = useUser();
+  const [theme, setTheme] = useState("light");
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const { data, isLoading } = useQuery({
@@ -54,6 +60,11 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const metrics = data?.status?.metrics || {};
   const network = data?.network || {};
 
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    setTheme(localStorage.getItem("supernova-theme") || "light");
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   const go = (path) => {
@@ -70,6 +81,35 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
     }
     sessionStorage.setItem(HOME_SCROLL_TOP_KEY, "1");
     router.push("/");
+  };
+
+  const openAccount = (mode = "login") => {
+    onClose?.();
+    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode } }));
+  };
+
+  const goOwnProfile = () => {
+    if (!isAuthenticated) {
+      openAccount("create");
+      return;
+    }
+    const username = userData?.name?.trim();
+    go(username ? `/users/${encodeURIComponent(username)}` : "/profile");
+  };
+
+  const applyTheme = (nextTheme) => {
+    setTheme(nextTheme);
+    localStorage.setItem("supernova-theme", nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+  };
+
+  const handleSignOut = async () => {
+    onClose?.();
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn("SuperNova menu sign out cleared local state but provider sign-out reported an error.", error);
+    }
   };
 
   return createPortal(
@@ -94,10 +134,10 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
             <p className="mt-1 max-h-10 overflow-hidden text-[0.82rem] leading-5 text-[var(--text-gray-light)]">
               {isAuthenticated ? (
                 <span>
-              {userData?.species || "human"} node · AI x Humans x ORG
+              {userData?.species || "human"} node - AI x Humans x ORG
                 </span>
               ) : (
-                "Sign in to activate posting, voting, and messages · AI x Humans x ORG"
+                "Sign in to activate posting, voting, and messages - AI x Humans x ORG"
               )}
             </p>
           </div>
@@ -121,6 +161,78 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
             <p className="mt-1 text-[1.1rem] font-black">{metrics.community_wellspring ?? 0}</p>
           </div>
         </div>
+
+        <section className="supernova-menu-section mx-3 mb-4 rounded-[1rem] px-3 py-3">
+          <p className="px-1 text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--pink)]">Account</p>
+          <div className="mt-2 grid gap-1">
+            {isAuthenticated ? (
+              <>
+                <button
+                  type="button"
+                  onClick={goOwnProfile}
+                  className="supernova-menu-row"
+                >
+                  <span className="supernova-menu-row-icon"><IoPersonOutline /></span>
+                  <span className="min-w-0 flex-1 truncate">View my profile</span>
+                  <IoChevronForward className="text-[var(--text-gray-light)]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose?.();
+                    openProfileSettings?.();
+                  }}
+                  className="supernova-menu-row"
+                >
+                  <span className="supernova-menu-row-icon"><IoSettingsOutline /></span>
+                  <span className="min-w-0 flex-1 truncate">Profile settings</span>
+                  <IoChevronForward className="text-[var(--text-gray-light)]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="supernova-menu-row"
+                >
+                  <span className="supernova-menu-row-icon"><IoLogOutOutline /></span>
+                  <span className="min-w-0 flex-1 truncate">Sign out</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => openAccount("login")} className="supernova-menu-row">
+                  <span className="supernova-menu-row-icon"><IoLogInOutline /></span>
+                  <span className="min-w-0 flex-1 truncate">Sign in</span>
+                </button>
+                <button type="button" onClick={() => openAccount("create")} className="supernova-menu-row">
+                  <span className="supernova-menu-row-icon"><IoPersonOutline /></span>
+                  <span className="min-w-0 flex-1 truncate">Create account</span>
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              { key: "light", label: "Light", icon: IoSunnyOutline },
+              { key: "dark", label: "Dark", icon: IoMoonOutline },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = theme === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => applyTheme(item.key)}
+                  className={`supernova-menu-theme-button ${active ? "active" : ""}`}
+                  aria-pressed={active}
+                >
+                  <Icon />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         <div className="space-y-1 px-3 pb-4">
           {[
