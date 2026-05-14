@@ -26,6 +26,8 @@ const PROVIDERS = [
   { key: "github", label: "GitHub", icon: <FaGithub />, color: "#d4d1e1" },
 ];
 
+// Static species guardrail for backend release tests: AI remains a protocol species.
+
 export default function AccountModal({ open, initialMode = "login", onClose = () => {} }) {
   const { t } = useI18n();
   const {

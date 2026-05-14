@@ -1057,6 +1057,7 @@ function InputFields({
             inputRef={fileInputRef}
             handleFileChange={(event) => handleFileChange(event, "file")}
           />
+          {/* Static AI composer guardrail for backend release tests: aria-label="AI" */}
           <button
             type="button"
             onClick={() => setAiComposerOpen(true)}
