@@ -3774,7 +3774,8 @@ html[data-theme="light"] .for-ai-panel {
   animation: constellationAurora 24s ease-in-out infinite alternate;
 }
 
-.universe-page .desktop-constellation-svg {
+.universe-page .desktop-constellation-svg,
+.universe-page .desktop-constellation-canvas {
   position: relative;
   z-index: 1;
   display: block;
@@ -3782,7 +3783,13 @@ html[data-theme="light"] .for-ai-panel {
   height: 100%;
   min-height: 0;
   color: #8ee9ff;
+  cursor: grab;
+  touch-action: none;
   user-select: none;
+}
+
+.universe-page .desktop-constellation-canvas:active {
+  cursor: grabbing;
 }
 
 .universe-page .desktop-constellation-controls {
@@ -5088,7 +5095,8 @@ html[data-theme="light"] .post-action-bar {
     color: var(--text-black);
   }
 
-  .desktop-constellation-svg {
+  .desktop-constellation-svg,
+  .desktop-constellation-canvas {
     position: relative;
     z-index: 1;
     display: block;
@@ -5096,7 +5104,13 @@ html[data-theme="light"] .post-action-bar {
     aspect-ratio: 4 / 3;
     min-height: 13rem;
     color: #8ee9ff;
+    cursor: grab;
+    touch-action: none;
     user-select: none;
+  }
+
+  .desktop-constellation-canvas:active {
+    cursor: grabbing;
   }
 
   .desktop-constellation-orbit {
