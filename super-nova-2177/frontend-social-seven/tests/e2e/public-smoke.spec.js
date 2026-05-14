@@ -457,19 +457,34 @@ test("supernova menu saves language preference and localizes shell labels", asyn
   await page.getByRole("button", { name: "Open SuperNova menu" }).click();
   const menu = page.locator(".supernova-menu-drawer");
   await expect(menu.getByText("Language")).toBeVisible();
+  await expect(menu.getByRole("button", { name: "한국어" })).toBeVisible();
 
-  await menu.getByRole("button", { name: "Turkce" }).click();
+  await menu.getByRole("button", { name: "Español" }).click();
 
-  await expect(page.locator("html")).toHaveAttribute("lang", "tr");
-  await expect(menu.getByText("Hesap", { exact: true })).toBeVisible();
-  await expect(menu.getByRole("button", { name: "Giris yap" })).toBeVisible();
-  await expect(menu.getByRole("button", { name: "Ana sayfa" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(menu.getByText("Cuenta", { exact: true })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Iniciar sesión" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Inicio" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Crear cuenta" })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => window.localStorage.getItem("supernova-locale-preference")))
-    .toBe("tr");
+    .toBe("es");
   await expect
-    .poll(() => page.evaluate(() => document.cookie.includes("supernova_locale=tr")))
+    .poll(() => page.evaluate(() => document.cookie.includes("supernova_locale=es")))
     .toBeTruthy();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("malformed locale cookie falls back without breaking the shell", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.addInitScript(() => {
+    document.cookie = "supernova_locale=%E0%A4%A; Path=/";
+  });
+
+  await page.goto("/");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("button", { name: "Open SuperNova menu" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 

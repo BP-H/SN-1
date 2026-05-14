@@ -12,11 +12,12 @@ import {
 import { useUser } from "./UserContext";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { formatBackendAuthErrorMessage } from "@/utils/authSession";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 
 const SPECIES = [
-  { key: "human", label: "Human", icon: <FaUser /> },
-  { key: "company", label: "ORG", icon: <FaBriefcase /> },
+  { key: "human", labelKey: "account.human", icon: <FaUser /> },
+  { key: "company", labelKey: "account.org", icon: <FaBriefcase /> },
 ];
 
 const PROVIDERS = [
@@ -26,6 +27,7 @@ const PROVIDERS = [
 ];
 
 export default function AccountModal({ open, initialMode = "login", onClose = () => {} }) {
+  const { t } = useI18n();
   const {
     authConfigured,
     defaultAvatar,
@@ -60,8 +62,8 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   if (!mounted || !open) return null;
   const avatarStyle = speciesAvatarStyle(species || "human");
   const alternateMode = mode === "create" ? "login" : "create";
-  const switchPrompt = mode === "create" ? "Already have an account?" : "Need an account?";
-  const switchLabel = mode === "create" ? "Sign in" : "Create account";
+  const switchPrompt = mode === "create" ? t("account.alreadyHaveAccount") : t("account.needAccount");
+  const switchLabel = mode === "create" ? t("account.signIn") : t("account.createAccount");
 
   const submit = async (event) => {
     event.preventDefault();
@@ -69,19 +71,19 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
     const nextEmail = email.trim();
     const nextPassword = password;
     if (!nextUsername) {
-      setError("Choose a username.");
+      setError(t("account.chooseUsername"));
       return;
     }
     if (mode === "create" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
-      setError("Enter a valid email.");
+      setError(t("account.enterValidEmail"));
       return;
     }
     if (!nextPassword || (mode === "create" && nextPassword.length < 6)) {
-      setError(mode === "create" ? "Use at least 6 password characters." : "Enter your password.");
+      setError(mode === "create" ? t("account.passwordTooShort") : t("account.enterPassword"));
       return;
     }
     if (mode === "create" && !species) {
-      setError("Choose Human or ORG. AI delegates are created after signup through AI Genesis.");
+      setError(t("account.chooseHumanOrOrg"));
       return;
     }
 
@@ -101,7 +103,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
       setPassword("");
       onClose();
     } catch (err) {
-      setError(formatBackendAuthErrorMessage(err, "Account action failed."));
+      setError(formatBackendAuthErrorMessage(err, t("account.accountActionFailed")));
     } finally {
       setBusy("");
     }
@@ -113,7 +115,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
     try {
       await loginWithProvider(provider);
     } catch (err) {
-      setError(formatBackendAuthErrorMessage(err, `Unable to start ${provider} login.`));
+      setError(formatBackendAuthErrorMessage(err, t("account.unableProviderLogin", { provider })));
       setBusy("");
     }
   };
@@ -133,9 +135,9 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
           <div className="flex min-w-0 items-center gap-3">
             <img src={defaultAvatar} alt="" className="h-12 w-12 shrink-0 rounded-full border object-cover" style={avatarStyle} />
             <div className="min-w-0">
-              <p className="truncate text-[1rem] font-black">SuperNova account</p>
+              <p className="truncate text-[1rem] font-black">{t("account.supernovaAccount")}</p>
               <p className="auth-muted mt-0.5 text-[0.7rem]">
-                {mode === "create" ? "Choose your username and principal type." : "Sign in to sync across devices."}
+                {mode === "create" ? t("account.chooseUsernameAndPrincipal") : t("account.signInToSync")}
               </p>
             </div>
           </div>
@@ -143,7 +145,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             type="button"
             onClick={onClose}
             className="auth-icon-button flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-            aria-label="Close account panel"
+            aria-label={t("account.closeAccountPanel")}
           >
             <IoClose />
           </button>
@@ -160,17 +162,17 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
               onClick={() => providerLogin(provider.key)}
               disabled={Boolean(busy) || !authConfigured}
               className="auth-provider-button flex h-11 items-center justify-center gap-2 rounded-full px-4 text-[0.82rem] font-bold disabled:opacity-45"
-              title={authConfigured ? `Continue with ${provider.label}` : "Add Supabase environment variables to enable provider login"}
+              title={authConfigured ? t("account.continueWith", { provider: provider.label }) : t("account.providerDisabledTitle")}
             >
               <span className="text-[1rem]" style={{ color: provider.color }}>{provider.icon}</span>
-              Continue with {provider.label}
+              {t("account.continueWith", { provider: provider.label })}
             </button>
           ))}
         </div>
 
         <div className="auth-divider my-3 flex items-center gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em]">
           <span className="h-px flex-1" />
-          <span>Account</span>
+          <span>{t("account.account")}</span>
           <span className="h-px flex-1" />
         </div>
 
@@ -179,7 +181,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-            placeholder="Username"
+            placeholder={t("account.username")}
             autoComplete="username"
           />
           {mode === "create" && (
@@ -187,7 +189,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-              placeholder="Email"
+              placeholder={t("account.email")}
               type="email"
               autoComplete="email"
             />
@@ -196,7 +198,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-            placeholder="Password"
+            placeholder={t("account.password")}
             type="password"
             autoComplete={mode === "create" ? "new-password" : "current-password"}
           />
@@ -217,13 +219,13 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
                     }`}
                   >
                     {item.icon}
-                    {item.label}
+                    {t(item.labelKey)}
                   </button>
                 );
               })}
             </div>
             <p className="auth-muted mt-2 rounded-[0.85rem] px-3 py-2 text-[0.7rem] leading-5">
-              AI remains a protocol species. AI delegates are created after signup through AI Genesis.
+              {t("account.speciesAiNote")}
             </p>
           </>
         )}
@@ -236,7 +238,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
           className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--pink)] text-[0.82rem] font-black text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
         >
           {mode === "create" ? <IoMailOutline /> : <IoShieldCheckmarkOutline />}
-          {busy === mode ? "Working..." : mode === "create" ? "Create account" : "Sign in"}
+          {busy === mode ? t("account.working") : mode === "create" ? t("account.createAccount") : t("account.signIn")}
         </button>
         <p className="auth-muted mt-3 text-center text-[0.72rem] font-semibold">
           {switchPrompt}{" "}
@@ -254,7 +256,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
         </p>
         {!authConfigured && (
           <p className="auth-muted mt-2 text-center text-[0.66rem] leading-4">
-            Google, Facebook, and GitHub need Supabase env vars and provider redirect URLs. Password accounts still work through the backend.
+            {t("account.providerEnvNote")}
           </p>
         )}
       </form>
@@ -264,6 +266,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
 }
 
 export function ProfileSetupModal({ open }) {
+  const { t } = useI18n();
   const {
     defaultAvatar,
     userData,
@@ -295,11 +298,11 @@ export function ProfileSetupModal({ open }) {
     event.preventDefault();
     const cleanUsername = username.trim();
     if (!cleanUsername) {
-      setError("Choose a username.");
+      setError(t("account.chooseUsername"));
       return;
     }
     if (!species) {
-      setError("Choose Human or ORG. AI delegates are created after signup through AI Genesis.");
+      setError(t("account.chooseHumanOrOrg"));
       return;
     }
     setBusy(true);
@@ -311,7 +314,7 @@ export function ProfileSetupModal({ open }) {
         avatar: userData?.avatar || "",
       });
     } catch (err) {
-      setError(formatBackendAuthErrorMessage(err, "Unable to finish account setup."));
+      setError(formatBackendAuthErrorMessage(err, t("account.finishSetupFailed")));
     } finally {
       setBusy(false);
     }
@@ -333,8 +336,8 @@ export function ProfileSetupModal({ open }) {
               style={avatarStyle}
             />
             <div className="min-w-0">
-              <p className="truncate text-[1rem] font-black">Choose your SuperNova identity</p>
-              <p className="auth-muted mt-0.5 text-[0.7rem]">Choose a human or organization principal.</p>
+              <p className="truncate text-[1rem] font-black">{t("account.chooseIdentity")}</p>
+              <p className="auth-muted mt-0.5 text-[0.7rem]">{t("account.choosePrincipal")}</p>
             </div>
           </div>
         </div>
@@ -343,7 +346,7 @@ export function ProfileSetupModal({ open }) {
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           className="auth-input h-11 w-full rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-          placeholder="Username"
+          placeholder={t("account.username")}
           autoComplete="username"
         />
 
@@ -360,13 +363,13 @@ export function ProfileSetupModal({ open }) {
                 }`}
               >
                 {item.icon}
-                {item.label}
+                {t(item.labelKey)}
               </button>
             );
           })}
         </div>
         <p className="auth-muted mt-2 rounded-[0.85rem] px-3 py-2 text-[0.7rem] leading-5">
-          AI delegates are visible AI actors created later through AI Genesis.
+          {t("account.socialAiNote")}
         </p>
 
         {error && <p className="auth-error mt-3 rounded-[0.85rem] px-3 py-2 text-[0.76rem]">{error}</p>}
@@ -377,14 +380,14 @@ export function ProfileSetupModal({ open }) {
           className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--pink)] text-[0.82rem] font-black text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
         >
           <IoShieldCheckmarkOutline />
-          {busy ? "Saving..." : "Continue"}
+          {busy ? t("account.saving") : t("account.continue")}
         </button>
         <button
           type="button"
           onClick={signOut}
           className="auth-muted mt-3 w-full text-center text-[0.72rem] font-semibold"
         >
-          Sign out instead
+          {t("account.signOutInstead")}
         </button>
       </form>
     </div>,

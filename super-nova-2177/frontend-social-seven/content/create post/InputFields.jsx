@@ -26,6 +26,7 @@ import MediaInput from "./Media";
 import ComposerPublishProgress from "./ComposerPublishProgress";
 import PdfPager from "../proposal/content/PdfPager";
 import AiDelegateActionModal from "../proposal/content/AiDelegateActionModal";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import {
   BACKEND_AUTH_MISSING_MESSAGE,
@@ -49,6 +50,7 @@ function InputFields({
   autoOpenAi = false,
   onAutoOpenAiConsumed,
 }) {
+  const { t } = useI18n();
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
 
@@ -273,7 +275,7 @@ function InputFields({
 
   const handleFileChange = async (event, type) => {
     if (!isAuthenticated) {
-      requireAccount("Sign in before attaching media.");
+      requireAccount(t("composer.signInBeforeMedia"));
       event.target.value = null;
       return;
     }
@@ -285,12 +287,12 @@ function InputFields({
       const imageFiles = files.filter((file) => file.type.startsWith("image/"));
       const videoFiles = files.filter((file) => file.type.startsWith("video/"));
       if (imageFiles.length > 0 && videoFiles.length > 0) {
-        setErrorMsg(["Choose either images or one video for this post. Mixed media albums are next, but not enabled yet."]);
+        setErrorMsg([t("composer.chooseEitherImagesOrVideo")]);
         event.target.value = null;
         return;
       }
       if (videoFiles.length > 1) {
-        setErrorMsg(["Choose one video for this post."]);
+        setErrorMsg([t("composer.chooseOneVideo")]);
         event.target.value = null;
         return;
       }
@@ -299,12 +301,12 @@ function InputFields({
       } else if (imageFiles.length > 0) {
         await applyImageFiles(imageFiles);
       } else {
-        setErrorMsg(["Choose an image or video file."]);
+        setErrorMsg([t("composer.chooseImageOrVideo")]);
       }
     } else if (type === "image") {
       const imageFiles = files.filter((file) => file.type.startsWith("image/"));
       if (imageFiles.length === 0) {
-        setErrorMsg(["Choose one or more image files."]);
+        setErrorMsg([t("composer.chooseImages")]);
         event.target.value = null;
         return;
       }
@@ -319,7 +321,7 @@ function InputFields({
       setMediaType("file");
       setMediaValue(fileObj.name);
     } else {
-      setErrorMsg([`Choose a valid ${type} file.`]);
+      setErrorMsg([t("composer.validFile", { type })]);
     }
 
     event.target.value = null;
@@ -402,9 +404,10 @@ function InputFields({
         newPost.images?.length || newPost.image || newPost.file || newPost.video || newPost.link
       );
       setPublishProgress({
+        phase: "preparing",
         percent: 16,
-        label: hasMediaUpload ? "Preparing media" : "Preparing post",
-        detail: "Keep this tab open while SuperNova prepares your post.",
+        label: hasMediaUpload ? t("composer.preparingMedia") : t("composer.preparingPost"),
+        detail: t("composer.keepTabPreparing"),
       });
 
       const formData = new FormData();
@@ -437,9 +440,10 @@ function InputFields({
       if (newPost.link) formData.append("link", newPost.link);
 
       setPublishProgress({
+        phase: "uploading",
         percent: hasMediaUpload ? 42 : 52,
-        label: hasMediaUpload ? "Uploading and posting" : "Posting",
-        detail: "Your post is being sent. Please keep this tab open until it finishes.",
+        label: hasMediaUpload ? t("composer.uploadingAndPosting") : t("composer.posting"),
+        detail: t("composer.keepTabUploading"),
       });
 
       const response = await fetch(`${API_BASE_URL}/proposals`, {
@@ -458,25 +462,28 @@ function InputFields({
 
       const createdPost = await response.json();
       setPublishProgress({
+        phase: "refreshing",
         percent: newPost.collabInvitees?.length ? 78 : 88,
-        label: "Refreshing feed",
-        detail: "SuperNova received the post and is updating the feed.",
+        label: t("composer.refreshingFeed"),
+        detail: t("composer.receivedUpdatingFeed"),
       });
       const collabSummary = await requestComposerCollabs(createdPost?.id, newPost.collabInvitees || []);
       return { post: createdPost, collabSummary };
     },
     onMutate: () => {
       setPublishProgress({
+        phase: "starting",
         percent: 10,
-        label: "Starting post",
-        detail: "Keep this tab open while SuperNova starts publishing.",
+        label: t("composer.startingPost"),
+        detail: t("composer.keepTabStarting"),
       });
     },
     onSuccess: ({ post, collabSummary }) => {
       setPublishProgress({
+        phase: "posted",
         percent: 100,
-        label: "Posted",
-        detail: "Your post is live.",
+        label: t("composer.posted"),
+        detail: t("composer.postLive"),
       });
       if (setPosts) {
         setPosts((oldPosts) => [post, ...oldPosts]);
@@ -506,7 +513,7 @@ function InputFields({
     },
     onError: (error) => {
       setPublishProgress(null);
-      setErrorMsg([formatBackendAuthErrorMessage(error, "Failed to create post.")]);
+      setErrorMsg([formatBackendAuthErrorMessage(error, t("composer.publishError"))]);
     },
   });
 
@@ -516,8 +523,8 @@ function InputFields({
       setPublishProgress((current) => {
         if (!current) return current;
         const currentPercent = Math.max(0, Math.min(100, Number(current.percent) || 0));
-        const label = String(current.label || "").toLowerCase();
-        const cap = label.includes("refreshing") ? 96 : label.includes("posted") ? 100 : 88;
+        const phase = String(current.phase || "").toLowerCase();
+        const cap = phase === "refreshing" ? 96 : phase === "posted" ? 100 : 88;
         if (currentPercent >= cap) return current;
         const remaining = cap - currentPercent;
         const step = remaining > 24 ? 4 : remaining > 12 ? 2 : 1;
@@ -533,7 +540,7 @@ function InputFields({
   const publish = () => {
     const errors = [];
     if (!isAuthenticated) {
-      requireAccount("Sign in to publish on SuperNova.");
+      requireAccount(t("composer.signInToPublish"));
       return;
     }
     try {
@@ -544,8 +551,8 @@ function InputFields({
     if (!text.trim()) {
       errors.push(
         mediaValue || selectedFile || selectedFiles.length > 0
-          ? "Make your proposal clear in words too. Add the question, context, or call to action for this media."
-          : "Write a proposal, update, or question before publishing."
+          ? t("composer.writeMediaContext")
+          : t("composer.writeBeforePublishing")
       );
     }
     if (!userData?.name) errors.push("Add your display name in profile settings first.");
@@ -888,7 +895,7 @@ function InputFields({
       <div className="relative">
         <textarea
           ref={textAreaRef}
-          placeholder="Share your idea, update, or question"
+          placeholder={t("composer.writePlaceholder")}
           value={text}
           onChange={(event) => {
             setText(event.target.value);
@@ -1054,8 +1061,8 @@ function InputFields({
             type="button"
             onClick={() => setAiComposerOpen(true)}
             className="composer-icon-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold text-[var(--pink)]"
-            aria-label="AI"
-            title="AI"
+            aria-label={t("composer.ai")}
+            title={t("composer.ai")}
           >
             <IoSparklesOutline className="text-[1.05rem]" />
           </button>
@@ -1069,8 +1076,8 @@ function InputFields({
               isDecisionMode ? "active" : ""
             }`}
             aria-pressed={isDecisionMode}
-            aria-label={isDecisionMode ? "Decision poll enabled" : "Enable decision poll"}
-            title={isDecisionMode ? "Decision poll enabled" : "Decision poll"}
+            aria-label={isDecisionMode ? t("composer.decisionPollEnabled") : t("composer.enableDecisionPoll")}
+            title={isDecisionMode ? t("composer.decisionPollEnabled") : t("composer.decisionPoll")}
           >
             <IoBarChartOutline className="text-[1.08rem]" />
           </button>
@@ -1078,8 +1085,8 @@ function InputFields({
             type="button"
             onClick={() => setDiscard(true)}
             className="composer-icon-button flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold"
-            aria-label="Close composer"
-            title="Close composer"
+            aria-label={t("composer.closeComposer")}
+            title={t("composer.closeComposer")}
           >
             <IoClose className="text-[1.08rem]" />
           </button>
@@ -1088,8 +1095,8 @@ function InputFields({
             onClick={publish}
             disabled={mutation.isPending}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] font-semibold text-white shadow-[var(--shadow-pink)] transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
-            aria-label={mutation.isPending ? "Publishing" : "Post"}
-            title={mutation.isPending ? "Publishing" : "Post"}
+            aria-label={mutation.isPending ? t("composer.publishing") : t("composer.post")}
+            title={mutation.isPending ? t("composer.publishing") : t("composer.post")}
           >
             <IoSend className="text-[1.05rem]" />
           </button>

@@ -135,7 +135,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   const openComposerWithMedia = (type) => {
     if (!isAuthenticated) {
-      requireAccount("Sign in to attach media and post on SuperNova.");
+      requireAccount(t("composer.signInAttachMedia"));
       return;
     }
     setPendingMediaPicker(type);
@@ -144,7 +144,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   const openComposerWithAi = () => {
     if (!isAuthenticated) {
-      requireAccount("Sign in to create AI delegate posts on SuperNova.");
+      requireAccount(t("composer.signInAiPosts"));
       return;
     }
     setPendingAiOpen(true);
@@ -451,7 +451,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               prompt={t("composer.postPrompt")}
               onOpen={() => {
                 if (!isAuthenticated) {
-                  requireAccount("Sign in to post on SuperNova.");
+                  requireAccount(t("composer.signInToPost"));
                   return;
                 }
                 setDiscard(false);
@@ -481,34 +481,34 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             Array.from({ length: 3 }).map((_, index) => <CardLoading key={index} />)
           ) : isError ? (
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-              <p className="font-semibold text-[var(--text-black)]">Could not load the feed.</p>
-              <p className="mt-1">{error?.message || "The backend did not return posts."}</p>
+              <p className="font-semibold text-[var(--text-black)]">{t("feed.couldNotLoadFeed")}</p>
+              <p className="mt-1">{error?.message || t("feed.backendNoPosts")}</p>
               <button
                 type="button"
                 onClick={() => refetch()}
                 className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)]"
               >
-                Retry
+                {t("common.retry")}
               </button>
             </div>
           ) : orderedPosts.length === 0 ? (
             <div className="mobile-feed-panel social-panel rounded-[1rem] px-5 py-8 text-center text-[0.86rem] text-[var(--text-gray-light)]">
-              <p className="font-semibold text-[var(--text-black)]">No posts yet.</p>
+              <p className="font-semibold text-[var(--text-black)]">{t("feed.noPosts")}</p>
               <p className="mx-auto mt-1 max-w-[19rem] text-[0.78rem] leading-5">
-                Start the commons with a post, proposal, image, or AI delegate draft.
+                {t("feed.noPostsCue")}
               </p>
               <button
                 type="button"
                 onClick={() => {
                   if (!isAuthenticated) {
-                    requireAccount("Sign in to create the first post.");
+                    requireAccount(t("composer.signInFirstPost"));
                     return;
                   }
                   setDiscard(false);
                 }}
                 className="mt-4 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.78rem] font-bold text-white shadow-[var(--shadow-pink)] transition hover:brightness-105"
               >
-                Create post
+                {t("common.createPost")}
               </button>
             </div>
           ) : (
@@ -552,7 +552,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   disabled={isFetchingNextPage}
                   className="mobile-feed-panel social-panel mx-[0.35rem] rounded-[1rem] px-5 py-3 text-center text-[0.86rem] font-bold text-[var(--text-black)] disabled:opacity-60"
                 >
-                  {isFetchingNextPage ? "Loading..." : "Load more"}
+                  {isFetchingNextPage ? t("common.loading") : t("feed.loadMore")}
                 </button>
               )}
             </>
