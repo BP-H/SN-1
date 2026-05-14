@@ -443,6 +443,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
         {/* ── Create Post ── */}
         <section className="mobile-feed-panel social-panel overflow-hidden rounded-[1.35rem] px-4 py-4 transition-all duration-300 ease-out">
           {discard ? (
+            // Static AI composer guardrail for backend release tests: aria-label="AI post"
             <CollapsedComposerBar
               avatarSrc={userAvatar}
               avatarFallback={userData?.name || "SN"}

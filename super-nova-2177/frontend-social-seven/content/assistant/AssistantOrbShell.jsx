@@ -4,6 +4,7 @@ import { IoClose } from "react-icons/io5";
 
 export default function AssistantOrbShell({
   children,
+  closeLabel = "Close popup",
   onClose,
   panelStyle,
   subtitle,
@@ -28,8 +29,8 @@ export default function AssistantOrbShell({
           type="button"
           onClick={onClose}
           className="ai-cursor-panel-icon-button flex h-8 w-8 items-center justify-center rounded-full text-[0.9rem] font-semibold"
-          aria-label="Close popup"
-          title="Close popup"
+          aria-label={closeLabel}
+          title={closeLabel}
         >
           <IoClose />
         </button>
