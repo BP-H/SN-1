@@ -9,6 +9,7 @@ import { API_BASE_URL, absoluteApiUrl } from "@/utils/apiBase";
 import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
 import InputFields from "../create post/InputFields";
@@ -46,6 +47,7 @@ function formatRelativeTime(dateString) {
 }
 
 export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
+  const { t } = useI18n();
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
   const [pendingAiOpen, setPendingAiOpen] = useState(false);
@@ -166,7 +168,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
               avatarSrc={userAvatar}
               avatarFallback={userData?.name || "SN"}
               defaultAvatar={defaultAvatar}
-              prompt="Share your thoughts..."
+              prompt={t("composer.shareThoughts")}
               onOpen={() => {
                 if (!isAuthenticated) {
                   requireAccount("Sign in to post on SuperNova.");

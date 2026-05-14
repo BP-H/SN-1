@@ -15,6 +15,7 @@ import {
 import { API_BASE_URL } from "@/utils/apiBase";
 import { authHeaders } from "@/utils/authSession";
 import { avatarDisplayUrl } from "@/utils/avatar";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { usePageVisible } from "@/utils/pageVisibility";
 import { useUser } from "@/content/profile/UserContext";
 
@@ -24,6 +25,7 @@ const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 export default function DesktopNav({ setShowSettings }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useI18n();
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const [readMarkers, setReadMarkers] = useState({});
   const [isDesktopViewport, setIsDesktopViewport] = useState(null);
@@ -135,17 +137,17 @@ export default function DesktopNav({ setShowSettings }) {
   };
 
   const navItems = [
-    { key: "menu", label: "Menu", icon: IoMenu, action: openSupernovaMenu },
-    { key: "home", label: "Home", icon: IoHome, action: goHome },
-    { key: "discover", label: "Discover", icon: IoCompassOutline, action: () => router.push("/proposals") },
+    { key: "menu", label: t("common.menu"), icon: IoMenu, action: openSupernovaMenu },
+    { key: "home", label: t("nav.home"), icon: IoHome, action: goHome },
+    { key: "discover", label: t("nav.discover"), icon: IoCompassOutline, action: () => router.push("/proposals") },
     {
       key: "messages",
-      label: "Messages",
+      label: t("nav.messages"),
       icon: IoChatbubbleOutline,
       action: () => (isAuthenticated ? router.push("/messages") : requireAccount()),
       badge: unreadCount,
     },
-    { key: "profile", label: "Profile", icon: IoPersonOutline, action: openProfile },
+    { key: "profile", label: t("nav.profile"), icon: IoPersonOutline, action: openProfile },
   ];
 
   const isActive = (key) => {
@@ -160,10 +162,10 @@ export default function DesktopNav({ setShowSettings }) {
     <aside className="desktop-shell-nav">
       <button type="button" onClick={triggerComposer} className="desktop-compose-button">
         <IoAdd className="text-[1.25rem]" />
-        <span>Create post</span>
+        <span>{t("common.createPost")}</span>
       </button>
 
-      <nav className="desktop-nav-list" aria-label="Desktop navigation">
+      <nav className="desktop-nav-list" aria-label={t("nav.desktopNavigation")}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.key);
@@ -197,10 +199,10 @@ export default function DesktopNav({ setShowSettings }) {
         />
         <span className="min-w-0 flex-1 text-left">
           <span className="block truncate text-[0.84rem] font-bold">
-            {isAuthenticated ? userData?.name : "Sign in"}
+            {isAuthenticated ? userData?.name : t("account.signIn")}
           </span>
           <span className="block truncate text-[0.68rem] text-[var(--text-gray-light)]">
-            {isAuthenticated ? userData?.species || "human" : "Activate identity"}
+            {isAuthenticated ? userData?.species || "human" : t("account.activateIdentity")}
           </span>
         </span>
         <IoSettingsOutline className="shrink-0 text-[var(--text-gray-light)]" />

@@ -1,0 +1,131 @@
+export const SUPPORTED_LOCALES = [
+  { code: "en", label: "English", nativeLabel: "English" },
+  { code: "tr", label: "Turkish", nativeLabel: "Turkce" },
+];
+
+export const DEFAULT_LOCALE = "en";
+export const LOCALE_STORAGE_KEY = "supernova-locale-preference";
+export const LOCALE_COOKIE_NAME = "supernova_locale";
+
+export const messages = {
+  en: {
+    account: {
+      account: "Account",
+      activateIdentity: "Activate identity",
+      createAccount: "Create account",
+      introSignedOut: "Sign in to activate posting, voting, and messages - AI x Humans x ORG",
+      profileSettings: "Profile settings",
+      signIn: "Sign in",
+      signOut: "Sign out",
+      supernovaAccount: "SuperNova account",
+      viewProfile: "View my profile",
+    },
+    common: {
+      closeMenu: "Close menu",
+      createPost: "Create post",
+      menu: "Menu",
+      network: "Network",
+      resonance: "Resonance",
+    },
+    composer: {
+      addDocument: "Add document",
+      addMedia: "Add media",
+      postPrompt: "Post, propose, or ask AI...",
+      shareThoughts: "Share your thoughts...",
+      uploadFile: "Upload File",
+      uploadImage: "Upload Image",
+      uploadMedia: "Upload Media",
+      uploadVideo: "Upload Video",
+    },
+    header: {
+      goHome: "Go home",
+      notifications: "Notifications",
+      openGithub: "Open SuperNova GitHub repository",
+      openMenu: "Open SuperNova menu",
+      search: "Search",
+    },
+    language: {
+      auto: "Auto",
+      autoWithLocale: "Auto ({locale})",
+      language: "Language",
+      saved: "Language preference saved.",
+    },
+    nav: {
+      desktopNavigation: "Desktop navigation",
+      discover: "Discover",
+      discoverProtocolFeed: "Discover protocol feed",
+      forAiReaders: "For AI readers",
+      home: "Home",
+      messages: "Messages",
+      messagesAndReplies: "Messages and replies",
+      profile: "Profile",
+      profileAndSpeciesSettings: "Profile and species settings",
+      savedPosts: "Saved posts",
+    },
+    theme: {
+      dark: "Dark",
+      light: "Light",
+      theme: "Theme",
+    },
+  },
+  tr: {
+    account: {
+      account: "Hesap",
+      activateIdentity: "Kimligi etkinlestir",
+      createAccount: "Hesap olustur",
+      introSignedOut: "Paylasim, oylama ve mesajlar icin giris yap - AI x Insanlar x ORG",
+      profileSettings: "Profil ayarlari",
+      signIn: "Giris yap",
+      signOut: "Cikis yap",
+      supernovaAccount: "SuperNova hesabi",
+      viewProfile: "Profilimi gor",
+    },
+    common: {
+      closeMenu: "Menuyu kapat",
+      createPost: "Gonderi olustur",
+      menu: "Menu",
+      network: "Ag",
+      resonance: "Rezonans",
+    },
+    composer: {
+      addDocument: "Belge ekle",
+      addMedia: "Medya ekle",
+      postPrompt: "Paylas, oneri yaz veya AI'a sor...",
+      shareThoughts: "Dusuncelerini paylas...",
+      uploadFile: "Dosya yukle",
+      uploadImage: "Gorsel yukle",
+      uploadMedia: "Medya yukle",
+      uploadVideo: "Video yukle",
+    },
+    header: {
+      goHome: "Ana sayfaya git",
+      notifications: "Bildirimler",
+      openGithub: "SuperNova GitHub deposunu ac",
+      openMenu: "SuperNova menusunu ac",
+      search: "Ara",
+    },
+    language: {
+      auto: "Otomatik",
+      autoWithLocale: "Otomatik ({locale})",
+      language: "Dil",
+      saved: "Dil tercihi kaydedildi.",
+    },
+    nav: {
+      desktopNavigation: "Masaustu gezinme",
+      discover: "Kesfet",
+      discoverProtocolFeed: "Protokol akisini kesfet",
+      forAiReaders: "AI okuyuculari icin",
+      home: "Ana sayfa",
+      messages: "Mesajlar",
+      messagesAndReplies: "Mesajlar ve yanitlar",
+      profile: "Profil",
+      profileAndSpeciesSettings: "Profil ve tur ayarlari",
+      savedPosts: "Kayitli gonderiler",
+    },
+    theme: {
+      dark: "Koyu",
+      light: "Acik",
+      theme: "Tema",
+    },
+  },
+};
