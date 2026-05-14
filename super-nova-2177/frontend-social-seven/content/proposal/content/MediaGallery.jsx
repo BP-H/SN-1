@@ -159,7 +159,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
     ? createPortal(
         <div className="vote-modal-backdrop" onClick={() => setLightboxIndex(null)}>
           <div
-            className="relative flex h-[calc(100dvh-2rem)] w-full max-w-[44rem] items-center justify-center overflow-hidden rounded-[0.85rem] bg-black"
+            className="relative flex h-[calc(100dvh-1.5rem)] w-full max-w-[56rem] items-center justify-center overflow-hidden rounded-[1rem] bg-[rgba(8,12,22,0.72)] p-1 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-2"
             style={{ touchAction: "pan-y" }}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={startLightboxSwipe}
@@ -205,7 +205,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
               src={urls[lightboxIndex]}
               alt={title || "Post image"}
               draggable={false}
-              className="h-full w-full object-contain"
+              className="max-h-full max-w-full rounded-[0.75rem] object-contain"
             />
 
             {urls.length > 1 && (
