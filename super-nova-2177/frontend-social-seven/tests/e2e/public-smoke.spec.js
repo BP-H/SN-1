@@ -285,6 +285,27 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("light post options menu keeps items flat until hover", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem("supernova-theme", "light");
+  });
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto("/");
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "Post options" }).first().click();
+
+  const menu = page.locator(".proposal-options-menu").first();
+  await expect(menu).toBeVisible();
+  const saveItem = menu.getByRole("button", { name: /^save$/i });
+  await expect(saveItem).toBeVisible();
+
+  const restingBackground = await saveItem.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(restingBackground).toBe("rgba(0, 0, 0, 0)");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("empty signed-out feed shows the first-user create cue", async ({ page }) => {
   await mockPublicBackend(page, []);
   await page.goto("/");
