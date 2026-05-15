@@ -52,7 +52,7 @@ function notificationLabel(item) {
   if (item?.type === "collab_approved") return `${actorLabel(item.actor)} approved`;
   if (item?.type === "collab_declined") return `${actorLabel(item.actor)} declined`;
   if (item?.type === "collab_removed") return `${actorLabel(item.actor)} removed`;
-  return "New community post";
+  return "New community signal";
 }
 
 function notificationTitle(item) {
@@ -63,7 +63,7 @@ function notificationTitle(item) {
   if (item?.type === "collab_declined") return "Collab request declined";
   if (item?.type === "collab_removed") return "Collab removed";
   if (item?.type === "comment_reply") return item.body || "Reply to your comment";
-  return item.title || "New proposal";
+  return item.title || "New signal";
 }
 
 export default function NotificationsPanel({ onSelect = () => {} }) {
@@ -72,8 +72,8 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
     queryKey: ["header-notifications", isAuthenticated, userData?.name || ""],
     queryFn: async () => {
       const endpoint = isAuthenticated && userData?.name
-        ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=3`
-        : `${API_BASE_URL}/proposals?filter=latest&limit=3`;
+        ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=12`
+        : `${API_BASE_URL}/proposals?filter=latest&limit=12`;
       const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch activity");
       return response.json();
@@ -81,13 +81,13 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
     staleTime: 30_000,
   });
 
-  const items = (data || []).slice(0, 3).map((post) => ({
-    id: post.id || post.comment_id || post.proposal_id,
+  const items = (data || []).slice(0, 12).map((post, index) => ({
+    id: post.id || post.comment_id || post.proposal_id || `${post.type || "activity"}-${index}`,
     href: notificationHref(post, userData?.name || ""),
     label: notificationLabel(post),
     title: notificationTitle(post),
     actionHint: notificationActionHint(post),
-    time: formatRelativeTime(post.time),
+    time: formatRelativeTime(post.time || post.created_at),
   }));
 
   return (
@@ -107,29 +107,31 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
             No new notifications yet.
           </div>
         ) : (
-          items.map((item) => (
-            <Link
-              key={item.id}
-              href={item.href}
-              onClick={onSelect}
-              className="block rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-4 py-3 hover:bg-[rgba(255,255,255,0.075)]"
-            >
-              <div className="mb-1 flex items-center gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
-                <IoEllipse className="text-[0.55rem] text-[var(--pink)]" />
-                <span>{item.label}</span>
-                <span>·</span>
-                <span>{item.time}</span>
-              </div>
-              <p className="line-clamp-2 text-[0.84rem] font-medium text-[var(--text-black)]">
-                {item.title}
-              </p>
-              {item.actionHint && (
-                <span className="notification-action-hint mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase tracking-[0.1em]">
-                  {item.actionHint}
-                </span>
-              )}
-            </Link>
-          ))
+          <div className="notification-scroll-list">
+            {items.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                onClick={onSelect}
+                className="block rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-4 py-3 hover:bg-[rgba(255,255,255,0.075)]"
+              >
+                <div className="mb-1 flex items-center gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
+                  <IoEllipse className="text-[0.55rem] text-[var(--pink)]" />
+                  <span>{item.label}</span>
+                  <span>-</span>
+                  <span>{item.time}</span>
+                </div>
+                <p className="line-clamp-2 text-[0.84rem] font-medium text-[var(--text-black)]">
+                  {item.title}
+                </p>
+                {item.actionHint && (
+                  <span className="notification-action-hint mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase tracking-[0.1em]">
+                    {item.actionHint}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
         )}
       </div>
     </LiquidGlass>

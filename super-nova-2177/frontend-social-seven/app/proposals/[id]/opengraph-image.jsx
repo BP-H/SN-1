@@ -2,12 +2,13 @@ import { ImageResponse } from "next/og";
 import {
   fetchPublicProposalForShare,
   firstProposalImageUrl,
+  proposalHasVideo,
   proposalShareAuthor,
   proposalShareDescription,
   proposalShareTitle,
 } from "@/utils/proposalSharePreview";
 
-export const alt = "SuperNova proposal preview";
+export const alt = "SuperNova signal preview";
 export const contentType = "image/png";
 export const dynamic = "force-dynamic";
 export const runtime = "edge";
@@ -16,7 +17,7 @@ export const size = {
   height: 630,
 };
 
-function SharePreviewCard({ author, description, imageUrl, title }) {
+function SharePreviewCard({ author, description, imageUrl, isVideo, title }) {
   return (
     <div
       style={{
@@ -41,6 +42,17 @@ function SharePreviewCard({ author, description, imageUrl, title }) {
             height: "100%",
             objectFit: "cover",
             opacity: 0.86,
+          }}
+        />
+      ) : null}
+      {!imageUrl && isVideo ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            background:
+              "radial-gradient(circle at 68% 42%, rgba(127, 213, 255, 0.34), transparent 24%), radial-gradient(circle at 54% 50%, rgba(255, 79, 143, 0.34), transparent 30%), linear-gradient(135deg, #f9fbff 0%, #eaf3ff 52%, #fff0f7 100%)",
           }}
         />
       ) : null}
@@ -88,9 +100,39 @@ function SharePreviewCard({ author, description, imageUrl, title }) {
             background: "rgba(6, 19, 31, 0.54)",
           }}
         >
-          Public proposal
+          {isVideo ? "Video signal" : "Public signal"}
         </div>
       </div>
+      {!imageUrl && isVideo ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 116,
+            top: 164,
+            width: 360,
+            height: 260,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 42,
+            background: "rgba(255, 255, 255, 0.26)",
+            border: "1px solid rgba(255, 255, 255, 0.58)",
+            boxShadow: "0 32px 90px rgba(255, 79, 143, 0.28)",
+          }}
+        >
+          <div
+            style={{
+              width: 0,
+              height: 0,
+              display: "flex",
+              borderTop: "34px solid transparent",
+              borderBottom: "34px solid transparent",
+              borderLeft: "54px solid #ffffff",
+              marginLeft: 12,
+            }}
+          />
+        </div>
+      ) : null}
       <div
         style={{
           position: "absolute",
@@ -149,9 +191,10 @@ export default async function Image({ params }) {
   const description = proposalShareDescription(proposal);
   const author = proposalShareAuthor(proposal);
   const imageUrl = firstProposalImageUrl(proposal);
+  const isVideo = proposalHasVideo(proposal);
 
   return new ImageResponse(
-    <SharePreviewCard author={author} description={description} imageUrl={imageUrl} title={title} />,
+    <SharePreviewCard author={author} description={description} imageUrl={imageUrl} isVideo={isVideo} title={title} />,
     size
   );
 }

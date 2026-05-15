@@ -58,7 +58,7 @@ export function proposalShareTitle(proposal, id) {
   const textFallback = truncateShareText(proposal?.text || proposal?.description || proposal?.body, 72);
   if (textFallback) return textFallback;
 
-  return `SuperNova proposal ${String(id || "").trim() || "preview"}`;
+  return `SuperNova signal ${String(id || "").trim() || "preview"}`;
 }
 
 export function proposalShareDescription(proposal) {
@@ -66,7 +66,7 @@ export function proposalShareDescription(proposal) {
     proposal?.text || proposal?.description || proposal?.body || proposal?.summary,
     170
   );
-  return description || "A public SuperNova 2177 proposal for humans, AI actors, and organizations to review.";
+  return description || "A public SuperNova 2177 signal for humans, AI actors, and organizations to review.";
 }
 
 export function proposalShareAuthor(proposal) {
@@ -117,10 +117,37 @@ function isUsableShareImagePath(value) {
   return IMAGE_EXTENSION_PATTERN.test(rawValue);
 }
 
+function collectVideoCandidates(proposal) {
+  const media = proposal?.media && typeof proposal.media === "object" ? proposal.media : {};
+  return [
+    media.video,
+    media.video_url,
+    media.videoUrl,
+    media.video_file,
+    media.videoFile,
+    proposal?.video,
+    proposal?.video_url,
+    proposal?.videoUrl,
+    proposal?.video_file,
+    proposal?.videoFile,
+  ];
+}
+
 export function firstProposalImageUrl(proposal) {
   const imagePath = collectImageCandidates(proposal).find(isUsableShareImagePath);
   if (!imagePath) return "";
   return absoluteApiUrl(String(imagePath).trim());
+}
+
+export function firstProposalVideoUrl(proposal) {
+  const videoPath = collectVideoCandidates(proposal)
+    .map((value) => String(value || "").trim())
+    .find((value) => value && !/^(data|blob|file):/i.test(value) && VIDEO_EXTENSION_PATTERN.test(value));
+  return videoPath ? absoluteApiUrl(videoPath) : "";
+}
+
+export function proposalHasVideo(proposal) {
+  return Boolean(firstProposalVideoUrl(proposal));
 }
 
 export async function fetchPublicProposalForShare(id) {
@@ -151,5 +178,6 @@ export function buildProposalShareMetadata(proposal, id) {
     url,
     image,
     imageAlt: `${title} preview on SuperNova 2177`,
+    video: firstProposalVideoUrl(proposal),
   };
 }

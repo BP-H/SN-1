@@ -7,7 +7,7 @@ export default function ComposerPublishProgress({ progress, hasMedia = false, co
   const label = progress?.label || (hasMedia ? "Uploading media" : "Posting");
   const detail =
     progress?.detail ||
-    "Keep this tab open while SuperNova finishes publishing your post.";
+    "Keep this tab open while SuperNova finishes publishing your signal.";
 
   return (
     <div
@@ -43,7 +43,7 @@ export default function ComposerPublishProgress({ progress, hasMedia = false, co
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
-        <span>{hasMedia ? "Media included" : "Text post"}</span>
+        <span>{hasMedia ? "Attachment included" : "Text signal"}</span>
         {collabCount > 0 && <span>{collabCount} collab invite{collabCount === 1 ? "" : "s"}</span>}
       </div>
     </div>

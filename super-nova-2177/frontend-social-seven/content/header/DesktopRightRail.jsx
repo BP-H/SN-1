@@ -373,8 +373,8 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
           className="desktop-constellation-ambient"
           density={isImmersive ? 34 : 18}
           anchors={ambientAnchors}
-          frameMs={isImmersive ? 64 : 96}
-          maxDpr={isImmersive ? 1.25 : 1.15}
+          frameMs={isImmersive ? 42 : 58}
+          maxDpr={isImmersive ? 1.3 : 1.18}
         />
         <div className="desktop-constellation-controls" aria-label="Constellation controls">
           <button type="button" onClick={() => updateScale(view.scale + 0.12)} title="Zoom in" aria-label="Zoom in">

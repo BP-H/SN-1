@@ -73,6 +73,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
   };
 
   const goTo = (index) => {
+    if (lightboxIndex === null) return;
     const nextIndex = (index + urls.length) % urls.length;
     setLightboxIndex(nextIndex);
   };
@@ -157,9 +158,9 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
 
   const lightbox = showLightbox
     ? createPortal(
-        <div className="vote-modal-backdrop" onClick={() => setLightboxIndex(null)}>
+        <div className="vote-modal-backdrop media-lightbox-backdrop" onClick={() => setLightboxIndex(null)}>
           <div
-            className="relative flex h-[calc(100dvh-1.5rem)] w-full max-w-[56rem] items-center justify-center overflow-hidden rounded-[1rem] bg-[rgba(8,12,22,0.72)] p-1 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-2"
+            className="media-lightbox-card relative flex h-[calc(100dvh-1.5rem)] w-full max-w-[64rem] items-center justify-center overflow-hidden rounded-[1.15rem] p-1 sm:p-2"
             style={{ touchAction: "pan-y" }}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={startLightboxSwipe}
@@ -174,8 +175,13 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
             <button
               type="button"
               aria-label="Close image"
-              onClick={() => setLightboxIndex(null)}
-              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setLightboxIndex(null);
+              }}
+              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-[var(--text-black)] shadow-[0_10px_26px_rgba(15,23,42,0.18)] backdrop-blur"
             >
               <IoClose />
             </button>
@@ -185,16 +191,26 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
                 <button
                   type="button"
                   aria-label="Previous image"
-                  onClick={() => goTo(lightboxIndex - 1)}
-                  className="absolute left-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    goTo(lightboxIndex - 1);
+                  }}
+                  className="absolute left-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/82 text-[var(--text-black)] shadow-[0_10px_28px_rgba(15,23,42,0.2)] backdrop-blur"
                 >
                   <IoChevronBack />
                 </button>
                 <button
                   type="button"
                   aria-label="Next image"
-                  onClick={() => goTo(lightboxIndex + 1)}
-                  className="absolute right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    goTo(lightboxIndex + 1);
+                  }}
+                  className="absolute right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/82 text-[var(--text-black)] shadow-[0_10px_28px_rgba(15,23,42,0.2)] backdrop-blur"
                 >
                   <IoChevronForward />
                 </button>
@@ -205,11 +221,11 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
               src={urls[lightboxIndex]}
               alt={title || "Post image"}
               draggable={false}
-              className="max-h-full max-w-full rounded-[0.75rem] object-contain"
+              className="max-h-[calc(100dvh-4.5rem)] max-w-full rounded-[0.9rem] object-contain shadow-[0_24px_90px_rgba(15,23,42,0.28)]"
             />
 
             {urls.length > 1 && (
-              <span className="absolute bottom-3 rounded-full bg-black/55 px-3 py-1 text-[0.75rem] font-semibold text-white">
+              <span className="absolute bottom-3 rounded-full bg-white/82 px-3 py-1 text-[0.75rem] font-semibold text-[var(--text-black)] shadow-[0_8px_22px_rgba(15,23,42,0.16)] backdrop-blur">
                 {lightboxIndex + 1}/{urls.length}
               </span>
             )}

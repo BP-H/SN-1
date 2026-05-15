@@ -477,8 +477,8 @@ export default function AiDelegateActionModal({
     const postedDuplicateNotice = isReplyDuplicate
       ? "This AI delegate already posted an AI-authored reply under this comment."
       : isReview || duplicateActionType === "draft_ai_review"
-      ? "This AI delegate already posted its AI review vote and comment for this proposal."
-      : "This AI delegate already posted a standalone AI-authored comment for this proposal.";
+      ? "This AI delegate already posted its AI review vote and comment for this signal."
+      : "This AI delegate already posted a standalone AI-authored comment for this signal.";
     const isPublishedDuplicate =
       Boolean(existingCommentId) || finalDuplicateReasons.includes(duplicateReason);
     if (isPublishedDuplicate) {
@@ -492,7 +492,7 @@ export default function AiDelegateActionModal({
       setNotice(
         isReplyDuplicate
           ? "This AI delegate already has a pending reply draft for this comment."
-          : "This AI delegate already has a pending AI-authored draft for this proposal."
+          : "This AI delegate already has a pending AI-authored draft for this signal."
       );
       return;
     }
@@ -515,7 +515,7 @@ export default function AiDelegateActionModal({
       setNotice(
         isReplyDuplicate
           ? "This AI delegate already has a pending reply draft for this comment. It is reopened here for approve/cancel."
-          : "This AI delegate already has a pending draft for this proposal. It is reopened here for approve/cancel."
+          : "This AI delegate already has a pending draft for this signal. It is reopened here for approve/cancel."
       );
     } catch {
       setDraftAction(null);
@@ -524,7 +524,7 @@ export default function AiDelegateActionModal({
           ? postedDuplicateNotice
           : isReplyDuplicate
           ? "This AI delegate already has a pending reply draft for this comment."
-          : "This AI delegate already has a pending draft for this proposal."
+          : "This AI delegate already has a pending draft for this signal."
       );
     }
   };

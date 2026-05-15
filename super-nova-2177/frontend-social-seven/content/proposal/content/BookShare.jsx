@@ -13,7 +13,7 @@ function BookShare({ proposalId, title }) {
 
   const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/proposals/${proposalId || ""}`;
-    const shareText = title ? `Check out: ${title}` : "Check out this proposal";
+    const shareText = title ? `Check out: ${title}` : "Check out this signal";
 
     // Use Web Share API on mobile if available
     if (navigator.share) {

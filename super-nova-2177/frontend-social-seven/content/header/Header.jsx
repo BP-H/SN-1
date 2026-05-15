@@ -16,6 +16,35 @@ import { avatarDisplayUrl } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
+const SEEN_ACTIVITY_PREFIX = "supernova_seen_activity_ids::";
+
+function activityIdentity(item, index = 0) {
+  const directId = item?.id || item?.notification_id || item?.comment_id || item?.proposal_id;
+  if (directId) return String(directId);
+  return [
+    item?.type || "activity",
+    item?.actor || "",
+    item?.title || item?.body || "",
+    item?.time || item?.created_at || "",
+    index,
+  ].join(":");
+}
+
+function loadSeenActivityIds(key) {
+  if (typeof window === "undefined" || !key) return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSeenActivityIds(key, ids) {
+  if (typeof window === "undefined" || !key) return;
+  const unique = Array.from(new Set(ids.map(String))).slice(-80);
+  localStorage.setItem(key, JSON.stringify(unique));
+}
 
 export default function Header({
   errorMsg,
@@ -30,7 +59,7 @@ export default function Header({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
-  const [seenActivitySignature, setSeenActivitySignature] = useState("");
+  const [seenActivityIds, setSeenActivityIds] = useState([]);
   const pathname = usePathname();
   const router = useRouter();
   const headerRef = useRef(null);
@@ -38,19 +67,22 @@ export default function Header({
     queryKey: ["header-notification-count", isAuthenticated, userData?.name || ""],
     queryFn: async () => {
       const endpoint = isAuthenticated && userData?.name
-        ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=3`
-        : `${API_BASE_URL}/proposals?filter=latest&limit=3`;
+        ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=12`
+        : `${API_BASE_URL}/proposals?filter=latest&limit=12`;
       const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch notification count");
       return response.json();
     },
     staleTime: 30_000,
   });
-  const activityItems = useMemo(() => (activity || []).slice(0, 3), [activity]);
-  const activitySignature = activityItems.map((item) => item.id || item.comment_id || item.proposal_id).join(":");
-  const activityCount = activitySignature && seenActivitySignature !== activitySignature
-    ? activityItems.length
-    : 0;
+  const activityItems = useMemo(() => (activity || []).slice(0, 12), [activity]);
+  const activityIds = useMemo(
+    () => activityItems.map((item, index) => activityIdentity(item, index)).filter(Boolean),
+    [activityItems]
+  );
+  const seenActivitySet = useMemo(() => new Set(seenActivityIds), [seenActivityIds]);
+  const activityCount = activityIds.filter((id) => !seenActivitySet.has(id)).length;
+  const activityStorageKey = `${SEEN_ACTIVITY_PREFIX}${isAuthenticated && userData?.name ? userData.name.toLowerCase() : "public"}`;
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
 
   const handleSearch = () => {
@@ -95,8 +127,8 @@ export default function Header({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setSeenActivitySignature(localStorage.getItem("supernova_seen_activity_signature") || "");
-  }, []);
+    setSeenActivityIds(loadSeenActivityIds(activityStorageKey));
+  }, [activityStorageKey]);
 
   useEffect(() => {
     const openSupernovaMenu = () => {
@@ -120,9 +152,10 @@ export default function Header({
   }, [headerHidden]);
 
   const markNotificationsSeen = () => {
-    if (!activitySignature || typeof window === "undefined") return;
-    localStorage.setItem("supernova_seen_activity_signature", activitySignature);
-    setSeenActivitySignature(activitySignature);
+    if (!activityIds.length || typeof window === "undefined") return;
+    const nextIds = Array.from(new Set([...seenActivityIds, ...activityIds]));
+    saveSeenActivityIds(activityStorageKey, nextIds);
+    setSeenActivityIds(nextIds);
   };
 
   useEffect(() => {

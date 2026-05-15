@@ -400,13 +400,25 @@ function InputFields({
 
   const mutation = useMutation({
     mutationFn: async (newPost) => {
+      const hasDirectUpload = Boolean(newPost.images?.length || newPost.image || newPost.file || newPost.video);
+      const hasLinkAttach = Boolean(newPost.link);
       const hasMediaUpload = Boolean(
-        newPost.images?.length || newPost.image || newPost.file || newPost.video || newPost.link
+        hasDirectUpload || hasLinkAttach
       );
+      const uploadLabel = newPost.file
+        ? t("composer.uploadingDocument")
+        : newPost.video
+        ? t("composer.uploadingVideo")
+        : newPost.images?.length || newPost.image
+        ? t("composer.uploadingMedia")
+        : hasLinkAttach
+        ? t("composer.postingSignal")
+        : t("composer.postingSignal");
       setPublishProgress({
         phase: "preparing",
-        percent: 16,
-        label: hasMediaUpload ? t("composer.preparingMedia") : t("composer.preparingPost"),
+        kind: hasDirectUpload ? "upload" : hasLinkAttach ? "link" : "text",
+        percent: hasDirectUpload ? 14 : 22,
+        label: hasMediaUpload ? t("composer.preparingMedia") : t("composer.preparingSignal"),
         detail: t("composer.keepTabPreparing"),
       });
 
@@ -441,8 +453,9 @@ function InputFields({
 
       setPublishProgress({
         phase: "uploading",
-        percent: hasMediaUpload ? 42 : 52,
-        label: hasMediaUpload ? t("composer.uploadingAndPosting") : t("composer.posting"),
+        kind: hasDirectUpload ? "upload" : hasLinkAttach ? "link" : "text",
+        percent: hasDirectUpload ? 31 : hasLinkAttach ? 48 : 56,
+        label: hasMediaUpload ? uploadLabel : t("composer.postingSignal"),
         detail: t("composer.keepTabUploading"),
       });
 
@@ -463,6 +476,7 @@ function InputFields({
       const createdPost = await response.json();
       setPublishProgress({
         phase: "refreshing",
+        kind: hasDirectUpload ? "upload" : hasLinkAttach ? "link" : "text",
         percent: newPost.collabInvitees?.length ? 78 : 88,
         label: t("composer.refreshingFeed"),
         detail: t("composer.receivedUpdatingFeed"),
@@ -473,14 +487,16 @@ function InputFields({
     onMutate: () => {
       setPublishProgress({
         phase: "starting",
+        kind: "starting",
         percent: 10,
-        label: t("composer.startingPost"),
+        label: t("composer.startingSignal"),
         detail: t("composer.keepTabStarting"),
       });
     },
     onSuccess: ({ post, collabSummary }) => {
       setPublishProgress({
         phase: "posted",
+        kind: "posted",
         percent: 100,
         label: t("composer.posted"),
         detail: t("composer.postLive"),
@@ -524,16 +540,25 @@ function InputFields({
         if (!current) return current;
         const currentPercent = Math.max(0, Math.min(100, Number(current.percent) || 0));
         const phase = String(current.phase || "").toLowerCase();
-        const cap = phase === "refreshing" ? 96 : phase === "posted" ? 100 : 88;
+        const kind = String(current.kind || "").toLowerCase();
+        const cap = phase === "refreshing"
+          ? 96
+          : phase === "posted"
+          ? 100
+          : kind === "upload"
+          ? 94
+          : kind === "link"
+          ? 88
+          : 84;
         if (currentPercent >= cap) return current;
         const remaining = cap - currentPercent;
-        const step = remaining > 24 ? 4 : remaining > 12 ? 2 : 1;
+        const step = remaining > 28 ? 5 : remaining > 14 ? 3 : 1.4;
         return {
           ...current,
           percent: Math.min(cap, currentPercent + step),
         };
       });
-    }, 650);
+    }, 360);
     return () => window.clearInterval(timer);
   }, [mutation.isPending]);
 
