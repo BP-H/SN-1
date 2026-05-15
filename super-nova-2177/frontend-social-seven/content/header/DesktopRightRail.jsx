@@ -228,7 +228,6 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState("");
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
-  const [motionFrame, setMotionFrame] = useState(0);
   const dragRef = useRef(null);
   const dragMovedRef = useRef(false);
 
@@ -262,32 +261,15 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
     }
   }, [layout.nodes, selectedNodeId]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reducedMotion) return undefined;
-    let raf = 0;
-    let lastFrame = 0;
-    const tick = (time) => {
-      if (time - lastFrame > (isImmersive ? 72 : 82)) {
-        setMotionFrame(time / 1000);
-        lastFrame = time;
-      }
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [isImmersive]);
-
   const visualNodes = useMemo(() => {
     return layout.nodes.map((node, index) => {
       const depth = Number(node.depth || 0.8);
       const amplitude = isImmersive ? 2.05 : 1.45;
-      const driftX = Math.sin(motionFrame * 0.32 + index * 1.47) * (amplitude + depth * (isImmersive ? 1.25 : 0.85));
-      const driftY = Math.cos(motionFrame * 0.28 + index * 1.13) * (amplitude * 0.72 + depth * (isImmersive ? 0.9 : 0.6));
+      const driftX = Math.sin(index * 1.47) * (amplitude + depth * (isImmersive ? 0.85 : 0.56));
+      const driftY = Math.cos(index * 1.13) * (amplitude * 0.55 + depth * (isImmersive ? 0.58 : 0.38));
       return { ...node, visualX: node.x + driftX, visualY: node.y + driftY };
     });
-  }, [isImmersive, layout.nodes, motionFrame]);
+  }, [isImmersive, layout.nodes]);
 
   const visualNodeById = useMemo(() => new Map(visualNodes.map((node) => [node.id, node])), [visualNodes]);
   const visualEdges = useMemo(() => {
@@ -295,6 +277,18 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       .map((edge) => ({ ...edge, sourceNode: visualNodeById.get(edge.source), targetNode: visualNodeById.get(edge.target) }))
       .filter((edge) => edge.sourceNode && edge.targetNode);
   }, [layout.edges, visualNodeById]);
+
+  const displayEdges = useMemo(() => {
+    const maxEdges = isImmersive ? 44 : 20;
+    const strongest = [...visualEdges]
+      .sort((left, right) => Number(right.strength || 0) - Number(left.strength || 0))
+      .slice(0, maxEdges);
+    if (selectedEdgeId && !strongest.some((edge) => edge.id === selectedEdgeId)) {
+      const selected = visualEdges.find((edge) => edge.id === selectedEdgeId);
+      if (selected) strongest.push(selected);
+    }
+    return strongest;
+  }, [isImmersive, selectedEdgeId, visualEdges]);
 
   const ambientAnchors = useMemo(() => {
     const limit = isImmersive ? 32 : 12;
@@ -377,9 +371,10 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       <div className="desktop-constellation-stage" aria-label="Live social constellation">
         <AmbientConstellationCanvas
           className="desktop-constellation-ambient"
-          density={isImmersive ? 48 : 42}
+          density={isImmersive ? 34 : 18}
           anchors={ambientAnchors}
-          frameMs={isImmersive ? 42 : 48}
+          frameMs={isImmersive ? 64 : 96}
+          maxDpr={isImmersive ? 1.25 : 1.15}
         />
         <div className="desktop-constellation-controls" aria-label="Constellation controls">
           <button type="button" onClick={() => updateScale(view.scale + 0.12)} title="Zoom in" aria-label="Zoom in">
@@ -395,7 +390,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
         <SocialConstellationCanvas
           className="desktop-constellation-canvas"
           nodes={visualNodes}
-          edges={visualEdges}
+          edges={displayEdges}
           selectedNodeId={selectedNodeId}
           selectedEdgeId={selectedEdgeId}
           currentUser={currentUser}
