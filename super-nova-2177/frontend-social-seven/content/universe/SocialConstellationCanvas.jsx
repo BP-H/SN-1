@@ -5,26 +5,74 @@ import { useEffect, useRef } from "react";
 const VIEWBOX_WIDTH = 280;
 const VIEWBOX_HEIGHT = 210;
 
-const SPECIES_COLORS = {
+const SPECIES_PALETTE = {
   human: {
-    core: "rgba(255, 79, 143, 0.95)",
-    glow: "rgba(255, 79, 143, 0.36)",
-    softGlow: "rgba(255, 79, 143, 0.18)",
-    line: "rgba(255, 92, 160, 0.74)",
+    core: [1, 0.31, 0.56],
+    glow: [1, 0.22, 0.52],
+    line: [1, 0.36, 0.64],
   },
   ai: {
-    core: "rgba(94, 141, 250, 0.96)",
-    glow: "rgba(94, 141, 250, 0.34)",
-    softGlow: "rgba(94, 141, 250, 0.17)",
-    line: "rgba(115, 182, 255, 0.72)",
+    core: [0.36, 0.55, 1],
+    glow: [0.31, 0.62, 1],
+    line: [0.48, 0.72, 1],
   },
   company: {
-    core: "rgba(158, 168, 184, 0.94)",
-    glow: "rgba(158, 168, 184, 0.24)",
-    softGlow: "rgba(158, 168, 184, 0.12)",
-    line: "rgba(180, 190, 204, 0.52)",
+    core: [0.62, 0.67, 0.75],
+    glow: [0.58, 0.64, 0.74],
+    line: [0.72, 0.76, 0.84],
   },
 };
+
+const LINE_VERTEX_SHADER = `
+attribute vec2 a_position;
+attribute vec4 a_color;
+varying vec4 v_color;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+  v_color = a_color;
+}
+`;
+
+const LINE_FRAGMENT_SHADER = `
+precision mediump float;
+varying vec4 v_color;
+void main() {
+  gl_FragColor = v_color;
+}
+`;
+
+const NODE_VERTEX_SHADER = `
+attribute vec2 a_position;
+attribute vec4 a_color;
+attribute float a_size;
+attribute float a_depth;
+varying vec4 v_color;
+varying float v_depth;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+  gl_PointSize = a_size;
+  v_color = a_color;
+  v_depth = a_depth;
+}
+`;
+
+const NODE_FRAGMENT_SHADER = `
+precision mediump float;
+varying vec4 v_color;
+varying float v_depth;
+void main() {
+  vec2 point = gl_PointCoord - vec2(0.5);
+  float dist = length(point);
+  if (dist > 0.5) discard;
+  float core = smoothstep(0.5, 0.08, dist);
+  float rim = smoothstep(0.5, 0.26, dist);
+  float highlight = smoothstep(0.26, 0.0, length(point + vec2(0.18, 0.2)));
+  vec3 shaded = mix(v_color.rgb * (0.55 + v_depth * 0.18), v_color.rgb, core);
+  shaded += vec3(0.9, 0.96, 1.0) * highlight * 0.42;
+  float alpha = v_color.a * rim;
+  gl_FragColor = vec4(shaded, alpha);
+}
+`;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -34,8 +82,8 @@ function initials(username = "") {
   return username.trim().slice(0, 2).toUpperCase() || "SN";
 }
 
-function speciesColors(species = "human") {
-  return SPECIES_COLORS[species] || SPECIES_COLORS.human;
+function paletteFor(species = "human") {
+  return SPECIES_PALETTE[species] || SPECIES_PALETTE.human;
 }
 
 function edgeCurve(edge, index = 0, isImmersive = false) {
@@ -62,12 +110,6 @@ function edgeCurve(edge, index = 0, isImmersive = false) {
   };
 }
 
-function drawCurve(ctx, curve) {
-  ctx.beginPath();
-  ctx.moveTo(curve.startX, curve.startY);
-  ctx.quadraticCurveTo(curve.controlX, curve.controlY, curve.endX, curve.endY);
-}
-
 function pointOnCurve(curve, t) {
   const oneMinus = 1 - t;
   return {
@@ -76,33 +118,12 @@ function pointOnCurve(curve, t) {
   };
 }
 
-function fillRoundRect(ctx, x, y, width, height, radius) {
-  if (typeof ctx.roundRect === "function") {
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, radius);
-    ctx.fill();
-    return;
-  }
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.arcTo(x + width, y, x + width, y + height, radius);
-  ctx.arcTo(x + width, y + height, x, y + height, radius);
-  ctx.arcTo(x, y + height, x, y, radius);
-  ctx.arcTo(x, y, x + width, y, radius);
-  ctx.fill();
-}
-
 function distanceToQuadratic(point, curve) {
   let nearest = Infinity;
   let previous = { x: curve.startX, y: curve.startY };
   const samples = 12;
   for (let step = 1; step <= samples; step += 1) {
-    const t = step / samples;
-    const oneMinus = 1 - t;
-    const next = {
-      x: oneMinus * oneMinus * curve.startX + 2 * oneMinus * t * curve.controlX + t * t * curve.endX,
-      y: oneMinus * oneMinus * curve.startY + 2 * oneMinus * t * curve.controlY + t * t * curve.endY,
-    };
+    const next = pointOnCurve(curve, step / samples);
     const segmentX = next.x - previous.x;
     const segmentY = next.y - previous.y;
     const segmentLength = Math.max(1, segmentX * segmentX + segmentY * segmentY);
@@ -115,165 +136,280 @@ function distanceToQuadratic(point, curve) {
   return nearest;
 }
 
-function drawOrbitalField(ctx, isLightTheme, time = 0) {
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-
-  const pulse = 0.5 + Math.sin(time * 0.7) * 0.5;
-  const coreGradient = ctx.createRadialGradient(140, 104, 4, 140, 104, 96);
-  coreGradient.addColorStop(0, isLightTheme ? "rgba(255, 79, 143, 0.42)" : "rgba(255, 79, 143, 0.48)");
-  coreGradient.addColorStop(0.34, isLightTheme ? "rgba(94, 141, 250, 0.16)" : "rgba(94, 141, 250, 0.2)");
-  coreGradient.addColorStop(0.68, isLightTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.06)");
-  coreGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-  ctx.fillStyle = coreGradient;
-  ctx.beginPath();
-  ctx.ellipse(140, 104, 102 + pulse * 4, 76 + pulse * 3, -0.16, 0, Math.PI * 2);
-  ctx.fill();
-
-  const lensGradient = ctx.createLinearGradient(54, 40, 226, 178);
-  lensGradient.addColorStop(0, isLightTheme ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.055)");
-  lensGradient.addColorStop(0.48, "rgba(255, 79, 143, 0.1)");
-  lensGradient.addColorStop(1, "rgba(94, 141, 250, 0.09)");
-  ctx.fillStyle = lensGradient;
-  ctx.beginPath();
-  ctx.ellipse(140, 104, 120, 56, 0.26, 0, Math.PI * 2);
-  ctx.fill();
-
-  const orbitColor = isLightTheme ? "rgba(48, 64, 95, 0.12)" : "rgba(255, 255, 255, 0.13)";
-  const accentColor = isLightTheme ? "rgba(255, 79, 143, 0.18)" : "rgba(255, 116, 181, 0.22)";
-  [
-    { rx: 96, ry: 38, rotate: -0.2, color: orbitColor },
-    { rx: 118, ry: 52, rotate: 0.25, color: "rgba(94, 141, 250, 0.14)" },
-    { rx: 68, ry: 92, rotate: 0.82, color: accentColor },
-    { rx: 42, ry: 24, rotate: 0.32, color: "rgba(255, 255, 255, 0.1)" },
-  ].forEach((orbit) => {
-    ctx.save();
-    ctx.beginPath();
-    ctx.lineWidth = 0.42;
-    ctx.strokeStyle = orbit.color;
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = orbit.color;
-    ctx.ellipse(140, 104, orbit.rx, orbit.ry, orbit.rotate, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  });
-
-  ctx.fillStyle = isLightTheme ? "rgba(255, 79, 143, 0.9)" : "rgba(255, 79, 143, 0.94)";
-  ctx.shadowBlur = 24;
-  ctx.shadowColor = "rgba(255, 79, 143, 0.54)";
-  ctx.beginPath();
-  ctx.arc(140, 104, 4.4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+function compileShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(info || "Unable to compile constellation shader");
+  }
+  return shader;
 }
 
-function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUser, isImmersive, isLightTheme, time = 0) {
-  drawOrbitalField(ctx, isLightTheme, time);
+function createProgram(gl, vertexSource, fragmentSource) {
+  const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+  const program = gl.createProgram();
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error(info || "Unable to link constellation shader");
+  }
+  return program;
+}
+
+function createWebglResources(gl) {
+  const lineProgram = createProgram(gl, LINE_VERTEX_SHADER, LINE_FRAGMENT_SHADER);
+  const nodeProgram = createProgram(gl, NODE_VERTEX_SHADER, NODE_FRAGMENT_SHADER);
+  return {
+    lineProgram,
+    nodeProgram,
+    linePositionBuffer: gl.createBuffer(),
+    lineColorBuffer: gl.createBuffer(),
+    nodePositionBuffer: gl.createBuffer(),
+    nodeColorBuffer: gl.createBuffer(),
+    nodeSizeBuffer: gl.createBuffer(),
+    nodeDepthBuffer: gl.createBuffer(),
+    lineLocations: {
+      position: gl.getAttribLocation(lineProgram, "a_position"),
+      color: gl.getAttribLocation(lineProgram, "a_color"),
+    },
+    nodeLocations: {
+      position: gl.getAttribLocation(nodeProgram, "a_position"),
+      color: gl.getAttribLocation(nodeProgram, "a_color"),
+      size: gl.getAttribLocation(nodeProgram, "a_size"),
+      depth: gl.getAttribLocation(nodeProgram, "a_depth"),
+    },
+  };
+}
+
+function worldToClip(x, y, view = { x: 0, y: 0, scale: 1 }) {
+  const scale = Number(view.scale || 1);
+  const screenX = (Number(view.x || 0) + x * scale) / VIEWBOX_WIDTH;
+  const screenY = (Number(view.y || 0) + y * scale) / VIEWBOX_HEIGHT;
+  return [screenX * 2 - 1, 1 - screenY * 2];
+}
+
+function animatedNode(node, time, isImmersive) {
+  const depth = Number(node.depth || 0.74);
+  const baseX = Number(node.visualX || 0);
+  const baseY = Number(node.visualY || 0);
+  const floatX = Math.sin(time * 0.42 + baseX * 0.012 + depth) * (isImmersive ? 1.45 : 0.55) * depth;
+  const floatY = Math.cos(time * 0.36 + baseY * 0.011 + depth) * (isImmersive ? 1.05 : 0.42) * depth;
+  return {
+    ...node,
+    visualX: baseX + floatX,
+    visualY: baseY + floatY,
+    visualDepth: clamp(0.46 + depth * 0.28 + Math.sin(time * 0.24 + baseX * 0.018) * 0.08, 0.36, 1),
+  };
+}
+
+function graphFrame(nodes, edges, isImmersive, time) {
+  const animatedNodes = nodes.map((node) => animatedNode(node, time, isImmersive));
+  const byId = new Map(animatedNodes.map((node) => [node.id, node]));
+  const animatedEdges = edges
+    .map((edge) => ({
+      ...edge,
+      sourceNode: byId.get(edge.source) || edge.sourceNode,
+      targetNode: byId.get(edge.target) || edge.targetNode,
+    }))
+    .filter((edge) => edge.sourceNode && edge.targetNode);
+  return { nodes: animatedNodes, edges: animatedEdges };
+}
+
+function pushLineSegment(positions, colors, start, end, color, alpha, view) {
+  const startClip = worldToClip(start.x, start.y, view);
+  const endClip = worldToClip(end.x, end.y, view);
+  positions.push(startClip[0], startClip[1], endClip[0], endClip[1]);
+  colors.push(color[0], color[1], color[2], alpha, color[0], color[1], color[2], alpha);
+}
+
+function pushOrbitalField(positions, colors, time, isImmersive, view) {
+  const orbitScale = isImmersive ? 1.18 : 1;
+  const orbitColor = [0.66, 0.78, 1];
+  const pinkColor = [1, 0.34, 0.64];
+  const orbits = [
+    { rx: 104, ry: 38, rotate: -0.18, color: orbitColor, alpha: 0.1 },
+    { rx: 124, ry: 54, rotate: 0.25, color: orbitColor, alpha: 0.08 },
+    { rx: 68, ry: 88, rotate: 0.82, color: pinkColor, alpha: 0.08 },
+  ];
+  orbits.forEach((orbit, orbitIndex) => {
+    const steps = isImmersive ? 56 : 36;
+    let previous = null;
+    for (let step = 0; step <= steps; step += 1) {
+      const angle = (step / steps) * Math.PI * 2 + time * 0.035 * (orbitIndex % 2 ? -1 : 1);
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rotatedX = cos * orbit.rx * orbitScale;
+      const rotatedY = sin * orbit.ry * orbitScale;
+      const x = 140 + rotatedX * Math.cos(orbit.rotate) - rotatedY * Math.sin(orbit.rotate);
+      const y = 104 + rotatedX * Math.sin(orbit.rotate) + rotatedY * Math.cos(orbit.rotate);
+      const point = { x, y };
+      if (previous && step % 3 !== 0) {
+        pushLineSegment(positions, colors, previous, point, orbit.color, orbit.alpha, view);
+      }
+      previous = point;
+    }
+  });
+}
+
+function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view) {
+  const positions = [];
+  const colors = [];
+  pushOrbitalField(positions, colors, time, isImmersive, view);
 
   edges.forEach((edge, index) => {
     const curve = edgeCurve(edge, index, isImmersive);
     const active = selectedEdgeId === edge.id;
-    const sourceColors = speciesColors(edge.sourceNode?.species);
-    const targetColors = speciesColors(edge.targetNode?.species);
-    const strength = Number(edge.strength || 0);
-    const width = isImmersive
-      ? Math.max(0.18, Math.min(0.86, 0.2 + strength / 92))
-      : Math.max(0.32, Math.min(1.2, 0.36 + strength / 54));
-
-    drawCurve(ctx, curve);
-    ctx.lineWidth = width + (active ? 2.6 : 1.35);
-    ctx.lineCap = "round";
-    ctx.strokeStyle = active
-      ? "rgba(255, 79, 143, 0.2)"
-      : isLightTheme ? "rgba(255, 255, 255, 0.38)" : "rgba(255, 255, 255, 0.06)";
-    ctx.shadowBlur = active ? 10 : 3;
-    ctx.shadowColor = active ? "rgba(255, 79, 143, 0.34)" : sourceColors.glow;
-    ctx.stroke();
-
-    const gradient = ctx.createLinearGradient(curve.startX, curve.startY, curve.endX, curve.endY);
-    gradient.addColorStop(0, sourceColors.line);
-    gradient.addColorStop(1, targetColors.line);
-    drawCurve(ctx, curve);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = active ? "rgba(255, 79, 143, 0.9)" : gradient;
-    ctx.shadowBlur = active ? 10 : 3;
-    ctx.shadowColor = active ? "rgba(255, 79, 143, 0.38)" : "rgba(94, 141, 250, 0.18)";
-    ctx.stroke();
-
-    if (active || index % 3 === 0) {
-      const t = (time * (active ? 0.18 : 0.1) + index * 0.17) % 1;
-      const pulsePoint = pointOnCurve(curve, t);
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.fillStyle = active ? "rgba(255, 255, 255, 0.9)" : "rgba(180, 218, 255, 0.55)";
-      ctx.shadowBlur = active ? 14 : 8;
-      ctx.shadowColor = active ? "rgba(255, 79, 143, 0.56)" : "rgba(94, 141, 250, 0.32)";
-      ctx.beginPath();
-      ctx.arc(pulsePoint.x, pulsePoint.y, active ? 1.7 : 1.1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+    const sourcePalette = paletteFor(edge.sourceNode?.species);
+    const targetPalette = paletteFor(edge.targetNode?.species);
+    const sourceColor = active ? [1, 0.36, 0.64] : sourcePalette.line;
+    const targetColor = active ? [1, 0.56, 0.75] : targetPalette.line;
+    const strength = clamp(Number(edge.strength || 0), 1, 90);
+    const alpha = active ? 0.74 : clamp(0.16 + strength / 240, isImmersive ? 0.12 : 0.16, isImmersive ? 0.42 : 0.34);
+    const steps = active ? 10 : 6;
+    let previous = pointOnCurve(curve, 0);
+    for (let step = 1; step <= steps; step += 1) {
+      const current = pointOnCurve(curve, step / steps);
+      const mix = step / steps;
+      const color = [
+        sourceColor[0] * (1 - mix) + targetColor[0] * mix,
+        sourceColor[1] * (1 - mix) + targetColor[1] * mix,
+        sourceColor[2] * (1 - mix) + targetColor[2] * mix,
+      ];
+      pushLineSegment(positions, colors, previous, current, color, alpha, view);
+      previous = current;
     }
+  });
+
+  return {
+    positions: new Float32Array(positions),
+    colors: new Float32Array(colors),
+  };
+}
+
+function buildNodeArrays(nodes, selectedNodeId, currentUser, view, dpr, isImmersive, canvasWidth) {
+  const positions = [];
+  const colors = [];
+  const sizes = [];
+  const depths = [];
+  const screenScale = canvasWidth / VIEWBOX_WIDTH;
+
+  const pushNode = (node, sizeMultiplier, alphaMultiplier) => {
+    const selected = selectedNodeId === node.id;
+    const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
+    const palette = paletteFor(node.species);
+    const radius = Number(node.radius || 4);
+    const depth = Number(node.visualDepth || node.depth || 0.72);
+    const clip = worldToClip(Number(node.visualX || 0), Number(node.visualY || 0), view);
+    const boost = selected || current ? 1.35 : 1;
+    positions.push(clip[0], clip[1]);
+    colors.push(palette.core[0], palette.core[1], palette.core[2], alphaMultiplier * boost);
+    sizes.push(Math.max(7, radius * 2 * Number(view.scale || 1) * screenScale * dpr * sizeMultiplier * (0.82 + depth * 0.32)));
+    depths.push(depth);
+  };
+
+  nodes.forEach((node) => pushNode(node, isImmersive ? 5.8 : 5.1, 0.18));
+  nodes.forEach((node) => pushNode(node, isImmersive ? 2.55 : 2.25, 0.48));
+  nodes.forEach((node) => pushNode(node, isImmersive ? 1.35 : 1.22, 0.92));
+
+  return {
+    positions: new Float32Array(positions),
+    colors: new Float32Array(colors),
+    sizes: new Float32Array(sizes),
+    depths: new Float32Array(depths),
+  };
+}
+
+function bindArray(gl, buffer, location, data, size) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(location);
+  gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
+}
+
+function drawWebglScene(gl, resources, latest, canvasWidth, canvasHeight, dpr, time) {
+  const { nodes, edges } = graphFrame(latest.nodes, latest.edges, latest.isImmersive, time);
+  gl.viewport(0, 0, Math.floor(canvasWidth * dpr), Math.floor(canvasHeight * dpr));
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+  const lineArrays = buildLineArrays(edges, latest.selectedEdgeId, latest.isImmersive, time, latest.view);
+  gl.useProgram(resources.lineProgram);
+  bindArray(gl, resources.linePositionBuffer, resources.lineLocations.position, lineArrays.positions, 2);
+  bindArray(gl, resources.lineColorBuffer, resources.lineLocations.color, lineArrays.colors, 4);
+  gl.drawArrays(gl.LINES, 0, lineArrays.positions.length / 2);
+
+  const nodeArrays = buildNodeArrays(
+    nodes,
+    latest.selectedNodeId,
+    latest.currentUser,
+    latest.view,
+    dpr,
+    latest.isImmersive,
+    canvasWidth,
+  );
+  gl.useProgram(resources.nodeProgram);
+  bindArray(gl, resources.nodePositionBuffer, resources.nodeLocations.position, nodeArrays.positions, 2);
+  bindArray(gl, resources.nodeColorBuffer, resources.nodeLocations.color, nodeArrays.colors, 4);
+  bindArray(gl, resources.nodeSizeBuffer, resources.nodeLocations.size, nodeArrays.sizes, 1);
+  bindArray(gl, resources.nodeDepthBuffer, resources.nodeLocations.depth, nodeArrays.depths, 1);
+  gl.drawArrays(gl.POINTS, 0, nodeArrays.positions.length / 2);
+}
+
+function drawFallback2d(ctx, latest, width, height, dpr, time) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const { nodes, edges } = graphFrame(latest.nodes, latest.edges, latest.isImmersive, time);
+  const scaleX = width / VIEWBOX_WIDTH;
+  const scaleY = height / VIEWBOX_HEIGHT;
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.translate(Number(latest.view?.x || 0), Number(latest.view?.y || 0));
+  ctx.scale(Number(latest.view?.scale || 1), Number(latest.view?.scale || 1));
+
+  edges.forEach((edge, index) => {
+    const curve = edgeCurve(edge, index, latest.isImmersive);
+    const palette = paletteFor(edge.sourceNode?.species);
+    ctx.strokeStyle = `rgba(${Math.round(palette.line[0] * 255)}, ${Math.round(palette.line[1] * 255)}, ${Math.round(palette.line[2] * 255)}, 0.28)`;
+    ctx.lineWidth = latest.selectedEdgeId === edge.id ? 1.2 : 0.55;
+    ctx.beginPath();
+    ctx.moveTo(curve.startX, curve.startY);
+    ctx.quadraticCurveTo(curve.controlX, curve.controlY, curve.endX, curve.endY);
+    ctx.stroke();
   });
 
   nodes.forEach((node) => {
-    const selected = selectedNodeId === node.id;
-    const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
-    const colors = speciesColors(node.species);
-    const radius = Number(node.radius || 4);
+    const palette = paletteFor(node.species);
     const x = Number(node.visualX || 0);
     const y = Number(node.visualY || 0);
-
-    const nodePulse = 0.5 + Math.sin(time * 0.9 + x * 0.03 + y * 0.02) * 0.5;
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    const aura = ctx.createRadialGradient(x, y, radius * 0.3, x, y, radius + (selected || current ? 22 : 12));
-    aura.addColorStop(0, selected || current ? colors.glow : colors.softGlow);
-    aura.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = aura;
+    const radius = Number(node.radius || 4);
+    const gradient = ctx.createRadialGradient(x - radius * 0.4, y - radius * 0.45, 1, x, y, radius * 3.3);
+    gradient.addColorStop(0, "rgba(255,255,255,0.9)");
+    gradient.addColorStop(0.2, `rgba(${palette.core.map((value) => Math.round(value * 255)).join(",")}, 0.92)`);
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(x, y, radius + (selected || current ? 19 + nodePulse * 3 : 10), 0, Math.PI * 2);
+    ctx.arc(x, y, radius * 3.2, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
-
-    ctx.shadowBlur = selected || current ? 18 : 8;
-    ctx.shadowColor = selected || current ? colors.glow : colors.softGlow;
-    const nodeGradient = ctx.createRadialGradient(x - radius * 0.35, y - radius * 0.45, radius * 0.2, x, y, radius * 1.3);
-    nodeGradient.addColorStop(0, "rgba(255, 255, 255, 0.92)");
-    nodeGradient.addColorStop(0.2, colors.core);
-    nodeGradient.addColorStop(1, selected || current ? colors.glow : colors.softGlow);
-    ctx.fillStyle = nodeGradient;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = selected || current ? 1.8 : 0.45;
-    ctx.strokeStyle = selected || current
-      ? "rgba(255, 255, 255, 0.88)"
-      : isLightTheme ? "rgba(255, 255, 255, 0.22)" : "rgba(255, 255, 255, 0.22)";
-    ctx.beginPath();
-    ctx.arc(x, y, radius + (selected || current ? 3.2 : 2.2), 0, Math.PI * 2);
-    ctx.stroke();
-
-    const showLabel = selected || current || (isImmersive && radius >= 5.4);
-    if (showLabel) {
-      ctx.font = `${selected || current ? "850" : "780"} ${isImmersive ? "5.8px" : "6px"} SF Pro Display, Segoe UI, Arial, sans-serif`;
+    if (latest.selectedNodeId === node.id || node.is_current) {
+      ctx.font = "800 6px SF Pro Display, Segoe UI, Arial, sans-serif";
       ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = isLightTheme ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.94)";
-      if (selected || current) {
-        const label = current ? "YOU" : initials(node.username);
-        const labelWidth = Math.max(18, ctx.measureText(label).width + 9);
-        ctx.save();
-        ctx.globalAlpha = isLightTheme ? 0.82 : 0.74;
-        ctx.fillStyle = isLightTheme ? "rgba(255, 255, 255, 0.86)" : "rgba(9, 14, 26, 0.72)";
-        fillRoundRect(ctx, x - labelWidth / 2, y + radius + 7, labelWidth, 11, 6);
-        ctx.restore();
-        ctx.fillStyle = current ? "rgba(255, 79, 143, 0.96)" : isLightTheme ? "rgba(15, 23, 42, 0.88)" : "rgba(255, 255, 255, 0.92)";
-        ctx.fillText(label, x, y + radius + 12.8);
-      }
+      ctx.fillStyle = "#101827";
+      ctx.fillText(node.is_current ? "YOU" : initials(node.username), x, y + radius + 12);
     }
   });
+  ctx.restore();
 }
 
 export default function SocialConstellationCanvas({
@@ -296,50 +432,102 @@ export default function SocialConstellationCanvas({
 }) {
   const canvasRef = useRef(null);
   const pointerStartRef = useRef(null);
-  const latestRef = useRef({ nodes, edges, view, isImmersive });
+  const latestRef = useRef({
+    nodes,
+    edges,
+    selectedNodeId,
+    selectedEdgeId,
+    currentUser,
+    view,
+    isImmersive,
+  });
 
   useEffect(() => {
-    latestRef.current = { nodes, edges, view, isImmersive };
-  }, [edges, isImmersive, nodes, view]);
+    latestRef.current = {
+      nodes,
+      edges,
+      selectedNodeId,
+      selectedEdgeId,
+      currentUser,
+      view,
+      isImmersive,
+    };
+  }, [currentUser, edges, isImmersive, nodes, selectedEdgeId, selectedNodeId, view]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return undefined;
 
-    const draw = () => {
+    let gl = null;
+    let resources = null;
+    try {
+      gl = canvas.getContext("webgl", {
+        alpha: true,
+        antialias: true,
+        depth: false,
+        powerPreference: "high-performance",
+        premultipliedAlpha: false,
+      });
+      if (gl) resources = createWebglResources(gl);
+    } catch {
+      gl = null;
+      resources = null;
+    }
+    const fallbackContext = gl ? null : canvas.getContext("2d");
+    if (!gl && !fallbackContext) return undefined;
+
+    let raf = 0;
+    let lastPaint = 0;
+    let canvasWidth = 1;
+    let canvasHeight = 1;
+    let dpr = 1;
+
+    const resize = () => {
       const parent = canvas.parentElement;
       const rect = parent?.getBoundingClientRect?.() || { width: canvas.clientWidth || 1, height: canvas.clientHeight || 1 };
-      const width = Math.max(1, rect.width || 1);
-      const height = Math.max(1, rect.height || 1);
-      const dpr = Math.min(isImmersive ? 1.4 : 1.2, window.devicePixelRatio || 1);
-      const targetWidth = Math.floor(width * dpr);
-      const targetHeight = Math.floor(height * dpr);
+      canvasWidth = Math.max(1, rect.width || 1);
+      canvasHeight = Math.max(1, rect.height || 1);
+      dpr = Math.min(latestRef.current.isImmersive ? 1.45 : 1.25, window.devicePixelRatio || 1);
+      const targetWidth = Math.floor(canvasWidth * dpr);
+      const targetHeight = Math.floor(canvasHeight * dpr);
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
         canvas.width = targetWidth;
         canvas.height = targetHeight;
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-
-      const isLightTheme = document.documentElement?.dataset?.theme === "light";
-      const time = performance.now() / 1000;
-      const scaleX = width / VIEWBOX_WIDTH;
-      const scaleY = height / VIEWBOX_HEIGHT;
-      ctx.save();
-      ctx.scale(scaleX, scaleY);
-      ctx.translate(Number(view.x || 0), Number(view.y || 0));
-      ctx.scale(Number(view.scale || 1), Number(view.scale || 1));
-      drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUser, isImmersive, isLightTheme, time);
-      ctx.restore();
     };
 
-    draw();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(draw) : null;
+    const draw = (time = 0) => {
+      const seconds = time / 1000;
+      if (gl && resources) {
+        drawWebglScene(gl, resources, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
+      } else if (fallbackContext) {
+        drawFallback2d(fallbackContext, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
+      }
+    };
+
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const frameMs = latestRef.current.isImmersive ? 32 : 48;
+    const tick = (time = 0) => {
+      if (time - lastPaint >= frameMs || !lastPaint) {
+        draw(time);
+        lastPaint = time;
+      }
+      if (!reducedMotion) raf = window.requestAnimationFrame(tick);
+    };
+
+    resize();
+    draw(performance.now());
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
+      resize();
+      draw(performance.now());
+    }) : null;
     if (canvas.parentElement) observer?.observe(canvas.parentElement);
-    return () => observer?.disconnect();
-  }, [currentUser, edges, isImmersive, nodes, selectedEdgeId, selectedNodeId, view]);
+    if (!reducedMotion) raf = window.requestAnimationFrame(tick);
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
+  }, []);
 
   const graphPointFromEvent = (event) => {
     const canvas = canvasRef.current;
@@ -378,13 +566,6 @@ export default function SocialConstellationCanvas({
 
   const handlePointerMove = (event) => {
     onPointerMove?.(event);
-    if (event.buttons) return;
-    const { node, edge } = hitTest(event);
-    if (node) {
-      onNodeSelect?.(node);
-    } else if (edge) {
-      onEdgeSelect?.(edge);
-    }
   };
 
   const handlePointerUp = (event) => {
