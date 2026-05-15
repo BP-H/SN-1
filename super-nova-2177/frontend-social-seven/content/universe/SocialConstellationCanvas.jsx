@@ -95,8 +95,9 @@ function fillRoundRect(ctx, x, y, width, height, radius) {
 function distanceToQuadratic(point, curve) {
   let nearest = Infinity;
   let previous = { x: curve.startX, y: curve.startY };
-  for (let step = 1; step <= 18; step += 1) {
-    const t = step / 18;
+  const samples = 12;
+  for (let step = 1; step <= samples; step += 1) {
+    const t = step / samples;
     const oneMinus = 1 - t;
     const next = {
       x: oneMinus * oneMinus * curve.startX + 2 * oneMinus * t * curve.controlX + t * t * curve.endX,
@@ -141,19 +142,21 @@ function drawOrbitalField(ctx, isLightTheme, time = 0) {
   const orbitColor = isLightTheme ? "rgba(48, 64, 95, 0.12)" : "rgba(255, 255, 255, 0.13)";
   const accentColor = isLightTheme ? "rgba(255, 79, 143, 0.18)" : "rgba(255, 116, 181, 0.22)";
   [
-    { rx: 96, ry: 38, rotate: -0.2, color: orbitColor, dash: [2, 10] },
-    { rx: 118, ry: 52, rotate: 0.25, color: "rgba(94, 141, 250, 0.16)", dash: [1.5, 10] },
-    { rx: 68, ry: 92, rotate: 0.82, color: accentColor, dash: [1, 11] },
-    { rx: 42, ry: 24, rotate: 0.32, color: accentColor, dash: [2, 8] },
+    { rx: 96, ry: 38, rotate: -0.2, color: orbitColor },
+    { rx: 118, ry: 52, rotate: 0.25, color: "rgba(94, 141, 250, 0.14)" },
+    { rx: 68, ry: 92, rotate: 0.82, color: accentColor },
+    { rx: 42, ry: 24, rotate: 0.32, color: "rgba(255, 255, 255, 0.1)" },
   ].forEach((orbit) => {
+    ctx.save();
     ctx.beginPath();
-    ctx.setLineDash(orbit.dash);
-    ctx.lineWidth = 0.65;
+    ctx.lineWidth = 0.42;
     ctx.strokeStyle = orbit.color;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = orbit.color;
     ctx.ellipse(140, 104, orbit.rx, orbit.ry, orbit.rotate, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
   });
-  ctx.setLineDash([]);
 
   ctx.fillStyle = isLightTheme ? "rgba(255, 79, 143, 0.9)" : "rgba(255, 79, 143, 0.94)";
   ctx.shadowBlur = 24;
@@ -174,16 +177,16 @@ function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUse
     const targetColors = speciesColors(edge.targetNode?.species);
     const strength = Number(edge.strength || 0);
     const width = isImmersive
-      ? Math.max(0.22, Math.min(1.1, 0.24 + strength / 68))
-      : Math.max(0.42, Math.min(1.72, 0.42 + strength / 34));
+      ? Math.max(0.18, Math.min(0.86, 0.2 + strength / 92))
+      : Math.max(0.32, Math.min(1.2, 0.36 + strength / 54));
 
     drawCurve(ctx, curve);
-    ctx.lineWidth = width + (active ? 3.4 : 2.1);
+    ctx.lineWidth = width + (active ? 2.6 : 1.35);
     ctx.lineCap = "round";
     ctx.strokeStyle = active
-      ? "rgba(255, 79, 143, 0.26)"
-      : isLightTheme ? "rgba(255, 255, 255, 0.48)" : "rgba(255, 255, 255, 0.08)";
-    ctx.shadowBlur = active ? 12 : 4;
+      ? "rgba(255, 79, 143, 0.2)"
+      : isLightTheme ? "rgba(255, 255, 255, 0.38)" : "rgba(255, 255, 255, 0.06)";
+    ctx.shadowBlur = active ? 10 : 3;
     ctx.shadowColor = active ? "rgba(255, 79, 143, 0.34)" : sourceColors.glow;
     ctx.stroke();
 
@@ -193,8 +196,8 @@ function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUse
     drawCurve(ctx, curve);
     ctx.lineWidth = width;
     ctx.strokeStyle = active ? "rgba(255, 79, 143, 0.9)" : gradient;
-    ctx.shadowBlur = active ? 10 : 5;
-    ctx.shadowColor = active ? "rgba(255, 79, 143, 0.42)" : "rgba(94, 141, 250, 0.24)";
+    ctx.shadowBlur = active ? 10 : 3;
+    ctx.shadowColor = active ? "rgba(255, 79, 143, 0.38)" : "rgba(94, 141, 250, 0.18)";
     ctx.stroke();
 
     if (active || index % 3 === 0) {
@@ -232,22 +235,22 @@ function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUse
     ctx.fill();
     ctx.restore();
 
-    ctx.shadowBlur = selected || current ? 20 : 12;
-    ctx.shadowColor = selected || current ? colors.glow : "rgba(94, 141, 250, 0.22)";
+    ctx.shadowBlur = selected || current ? 18 : 8;
+    ctx.shadowColor = selected || current ? colors.glow : colors.softGlow;
     const nodeGradient = ctx.createRadialGradient(x - radius * 0.35, y - radius * 0.45, radius * 0.2, x, y, radius * 1.3);
     nodeGradient.addColorStop(0, "rgba(255, 255, 255, 0.92)");
     nodeGradient.addColorStop(0.2, colors.core);
-    nodeGradient.addColorStop(1, colors.glow);
+    nodeGradient.addColorStop(1, selected || current ? colors.glow : colors.softGlow);
     ctx.fillStyle = nodeGradient;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.shadowBlur = 0;
-    ctx.lineWidth = selected || current ? 2.05 : 0.75;
+    ctx.lineWidth = selected || current ? 1.8 : 0.45;
     ctx.strokeStyle = selected || current
       ? "rgba(255, 255, 255, 0.88)"
-      : isLightTheme ? "rgba(28, 38, 62, 0.16)" : "rgba(255, 255, 255, 0.34)";
+      : isLightTheme ? "rgba(255, 255, 255, 0.22)" : "rgba(255, 255, 255, 0.22)";
     ctx.beginPath();
     ctx.arc(x, y, radius + (selected || current ? 3.2 : 2.2), 0, Math.PI * 2);
     ctx.stroke();
@@ -310,7 +313,7 @@ export default function SocialConstellationCanvas({
       const rect = parent?.getBoundingClientRect?.() || { width: canvas.clientWidth || 1, height: canvas.clientHeight || 1 };
       const width = Math.max(1, rect.width || 1);
       const height = Math.max(1, rect.height || 1);
-      const dpr = Math.min(1.75, window.devicePixelRatio || 1);
+      const dpr = Math.min(isImmersive ? 1.4 : 1.2, window.devicePixelRatio || 1);
       const targetWidth = Math.floor(width * dpr);
       const targetHeight = Math.floor(height * dpr);
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {

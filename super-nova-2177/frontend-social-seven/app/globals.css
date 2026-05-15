@@ -3727,6 +3727,9 @@ html[data-theme="light"] .for-ai-panel {
     linear-gradient(180deg, rgba(8, 13, 25, 0.88), rgba(4, 7, 13, 0.94));
   cursor: grab;
   touch-action: none;
+  contain: layout paint;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .desktop-constellation-ambient {
@@ -3776,7 +3779,8 @@ html[data-theme="light"] .for-ai-panel {
 
 .universe-page .desktop-constellation-svg,
 .universe-page .desktop-constellation-canvas {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
   display: block;
   width: 100%;
@@ -5031,6 +5035,9 @@ html[data-theme="light"] .post-action-bar {
       0 16px 34px rgba(0, 0, 0, 0.1);
     cursor: grab;
     touch-action: none;
+    contain: layout paint;
+    isolation: isolate;
+    transform: translateZ(0);
   }
 
   .desktop-constellation-rail .desktop-constellation-stage {
