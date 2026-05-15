@@ -277,7 +277,7 @@ export default function ProposalClient({ id }) {
         const data = await res.json();
         setProposal(data);
       } catch (err) {
-        setFetchError(friendlyFetchError(err, "Failed to fetch proposal.", "Proposal is not reachable from this deployment yet."));
+        setFetchError(friendlyFetchError(err, "Failed to fetch signal.", "Signal is not reachable from this deployment yet."));
       } finally {
         setLoading(false);
       }
@@ -287,7 +287,7 @@ export default function ProposalClient({ id }) {
 
   if (loading) return <Loading />;
   if (fetchError) return <p className="text-red-600">Error: {fetchError}</p>;
-  if (!proposal) return <p>No proposal found.</p>;
+  if (!proposal) return <p>No signal found.</p>;
 
   return (
     <div className="social-shell px-0">

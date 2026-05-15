@@ -41,7 +41,7 @@ async function mockPublicBackend(
     });
   });
 
-  await page.route("**/uploads/smoke-image.png", async (route) => {
+  await page.route(/.*\/uploads\/smoke-image(?:-\d+)?\.png(?:\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "image/png",
@@ -85,7 +85,7 @@ async function mockPublicBackend(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([]),
+      body: JSON.stringify(options.notifications || []),
     });
   });
 
@@ -415,7 +415,7 @@ test("empty signed-out feed shows the first-user create cue", async ({ page }) =
 
   await expect(page.getByText("No posts yet.")).toBeVisible();
   await expect(
-    page.getByText("Start the commons with a post, proposal, image, or AI delegate draft.")
+    page.getByText("Start the commons with a post, signal, image, or AI delegate draft.")
   ).toBeVisible();
   await expect(page.getByRole("main").getByRole("button", { name: "Create post" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
@@ -630,6 +630,43 @@ test("mocked image post keeps media after reload", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("media gallery lightbox arrows advance without closing", async ({ page }) => {
+  await mockPublicBackend(page, [
+    {
+      id: 2177002,
+      title: "Gallery smoke signal",
+      text: "A multi-image signal keeps the desktop lightbox controls stable.",
+      userName: "smoke-human",
+      userInitials: "SH",
+      author_type: "human",
+      time: new Date("2026-05-05T00:00:00Z").toISOString(),
+      media: {
+        image: "",
+        images: ["/uploads/smoke-image.png", "/uploads/smoke-image-2.png", "/uploads/smoke-image-3.png"],
+        layout: "grid",
+        governance: null,
+        video: "",
+        link: "",
+        file: "",
+      },
+      comments: [],
+      likes: [],
+      dislikes: [],
+    },
+  ]);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open image 1" }).click();
+
+  await expect(page.getByRole("button", { name: "Close image" })).toBeVisible();
+  await expect(page.getByText("1/3")).toBeVisible();
+  await page.getByRole("button", { name: "Next image" }).last().click();
+  await expect(page.getByText("2/3")).toBeVisible();
+  await page.getByRole("button", { name: "Previous image" }).last().click();
+  await expect(page.getByText("1/3")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("composer shows posting progress while create request is pending", async ({ page }) => {
   await seedPasswordSession(page);
   await mockPublicBackend(page);
@@ -664,7 +701,7 @@ test("composer shows posting progress while create request is pending", async ({
   });
 
   await page.goto("/");
-  await page.getByText("Post, propose, or ask AI...").click();
+  await page.getByText("Post a signal, or ask AI...").click();
   await page.getByPlaceholder("Share your idea, update, or question").fill("Progress smoke post body");
   await page.locator('button[aria-label="Post"]').last().click();
 
@@ -679,7 +716,7 @@ test("composer shows posting progress while create request is pending", async ({
   releasePost();
 
   await expect(page.locator(".composer-publish-progress")).toHaveCount(0);
-  await expect(page.getByText("Post, propose, or ask AI...")).toBeVisible();
+  await expect(page.getByText("Post a signal, or ask AI...")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
@@ -692,7 +729,7 @@ test("unified media picker accepts video without a separate video button", async
   await expect(page.getByRole("button", { name: "Add media" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add video" })).toHaveCount(0);
 
-  await page.getByText("Post, propose, or ask AI...").click();
+  await page.getByText("Post a signal, or ask AI...").click();
   await page.locator("#mediaInput").setInputFiles({
     name: "smoke-video.mp4",
     mimeType: "video/mp4",
@@ -705,7 +742,7 @@ test("unified media picker accepts video without a separate video button", async
     { name: "one.mp4", mimeType: "video/mp4", buffer: Buffer.from("one") },
     { name: "two.mp4", mimeType: "video/mp4", buffer: Buffer.from("two") },
   ]);
-  await expect(page.getByText("Choose one video for this post.")).toBeVisible();
+  await expect(page.getByText("Choose one video for this signal.")).toBeVisible();
 
   await page.locator("#mediaInput").setInputFiles({
     name: "smoke-image.png",
@@ -747,6 +784,37 @@ test("password sign-out returns to public state after one click", async ({ page 
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
   await expect(page.getByText("Tap to sign in or create an account.")).toBeVisible();
   await expect(page.getByText("e2e-human")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("notification badge clears after opening activity panel", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page, undefined, {
+    notifications: [
+      {
+        id: "notice-1",
+        type: "mention",
+        actor: "smoke-human",
+        title: "Smoke mention signal",
+        body: "Smoke Human mentioned you.",
+        time: new Date("2026-05-13T00:00:00Z").toISOString(),
+      },
+    ],
+  });
+
+  await page.goto("/");
+
+  const notificationButton = page.getByRole("button", { name: "Notifications" });
+  await expect(notificationButton.locator("span").filter({ hasText: "1" })).toBeVisible();
+
+  await notificationButton.click();
+  await expect(page.getByText("Recent Activity")).toBeVisible();
+  await expect(page.getByText("Smoke mention signal")).toBeVisible();
+  await expect(notificationButton.locator("span").filter({ hasText: "1" })).toHaveCount(0);
+
+  await notificationButton.click();
+  await notificationButton.click();
+  await expect(notificationButton.locator("span").filter({ hasText: "1" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 

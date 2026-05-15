@@ -11,6 +11,13 @@ export async function generateMetadata({ params }) {
   const { id } = await params;
   const proposal = await fetchPublicProposalForShare(id);
   const shareMetadata = buildProposalShareMetadata(proposal, id);
+  const openGraphVideos = shareMetadata.video
+    ? [
+        {
+          url: shareMetadata.video,
+        },
+      ]
+    : undefined;
 
   return {
     title: shareMetadata.title,
@@ -32,6 +39,7 @@ export async function generateMetadata({ params }) {
           alt: shareMetadata.imageAlt,
         },
       ],
+      ...(openGraphVideos ? { videos: openGraphVideos } : {}),
     },
     twitter: {
       card: "summary_large_image",

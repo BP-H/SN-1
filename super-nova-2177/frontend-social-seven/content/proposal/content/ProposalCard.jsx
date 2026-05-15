@@ -392,7 +392,7 @@ function ProposalCard({
 
   const handleShareLink = async () => {
     const url = `${window.location.origin}/proposals/${id || ""}`;
-    const shareText = title ? `Check out: ${title}` : "Check out this proposal";
+    const shareText = title ? `Check out: ${title}` : "Check out this signal";
     if (navigator.share) {
       try {
         await navigator.share({ title: shareText, url });
@@ -417,7 +417,7 @@ function ProposalCard({
       return;
     }
     const url = `${window.location.origin}/proposals/${id || ""}`;
-    const shareText = title ? `Check out: ${title}` : "Check out this proposal";
+    const shareText = title ? `Check out: ${title}` : "Check out this signal";
     try {
       sessionStorage.setItem(
         "supernova_dm_share_draft",

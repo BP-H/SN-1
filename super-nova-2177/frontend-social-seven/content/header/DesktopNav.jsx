@@ -91,6 +91,24 @@ export default function DesktopNav({ setShowSettings }) {
     }).length;
   }, [conversationsQuery.data, currentUser, readMarkers]);
 
+  useEffect(() => {
+    if (!pathname.startsWith("/messages") || !currentUser || typeof window === "undefined") return;
+    const nextMarkers = {};
+    (conversationsQuery.data?.conversations || []).forEach((conversation) => {
+      const message = conversation.last_message || {};
+      const peer = conversation.peer?.toLowerCase();
+      if (!peer || message.recipient?.toLowerCase() !== currentUser.toLowerCase()) return;
+      const createdAt = message.created_at || "";
+      if (!createdAt) return;
+      nextMarkers[peer] = createdAt;
+      localStorage.setItem(`${readKey}${peer}`, createdAt);
+    });
+    if (Object.keys(nextMarkers).length > 0) {
+      setReadMarkers((markers) => ({ ...markers, ...nextMarkers }));
+      window.dispatchEvent(new Event("supernova:dm-read"));
+    }
+  }, [conversationsQuery.data, currentUser, pathname, readKey]);
+
   const requireAccount = () => {
     window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
   };
