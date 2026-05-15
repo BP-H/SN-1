@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 
 const VIEWBOX_WIDTH = 280;
 const VIEWBOX_HEIGHT = 210;
+const SCENE_CENTER_X = VIEWBOX_WIDTH / 2;
+const SCENE_CENTER_Y = VIEWBOX_HEIGHT / 2;
 
 const SPECIES_PALETTE = {
   human: {
@@ -64,14 +66,21 @@ void main() {
   vec2 point = gl_PointCoord - vec2(0.5);
   float dist = length(point);
   if (dist > 0.5) discard;
-  float core = smoothstep(0.5, 0.05, dist);
-  float rim = smoothstep(0.5, 0.32, dist);
-  float shell = smoothstep(0.46, 0.34, dist) - smoothstep(0.34, 0.23, dist);
-  float highlight = smoothstep(0.26, 0.0, length(point + vec2(0.16, 0.19)));
-  vec3 shaded = mix(v_color.rgb * (0.46 + v_depth * 0.2), v_color.rgb * 1.12, core);
-  shaded += vec3(0.9, 0.97, 1.0) * highlight * 0.5;
-  shaded += vec3(0.72, 0.86, 1.0) * shell * 0.22;
-  float alpha = v_color.a * rim;
+  float sphereMask = smoothstep(0.5, 0.06, dist);
+  float softDisc = smoothstep(0.5, 0.38, dist);
+  float shell = smoothstep(0.49, 0.36, dist) - smoothstep(0.34, 0.18, dist);
+  float halo = smoothstep(0.5, 0.22, dist);
+  float z = sqrt(max(0.0, 0.25 - dot(point, point))) * 2.0;
+  vec3 normal = normalize(vec3(point.x * 1.4, -point.y * 1.4, z));
+  vec3 lightDir = normalize(vec3(-0.34, 0.42, 0.84));
+  float light = clamp(dot(normal, lightDir) * 0.5 + 0.5, 0.0, 1.0);
+  float highlight = smoothstep(0.24, 0.0, length(point + vec2(0.15, 0.18)));
+  float rim = pow(clamp(1.0 - z, 0.0, 1.0), 2.2) * softDisc;
+  vec3 shaded = v_color.rgb * (0.38 + light * 0.92 + v_depth * 0.22);
+  shaded = mix(shaded, vec3(1.0), highlight * 0.48);
+  shaded += v_color.rgb * shell * 0.72;
+  shaded += vec3(0.86, 0.94, 1.0) * rim * 0.34;
+  float alpha = v_color.a * (sphereMask * 0.78 + halo * 0.28);
   gl_FragColor = vec4(shaded, alpha);
 }
 `;
@@ -95,6 +104,8 @@ function edgeCurve(edge, index = 0, isImmersive = false) {
   const startY = Number(source.visualY || 0);
   const endX = Number(target.visualX || 0);
   const endY = Number(target.visualY || 0);
+  const startDepth = Number(source.visualDepth || source.depth || 0.72);
+  const endDepth = Number(target.visualDepth || target.depth || 0.72);
   const deltaX = endX - startX;
   const deltaY = endY - startY;
   const distance = Math.max(1, Math.hypot(deltaX, deltaY));
@@ -105,10 +116,13 @@ function edgeCurve(edge, index = 0, isImmersive = false) {
   return {
     startX,
     startY,
+    startDepth,
     controlX: midpointX - (deltaY / distance) * sweep * side,
     controlY: midpointY + (deltaX / distance) * sweep * side * 0.76,
+    controlDepth: clamp(Math.max(startDepth, endDepth) + distance / 460, 0.48, 1.18),
     endX,
     endY,
+    endDepth,
   };
 }
 
@@ -117,6 +131,9 @@ function pointOnCurve(curve, t) {
   return {
     x: oneMinus * oneMinus * curve.startX + 2 * oneMinus * t * curve.controlX + t * t * curve.endX,
     y: oneMinus * oneMinus * curve.startY + 2 * oneMinus * t * curve.controlY + t * t * curve.endY,
+    depth: oneMinus * oneMinus * Number(curve.startDepth || 0.72)
+      + 2 * oneMinus * t * Number(curve.controlDepth || 0.78)
+      + t * t * Number(curve.endDepth || 0.72),
   };
 }
 
@@ -212,17 +229,70 @@ function worldToClip(x, y, view = { x: 0, y: 0, scale: 1 }, canvasWidth = VIEWBO
   return [(screenX / canvasWidth) * 2 - 1, 1 - (screenY / canvasHeight) * 2];
 }
 
+function sceneCamera(time = 0, isImmersive = false, pointer = {}) {
+  const pointerX = pointer.active ? clamp(Number(pointer.x || 0), -1, 1) : 0;
+  const pointerY = pointer.active ? clamp(Number(pointer.y || 0), -1, 1) : 0;
+  return {
+    yaw: Math.sin(time * 0.17) * (isImmersive ? 0.34 : 0.2) + pointerX * (isImmersive ? 0.18 : 0.1),
+    tilt: (isImmersive ? 0.46 : 0.34) + Math.cos(time * 0.13) * (isImmersive ? 0.06 : 0.035) - pointerY * 0.06,
+    roll: Math.sin(time * 0.09) * (isImmersive ? 0.04 : 0.022),
+    depthScale: isImmersive ? 48 : 30,
+    distance: isImmersive ? 245 : 285,
+    warp: isImmersive ? 9 : 5,
+  };
+}
+
+function worldToScene(
+  x,
+  y,
+  depth = 0.72,
+  view = { x: 0, y: 0, scale: 1 },
+  canvasWidth = VIEWBOX_WIDTH,
+  canvasHeight = VIEWBOX_HEIGHT,
+  camera = sceneCamera(),
+) {
+  const centeredX = Number(x || 0) - SCENE_CENTER_X;
+  const centeredY = Number(y || 0) - SCENE_CENTER_Y;
+  const normalizedDepth = clamp(Number(depth || 0.72), 0.2, 1.3);
+  const orbitalWarp = Math.sin(centeredX * 0.032 + centeredY * 0.026 + camera.yaw * 3.2) * camera.warp;
+  const baseZ = (normalizedDepth - 0.68) * camera.depthScale + orbitalWarp;
+  const cosYaw = Math.cos(camera.yaw);
+  const sinYaw = Math.sin(camera.yaw);
+  const yawX = centeredX * cosYaw - baseZ * sinYaw;
+  const yawZ = centeredX * sinYaw + baseZ * cosYaw;
+  const cosTilt = Math.cos(camera.tilt);
+  const sinTilt = Math.sin(camera.tilt);
+  const tiltedY = centeredY * cosTilt - yawZ * sinTilt;
+  const tiltedZ = centeredY * sinTilt + yawZ * cosTilt;
+  const cosRoll = Math.cos(camera.roll);
+  const sinRoll = Math.sin(camera.roll);
+  const rolledX = yawX * cosRoll - tiltedY * sinRoll;
+  const rolledY = yawX * sinRoll + tiltedY * cosRoll;
+  const perspective = clamp(camera.distance / Math.max(120, camera.distance - tiltedZ), 0.72, 1.46);
+  const sceneX = SCENE_CENTER_X + rolledX * perspective;
+  const sceneY = SCENE_CENTER_Y + rolledY * perspective;
+  const clip = worldToClip(sceneX, sceneY, view, canvasWidth, canvasHeight);
+  return {
+    clip,
+    sceneX,
+    sceneY,
+    perspective,
+    depth: clamp(0.44 + tiltedZ / 150 + normalizedDepth * 0.38, 0.16, 1.34),
+  };
+}
+
 function animatedNode(node, time, isImmersive) {
   const depth = Number(node.depth || 0.74);
   const baseX = Number(node.visualX || 0);
   const baseY = Number(node.visualY || 0);
-  const floatX = Math.sin(time * 0.42 + baseX * 0.012 + depth) * (isImmersive ? 1.45 : 0.55) * depth;
-  const floatY = Math.cos(time * 0.36 + baseY * 0.011 + depth) * (isImmersive ? 1.05 : 0.42) * depth;
+  const orbitDrift = Math.sin(time * 0.16 + baseX * 0.009) * (isImmersive ? 0.9 : 0.32);
+  const floatX = Math.sin(time * 0.52 + baseX * 0.012 + depth) * (isImmersive ? 1.75 : 0.72) * depth + orbitDrift;
+  const floatY = Math.cos(time * 0.44 + baseY * 0.011 + depth) * (isImmersive ? 1.22 : 0.52) * depth;
   return {
     ...node,
     visualX: baseX + floatX,
     visualY: baseY + floatY,
-    visualDepth: clamp(0.46 + depth * 0.28 + Math.sin(time * 0.24 + baseX * 0.018) * 0.08, 0.36, 1),
+    visualDepth: clamp(0.5 + depth * 0.34 + Math.sin(time * 0.31 + baseX * 0.018) * 0.1, 0.32, 1.18),
   };
 }
 
@@ -239,46 +309,50 @@ function graphFrame(nodes, edges, isImmersive, time) {
   return { nodes: animatedNodes, edges: animatedEdges };
 }
 
-function pushLineSegment(positions, colors, start, end, color, alpha, view, canvasWidth, canvasHeight) {
-  const startClip = worldToClip(start.x, start.y, view, canvasWidth, canvasHeight);
-  const endClip = worldToClip(end.x, end.y, view, canvasWidth, canvasHeight);
-  positions.push(startClip[0], startClip[1], endClip[0], endClip[1]);
-  colors.push(color[0], color[1], color[2], alpha, color[0], color[1], color[2], alpha);
+function pushLineSegment(positions, colors, start, end, color, alpha, view, canvasWidth, canvasHeight, camera) {
+  const startScene = worldToScene(start.x, start.y, start.depth, view, canvasWidth, canvasHeight, camera);
+  const endScene = worldToScene(end.x, end.y, end.depth, view, canvasWidth, canvasHeight, camera);
+  const depthAlpha = clamp((startScene.depth + endScene.depth) * 0.46, 0.18, 1.12);
+  const finalAlpha = alpha * depthAlpha;
+  positions.push(startScene.clip[0], startScene.clip[1], endScene.clip[0], endScene.clip[1]);
+  colors.push(color[0], color[1], color[2], finalAlpha, color[0], color[1], color[2], finalAlpha);
 }
 
-function pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight) {
+function pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight, camera) {
   const orbitScale = isImmersive ? 1.18 : 1;
   const orbitColor = [0.66, 0.78, 1];
   const pinkColor = [1, 0.34, 0.64];
+  const violetColor = [0.72, 0.42, 1];
   const orbits = [
-    { rx: 104, ry: 38, rotate: -0.18, color: orbitColor, alpha: 0.1 },
-    { rx: 124, ry: 54, rotate: 0.25, color: orbitColor, alpha: 0.08 },
-    { rx: 68, ry: 88, rotate: 0.82, color: pinkColor, alpha: 0.08 },
+    { rx: 104, ry: 38, rotate: -0.18, color: orbitColor, alpha: 0.18, z: 0.76 },
+    { rx: 124, ry: 54, rotate: 0.25, color: orbitColor, alpha: 0.13, z: 0.62 },
+    { rx: 92, ry: 72, rotate: 0.62, color: pinkColor, alpha: 0.13, z: 0.82 },
+    { rx: 56, ry: 94, rotate: 1.08, color: violetColor, alpha: 0.08, z: 0.54 },
   ];
   orbits.forEach((orbit, orbitIndex) => {
-    const steps = isImmersive ? 56 : 36;
+    const steps = isImmersive ? 72 : 44;
     let previous = null;
     for (let step = 0; step <= steps; step += 1) {
-      const angle = (step / steps) * Math.PI * 2 + time * 0.035 * (orbitIndex % 2 ? -1 : 1);
+      const angle = (step / steps) * Math.PI * 2 + time * (0.06 + orbitIndex * 0.006) * (orbitIndex % 2 ? -1 : 1);
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       const rotatedX = cos * orbit.rx * orbitScale;
       const rotatedY = sin * orbit.ry * orbitScale;
-      const x = 140 + rotatedX * Math.cos(orbit.rotate) - rotatedY * Math.sin(orbit.rotate);
-      const y = 104 + rotatedX * Math.sin(orbit.rotate) + rotatedY * Math.cos(orbit.rotate);
-      const point = { x, y };
-      if (previous && step % 3 !== 0) {
-        pushLineSegment(positions, colors, previous, point, orbit.color, orbit.alpha, view, canvasWidth, canvasHeight);
+      const x = SCENE_CENTER_X + rotatedX * Math.cos(orbit.rotate) - rotatedY * Math.sin(orbit.rotate);
+      const y = SCENE_CENTER_Y + rotatedX * Math.sin(orbit.rotate) + rotatedY * Math.cos(orbit.rotate);
+      const point = { x, y, depth: clamp(orbit.z + sin * 0.22 + cos * 0.08, 0.25, 1.18) };
+      if (previous && step % (isImmersive ? 5 : 4) !== 0) {
+        pushLineSegment(positions, colors, previous, point, orbit.color, orbit.alpha, view, canvasWidth, canvasHeight, camera);
       }
       previous = point;
     }
   });
 }
 
-function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasWidth, canvasHeight) {
+function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasWidth, canvasHeight, camera) {
   const positions = [];
   const colors = [];
-  pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight);
+  pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight, camera);
 
   edges.forEach((edge, index) => {
     const curve = edgeCurve(edge, index, isImmersive);
@@ -299,7 +373,7 @@ function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasW
         sourceColor[1] * (1 - mix) + targetColor[1] * mix,
         sourceColor[2] * (1 - mix) + targetColor[2] * mix,
       ];
-      pushLineSegment(positions, colors, previous, current, color, alpha, view, canvasWidth, canvasHeight);
+      pushLineSegment(positions, colors, previous, current, color, alpha, view, canvasWidth, canvasHeight, camera);
       previous = current;
     }
   });
@@ -310,30 +384,38 @@ function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasW
   };
 }
 
-function buildNodeArrays(nodes, selectedNodeId, currentUser, view, dpr, isImmersive, canvasWidth, canvasHeight) {
+function buildNodeArrays(nodes, selectedNodeId, currentUser, view, dpr, isImmersive, canvasWidth, canvasHeight, camera) {
   const positions = [];
   const colors = [];
   const sizes = [];
   const depths = [];
   const screenScale = viewboxMetrics(canvasWidth, canvasHeight).fitScale;
 
-  const pushNode = (node, sizeMultiplier, alphaMultiplier) => {
+  const pushNode = (node, sizeMultiplier, alphaMultiplier, depthLift = 0) => {
     const selected = selectedNodeId === node.id;
     const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
     const palette = paletteFor(node.species);
     const radius = Number(node.radius || 4);
     const depth = Number(node.visualDepth || node.depth || 0.72);
-    const clip = worldToClip(Number(node.visualX || 0), Number(node.visualY || 0), view, canvasWidth, canvasHeight);
+    const scene = worldToScene(
+      Number(node.visualX || 0),
+      Number(node.visualY || 0),
+      depth + depthLift,
+      view,
+      canvasWidth,
+      canvasHeight,
+      camera,
+    );
     const boost = selected || current ? 1.35 : 1;
-    positions.push(clip[0], clip[1]);
-    colors.push(palette.core[0], palette.core[1], palette.core[2], alphaMultiplier * boost);
-    sizes.push(Math.max(7, radius * 2 * Number(view.scale || 1) * screenScale * dpr * sizeMultiplier * (0.82 + depth * 0.32)));
-    depths.push(depth);
+    positions.push(scene.clip[0], scene.clip[1]);
+    colors.push(palette.core[0], palette.core[1], palette.core[2], alphaMultiplier * boost * clamp(scene.depth, 0.36, 1.24));
+    sizes.push(Math.max(7, radius * 2 * Number(view.scale || 1) * screenScale * dpr * sizeMultiplier * scene.perspective * (0.82 + scene.depth * 0.28)));
+    depths.push(scene.depth);
   };
 
-  nodes.forEach((node) => pushNode(node, isImmersive ? 5.8 : 5.1, 0.18));
-  nodes.forEach((node) => pushNode(node, isImmersive ? 2.55 : 2.25, 0.48));
-  nodes.forEach((node) => pushNode(node, isImmersive ? 1.35 : 1.22, 0.92));
+  nodes.forEach((node) => pushNode(node, isImmersive ? 7.4 : 6.2, 0.1, -0.08));
+  nodes.forEach((node) => pushNode(node, isImmersive ? 4.0 : 3.05, 0.32, 0.03));
+  nodes.forEach((node) => pushNode(node, isImmersive ? 1.55 : 1.34, 0.98, 0.1));
 
   return {
     positions: new Float32Array(positions),
@@ -352,6 +434,7 @@ function bindArray(gl, buffer, location, data, size) {
 
 function drawWebglScene(gl, resources, latest, canvasWidth, canvasHeight, dpr, time) {
   const { nodes, edges } = graphFrame(latest.nodes, latest.edges, latest.isImmersive, time);
+  const camera = sceneCamera(time, latest.isImmersive, latest.pointer);
   gl.viewport(0, 0, Math.floor(canvasWidth * dpr), Math.floor(canvasHeight * dpr));
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
@@ -359,7 +442,7 @@ function drawWebglScene(gl, resources, latest, canvasWidth, canvasHeight, dpr, t
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
-  const lineArrays = buildLineArrays(edges, latest.selectedEdgeId, latest.isImmersive, time, latest.view, canvasWidth, canvasHeight);
+  const lineArrays = buildLineArrays(edges, latest.selectedEdgeId, latest.isImmersive, time, latest.view, canvasWidth, canvasHeight, camera);
   gl.useProgram(resources.lineProgram);
   bindArray(gl, resources.linePositionBuffer, resources.lineLocations.position, lineArrays.positions, 2);
   bindArray(gl, resources.lineColorBuffer, resources.lineLocations.color, lineArrays.colors, 4);
@@ -374,6 +457,7 @@ function drawWebglScene(gl, resources, latest, canvasWidth, canvasHeight, dpr, t
     latest.isImmersive,
     canvasWidth,
     canvasHeight,
+    camera,
   );
   gl.useProgram(resources.nodeProgram);
   bindArray(gl, resources.nodePositionBuffer, resources.nodeLocations.position, nodeArrays.positions, 2);
@@ -448,6 +532,7 @@ export default function SocialConstellationCanvas({
 }) {
   const canvasRef = useRef(null);
   const pointerStartRef = useRef(null);
+  const pointerRef = useRef({ x: 0, y: 0, active: false });
   const latestRef = useRef({
     nodes,
     edges,
@@ -456,6 +541,7 @@ export default function SocialConstellationCanvas({
     currentUser,
     view,
     isImmersive,
+    pointer: pointerRef.current,
   });
 
   useEffect(() => {
@@ -467,6 +553,7 @@ export default function SocialConstellationCanvas({
       currentUser,
       view,
       isImmersive,
+      pointer: pointerRef.current,
     };
   }, [currentUser, edges, isImmersive, nodes, selectedEdgeId, selectedNodeId, view]);
 
@@ -522,7 +609,7 @@ export default function SocialConstellationCanvas({
     };
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const frameMs = latestRef.current.isImmersive ? 24 : 32;
+    const frameMs = latestRef.current.isImmersive ? 16 : 24;
     const tick = (time = 0) => {
       if (time - lastPaint >= frameMs || !lastPaint) {
         draw(time);
@@ -576,17 +663,36 @@ export default function SocialConstellationCanvas({
     return { edge };
   };
 
+  const updatePointerParallax = (event) => {
+    const canvas = canvasRef.current;
+    const rect = canvas?.getBoundingClientRect?.();
+    if (!rect) return;
+    pointerRef.current = {
+      x: clamp(((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1, -1, 1),
+      y: clamp(((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1, -1, 1),
+      active: true,
+    };
+    latestRef.current.pointer = pointerRef.current;
+  };
+
   const handlePointerDown = (event) => {
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    updatePointerParallax(event);
     onPointerDown?.(event);
   };
 
   const handlePointerMove = (event) => {
+    updatePointerParallax(event);
     onPointerMove?.(event);
   };
 
   const handlePointerUp = (event) => {
     onPointerUp?.(event);
+  };
+
+  const handlePointerLeave = () => {
+    pointerRef.current = { x: pointerRef.current.x * 0.4, y: pointerRef.current.y * 0.4, active: false };
+    latestRef.current.pointer = pointerRef.current;
   };
 
   const handleClick = (event) => {
@@ -612,6 +718,7 @@ export default function SocialConstellationCanvas({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
       onWheel={onWheel}
       onClick={handleClick}
       onDoubleClick={onDoubleClick}
