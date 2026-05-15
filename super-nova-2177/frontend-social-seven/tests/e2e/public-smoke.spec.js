@@ -755,6 +755,34 @@ test("unified media picker accepts video without a separate video button", async
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("composer image preview can add and remove individual images", async ({ page }) => {
+  await seedPasswordSession(page);
+  await mockPublicBackend(page);
+
+  await page.goto("/");
+  await page.getByText("Post a signal, or ask AI...").click();
+  await page.locator("#mediaInput").setInputFiles([
+    { name: "first.png", mimeType: "image/png", buffer: tinyPng },
+    { name: "second.png", mimeType: "image/png", buffer: tinyPng },
+  ]);
+
+  await expect(page.getByRole("button", { name: /Remove image/ })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Add more images" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add more images" }).click();
+  await page.locator('input[accept="image/*"]').setInputFiles({
+    name: "third.png",
+    mimeType: "image/png",
+    buffer: tinyPng,
+  });
+
+  await expect(page.getByRole("button", { name: /Remove image/ })).toHaveCount(3);
+  await page.getByRole("button", { name: "Remove image 2" }).click();
+  await expect(page.getByRole("button", { name: /Remove image/ })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Show image 2" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("password sign-out returns to public state after one click", async ({ page }) => {
   await seedPasswordSession(page, { reseedOnReload: false });
   await mockPublicBackend(page, undefined, { notificationsDelayMs: 350 });

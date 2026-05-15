@@ -72,6 +72,7 @@ function InputFields({
   const [publishProgress, setPublishProgress] = useState(null);
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
+  const addImagesInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const previewSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
   const imagePreviewUrls = useMemo(() => {
@@ -239,29 +240,46 @@ function InputFields({
     });
   };
 
-  const applyImageFiles = async (imageFiles) => {
+  const updateImageSelection = (files, options = {}) => {
+    const nextFiles = Array.isArray(files) ? files.filter(Boolean) : [];
+    if (nextFiles.length === 0) {
+      handleRemoveMedia();
+      return;
+    }
+    const nextIndex = Math.min(
+      Math.max(0, Number(options.previewIndex) || 0),
+      Math.max(0, nextFiles.length - 1)
+    );
+    setErrorMsg([]);
+    setSelectedFiles(nextFiles);
+    setSelectedFile(nextFiles[0]);
+    setMediaType("image");
+    setMediaLayout(nextFiles.length > 1 ? options.layout || mediaLayout : "carousel");
+    setMediaValue(nextFiles.length > 1 ? `${nextFiles.length} images selected` : nextFiles[0].name);
+    setPreviewIndex(nextIndex);
+  };
+
+  const applyImageFiles = async (imageFiles, options = {}) => {
+    const append = Boolean(options.append && mediaType === "image" && selectedFiles.length > 0);
+    const baseFiles = append ? selectedFiles : [];
     setErrorMsg([]);
     try {
-      const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
+      const compressionOptions = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
       const compressedFiles = await Promise.all(
         imageFiles.map(async (file, index) => {
-          const compressed = await imageCompression(file, options).catch(() => file);
-          return ensureNamedFile(compressed, file, index);
+          const compressed = await imageCompression(file, compressionOptions).catch(() => file);
+          return ensureNamedFile(compressed, file, baseFiles.length + index);
         })
       );
-      setSelectedFiles(compressedFiles);
-      setSelectedFile(compressedFiles[0]);
-      setMediaType("image");
-      setMediaLayout(compressedFiles.length > 1 ? mediaLayout : "carousel");
-      setMediaValue(
-        compressedFiles.length > 1 ? `${compressedFiles.length} images selected` : compressedFiles[0].name
-      );
+      updateImageSelection([...baseFiles, ...compressedFiles], {
+        layout: mediaLayout,
+        previewIndex: append ? baseFiles.length : 0,
+      });
     } catch {
-      setSelectedFiles(imageFiles);
-      setSelectedFile(imageFiles[0]);
-      setMediaType("image");
-      setMediaLayout(imageFiles.length > 1 ? mediaLayout : "carousel");
-      setMediaValue(imageFiles.length > 1 ? `${imageFiles.length} images selected` : imageFiles[0].name);
+      updateImageSelection([...baseFiles, ...imageFiles], {
+        layout: mediaLayout,
+        previewIndex: append ? baseFiles.length : 0,
+      });
     }
   };
 
@@ -299,7 +317,7 @@ function InputFields({
       if (videoFiles.length > 0) {
         applyVideoFile(videoFiles[0]);
       } else if (imageFiles.length > 0) {
-        await applyImageFiles(imageFiles);
+        await applyImageFiles(imageFiles, { append: mediaType === "image" });
       } else {
         setErrorMsg([t("composer.chooseImageOrVideo")]);
       }
@@ -310,7 +328,7 @@ function InputFields({
         event.target.value = null;
         return;
       }
-      await applyImageFiles(imageFiles);
+      await applyImageFiles(imageFiles, { append: mediaType === "image" });
     } else if (type === "video" && files[0].type.startsWith("video/")) {
       applyVideoFile(files[0]);
     } else if (type === "file") {
@@ -631,6 +649,20 @@ function InputFields({
     return match && match[2].length === 11 ? match[2] : null;
   };
 
+  const openImagePicker = () => {
+    addImagesInputRef.current?.click();
+  };
+
+  const removeSelectedImage = (indexToRemove) => {
+    const nextFiles = selectedFiles.filter((_, index) => index !== indexToRemove);
+    const nextPreviewIndex =
+      indexToRemove < previewIndex ? previewIndex - 1 : Math.min(previewIndex, nextFiles.length - 1);
+    updateImageSelection(nextFiles, {
+      layout: mediaLayout,
+      previewIndex: Math.max(0, nextPreviewIndex),
+    });
+  };
+
   const renderMediaPreview = () => {
     if (!mediaType) return null;
 
@@ -806,21 +838,49 @@ function InputFields({
               </div>
             )}
 
-            {mediaLayout === "carousel" && selectedFiles.length > 1 && (
-              <div className="flex justify-center gap-1.5">
-                {selectedFiles.map((file, index) => (
-                  <img
-                    key={`${file.name}-${index}`}
-                    src={imagePreviewUrls[index]}
-                    alt=""
+            <div className="hide-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-[0.85rem] bg-black/15 p-1">
+              {selectedFiles.map((file, index) => (
+                <div key={`${file.name}-${file.lastModified}-${index}`} className="relative shrink-0">
+                  <button
+                    type="button"
                     onClick={() => setPreviewIndex(index)}
-                    className={`h-8 w-8 rounded-md object-cover ${
-                      index === safePreviewIndex ? "ring-2 ring-[var(--pink)]" : "opacity-55"
+                    className={`block h-10 w-10 overflow-hidden rounded-[0.65rem] transition ${
+                      index === safePreviewIndex ? "ring-2 ring-[var(--pink)]" : "opacity-65 hover:opacity-100"
                     }`}
-                  />
-                ))}
-              </div>
-            )}
+                    aria-label={`Show image ${index + 1}`}
+                    title={`Show image ${index + 1}`}
+                  >
+                    <img
+                      src={imagePreviewUrls[index]}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      removeSelectedImage(index);
+                    }}
+                    className="absolute -right-1 -top-1 flex h-[1.125rem] w-[1.125rem] items-center justify-center rounded-full bg-black/70 text-white shadow-sm backdrop-blur transition hover:bg-[var(--pink)]"
+                    aria-label={`Remove image ${index + 1}`}
+                    title="Remove image"
+                  >
+                    <IoClose className="text-[0.62rem]" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={openImagePicker}
+                className="flex h-10 shrink-0 items-center gap-1.5 rounded-[0.65rem] border border-dashed border-white/20 px-2.5 text-[0.68rem] font-black uppercase tracking-[0.08em] text-[var(--text-gray-light)] transition hover:border-[var(--pink)] hover:text-[var(--pink)]"
+                aria-label="Add more images"
+                title="Add more images"
+              >
+                <IoImageOutline className="text-[0.95rem]" />
+                Add
+              </button>
+            </div>
           </div>
         )}
 
@@ -1075,6 +1135,14 @@ function InputFields({
             multiple
             inputRef={imageInputRef}
             handleFileChange={(event) => handleFileChange(event, "media")}
+          />
+          <input
+            ref={addImagesInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(event) => handleFileChange(event, "image")}
           />
           <MediaInput
             type="file"
