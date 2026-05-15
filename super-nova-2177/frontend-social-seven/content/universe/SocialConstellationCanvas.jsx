@@ -9,16 +9,19 @@ const SPECIES_COLORS = {
   human: {
     core: "rgba(255, 79, 143, 0.95)",
     glow: "rgba(255, 79, 143, 0.36)",
+    softGlow: "rgba(255, 79, 143, 0.18)",
     line: "rgba(255, 92, 160, 0.74)",
   },
   ai: {
     core: "rgba(94, 141, 250, 0.96)",
     glow: "rgba(94, 141, 250, 0.34)",
+    softGlow: "rgba(94, 141, 250, 0.17)",
     line: "rgba(115, 182, 255, 0.72)",
   },
   company: {
     core: "rgba(158, 168, 184, 0.94)",
     glow: "rgba(158, 168, 184, 0.24)",
+    softGlow: "rgba(158, 168, 184, 0.12)",
     line: "rgba(180, 190, 204, 0.52)",
   },
 };
@@ -65,6 +68,30 @@ function drawCurve(ctx, curve) {
   ctx.quadraticCurveTo(curve.controlX, curve.controlY, curve.endX, curve.endY);
 }
 
+function pointOnCurve(curve, t) {
+  const oneMinus = 1 - t;
+  return {
+    x: oneMinus * oneMinus * curve.startX + 2 * oneMinus * t * curve.controlX + t * t * curve.endX,
+    y: oneMinus * oneMinus * curve.startY + 2 * oneMinus * t * curve.controlY + t * t * curve.endY,
+  };
+}
+
+function fillRoundRect(ctx, x, y, width, height, radius) {
+  if (typeof ctx.roundRect === "function") {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.fill();
+}
+
 function distanceToQuadratic(point, curve) {
   let nearest = Infinity;
   let previous = { x: curve.startX, y: curve.startY };
@@ -87,26 +114,37 @@ function distanceToQuadratic(point, curve) {
   return nearest;
 }
 
-function drawOrbitalField(ctx, isLightTheme) {
+function drawOrbitalField(ctx, isLightTheme, time = 0) {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
 
-  const coreGradient = ctx.createRadialGradient(140, 104, 4, 140, 104, 82);
-  coreGradient.addColorStop(0, isLightTheme ? "rgba(255, 79, 143, 0.34)" : "rgba(255, 79, 143, 0.42)");
-  coreGradient.addColorStop(0.38, isLightTheme ? "rgba(94, 141, 250, 0.14)" : "rgba(94, 141, 250, 0.18)");
+  const pulse = 0.5 + Math.sin(time * 0.7) * 0.5;
+  const coreGradient = ctx.createRadialGradient(140, 104, 4, 140, 104, 96);
+  coreGradient.addColorStop(0, isLightTheme ? "rgba(255, 79, 143, 0.42)" : "rgba(255, 79, 143, 0.48)");
+  coreGradient.addColorStop(0.34, isLightTheme ? "rgba(94, 141, 250, 0.16)" : "rgba(94, 141, 250, 0.2)");
+  coreGradient.addColorStop(0.68, isLightTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.06)");
   coreGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
   ctx.fillStyle = coreGradient;
   ctx.beginPath();
-  ctx.ellipse(140, 104, 92, 74, -0.16, 0, Math.PI * 2);
+  ctx.ellipse(140, 104, 102 + pulse * 4, 76 + pulse * 3, -0.16, 0, Math.PI * 2);
   ctx.fill();
 
-  const orbitColor = isLightTheme ? "rgba(48, 64, 95, 0.15)" : "rgba(255, 255, 255, 0.16)";
-  const accentColor = isLightTheme ? "rgba(255, 79, 143, 0.19)" : "rgba(255, 116, 181, 0.24)";
+  const lensGradient = ctx.createLinearGradient(54, 40, 226, 178);
+  lensGradient.addColorStop(0, isLightTheme ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.055)");
+  lensGradient.addColorStop(0.48, "rgba(255, 79, 143, 0.1)");
+  lensGradient.addColorStop(1, "rgba(94, 141, 250, 0.09)");
+  ctx.fillStyle = lensGradient;
+  ctx.beginPath();
+  ctx.ellipse(140, 104, 120, 56, 0.26, 0, Math.PI * 2);
+  ctx.fill();
+
+  const orbitColor = isLightTheme ? "rgba(48, 64, 95, 0.12)" : "rgba(255, 255, 255, 0.13)";
+  const accentColor = isLightTheme ? "rgba(255, 79, 143, 0.18)" : "rgba(255, 116, 181, 0.22)";
   [
-    { rx: 96, ry: 38, rotate: -0.2, color: orbitColor, dash: [2, 8] },
-    { rx: 118, ry: 52, rotate: 0.25, color: "rgba(94, 141, 250, 0.18)", dash: [1.5, 8] },
-    { rx: 68, ry: 92, rotate: 0.82, color: accentColor, dash: [1, 9] },
-    { rx: 42, ry: 24, rotate: 0.32, color: accentColor, dash: [2, 7] },
+    { rx: 96, ry: 38, rotate: -0.2, color: orbitColor, dash: [2, 10] },
+    { rx: 118, ry: 52, rotate: 0.25, color: "rgba(94, 141, 250, 0.16)", dash: [1.5, 10] },
+    { rx: 68, ry: 92, rotate: 0.82, color: accentColor, dash: [1, 11] },
+    { rx: 42, ry: 24, rotate: 0.32, color: accentColor, dash: [2, 8] },
   ].forEach((orbit) => {
     ctx.beginPath();
     ctx.setLineDash(orbit.dash);
@@ -117,17 +155,17 @@ function drawOrbitalField(ctx, isLightTheme) {
   });
   ctx.setLineDash([]);
 
-  ctx.fillStyle = isLightTheme ? "rgba(255, 79, 143, 0.84)" : "rgba(255, 79, 143, 0.9)";
-  ctx.shadowBlur = 18;
+  ctx.fillStyle = isLightTheme ? "rgba(255, 79, 143, 0.9)" : "rgba(255, 79, 143, 0.94)";
+  ctx.shadowBlur = 24;
   ctx.shadowColor = "rgba(255, 79, 143, 0.54)";
   ctx.beginPath();
-  ctx.arc(140, 104, 3.6, 0, Math.PI * 2);
+  ctx.arc(140, 104, 4.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
 
-function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUser, isImmersive, isLightTheme) {
-  drawOrbitalField(ctx, isLightTheme);
+function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUser, isImmersive, isLightTheme, time = 0) {
+  drawOrbitalField(ctx, isLightTheme, time);
 
   edges.forEach((edge, index) => {
     const curve = edgeCurve(edge, index, isImmersive);
@@ -144,7 +182,7 @@ function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUse
     ctx.lineCap = "round";
     ctx.strokeStyle = active
       ? "rgba(255, 79, 143, 0.26)"
-      : isLightTheme ? "rgba(255, 255, 255, 0.66)" : "rgba(255, 255, 255, 0.1)";
+      : isLightTheme ? "rgba(255, 255, 255, 0.48)" : "rgba(255, 255, 255, 0.08)";
     ctx.shadowBlur = active ? 12 : 4;
     ctx.shadowColor = active ? "rgba(255, 79, 143, 0.34)" : sourceColors.glow;
     ctx.stroke();
@@ -158,6 +196,20 @@ function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUse
     ctx.shadowBlur = active ? 10 : 5;
     ctx.shadowColor = active ? "rgba(255, 79, 143, 0.42)" : "rgba(94, 141, 250, 0.24)";
     ctx.stroke();
+
+    if (active || index % 3 === 0) {
+      const t = (time * (active ? 0.18 : 0.1) + index * 0.17) % 1;
+      const pulsePoint = pointOnCurve(curve, t);
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillStyle = active ? "rgba(255, 255, 255, 0.9)" : "rgba(180, 218, 255, 0.55)";
+      ctx.shadowBlur = active ? 14 : 8;
+      ctx.shadowColor = active ? "rgba(255, 79, 143, 0.56)" : "rgba(94, 141, 250, 0.32)";
+      ctx.beginPath();
+      ctx.arc(pulsePoint.x, pulsePoint.y, active ? 1.7 : 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   });
 
   nodes.forEach((node) => {
@@ -168,40 +220,55 @@ function drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUse
     const x = Number(node.visualX || 0);
     const y = Number(node.visualY || 0);
 
+    const nodePulse = 0.5 + Math.sin(time * 0.9 + x * 0.03 + y * 0.02) * 0.5;
     ctx.save();
     ctx.globalCompositeOperation = "screen";
-    const aura = ctx.createRadialGradient(x, y, radius * 0.3, x, y, radius + (selected || current ? 18 : 10));
-    aura.addColorStop(0, selected || current ? colors.glow : colors.glow.replace("0.36", "0.22"));
+    const aura = ctx.createRadialGradient(x, y, radius * 0.3, x, y, radius + (selected || current ? 22 : 12));
+    aura.addColorStop(0, selected || current ? colors.glow : colors.softGlow);
     aura.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = aura;
     ctx.beginPath();
-    ctx.arc(x, y, radius + (selected || current ? 17 : 10), 0, Math.PI * 2);
+    ctx.arc(x, y, radius + (selected || current ? 19 + nodePulse * 3 : 10), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    ctx.shadowBlur = selected || current ? 18 : 10;
+    ctx.shadowBlur = selected || current ? 20 : 12;
     ctx.shadowColor = selected || current ? colors.glow : "rgba(94, 141, 250, 0.22)";
-    ctx.fillStyle = colors.core;
+    const nodeGradient = ctx.createRadialGradient(x - radius * 0.35, y - radius * 0.45, radius * 0.2, x, y, radius * 1.3);
+    nodeGradient.addColorStop(0, "rgba(255, 255, 255, 0.92)");
+    nodeGradient.addColorStop(0.2, colors.core);
+    nodeGradient.addColorStop(1, colors.glow);
+    ctx.fillStyle = nodeGradient;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.shadowBlur = 0;
-    ctx.lineWidth = selected || current ? 2.25 : 0.9;
+    ctx.lineWidth = selected || current ? 2.05 : 0.75;
     ctx.strokeStyle = selected || current
       ? "rgba(255, 255, 255, 0.88)"
-      : isLightTheme ? "rgba(28, 38, 62, 0.22)" : "rgba(255, 255, 255, 0.42)";
+      : isLightTheme ? "rgba(28, 38, 62, 0.16)" : "rgba(255, 255, 255, 0.34)";
     ctx.beginPath();
     ctx.arc(x, y, radius + (selected || current ? 3.2 : 2.2), 0, Math.PI * 2);
     ctx.stroke();
 
-    const showLabel = !isImmersive || selected || current || radius >= 5.4;
+    const showLabel = selected || current || (isImmersive && radius >= 5.4);
     if (showLabel) {
-      ctx.font = "800 5.8px SF Pro Display, Segoe UI, Arial, sans-serif";
+      ctx.font = `${selected || current ? "850" : "780"} ${isImmersive ? "5.8px" : "6px"} SF Pro Display, Segoe UI, Arial, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = isLightTheme ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.94)";
-      ctx.fillText(initials(node.username), x, y + 0.2);
+      if (selected || current) {
+        const label = current ? "YOU" : initials(node.username);
+        const labelWidth = Math.max(18, ctx.measureText(label).width + 9);
+        ctx.save();
+        ctx.globalAlpha = isLightTheme ? 0.82 : 0.74;
+        ctx.fillStyle = isLightTheme ? "rgba(255, 255, 255, 0.86)" : "rgba(9, 14, 26, 0.72)";
+        fillRoundRect(ctx, x - labelWidth / 2, y + radius + 7, labelWidth, 11, 6);
+        ctx.restore();
+        ctx.fillStyle = current ? "rgba(255, 79, 143, 0.96)" : isLightTheme ? "rgba(15, 23, 42, 0.88)" : "rgba(255, 255, 255, 0.92)";
+        ctx.fillText(label, x, y + radius + 12.8);
+      }
     }
   });
 }
@@ -250,19 +317,18 @@ export default function SocialConstellationCanvas({
         canvas.width = targetWidth;
         canvas.height = targetHeight;
       }
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
 
       const isLightTheme = document.documentElement?.dataset?.theme === "light";
+      const time = performance.now() / 1000;
       const scaleX = width / VIEWBOX_WIDTH;
       const scaleY = height / VIEWBOX_HEIGHT;
       ctx.save();
       ctx.scale(scaleX, scaleY);
       ctx.translate(Number(view.x || 0), Number(view.y || 0));
       ctx.scale(Number(view.scale || 1), Number(view.scale || 1));
-      drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUser, isImmersive, isLightTheme);
+      drawGraph(ctx, nodes, edges, selectedNodeId, selectedEdgeId, currentUser, isImmersive, isLightTheme, time);
       ctx.restore();
     };
 

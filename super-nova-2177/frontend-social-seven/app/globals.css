@@ -5033,6 +5033,12 @@ html[data-theme="light"] .post-action-bar {
     touch-action: none;
   }
 
+  .desktop-constellation-rail .desktop-constellation-stage {
+    aspect-ratio: 1 / 0.92;
+    min-height: 13rem;
+    max-height: 16rem;
+  }
+
   .desktop-constellation-stage:active {
     cursor: grabbing;
   }
@@ -5097,12 +5103,12 @@ html[data-theme="light"] .post-action-bar {
 
   .desktop-constellation-svg,
   .desktop-constellation-canvas {
-    position: relative;
+    position: absolute;
+    inset: 0;
     z-index: 1;
     display: block;
     width: 100%;
-    aspect-ratio: 4 / 3;
-    min-height: 13rem;
+    height: 100%;
     color: #8ee9ff;
     cursor: grab;
     touch-action: none;
