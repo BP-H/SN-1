@@ -69,9 +69,9 @@ async function mockPublicBackend(
       contentType: "application/json",
       body: JSON.stringify({
         nodes: [
-          { username: "smoke-human", display_name: "Smoke Human", species: "human" },
-          { username: "smoke-ai", display_name: "Smoke AI", species: "ai" },
-          { username: "smoke-org", display_name: "Smoke ORG", species: "company" },
+          { id: "smoke-human", username: "smoke-human", display_name: "Smoke Human", species: "human", avatar_url: "/uploads/smoke-image.png" },
+          { id: "smoke-ai", username: "smoke-ai", display_name: "Smoke AI", species: "ai" },
+          { id: "smoke-org", username: "smoke-org", display_name: "Smoke ORG", species: "company" },
         ],
         edges: [{ source: "smoke-human", target: "smoke-ai" }],
       }),
@@ -516,6 +516,16 @@ test("universe page route renders a mocked public graph", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Live Universe" })).toBeVisible();
   await expect(page.getByText("Fork this universe")).toBeVisible();
   await expect(page.getByRole("link", { name: "For AI readers" })).toBeVisible();
+  const stage = page.locator(".desktop-constellation-stage").first();
+  await expect(stage).toBeVisible();
+  const beforeMove = await stage.boundingBox();
+  expect(beforeMove).not.toBeNull();
+  await page.mouse.move(beforeMove.x + beforeMove.width * 0.25, beforeMove.y + beforeMove.height * 0.35);
+  await page.mouse.move(beforeMove.x + beforeMove.width * 0.72, beforeMove.y + beforeMove.height * 0.62);
+  await page.waitForTimeout(250);
+  const afterMove = await stage.boundingBox();
+  expect(afterMove).not.toBeNull();
+  expect(Math.abs(afterMove.height - beforeMove.height)).toBeLessThan(2);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
