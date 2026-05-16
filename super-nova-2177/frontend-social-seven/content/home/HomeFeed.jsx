@@ -15,7 +15,6 @@ import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 import { useI18n } from "@/content/i18n/LocaleContext";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
-import HomeHeroConstellation from "./HomeHeroConstellation";
 import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
 import InputFields from "../create post/InputFields";
@@ -328,17 +327,6 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     return () => document.removeEventListener("mousedown", close);
   }, [showSystemVoteInfo]);
 
-  const openHeroComposer = () => {
-    if (!isAuthenticated) {
-      requireAccount(t("composer.signInToPost"));
-      return;
-    }
-    setDiscard(false);
-    window.requestAnimationFrame?.(() => {
-      document.getElementById("createPost")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  };
-
   const pct = Math.max(systemVote.weighted.supportPercent || 0, 0);
   const voteAccentColor = "var(--pink)";
   const systemVoteModal =
@@ -362,8 +350,6 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       <CreatePost discard={discard} setDiscard={setDiscard} />
 
       <div className="space-y-2.5">
-        <HomeHeroConstellation onCreateSignal={openHeroComposer} />
-
         {/* ── System Vote ── */}
         <section className="mobile-feed-panel social-panel rounded-[1.35rem] px-4 py-4">
           <div className="mb-2 flex items-center justify-between">
