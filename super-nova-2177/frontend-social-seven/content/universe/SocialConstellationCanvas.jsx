@@ -529,10 +529,12 @@ export default function SocialConstellationCanvas({
   onNodeSelect,
   onEdgeSelect,
   onNodeOpen,
+  onNodeHover,
 }) {
   const canvasRef = useRef(null);
   const pointerStartRef = useRef(null);
   const pointerRef = useRef({ x: 0, y: 0, active: false });
+  const hoverRef = useRef({ id: "", x: 0, y: 0 });
   const latestRef = useRef({
     nodes,
     edges,
@@ -682,7 +684,16 @@ export default function SocialConstellationCanvas({
   };
 
   const handlePointerMove = (event) => {
+    event.preventDefault();
     updatePointerParallax(event);
+    const { node } = hitTest(event);
+    const nextId = node?.id || "";
+    const lastHover = hoverRef.current;
+    const movedEnough = Math.hypot(event.clientX - lastHover.x, event.clientY - lastHover.y) > 6;
+    if (nextId !== lastHover.id || (nextId && movedEnough)) {
+      hoverRef.current = { id: nextId, x: event.clientX, y: event.clientY };
+      onNodeHover?.(node ? { node, clientX: event.clientX, clientY: event.clientY } : null);
+    }
     onPointerMove?.(event);
   };
 
@@ -693,6 +704,8 @@ export default function SocialConstellationCanvas({
   const handlePointerLeave = () => {
     pointerRef.current = { x: pointerRef.current.x * 0.4, y: pointerRef.current.y * 0.4, active: false };
     latestRef.current.pointer = pointerRef.current;
+    hoverRef.current = { id: "", x: 0, y: 0 };
+    onNodeHover?.(null);
   };
 
   const handleClick = (event) => {

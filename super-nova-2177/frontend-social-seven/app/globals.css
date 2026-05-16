@@ -5092,9 +5092,9 @@ html[data-theme="light"] .post-action-bar {
   }
 
   .desktop-constellation-rail .desktop-constellation-stage {
-    aspect-ratio: 1 / 0.92;
-    min-height: 13rem;
-    max-height: 16rem;
+    aspect-ratio: 1.16 / 0.84;
+    min-height: 11.75rem;
+    max-height: 13.25rem;
   }
 
   .desktop-constellation-stage:active {
@@ -5175,6 +5175,94 @@ html[data-theme="light"] .post-action-bar {
 
   .desktop-constellation-canvas:active {
     cursor: grabbing;
+  }
+
+  .desktop-constellation-tooltip {
+    position: absolute;
+    z-index: 4;
+    display: flex;
+    max-width: min(13.5rem, calc(100% - 1.5rem));
+    min-width: 8.75rem;
+    align-items: center;
+    gap: 0.55rem;
+    border-radius: 0.95rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+      linear-gradient(180deg, rgba(15, 18, 28, 0.86), rgba(8, 11, 17, 0.76)),
+      rgba(8, 11, 17, 0.72);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 18px 42px rgba(0, 0, 0, 0.26);
+    color: var(--text-black);
+    padding: 0.5rem 0.58rem;
+    pointer-events: none;
+    transform: translate(-50%, calc(-100% - 0.6rem));
+    backdrop-filter: blur(14px) saturate(1.16);
+    -webkit-backdrop-filter: blur(14px) saturate(1.16);
+  }
+
+  .desktop-constellation-tooltip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -0.34rem;
+    width: 0.68rem;
+    height: 0.68rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 11, 17, 0.76);
+    transform: translateX(-50%) rotate(45deg);
+  }
+
+  .desktop-tooltip-avatar,
+  .desktop-detail-avatar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 999px;
+    background: currentColor;
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      0 0 22px color-mix(in srgb, currentColor 38%, transparent);
+  }
+
+  .desktop-tooltip-avatar {
+    width: 1.85rem;
+    height: 1.85rem;
+    font-size: 0.58rem;
+    font-weight: 950;
+  }
+
+  .desktop-tooltip-avatar img,
+  .desktop-detail-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .desktop-constellation-tooltip strong {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-constellation-tooltip span span {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-gray-light);
+    font-size: 0.62rem;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .desktop-constellation-orbit {
@@ -5321,6 +5409,22 @@ html[data-theme="light"] .post-action-bar {
     font-size: 0.68rem;
   }
 
+  .desktop-detail-node {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.62rem;
+  }
+
+  .desktop-detail-avatar {
+    width: 2.35rem;
+    height: 2.35rem;
+    margin-top: 0.05rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    font-size: 0.68rem;
+    font-weight: 950;
+  }
+
   .desktop-constellation-detail strong {
     display: block;
     min-width: 0;
@@ -5337,6 +5441,14 @@ html[data-theme="light"] .post-action-bar {
     font-weight: 850;
     text-transform: uppercase;
     letter-spacing: 0.12em;
+  }
+
+  .desktop-detail-handle {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .desktop-detail-link {
@@ -5398,9 +5510,11 @@ html[data-theme="light"] .post-action-bar {
   }
 
   html[data-theme="light"] .desktop-insight-panel {
-    border-color: rgba(31, 41, 55, 0.08);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.92));
-    box-shadow: 0 16px 45px rgba(15, 23, 42, 0.1);
+    border-color: rgba(31, 41, 55, 0.095);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.93), rgba(247, 249, 253, 0.94));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.78),
+      0 16px 42px rgba(15, 23, 42, 0.095);
   }
 
   html[data-theme="light"] .desktop-panel-icon,
@@ -5412,12 +5526,12 @@ html[data-theme="light"] .post-action-bar {
   }
 
   html[data-theme="light"] .desktop-constellation-stage {
-    border-color: rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.105);
     background:
-      radial-gradient(circle at 50% 48%, rgba(255, 79, 143, 0.14), transparent 34%),
-      radial-gradient(circle at 66% 28%, rgba(63, 184, 214, 0.13), transparent 30%),
+      radial-gradient(circle at 50% 48%, rgba(255, 79, 143, 0.13), transparent 34%),
+      radial-gradient(circle at 66% 28%, rgba(63, 184, 214, 0.12), transparent 30%),
       radial-gradient(circle at 18% 78%, rgba(255, 205, 114, 0.08), transparent 28%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 249, 253, 0.68));
+      linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(244, 247, 252, 0.76));
   }
 
   html[data-theme="light"] .desktop-constellation-stage::before {
@@ -5454,6 +5568,21 @@ html[data-theme="light"] .post-action-bar {
 
   html[data-theme="light"] .desktop-node-label {
     fill: #111827;
+  }
+
+  html[data-theme="light"] .desktop-constellation-tooltip {
+    border-color: rgba(15, 23, 42, 0.11);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 252, 0.88)),
+      rgba(255, 255, 255, 0.86);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.86),
+      0 18px 38px rgba(15, 23, 42, 0.16);
+  }
+
+  html[data-theme="light"] .desktop-constellation-tooltip::after {
+    border-color: rgba(15, 23, 42, 0.11);
+    background: rgba(246, 248, 252, 0.92);
   }
 
   html[data-theme="light"] .desktop-person-row:hover {
