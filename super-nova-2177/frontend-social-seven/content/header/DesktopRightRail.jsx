@@ -16,6 +16,7 @@ import {
   IoSparklesOutline,
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
+import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { useUser } from "@/content/profile/UserContext";
 import AmbientConstellationCanvas from "@/content/universe/AmbientConstellationCanvas";
 import SocialConstellationCanvas from "@/content/universe/SocialConstellationCanvas";
@@ -53,6 +54,22 @@ function compactNumber(value) {
 
 function speciesLabel(value) {
   return SPECIES_LABELS[value] || "Human";
+}
+
+function nodeDisplayName(node = {}) {
+  return String(node.display_name || node.username || "SuperNova node").trim();
+}
+
+function nodeHandle(node = {}) {
+  const username = String(node.username || "").trim();
+  return username ? `@${username}` : "";
+}
+
+function nodeAvatarUrl(node = {}) {
+  const rawAvatar = normalizeAvatarValue(
+    node.avatar_url || node.avatar || node.profile_pic || node.profilePic || ""
+  );
+  return rawAvatar ? avatarDisplayUrl(rawAvatar, "") : "";
 }
 
 function clamp(value, min, max) {
@@ -225,8 +242,10 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const edges = graph?.edges || [];
   const isImmersive = variant === "immersive";
   const router = useRouter();
+  const stageRef = useRef(null);
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState("");
+  const [hoveredNode, setHoveredNode] = useState(null);
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
   const dragRef = useRef(null);
   const dragMovedRef = useRef(false);
@@ -303,6 +322,16 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const selectedEdge = visualEdges.find((edge) => edge.id === selectedEdgeId);
   const selectedSource = selectedEdge?.sourceNode;
   const selectedTarget = selectedEdge?.targetNode;
+  const selectedNodeAvatar = selectedNode ? nodeAvatarUrl(selectedNode) : "";
+  const hoveredAvatar = hoveredNode?.node ? nodeAvatarUrl(hoveredNode.node) : "";
+  const edgeCounts = useMemo(() => {
+    const counts = new Map();
+    edges.forEach((edge) => {
+      counts.set(edge.source, (counts.get(edge.source) || 0) + 1);
+      counts.set(edge.target, (counts.get(edge.target) || 0) + 1);
+    });
+    return counts;
+  }, [edges]);
   const speciesCounts = useMemo(() => {
     return nodes.reduce((counts, node) => {
       const species = node.species || "human";
@@ -312,7 +341,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   }, [nodes]);
 
   if (!nodes.length) {
-    return <div className="desktop-empty-rail">Constellation wakes up after people post, follow, vote, or comment.</div>;
+    return <div className="desktop-empty-rail">Post, follow, vote, or comment to light up the constellation.</div>;
   }
 
   const updateScale = (nextScale) => {
@@ -321,12 +350,14 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
 
   const handlePointerDown = (event) => {
     if (event.button !== 0) return;
+    setHoveredNode(null);
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       viewX: view.x,
       viewY: view.y,
+      viewScale: view.scale,
       moved: false,
     };
     dragMovedRef.current = false;
@@ -336,14 +367,16 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   const handlePointerMove = (event) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
     const deltaX = event.clientX - drag.startX;
     const deltaY = event.clientY - drag.startY;
     if (Math.hypot(deltaX, deltaY) > 3) {
       drag.moved = true;
       dragMovedRef.current = true;
     }
-    const nextX = clamp(drag.viewX + deltaX / view.scale, -42, 42);
-    const nextY = clamp(drag.viewY + deltaY / view.scale, -34, 34);
+    const dragScale = Number(drag.viewScale || view.scale || 1);
+    const nextX = clamp(drag.viewX + deltaX / dragScale, -42, 42);
+    const nextY = clamp(drag.viewY + deltaY / dragScale, -34, 34);
     setView((current) => ({ ...current, x: nextX, y: nextY }));
   };
 
@@ -352,10 +385,25 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
     if (drag?.pointerId === event.pointerId) {
       dragMovedRef.current = Boolean(drag.moved);
       dragRef.current = null;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
       window.setTimeout?.(() => {
         dragMovedRef.current = false;
-      }, 0);
+      }, 140);
     }
+  };
+
+  const handleNodeHover = (detail) => {
+    if (!detail?.node || dragMovedRef.current || dragRef.current?.moved) {
+      setHoveredNode(null);
+      return;
+    }
+    const rect = stageRef.current?.getBoundingClientRect?.();
+    if (!rect) return;
+    setHoveredNode({
+      node: detail.node,
+      x: clamp(detail.clientX - rect.left, 76, Math.max(76, rect.width - 76)),
+      y: clamp(detail.clientY - rect.top, 46, Math.max(46, rect.height - 46)),
+    });
   };
 
   const handleWheel = (event) => {
@@ -368,7 +416,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
 
   return (
     <div className={`desktop-constellation desktop-constellation-${variant}`}>
-      <div className="desktop-constellation-stage" aria-label="Live social constellation">
+      <div ref={stageRef} className="desktop-constellation-stage" aria-label="Live social constellation">
         <AmbientConstellationCanvas
           className="desktop-constellation-ambient"
           density={isImmersive ? 34 : 18}
@@ -414,7 +462,34 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
               router.push(`/users/${encodeURIComponent(node.username)}`);
             }
           }}
+          onNodeHover={handleNodeHover}
         />
+        {hoveredNode?.node && (
+          <div
+            className="desktop-constellation-tooltip"
+            style={{
+              left: `${hoveredNode.x}px`,
+              top: `${hoveredNode.y}px`,
+            }}
+            aria-hidden="true"
+          >
+            <span className={`desktop-tooltip-avatar desktop-node-${hoveredNode.node.species || "human"}`}>
+              {hoveredAvatar ? (
+                <img src={hoveredAvatar} alt="" />
+              ) : (
+                nodeDisplayName(hoveredNode.node).slice(0, 2).toUpperCase()
+              )}
+            </span>
+            <span className="min-w-0">
+              <strong>{nodeDisplayName(hoveredNode.node)}</strong>
+              <span>
+                {nodeHandle(hoveredNode.node)}
+                {nodeHandle(hoveredNode.node) ? " / " : ""}
+                {speciesLabel(hoveredNode.node.species)}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="desktop-species-row">
@@ -431,18 +506,26 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
         {selectedEdge && selectedSource && selectedTarget ? (
           <>
             <span className="desktop-detail-kicker">Connection</span>
-            <strong>{selectedSource.username} + {selectedTarget.username}</strong>
+            <strong>{nodeDisplayName(selectedSource)} + {nodeDisplayName(selectedTarget)}</strong>
             <span>{reasonSummary(selectedEdge.reasons) || "shared activity"} / strength {compactNumber(selectedEdge.strength)}</span>
           </>
         ) : selectedNode ? (
-          <>
-            <span className="desktop-detail-kicker">{selectedNode.is_current ? "You" : speciesLabel(selectedNode.species)}</span>
-            <strong>{selectedNode.username}</strong>
-            <span>{compactNumber(selectedNode.activity_score)} resonance / {compactNumber(edges.filter((edge) => edge.source === selectedNode.id || edge.target === selectedNode.id).length)} links</span>
-            <Link href={`/users/${encodeURIComponent(selectedNode.username)}`} scroll className="desktop-detail-link">
-              Open profile
-            </Link>
-          </>
+          <div className="desktop-detail-node">
+            <span className={`desktop-detail-avatar desktop-node-${selectedNode.species || "human"}`}>
+              {selectedNodeAvatar ? <img src={selectedNodeAvatar} alt="" /> : nodeDisplayName(selectedNode).slice(0, 2).toUpperCase()}
+            </span>
+            <span className="min-w-0">
+              <span className="desktop-detail-kicker">{selectedNode.is_current ? "You" : speciesLabel(selectedNode.species)}</span>
+              <strong>{nodeDisplayName(selectedNode)}</strong>
+              {nodeHandle(selectedNode) && <span className="desktop-detail-handle">{nodeHandle(selectedNode)}</span>}
+              <span>{compactNumber(selectedNode.activity_score)} resonance / {compactNumber(edgeCounts.get(selectedNode.id) || 0)} links</span>
+              {selectedNode.username && (
+                <Link href={`/users/${encodeURIComponent(selectedNode.username)}`} scroll className="desktop-detail-link">
+                  Open profile
+                </Link>
+              )}
+            </span>
+          </div>
         ) : null}
       </div>
     </div>
@@ -493,20 +576,20 @@ export default function DesktopRightRail() {
             <IoPulseOutline />
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-[0.86rem] font-black">Live pulse</span>
+            <span className="block truncate text-[0.86rem] font-black">Network pulse</span>
             <span className="block truncate text-[0.66rem] text-[var(--text-gray-light)]">
-              {connected ? "Core connected" : statusQuery.isLoading ? "Checking core" : "Core unavailable"}
+              {connected ? "Network live" : statusQuery.isLoading ? "Checking network" : "Network warming up"}
             </span>
           </span>
         </div>
 
         <div className="desktop-metric-grid">
           <div>
-            <span className="desktop-metric-label">Routes</span>
+            <span className="desktop-metric-label">Protocol</span>
             <strong>{compactNumber(metrics?.core_routes_count || 0)}</strong>
           </div>
           <div>
-            <span className="desktop-metric-label">Links</span>
+            <span className="desktop-metric-label">Connections</span>
             <strong>{compactNumber(graphQuery.data?.meta?.edge_count || 0)}</strong>
           </div>
         </div>
@@ -520,7 +603,7 @@ export default function DesktopRightRail() {
           <span className="min-w-0">
             <span className="block truncate text-[0.86rem] font-black">Live Constellation</span>
             <span className="block truncate text-[0.66rem] text-[var(--text-gray-light)]">
-              Human, AI, and ORG resonance
+              Humans, AI, and organizations in resonance
             </span>
           </span>
           <Link
