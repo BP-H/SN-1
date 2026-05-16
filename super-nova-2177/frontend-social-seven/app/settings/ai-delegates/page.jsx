@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Loading from "@/app/Loading";
+import Loading from "@/app/loading";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
