@@ -528,6 +528,7 @@ export default function SocialConstellationCanvas({
   onDoubleClick,
   onNodeSelect,
   onEdgeSelect,
+  onNodeHover,
   onNodeOpen,
 }) {
   const canvasRef = useRef(null);
@@ -683,6 +684,8 @@ export default function SocialConstellationCanvas({
 
   const handlePointerMove = (event) => {
     updatePointerParallax(event);
+    const { node } = hitTest(event);
+    onNodeHover?.({ node: node || null, clientX: event.clientX, clientY: event.clientY });
     onPointerMove?.(event);
   };
 
@@ -693,6 +696,7 @@ export default function SocialConstellationCanvas({
   const handlePointerLeave = () => {
     pointerRef.current = { x: pointerRef.current.x * 0.4, y: pointerRef.current.y * 0.4, active: false };
     latestRef.current.pointer = pointerRef.current;
+    onNodeHover?.({ node: null });
   };
 
   const handleClick = (event) => {
