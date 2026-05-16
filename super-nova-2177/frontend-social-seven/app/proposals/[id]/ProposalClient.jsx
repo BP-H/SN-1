@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import ProposalCard from "@/content/proposal/content/ProposalCard";
-import Loading from "@/app/Loading";
+import Loading from "@/app/loading";
 import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
 import { API_BASE_URL } from "@/utils/apiBase";
