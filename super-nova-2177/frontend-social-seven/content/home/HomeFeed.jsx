@@ -18,6 +18,7 @@ import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
 import InputFields from "../create post/InputFields";
+import HomeMissionHero from "./HomeMissionHero";
 import ProposalCard from "../proposal/content/ProposalCard";
 import LikesInfo from "../proposal/content/LikesInfo";
 import CardLoading from "../CardLoading";
@@ -350,6 +351,8 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       <CreatePost discard={discard} setDiscard={setDiscard} />
 
       <div className="space-y-2.5">
+        <HomeMissionHero />
+
         {/* ── System Vote ── */}
         <section className="mobile-feed-panel social-panel rounded-[1.35rem] px-4 py-4">
           <div className="mb-2 flex items-center justify-between">
