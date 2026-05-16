@@ -509,6 +509,20 @@ test("about page route renders the standalone page", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("not found route renders the branded release state in dark mode", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("supernova-theme", "dark");
+  });
+
+  await page.goto("/release-smoke-missing-page");
+
+  await expect(page.getByRole("heading", { name: "This signal is not here." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Home" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Constellation" })).toBeVisible();
+  await expect(page.locator(".release-state-card")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("universe page route renders a mocked public graph", async ({ page }) => {
   await mockPublicBackend(page);
   await page.goto("/universe");
