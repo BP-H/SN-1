@@ -294,9 +294,6 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await mockPublicBackend(page);
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: /When AI is invisible,\s*humans become metrics\./ })).toBeVisible();
-  await expect(page.getByText("SuperNova makes every actor visible.")).toBeVisible();
-  await expect(page.getByText("No hidden bots")).toBeVisible();
   await expect(page.getByRole("link", { name: "smoke-human" })).toBeVisible();
   await expect(
     page.getByText("A public signed-out feed item rendered from a mocked local backend response.")
@@ -304,17 +301,13 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
-test("home mission hero stays compact on mobile", async ({ page }) => {
+test("home mission hero is disabled by default for release", async ({ page }) => {
   await mockPublicBackend(page);
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");
 
-  const hero = page.locator(".home-mission-hero");
-  await expect(hero).toBeVisible();
+  await expect(page.locator(".home-mission-hero")).toHaveCount(0);
   await expect(page.getByText("System Decision")).toBeVisible();
-
-  const box = await hero.boundingBox();
-  expect(box?.height || 0).toBeLessThanOrEqual(260);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 

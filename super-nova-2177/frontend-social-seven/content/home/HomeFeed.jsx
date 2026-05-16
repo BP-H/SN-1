@@ -49,6 +49,8 @@ const SYSTEM_VOTE_CONFIG = {
 };
 const FEED_PAGE_SIZE = 30;
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
+// Keep the compact mission hero available for future visual iteration, but off by default for release.
+const SHOW_HOME_MISSION_HERO = process.env.NEXT_PUBLIC_SHOW_HOME_MISSION_HERO === "true";
 
 function normalizeAuthorName(name = "") {
   return String(name || "").trim().toLowerCase();
@@ -351,7 +353,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       <CreatePost discard={discard} setDiscard={setDiscard} />
 
       <div className="space-y-2.5">
-        <HomeMissionHero />
+        {SHOW_HOME_MISSION_HERO ? <HomeMissionHero /> : null}
 
         {/* ── System Vote ── */}
         <section className="mobile-feed-panel social-panel rounded-[1.35rem] px-4 py-4">
