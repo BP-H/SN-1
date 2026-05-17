@@ -9,7 +9,11 @@
     "export": "next export",
     "local": "python run_local.py",
     "local:list": "python run_local.py --list-frontends",
-    "local:backend": "python run_local.py --backend-only"
+    "local:backend": "python run_local.py --backend-only",
+    "check:safe": "node scripts/run-python.mjs ../scripts/check_safe.py --local-only",
+    "check:backend": "node scripts/run-python.mjs -m py_compile backend/app.py && node scripts/run-python.mjs -m unittest backend.tests.test_debug_supernova_hardening backend.tests.test_commons_rate_limits",
+    "check:fe7": "npm --prefix frontend-social-seven run lint && npm --prefix frontend-social-seven run build",
+    "check:release": "npm run check:safe && npm run check:backend && npm run check:fe7"
   },
   "packageManager": "npm@10.9.4"
 }
