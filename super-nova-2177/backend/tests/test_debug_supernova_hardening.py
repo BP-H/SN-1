@@ -111,10 +111,42 @@ SEARCH_TEST_PRODUCTION_PROBE = PROBE_PREAMBLE + textwrap.dedent(
 
 
 class DebugSupernovaHardeningTests(unittest.TestCase):
+    def test_debug_routes_blocked_without_explicit_development_opt_in(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            supernova = client.get("/debug-supernova")
+            search = client.get("/debug/search-test", params={"search": "alpha"})
+            body_text = supernova.text + search.text
+            result = {
+                "supernova_status": supernova.status_code,
+                "supernova_json": supernova.json(),
+                "search_status": search.status_code,
+                "search_json": search.json(),
+                "contains_search_term": "alpha" in body_text,
+                "contains_results": "results" in body_text,
+                "contains_secret": "strong-test-secret-for-debug-supernova-hardening" in body_text,
+            }
+            print("DEBUG_SUPERNOVA_HARDENING_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_debug_probe(probe)
+
+        self.assertEqual(result["supernova_status"], 404)
+        self.assertEqual(result["supernova_json"], {"detail": "Not found"})
+        self.assertEqual(result["search_status"], 404)
+        self.assertEqual(result["search_json"], {"detail": "Not found"})
+        self.assertFalse(result["contains_search_term"])
+        self.assertFalse(result["contains_results"])
+        self.assertFalse(result["contains_secret"])
+
     def test_debug_supernova_blocked_by_supernova_env_production(self):
         result = run_debug_probe(
             PRODUCTION_PROBE,
-            {"SUPERNOVA_ENV": "production"},
+            {
+                "SUPERNOVA_ENV": "production",
+                "SUPERNOVA_ENABLE_DEBUG_ROUTES": "1",
+            },
         )
 
         self.assertEqual(result["status_code"], 404)
@@ -183,7 +215,7 @@ class DebugSupernovaHardeningTests(unittest.TestCase):
                 self.assertFalse(result["contains_results"])
                 self.assertFalse(result["contains_secret"])
 
-    def test_debug_supernova_development_response_is_minimal_and_useful(self):
+    def test_debug_supernova_opted_in_development_response_is_minimal_and_useful(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             response = client.get("/debug-supernova")
@@ -205,7 +237,7 @@ class DebugSupernovaHardeningTests(unittest.TestCase):
             """
         )
 
-        result = run_debug_probe(probe)
+        result = run_debug_probe(probe, {"SUPERNOVA_ENABLE_DEBUG_ROUTES": "1"})
 
         self.assertEqual(result["status_code"], 200)
         self.assertEqual(
