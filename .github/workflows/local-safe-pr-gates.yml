@@ -46,6 +46,7 @@ jobs:
           python -m unittest super-nova-2177/backend/tests/test_db_utils_fallback.py
           python -m unittest super-nova-2177/backend/tests/test_read_pagination_baseline.py
           python -m unittest super-nova-2177/backend/tests/test_upload_size_limits.py
+          python -m unittest super-nova-2177/backend/tests/test_commons_rate_limits.py
 
       - name: Run local safe check
         run: python scripts/check_safe.py --local-only
@@ -82,3 +83,13 @@ jobs:
       - name: Run FE7 build
         working-directory: super-nova-2177/frontend-social-seven
         run: npm run build
+
+      - name: Install FE7 Playwright browser
+        working-directory: super-nova-2177/frontend-social-seven
+        run: npx playwright install --with-deps chromium
+
+      - name: Run FE7 mocked public smoke
+        working-directory: super-nova-2177/frontend-social-seven
+        env:
+          PLAYWRIGHT_PORT: "3107"
+        run: npm run test:e2e:mocked
