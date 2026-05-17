@@ -187,6 +187,8 @@ PRODUCTION_ENVIRONMENT_NAMES = (
     "RAILWAY_ENVIRONMENT",
 )
 PRODUCTION_ENVIRONMENT_VALUES = {"production", "prod"}
+DEBUG_ROUTE_ENV_NAMES = ("SUPERNOVA_ENABLE_DEBUG_ROUTES",)
+DEBUG_ROUTE_ENABLED_VALUES = {"1", "true", "yes", "on"}
 WEAK_SECRET_KEY_VALUES = {"", "changeme", "dev", "secret", "default"}
 
 
@@ -195,6 +197,16 @@ def _is_explicit_production_environment(environ: Optional[Dict[str, str]] = None
     return any(
         str(source.get(name, "")).strip().lower() in PRODUCTION_ENVIRONMENT_VALUES
         for name in PRODUCTION_ENVIRONMENT_NAMES
+    )
+
+
+def _debug_routes_enabled(environ: Optional[Dict[str, str]] = None) -> bool:
+    source = os.environ if environ is None else environ
+    if _is_explicit_production_environment(source):
+        return False
+    return any(
+        str(source.get(name, "")).strip().lower() in DEBUG_ROUTE_ENABLED_VALUES
+        for name in DEBUG_ROUTE_ENV_NAMES
     )
 
 
@@ -4602,7 +4614,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
 #
 @app.get("/debug-supernova")
 def debug_supernova():
-    if _is_explicit_production_environment():
+    if not _debug_routes_enabled():
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "supernova_available": SUPER_NOVA_AVAILABLE,
@@ -4612,7 +4624,7 @@ def debug_supernova():
 
 @app.get("/debug/search-test")
 def debug_search(search: str = Query(...), db: Session = Depends(get_db)):
-    if _is_explicit_production_environment():
+    if not _debug_routes_enabled():
         raise HTTPException(status_code=404, detail="Not found")
     try:
         if CRUD_MODELS_AVAILABLE:
