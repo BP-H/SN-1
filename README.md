@@ -99,6 +99,14 @@ npm run lint
 npm run build
 ```
 
+For a root-level release-prep shortcut from `super-nova-2177`, use:
+
+```powershell
+npm run check:release
+```
+
+The shortcut keeps the existing checks explicit: local safe check, focused backend release tests, and FE7 lint/build.
+
 Use [ALPHA_QA_CHECKLIST.md](ALPHA_QA_CHECKLIST.md) for a fast manual product pass across account, posting, voting, comments, collabs, MCP health, signed-out reads, and mobile light/dark smoke.
 
 ## Current Guarantees
