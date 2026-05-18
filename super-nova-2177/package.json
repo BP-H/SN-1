@@ -2,7 +2,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
     "@tanstack/react-query": "^5.89.0",
-    "@tanstack/react-query-devtools": "^5.89.0",
+    "@tanstack/react-query-devtools": "^5.100.10",
     "browser-image-compression": "^2.0.2"
   },
   "scripts": {
