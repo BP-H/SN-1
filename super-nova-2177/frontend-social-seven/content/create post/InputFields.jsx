@@ -918,7 +918,7 @@ function InputFields({
               <a
                 href={mediaValue}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="truncate text-[0.75rem] text-[var(--blue)] hover:underline"
               >
                 {mediaValue}
