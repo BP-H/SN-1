@@ -12,7 +12,20 @@ from urllib.parse import urlencode, urlparse
 
 
 PASSWORD_RESET_PURPOSE = "supernova_password_reset"
-PASSWORD_RESET_TTL_SECONDS = int(os.environ.get("SUPERNOVA_PASSWORD_RESET_TTL_SECONDS", "1800"))
+
+
+def _safe_positive_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+PASSWORD_RESET_TTL_SECONDS = _safe_positive_int(
+    os.environ.get("SUPERNOVA_PASSWORD_RESET_TTL_SECONDS"),
+    1800,
+)
 
 
 def _env(environ: Optional[Mapping[str, str]], key: str, default: str = "") -> str:
@@ -35,12 +48,10 @@ def _env_bool(environ: Optional[Mapping[str, str]], key: str, default: bool = Fa
     return raw.lower() not in {"0", "false", "no", "off"}
 
 
-def _is_explicit_production_environment(environ: Optional[Mapping[str, str]] = None) -> bool:
-    source = environ or os.environ
-    for key in ("SUPERNOVA_ENV", "APP_ENV", "ENV", "RAILWAY_ENVIRONMENT"):
-        if str(source.get(key, "")).strip().lower() in {"production", "prod"}:
-            return True
-    return False
+def _is_local_reset_base_url(value: str) -> bool:
+    parsed = urlparse(value)
+    hostname = (parsed.hostname or "").strip().lower()
+    return hostname in {"localhost", "127.0.0.1", "::1"} or hostname.endswith(".localhost")
 
 
 def _b64encode(value: bytes) -> str:
@@ -77,7 +88,7 @@ def create_password_reset_code(
         "purpose": PASSWORD_RESET_PURPOSE,
         "uid": int(user_id),
         "email": str(email or "").strip().lower(),
-        "exp": issued_at + max(60, int(ttl_seconds)),
+        "exp": issued_at + max(60, _safe_positive_int(ttl_seconds, PASSWORD_RESET_TTL_SECONDS)),
         "nonce": uuid.uuid4().hex,
     }
     payload_b64 = _json_b64(payload)
@@ -140,7 +151,9 @@ def resolve_password_reset_base_url(
         "APP_PUBLIC_URL",
     )
     fallback_allowed = _env_bool(environ, "SUPERNOVA_PASSWORD_RESET_ALLOW_REQUEST_BASE_URL", False)
-    candidate = configured or (requested_base_url if fallback_allowed or not _is_explicit_production_environment(environ) else "")
+    candidate = configured
+    if not candidate and fallback_allowed and _is_local_reset_base_url(requested_base_url):
+        candidate = requested_base_url
     parsed = urlparse(candidate)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return ""

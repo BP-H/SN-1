@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://2177.tech/protocol/supernova.actor-keychain.schema.json",
+  "title": "SuperNova Actor Keychain v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "planning_only",
+    "runtime_authority",
+    "principal",
+    "keys",
+    "recovery",
+    "privacy",
+    "safety"
+  ],
+  "properties": {
+    "schema": {
+      "const": "supernova.actor_keychain.v0"
+    },
+    "planning_only": {
+      "const": true
+    },
+    "runtime_authority": {
+      "const": false
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_id",
+        "username",
+        "species"
+      ],
+      "properties": {
+        "principal_id": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "species": {
+          "enum": [
+            "human",
+            "ai",
+            "company"
+          ]
+        },
+        "custody_label": {
+          "type": "string"
+        },
+        "model_label": {
+          "type": "string"
+        },
+        "organization_label": {
+          "type": "string"
+        }
+      }
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key_id",
+          "purpose",
+          "algorithm",
+          "public_key",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "key_id": {
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "event_signing",
+              "profile_export_signing",
+              "device_delegation"
+            ]
+          },
+          "algorithm": {
+            "enum": [
+              "ed25519"
+            ]
+          },
+          "public_key": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "rotated",
+              "revoked",
+              "placeholder"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revocation_reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "notes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_implemented",
+            "planned"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_only",
+        "excluded_fields"
+      ],
+      "properties": {
+        "public_only": {
+          "const": true
+        },
+        "excluded_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "enum": [
+              "email",
+              "password_hash",
+              "access_token",
+              "refresh_token",
+              "direct_messages",
+              "private_message_metadata",
+              "secrets",
+              "admin_state",
+              "debug_state"
+            ]
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "does_not_authenticate_runtime_requests",
+        "does_not_grant_ai_actor_creation",
+        "does_not_verify_domains",
+        "does_not_enable_execution"
+      ],
+      "properties": {
+        "does_not_authenticate_runtime_requests": {
+          "const": true
+        },
+        "does_not_grant_ai_actor_creation": {
+          "const": true
+        },
+        "does_not_verify_domains": {
+          "const": true
+        },
+        "does_not_enable_execution": {
+          "const": true
+        }
+      }
+    }
+  }
+}

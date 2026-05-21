@@ -60,6 +60,13 @@ def main(argv: list[str]) -> int:
     ):
         failures += 1
 
+    if run(
+        "backend P2P planning safety tests",
+        [sys.executable, "-m", "unittest", "backend.tests.test_p2p_protocol_planning_safety"],
+        cwd=BACKEND_DIR,
+    ):
+        failures += 1
+
     if not (args.skip_live or args.local_only):
         if run(
             "public protocol smoke",

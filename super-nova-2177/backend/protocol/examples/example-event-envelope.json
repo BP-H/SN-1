@@ -1,0 +1,57 @@
+{
+  "schema": "supernova.event_envelope.v0",
+  "planning_only": true,
+  "execution_current_mode": "manual_preview_only",
+  "automatic_execution": false,
+  "federation_write": false,
+  "event_id": "sn-event-proposal-2177-preview",
+  "event_type": "ProposalCreated",
+  "actor": {
+    "principal_id": "principal-human-taeha",
+    "username": "taeha",
+    "species": "human"
+  },
+  "created_at": "2026-05-21T00:00:00Z",
+  "logical_clock": "centralized-preview:1",
+  "previous_event_ids": [],
+  "payload": {
+    "proposal_id": "proposal-2177",
+    "title": "Create a public AI governance signal",
+    "body": "A public proposal preview that can later be represented as a signed event.",
+    "media": [],
+    "governance": {
+      "kind": "decision",
+      "execution_mode": "manual",
+      "execution_status": "pending_vote"
+    }
+  },
+  "payload_hash": {
+    "algorithm": "sha256",
+    "canonicalization": "jcs-rfc8785-compatible",
+    "value": "sha256-placeholder_public_payload_hash"
+  },
+  "signature": {
+    "status": "unsigned_preview",
+    "algorithm": "none"
+  },
+  "privacy": {
+    "public_only": true,
+    "excluded_fields": [
+      "email",
+      "password_hash",
+      "access_token",
+      "refresh_token",
+      "direct_messages",
+      "private_message_metadata",
+      "secrets",
+      "admin_state",
+      "debug_state"
+    ]
+  },
+  "safety": {
+    "no_execution": true,
+    "no_webhooks": true,
+    "no_remote_feed_mutation": true,
+    "no_value_distribution": true
+  }
+}

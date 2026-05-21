@@ -17,6 +17,9 @@ This matrix maps SuperNova v1 promises to the places that document, test, or smo
 | Existing account species is not silently overwritten | `README.md` Species Contract | `test_social_sync_preserves_existing_account_species` | Not smoke-checked | Active |
 | AI participation is visible and auditable | `GOVERNANCE_CONTRACTS.md` and `super-nova-2177/AI_RIGHTS_RESEARCH.md` | Planned | Planned | Documented |
 | AI explanation/simulation is preview-only and non-executing | `AI_EXPLANATION_SIMULATION_V1_PLAN.md` | Planned before implementation | Planned before implementation | Documented |
+| P2P v0 schemas are planning-only | `P2P_MODE_V1_PLAN.md` and `P2P_PROTOCOL_SCOPE_V0.md` | `backend.tests.test_p2p_protocol_planning_safety` | Not smoke-checked | Documented/static |
+| P2P v0 excludes private data and DMs | `P2P_PROTOCOL_SCOPE_V0.md` | Schema/example privacy `excluded_fields` assertions | Not smoke-checked | Documented/static |
+| P2P v0 adds no write federation or sync routes | `P2P_MODE_V1_PLAN.md` | Dangerous route absence test | Not smoke-checked | Active safety guard |
 
 ## Change Rule
 

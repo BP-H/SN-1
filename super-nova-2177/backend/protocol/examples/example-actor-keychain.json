@@ -1,0 +1,44 @@
+{
+  "schema": "supernova.actor_keychain.v0",
+  "planning_only": true,
+  "runtime_authority": false,
+  "principal": {
+    "principal_id": "principal-human-taeha",
+    "username": "taeha",
+    "species": "human"
+  },
+  "keys": [
+    {
+      "key_id": "sn-key-placeholder-1",
+      "purpose": "event_signing",
+      "algorithm": "ed25519",
+      "public_key": "ed25519-placeholder-public-key",
+      "status": "placeholder",
+      "created_at": "2026-05-21T00:00:00Z"
+    }
+  ],
+  "recovery": {
+    "status": "not_implemented",
+    "notes": "Planning-only placeholder. Recovery is not implemented in this schema preview."
+  },
+  "privacy": {
+    "public_only": true,
+    "excluded_fields": [
+      "email",
+      "password_hash",
+      "access_token",
+      "refresh_token",
+      "direct_messages",
+      "private_message_metadata",
+      "secrets",
+      "admin_state",
+      "debug_state"
+    ]
+  },
+  "safety": {
+    "does_not_authenticate_runtime_requests": true,
+    "does_not_grant_ai_actor_creation": true,
+    "does_not_verify_domains": true,
+    "does_not_enable_execution": true
+  }
+}

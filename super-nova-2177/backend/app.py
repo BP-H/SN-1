@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote, urlparse
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -4524,8 +4524,24 @@ def credential_login(payload: CredentialLoginIn, db: Session = Depends(get_db)):
     }
 
 
+def _send_password_reset_email_safely(*, to_email: str, username: str, reset_url: str) -> None:
+    try:
+        send_password_reset_email(
+            to_email=to_email,
+            username=username,
+            reset_url=reset_url,
+        )
+    except Exception:
+        # Keep reset request responses generic and avoid surfacing SMTP internals.
+        pass
+
+
 @app.post("/auth/password-reset/request", tags=["Auth"])
-def request_password_reset(payload: PasswordResetRequestIn, db: Session = Depends(get_db)):
+def request_password_reset(
+    payload: PasswordResetRequestIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     if Harmonizer is None:
         return password_reset_request_response(False)
 
@@ -4537,11 +4553,9 @@ def request_password_reset(payload: PasswordResetRequestIn, db: Session = Depend
 
     base_url = resolve_password_reset_base_url(payload.redirect_base_url or "")
     email_configured = password_reset_email_configured(base_url=base_url)
-    user = (
-        db.query(Harmonizer)
-        .filter(or_(func.lower(Harmonizer.username) == identifier, func.lower(Harmonizer.email) == identifier))
-        .first()
-    )
+    user = db.query(Harmonizer).filter(func.lower(Harmonizer.email) == identifier).first()
+    if not user:
+        user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == identifier).first()
 
     if user and email_configured and getattr(user, "email", None):
         code = create_password_reset_code(
@@ -4551,15 +4565,12 @@ def request_password_reset(payload: PasswordResetRequestIn, db: Session = Depend
             secret_key=get_settings().SECRET_KEY,
         )
         reset_url = build_password_reset_url(base_url, code)
-        try:
-            send_password_reset_email(
-                to_email=user.email,
-                username=getattr(user, "username", "") or "",
-                reset_url=reset_url,
-            )
-        except Exception:
-            # Do not expose account existence or SMTP internals to callers.
-            pass
+        background_tasks.add_task(
+            _send_password_reset_email_safely,
+            to_email=user.email,
+            username=getattr(user, "username", "") or "",
+            reset_url=reset_url,
+        )
 
     return password_reset_request_response(email_configured)
 

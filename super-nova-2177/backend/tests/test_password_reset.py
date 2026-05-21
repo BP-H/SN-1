@@ -94,6 +94,163 @@ class PasswordResetTests(unittest.TestCase):
         for private_key in ("secret", "smtp", "database", "code", "hashed_password"):
             self.assertNotIn(private_key, encoded)
 
+    def test_reset_base_url_requires_configured_url_unless_local_dev_flag_allows_it(self):
+        self.assertEqual(
+            password_reset.resolve_password_reset_base_url(
+                "https://attacker.example/reset",
+                environ={"SUPERNOVA_PASSWORD_RESET_ALLOW_REQUEST_BASE_URL": "0"},
+            ),
+            "",
+        )
+        self.assertEqual(
+            password_reset.resolve_password_reset_base_url(
+                "https://attacker.example/reset",
+                environ={"SUPERNOVA_PASSWORD_RESET_ALLOW_REQUEST_BASE_URL": "1"},
+            ),
+            "",
+        )
+        self.assertEqual(
+            password_reset.resolve_password_reset_base_url(
+                "http://localhost:3000",
+                environ={"SUPERNOVA_PASSWORD_RESET_ALLOW_REQUEST_BASE_URL": "1"},
+            ),
+            "http://localhost:3000",
+        )
+        self.assertEqual(
+            password_reset.resolve_password_reset_base_url(
+                "https://attacker.example/reset",
+                environ={"SUPERNOVA_PASSWORD_RESET_PUBLIC_BASE_URL": "https://2177.tech"},
+            ),
+            "https://2177.tech",
+        )
+
+    def test_password_reset_ttl_parser_handles_invalid_values(self):
+        self.assertEqual(password_reset._safe_positive_int("120", 1800), 120)
+        self.assertEqual(password_reset._safe_positive_int("", 1800), 1800)
+        self.assertEqual(password_reset._safe_positive_int("not-a-number", 1800), 1800)
+        self.assertEqual(password_reset._safe_positive_int("-5", 1800), 1800)
+
+    def test_password_reset_request_prefers_email_match_over_username_collision(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "password_reset_collision.sqlite"
+            env = {
+                key: value
+                for key, value in os.environ.items()
+                if key.upper() not in {"SUPERNOVA_ACCESS_TOKEN_MINUTES", "DATABASE_URL"}
+            }
+            env.update(
+                {
+                    "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
+                    "DB_MODE": "central",
+                    "SECRET_KEY": "strong-test-secret-for-password-reset-collision",
+                    "SUPERNOVA_ACCESS_TOKEN_MINUTES": "720",
+                    "SUPERNOVA_ENV": "development",
+                    "APP_ENV": "development",
+                    "ENV": "development",
+                    "UPLOADS_DIR": str(Path(tmpdir) / "uploads"),
+                    "SUPERNOVA_PASSWORD_RESET_PUBLIC_BASE_URL": "https://2177.tech",
+                    "SUPERNOVA_PASSWORD_RESET_SMTP_HOST": "smtp.example.test",
+                    "SUPERNOVA_PASSWORD_RESET_FROM": "noreply@example.test",
+                }
+            )
+            env.pop("RAILWAY_ENVIRONMENT", None)
+
+            probe = textwrap.dedent(
+                """
+                import json
+                import sys
+                from pathlib import Path
+
+                from fastapi.testclient import TestClient
+
+                root = Path.cwd()
+                backend_dir = root / "backend"
+                for path in (root, backend_dir):
+                    path_text = str(path)
+                    if path_text not in sys.path:
+                        sys.path.insert(0, path_text)
+
+                import backend.app as backend_app
+                from password_hashing import hash_password_strict
+
+                client = TestClient(backend_app.app)
+                captured = []
+
+                def fake_send(**kwargs):
+                    captured.append(kwargs)
+
+                backend_app._send_password_reset_email_safely = fake_send
+
+                db = backend_app.SessionLocal()
+                try:
+                    account_a = backend_app.Harmonizer(
+                        username="victim@example.test",
+                        email="a@example.test",
+                        hashed_password=hash_password_strict("a-secret"),
+                        bio="a",
+                        species="human",
+                        profile_pic="default.jpg",
+                        is_active=True,
+                        consent_given=True,
+                    )
+                    account_b = backend_app.Harmonizer(
+                        username="victim",
+                        email="victim@example.test",
+                        hashed_password=hash_password_strict("b-secret"),
+                        bio="b",
+                        species="human",
+                        profile_pic="default.jpg",
+                        is_active=True,
+                        consent_given=True,
+                    )
+                    db.add(account_a)
+                    db.add(account_b)
+                    db.commit()
+                finally:
+                    db.close()
+
+                response = client.post(
+                    "/auth/password-reset/request",
+                    json={"identifier": "victim@example.test"},
+                )
+                print("PASSWORD_RESET_COLLISION_RESULT=" + json.dumps({
+                    "status": response.status_code,
+                    "body": response.json(),
+                    "captured": captured,
+                }, sort_keys=True))
+                """
+            )
+
+            completed = subprocess.run(
+                [sys.executable, "-c", probe],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=f"probe failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+        )
+        result_lines = [
+            line
+            for line in completed.stdout.splitlines()
+            if line.startswith("PASSWORD_RESET_COLLISION_RESULT=")
+        ]
+        self.assertTrue(result_lines, msg=f"probe result missing\nstdout:\n{completed.stdout}")
+        result = json.loads(result_lines[-1].split("=", 1)[1])
+
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["body"]["ok"], True)
+        self.assertEqual(result["body"]["email_configured"], True)
+        self.assertEqual(len(result["captured"]), 1)
+        self.assertEqual(result["captured"][0]["to_email"], "victim@example.test")
+        self.assertEqual(result["captured"][0]["username"], "victim")
+
     def test_password_reset_confirm_route_updates_password_without_schema_change(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "password_reset.sqlite"
