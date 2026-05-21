@@ -10,10 +10,19 @@ They do not add execution, federation writes, database migrations, webhooks, or 
 - `supernova.three-species-vote.schema.json`: portable result shape for human, AI, and company vote outcomes.
 - `supernova.execution-intent.schema.json`: manual preview object for decisions that may later be reviewed and executed by a verified organization.
 - `supernova.portable-profile.schema.json`: public-only profile export shape for identity portability.
+- `supernova.event-envelope.schema.json`: planning-only P2P v0 signed-event envelope draft.
+- `supernova.actor-keychain.schema.json`: planning-only P2P v0 actor keychain draft.
 
 ## Examples
 
 Example JSON documents live in `examples/` and are served from `/protocol/examples/` with the schemas. They are intentionally manual-only so a company or future agent can copy the shape without accidentally implying webhooks, payment rails, or automatic execution.
+
+Planning-only P2P examples:
+
+- `examples/example-event-envelope.json`
+- `examples/example-actor-keychain.json`
+
+The P2P v0 schemas do not create write APIs, peer sync, automatic execution, private-data export, domain verification, AI actor creation, or payment/value distribution. They are not advertised in the live `/.well-known/supernova` manifest yet.
 
 ## Version Policy
 

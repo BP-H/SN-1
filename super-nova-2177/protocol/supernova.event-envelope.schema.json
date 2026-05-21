@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://2177.tech/protocol/supernova.event-envelope.schema.json",
+  "title": "SuperNova Event Envelope v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "planning_only",
+    "execution_current_mode",
+    "automatic_execution",
+    "federation_write",
+    "event_id",
+    "event_type",
+    "actor",
+    "created_at",
+    "payload",
+    "payload_hash",
+    "signature",
+    "privacy",
+    "safety"
+  ],
+  "properties": {
+    "schema": {
+      "const": "supernova.event_envelope.v0"
+    },
+    "planning_only": {
+      "const": true
+    },
+    "execution_current_mode": {
+      "const": "manual_preview_only"
+    },
+    "automatic_execution": {
+      "const": false
+    },
+    "federation_write": {
+      "const": false
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^sn-event-[a-zA-Z0-9._:-]+$"
+    },
+    "event_type": {
+      "enum": [
+        "ProposalCreated",
+        "ProposalUpdatedPublicFields",
+        "CommentCreated",
+        "CommentUpdatedPublicFields",
+        "VoteCast",
+        "ProfileUpdatedPublicFields",
+        "FollowCreated",
+        "FollowRemoved",
+        "GovernanceSnapshotPublished"
+      ]
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_id",
+        "username",
+        "species"
+      ],
+      "properties": {
+        "principal_id": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "species": {
+          "enum": [
+            "human",
+            "ai",
+            "company"
+          ]
+        },
+        "custody_label": {
+          "type": "string"
+        },
+        "model_label": {
+          "type": "string"
+        },
+        "organization_label": {
+          "type": "string"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "logical_clock": {
+      "type": "string",
+      "description": "future causal ordering cursor"
+    },
+    "previous_event_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "payload": {
+      "type": "object",
+      "description": "public event payload only",
+      "additionalProperties": true
+    },
+    "payload_hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "canonicalization",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "canonicalization": {
+          "const": "jcs-rfc8785-compatible"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^sha256-[A-Za-z0-9_-]+$"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "algorithm"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "placeholder",
+            "unsigned_preview",
+            "future_signed"
+          ]
+        },
+        "algorithm": {
+          "enum": [
+            "none",
+            "ed25519"
+          ]
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_only",
+        "excluded_fields"
+      ],
+      "properties": {
+        "public_only": {
+          "const": true
+        },
+        "excluded_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "enum": [
+              "email",
+              "password_hash",
+              "access_token",
+              "refresh_token",
+              "direct_messages",
+              "private_message_metadata",
+              "secrets",
+              "admin_state",
+              "debug_state"
+            ]
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "no_execution",
+        "no_webhooks",
+        "no_remote_feed_mutation",
+        "no_value_distribution"
+      ],
+      "properties": {
+        "no_execution": {
+          "const": true
+        },
+        "no_webhooks": {
+          "const": true
+        },
+        "no_remote_feed_mutation": {
+          "const": true
+        },
+        "no_value_distribution": {
+          "const": true
+        }
+      }
+    }
+  }
+}

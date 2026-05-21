@@ -5,7 +5,7 @@ Password reset for backend password accounts is opt-in email delivery. The app c
 ## Required Backend Env
 
 - `SUPERNOVA_PASSWORD_RESET_PUBLIC_BASE_URL`
-  - Public frontend origin for reset links, for example `https://2177.tech`.
+  - Required for real email delivery. Public frontend origin for reset links, for example `https://2177.tech`.
 - `SUPERNOVA_PASSWORD_RESET_SMTP_HOST`
   - SMTP server hostname.
 - `SUPERNOVA_PASSWORD_RESET_SMTP_PORT`
@@ -21,9 +21,13 @@ Password reset for backend password accounts is opt-in email delivery. The app c
 
 The backend also accepts legacy aliases such as `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USERNAME`, and `SMTP_PASSWORD`.
 
+The frontend may send its current origin as `redirect_base_url`, but the backend does not trust that host for production reset links. Request-provided reset hosts are accepted only when `SUPERNOVA_PASSWORD_RESET_ALLOW_REQUEST_BASE_URL=1` and the requested host is local development, such as `http://localhost:3007`.
+
 ## Behavior
 
 - Reset requests return a generic response so account existence is not exposed.
+- Reset request email lookup prefers exact email matches first, then username fallback, so username/email collisions do not target the wrong account.
+- SMTP delivery is scheduled after the reset request response and mail failures are not exposed to callers.
 - Reset links expire quickly.
 - Existing password hashes invalidate old reset links after a successful password change.
 - No DB schema migration is required.
