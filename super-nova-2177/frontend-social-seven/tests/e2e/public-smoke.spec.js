@@ -348,6 +348,70 @@ test("account create events open create mode directly", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("signed-out protected sections open sign-in before signup", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.goto("/messages");
+
+  await page.locator(".messages-shell").getByRole("button", { name: "Sign in" }).click();
+
+  const accountPanel = page.locator(".profile-auth-card");
+  await expect(accountPanel.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(accountPanel.getByPlaceholder("Password")).toBeVisible();
+  await expect(accountPanel.getByPlaceholder("Email")).toHaveCount(0);
+  await expect(accountPanel).toContainText("Don't have an account?");
+  await expect(accountPanel.getByRole("button", { name: "Create account" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("forgot password flow stays honest when email delivery is not configured", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.route("**/auth/password-reset/request", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        email_configured: false,
+        message: "Password reset email delivery is not configured yet.",
+      }),
+    });
+  });
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
+  });
+
+  const accountPanel = page.locator(".profile-auth-card");
+  await accountPanel.getByRole("button", { name: "Forgot password?" }).click();
+  await accountPanel.getByPlaceholder("Email or username").fill("reset-user@example.test");
+  await accountPanel.getByRole("button", { name: "Send reset link" }).click();
+
+  await expect(accountPanel).toContainText("Password reset email is not configured yet.");
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("password reset link page can set a new password", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.route("**/auth/password-reset/confirm", async (route) => {
+    const payload = route.request().postDataJSON();
+    expect(payload).toMatchObject({ code: "smoke-reset-code", password: "new-secret" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, message: "Password updated. You can sign in now." }),
+    });
+  });
+
+  await page.goto("/reset-password?code=smoke-reset-code");
+  await page.getByPlaceholder("New password", { exact: true }).fill("new-secret");
+  await page.getByPlaceholder("Confirm new password").fill("new-secret");
+  await page.getByRole("button", { name: "Save new password" }).click();
+
+  await expect(page.getByText("Password updated. You can sign in now.")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("mobile profile nav opens own public profile when signed in", async ({ page }) => {
   await seedPasswordSession(page);
   await mockPublicBackend(page);

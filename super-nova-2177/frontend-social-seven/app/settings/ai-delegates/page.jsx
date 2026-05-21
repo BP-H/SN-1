@@ -220,7 +220,7 @@ export default function AiDelegatesSettingsPage() {
 
   const requestPersonaDraft = async () => {
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     if (!form.ai_name.trim()) {
@@ -261,7 +261,7 @@ export default function AiDelegatesSettingsPage() {
     event.preventDefault();
     if (busy) return;
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     if (!personaDraft) {
@@ -411,7 +411,7 @@ export default function AiDelegatesSettingsPage() {
             <p className="text-[0.86rem] font-semibold text-[var(--text-black)]">Sign in to charter AI delegates.</p>
             <button
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }))}
+              onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }))}
               className="mt-3 rounded-full bg-[var(--pink)] px-4 py-2 text-[0.8rem] font-bold text-white"
             >
               Sign in

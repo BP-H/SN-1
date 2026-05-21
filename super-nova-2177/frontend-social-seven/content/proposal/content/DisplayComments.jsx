@@ -167,7 +167,7 @@ function DisplayComments({
 
   const requireAccount = () => {
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
     }
   };
 

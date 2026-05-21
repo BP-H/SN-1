@@ -222,7 +222,7 @@ function ProposalCard({
 
   const openAccountModal = () => {
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
     }
   };
 
@@ -413,7 +413,7 @@ function ProposalCard({
   const handleMessageShare = () => {
     setShareMenuOpen(false);
     if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     const url = `${window.location.origin}/proposals/${id || ""}`;
@@ -498,7 +498,7 @@ function ProposalCard({
     const collaboratorUsername = String(username || collabSearch || "").trim();
     if (!collaboratorUsername || collabBusy) return;
     if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     if (collaboratorUsername.toLowerCase() === userData.name.toLowerCase()) {
@@ -539,7 +539,7 @@ function ProposalCard({
 
   const handleMessageAuthor = () => {
     if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     if (!authorName || isOwner) return;
@@ -549,7 +549,7 @@ function ProposalCard({
 
   const handleToggleFollow = async () => {
     if (!userData?.name) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     if (!authorName || isOwner || followBusy) return;

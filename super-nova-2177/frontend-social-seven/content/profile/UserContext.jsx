@@ -631,6 +631,27 @@ export function UserProvider({ children }) {
     return loginWithPassword({ username, password });
   }, [loginWithPassword]);
 
+  const requestPasswordReset = useCallback(async ({ identifier }) => {
+    const cleanIdentifier = String(identifier || "").trim();
+    if (!cleanIdentifier) {
+      throw new Error("Enter your email or username.");
+    }
+    const redirectBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const response = await fetch(`${API_BASE_URL}/auth/password-reset/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: cleanIdentifier,
+        redirect_base_url: redirectBaseUrl,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.detail || "Unable to request password reset.");
+    }
+    return payload;
+  }, []);
+
   const loginWithProvider = useCallback(async (provider) => {
     if (!supabase || !isSupabaseConfigured) {
       throw new Error("Supabase social login is not configured yet.");
@@ -698,6 +719,7 @@ export function UserProvider({ children }) {
         loginWithProvider,
         loginWithPassword,
         registerWithPassword,
+        requestPasswordReset,
         signOut,
         session,
         persistProfile,

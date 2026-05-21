@@ -569,7 +569,7 @@ export default function UserPostsPage() {
   }, [profile.bio, profile.domain_as_profile, profile.domain_url]);
 
   const requireAccount = () => {
-    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
   };
 
   const handleTabSelect = (tabKey) => {

@@ -586,7 +586,7 @@ export default function AssistantOrb() {
     if (!isAuthenticated) {
       setMenuOpen(true);
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       }
       return;
     }
@@ -648,7 +648,7 @@ export default function AssistantOrb() {
       if (!isAuthenticated) {
         setMenuOpen(true);
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
         }
         return;
       }
@@ -682,7 +682,7 @@ export default function AssistantOrb() {
       if (!isAuthenticated) {
         setMenuOpen(true);
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
         }
         return;
       }
@@ -717,7 +717,7 @@ export default function AssistantOrb() {
     if (!target || !value) return;
     if (!isAuthenticated || !userData?.name) {
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       }
       return;
     }

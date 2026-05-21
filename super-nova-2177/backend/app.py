@@ -66,6 +66,29 @@ except ImportError:  # pragma: no cover - supports running backend/app.py direct
     )
 
 try:
+    from .password_reset import (
+        build_password_reset_url,
+        create_password_reset_code,
+        password_reset_email_configured,
+        password_reset_request_response,
+        read_password_reset_code_payload,
+        resolve_password_reset_base_url,
+        send_password_reset_email,
+        verify_password_reset_code,
+    )
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from password_reset import (
+        build_password_reset_url,
+        create_password_reset_code,
+        password_reset_email_configured,
+        password_reset_request_response,
+        read_password_reset_code_payload,
+        resolve_password_reset_base_url,
+        send_password_reset_email,
+        verify_password_reset_code,
+    )
+
+try:
     from .ai_media_prompt_inputs import (
         absolute_public_media_url,
         clean_public_url,
@@ -2962,6 +2985,16 @@ class CredentialLoginIn(BaseModel):
     password: str
 
 
+class PasswordResetRequestIn(BaseModel):
+    identifier: str
+    redirect_base_url: Optional[str] = None
+
+
+class PasswordResetConfirmIn(BaseModel):
+    code: str
+    password: str
+
+
 class ProposalUpdateIn(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
@@ -4489,6 +4522,84 @@ def credential_login(payload: CredentialLoginIn, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user": _public_user_payload(user, provider="password"),
     }
+
+
+@app.post("/auth/password-reset/request", tags=["Auth"])
+def request_password_reset(payload: PasswordResetRequestIn, db: Session = Depends(get_db)):
+    if Harmonizer is None:
+        return password_reset_request_response(False)
+
+    identifier = (payload.identifier or "").strip().lower()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Email or username is required")
+    if len(identifier) > 180:
+        raise HTTPException(status_code=400, detail="Email or username is too long")
+
+    base_url = resolve_password_reset_base_url(payload.redirect_base_url or "")
+    email_configured = password_reset_email_configured(base_url=base_url)
+    user = (
+        db.query(Harmonizer)
+        .filter(or_(func.lower(Harmonizer.username) == identifier, func.lower(Harmonizer.email) == identifier))
+        .first()
+    )
+
+    if user and email_configured and getattr(user, "email", None):
+        code = create_password_reset_code(
+            user_id=int(user.id),
+            email=user.email,
+            hashed_password=getattr(user, "hashed_password", "") or "",
+            secret_key=get_settings().SECRET_KEY,
+        )
+        reset_url = build_password_reset_url(base_url, code)
+        try:
+            send_password_reset_email(
+                to_email=user.email,
+                username=getattr(user, "username", "") or "",
+                reset_url=reset_url,
+            )
+        except Exception:
+            # Do not expose account existence or SMTP internals to callers.
+            pass
+
+    return password_reset_request_response(email_configured)
+
+
+@app.post("/auth/password-reset/confirm", tags=["Auth"])
+def confirm_password_reset(payload: PasswordResetConfirmIn, db: Session = Depends(get_db)):
+    if Harmonizer is None:
+        raise HTTPException(status_code=503, detail="User system unavailable")
+
+    code = (payload.code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Password reset link is invalid or expired")
+    if len(code) > 4096:
+        raise HTTPException(status_code=400, detail="Password reset link is invalid or expired")
+    if not payload.password or len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Use at least 6 password characters")
+
+    reset_payload = read_password_reset_code_payload(code)
+    if not reset_payload:
+        raise HTTPException(status_code=400, detail="Password reset link is invalid or expired")
+
+    try:
+        user_id = int(reset_payload.get("uid"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Password reset link is invalid or expired")
+
+    user = db.query(Harmonizer).filter(Harmonizer.id == user_id).first()
+    if not user or not verify_password_reset_code(
+        code,
+        user_id=int(user.id),
+        email=getattr(user, "email", "") or "",
+        hashed_password=getattr(user, "hashed_password", "") or "",
+        secret_key=get_settings().SECRET_KEY,
+    ):
+        raise HTTPException(status_code=400, detail="Password reset link is invalid or expired")
+
+    user.hashed_password = _hash_password_strict(payload.password)
+    db.add(user)
+    db.commit()
+    return {"ok": True, "message": "Password updated. You can sign in now."}
 
 
 @app.get("/auth/social/profile", tags=["Auth"])
