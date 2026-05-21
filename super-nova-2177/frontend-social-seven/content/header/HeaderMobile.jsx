@@ -110,7 +110,7 @@ export default function HeaderMobile({
 
   const triggerComposer = () => {
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     if (typeof document === "undefined") return;
@@ -140,7 +140,7 @@ export default function HeaderMobile({
 
   const openOwnProfile = () => {
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
       return;
     }
     setShowSettings(false);
@@ -169,7 +169,7 @@ export default function HeaderMobile({
       icon: IoChatbubbleOutline,
       onClick: () => {
         if (!isAuthenticated) {
-          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
           return;
         }
         setShowSettings(false);

@@ -37,6 +37,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
     loginWithProvider,
     loginWithPassword,
     registerWithPassword,
+    requestPasswordReset,
   } = useUser();
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState(initialMode === "login" ? "login" : "create");
@@ -46,6 +47,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   const [species, setSpecies] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -55,6 +57,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
     if (!open) return;
     setMode(initialMode === "login" ? "login" : "create");
     setError("");
+    setNotice("");
   }, [initialMode, open]);
 
   useEffect(() => {
@@ -64,7 +67,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   if (!mounted || !open) return null;
   const avatarStyle = speciesAvatarStyle(species || "human");
   const alternateMode = mode === "create" ? "login" : "create";
-  const switchPrompt = mode === "create" ? t("account.alreadyHaveAccount") : t("account.needAccount");
+  const switchPrompt = mode === "create" ? t("account.alreadyHaveAccount") : "Don't have an account?";
   const switchLabel = mode === "create" ? t("account.signIn") : t("account.createAccount");
 
   const submit = async (event) => {
@@ -72,6 +75,29 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
     const nextUsername = username.trim();
     const nextEmail = email.trim();
     const nextPassword = password;
+    if (mode === "reset") {
+      if (!nextUsername) {
+        setError("Enter your email or username.");
+        return;
+      }
+      setBusy("reset");
+      setError("");
+      setNotice("");
+      try {
+        const payload = await requestPasswordReset({ identifier: nextUsername });
+        if (payload?.email_configured) {
+          setNotice("If that account exists, reset instructions will be sent to its email.");
+        } else {
+          setError("Password reset email is not configured yet. Ask the site owner to add SMTP reset settings.");
+        }
+      } catch (err) {
+        setError(formatBackendAuthErrorMessage(err, "Unable to request password reset."));
+      } finally {
+        setBusy("");
+      }
+      return;
+    }
+
     if (!nextUsername) {
       setError(t("account.chooseUsername"));
       return;
@@ -91,6 +117,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
 
     setBusy(mode);
     setError("");
+    setNotice("");
     try {
       if (mode === "create") {
         await registerWithPassword({
@@ -139,7 +166,11 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             <div className="min-w-0">
               <p className="truncate text-[1rem] font-black">{t("account.supernovaAccount")}</p>
               <p className="auth-muted mt-0.5 text-[0.7rem]">
-                {mode === "create" ? t("account.chooseUsernameAndPrincipal") : t("account.signInToSync")}
+                {mode === "create"
+                  ? t("account.chooseUsernameAndPrincipal")
+                  : mode === "reset"
+                    ? "Get a secure reset link by email."
+                    : t("account.signInToSync")}
               </p>
             </div>
           </div>
@@ -153,28 +184,32 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
           </button>
         </div>
         <p className="auth-muted mb-3 rounded-[1rem] px-3 py-2 text-[0.72rem] leading-5">
-          SuperNova is nonprofit public-interest infrastructure for contribution records. Create your profile, then review, vote, discuss, ratify, and collaborate. No tokens, equity, payouts, compensation promises, or financial reward guarantees.
+          {mode === "reset"
+            ? "Enter the email or username for your account. If reset email delivery is enabled, SuperNova will send a reset link."
+            : "SuperNova is nonprofit public-interest infrastructure for contribution records. Create your profile, then review, vote, discuss, ratify, and collaborate. No tokens, equity, payouts, compensation promises, or financial reward guarantees."}
         </p>
 
-        <div className="grid gap-2">
-          {PROVIDERS.map((provider) => (
-            <button
-              key={provider.key}
-              type="button"
-              onClick={() => providerLogin(provider.key)}
-              disabled={Boolean(busy) || !authConfigured}
-              className="auth-provider-button flex h-11 items-center justify-center gap-2 rounded-full px-4 text-[0.82rem] font-bold disabled:opacity-45"
-              title={authConfigured ? t("account.continueWith", { provider: provider.label }) : t("account.providerDisabledTitle")}
-            >
-              <span className="text-[1rem]" style={{ color: provider.color }}>{provider.icon}</span>
-              {t("account.continueWith", { provider: provider.label })}
-            </button>
-          ))}
-        </div>
+        {mode !== "reset" && (
+          <div className="grid gap-2">
+            {PROVIDERS.map((provider) => (
+              <button
+                key={provider.key}
+                type="button"
+                onClick={() => providerLogin(provider.key)}
+                disabled={Boolean(busy) || !authConfigured}
+                className="auth-provider-button flex h-11 items-center justify-center gap-2 rounded-full px-4 text-[0.82rem] font-bold disabled:opacity-45"
+                title={authConfigured ? t("account.continueWith", { provider: provider.label }) : t("account.providerDisabledTitle")}
+              >
+                <span className="text-[1rem]" style={{ color: provider.color }}>{provider.icon}</span>
+                {t("account.continueWith", { provider: provider.label })}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="auth-divider my-3 flex items-center gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em]">
           <span className="h-px flex-1" />
-          <span>{t("account.account")}</span>
+          <span>{mode === "reset" ? "Reset" : t("account.account")}</span>
           <span className="h-px flex-1" />
         </div>
 
@@ -183,7 +218,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-            placeholder={t("account.username")}
+            placeholder={mode === "reset" ? "Email or username" : t("account.username")}
             autoComplete="username"
           />
           {mode === "create" && (
@@ -196,15 +231,33 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
               autoComplete="email"
             />
           )}
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-            placeholder={t("account.password")}
-            type="password"
-            autoComplete={mode === "create" ? "new-password" : "current-password"}
-          />
+          {mode !== "reset" && (
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
+              placeholder={t("account.password")}
+              type="password"
+              autoComplete={mode === "create" ? "new-password" : "current-password"}
+            />
+          )}
         </div>
+
+        {mode === "login" && (
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setNotice("");
+              setMode("reset");
+              setPassword("");
+            }}
+            className="mt-2 text-[0.72rem] font-bold text-[var(--pink)]"
+            disabled={Boolean(busy)}
+          >
+            Forgot password?
+          </button>
+        )}
 
         {mode === "create" && (
           <>
@@ -233,30 +286,38 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
         )}
 
         {error && <p className="auth-error mt-3 rounded-[0.85rem] px-3 py-2 text-[0.76rem]">{error}</p>}
+        {notice && <p className="auth-muted mt-3 rounded-[0.85rem] px-3 py-2 text-[0.76rem]">{notice}</p>}
 
         <button
           type="submit"
           disabled={Boolean(busy)}
           className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--pink)] text-[0.82rem] font-black text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
         >
-          {mode === "create" ? <IoMailOutline /> : <IoShieldCheckmarkOutline />}
-          {busy === mode ? t("account.working") : mode === "create" ? t("account.createAccount") : t("account.signIn")}
+          {mode === "create" || mode === "reset" ? <IoMailOutline /> : <IoShieldCheckmarkOutline />}
+          {busy === mode
+            ? t("account.working")
+            : mode === "create"
+              ? t("account.createAccount")
+              : mode === "reset"
+                ? "Send reset link"
+                : t("account.signIn")}
         </button>
         <p className="auth-muted mt-3 text-center text-[0.72rem] font-semibold">
-          {switchPrompt}{" "}
+          {mode === "reset" ? "Remembered your password?" : switchPrompt}{" "}
           <button
             type="button"
             onClick={() => {
               setError("");
-              setMode(alternateMode);
+              setNotice("");
+              setMode(mode === "reset" ? "login" : alternateMode);
             }}
             className="font-black text-[var(--pink)]"
             disabled={Boolean(busy)}
           >
-            {switchLabel}
+            {mode === "reset" ? t("account.signIn") : switchLabel}
           </button>
         </p>
-        {!authConfigured && (
+        {mode !== "reset" && !authConfigured && (
           <p className="auth-muted mt-2 text-center text-[0.66rem] leading-4">
             {t("account.providerEnvNote")}
           </p>

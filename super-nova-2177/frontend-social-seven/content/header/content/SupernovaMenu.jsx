@@ -95,7 +95,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
 
   const goOwnProfile = () => {
     if (!isAuthenticated) {
-      openAccount("create");
+      openAccount("login");
       return;
     }
     const username = userData?.name?.trim();
@@ -307,7 +307,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
               action: () => {
                 if (!isAuthenticated) {
                   onClose?.();
-                  window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+                  window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
                   return;
                 }
                 go("/messages");

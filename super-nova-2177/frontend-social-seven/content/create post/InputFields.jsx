@@ -137,7 +137,7 @@ function InputFields({
 
   const requireAccount = (message) => {
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create", reason: message } }));
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login", reason: message } }));
     }
   };
 

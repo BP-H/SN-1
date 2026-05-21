@@ -333,7 +333,7 @@ export default function AiDelegateActionModal({
   }, [onClose, open]);
 
   const openAccount = () => {
-    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+    window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
     onClose?.();
   };
 

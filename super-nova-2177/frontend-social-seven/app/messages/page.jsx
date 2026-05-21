@@ -404,7 +404,7 @@ export default function MessagesPage() {
           </p>
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }))}
             className="mt-5 rounded-full bg-[var(--pink)] px-5 py-2.5 text-[0.82rem] font-bold text-white shadow-[var(--shadow-pink)]"
           >
             Sign in
@@ -427,7 +427,7 @@ export default function MessagesPage() {
           </p>
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }))}
             className="mt-5 rounded-full bg-[var(--pink)] px-5 py-2.5 text-[0.82rem] font-bold text-white shadow-[var(--shadow-pink)]"
           >
             Continue
