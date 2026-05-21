@@ -27,7 +27,7 @@ The frontend may send its current origin as `redirect_base_url`, but the backend
 
 - Reset requests return a generic response so account existence is not exposed.
 - Reset request email lookup prefers exact email matches first, then username fallback, so username/email collisions do not target the wrong account.
-- SMTP delivery is scheduled after the reset request response and mail failures are not exposed to callers.
+- SMTP delivery is scheduled after the reset request response; mail failures are logged as a generic server warning and are not exposed to callers.
 - Reset links expire quickly.
 - Existing password hashes invalidate old reset links after a successful password change.
 - No DB schema migration is required.

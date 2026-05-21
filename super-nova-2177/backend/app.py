@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import json
+import logging
 import os
 import re
 import sys
@@ -18,6 +19,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
+
+
+PASSWORD_RESET_LOGGER = logging.getLogger("supernova.password_reset")
 
 try:
     from jose import JWTError, jwt
@@ -4533,7 +4537,7 @@ def _send_password_reset_email_safely(*, to_email: str, username: str, reset_url
         )
     except Exception:
         # Keep reset request responses generic and avoid surfacing SMTP internals.
-        pass
+        PASSWORD_RESET_LOGGER.warning("password_reset_email_delivery_failed")
 
 
 @app.post("/auth/password-reset/request", tags=["Auth"])
