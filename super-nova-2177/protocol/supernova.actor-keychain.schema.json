@@ -146,19 +146,18 @@
           "items": {
             "type": "string"
           },
-          "contains": {
-            "enum": [
-              "email",
-              "password_hash",
-              "access_token",
-              "refresh_token",
-              "direct_messages",
-              "private_message_metadata",
-              "secrets",
-              "admin_state",
-              "debug_state"
-            ]
-          }
+          "uniqueItems": true,
+          "allOf": [
+            { "contains": { "const": "email" } },
+            { "contains": { "const": "password_hash" } },
+            { "contains": { "const": "access_token" } },
+            { "contains": { "const": "refresh_token" } },
+            { "contains": { "const": "direct_messages" } },
+            { "contains": { "const": "private_message_metadata" } },
+            { "contains": { "const": "secrets" } },
+            { "contains": { "const": "admin_state" } },
+            { "contains": { "const": "debug_state" } }
+          ]
         }
       }
     },

@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -48,6 +49,23 @@ DANGEROUS_POST_PATHS = {
 }
 
 
+def _load_json(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _excluded_fields_schema(schema_payload):
+    return schema_payload["properties"]["privacy"]["properties"]["excluded_fields"]
+
+
+def _excluded_field_required_consts(schema_payload):
+    all_of = _excluded_fields_schema(schema_payload).get("allOf") or []
+    return {
+        item.get("contains", {}).get("const")
+        for item in all_of
+        if isinstance(item, dict)
+    }
+
+
 class P2PProtocolPlanningSafetyTests(unittest.TestCase):
     def test_new_p2p_schemas_exist_and_backend_mirror_is_byte_identical(self):
         for name in SCHEMA_FILES:
@@ -56,6 +74,16 @@ class P2PProtocolPlanningSafetyTests(unittest.TestCase):
             self.assertTrue(root_path.exists(), msg=name)
             self.assertTrue(backend_path.exists(), msg=name)
             self.assertEqual(root_path.read_bytes(), backend_path.read_bytes(), msg=name)
+
+    def test_p2p_schema_privacy_exclusions_require_every_private_field(self):
+        for base_dir in (ROOT / "protocol", BACKEND_DIR / "protocol"):
+            for name in SCHEMA_FILES:
+                with self.subTest(schema=name, base_dir=str(base_dir)):
+                    schema = _load_json(base_dir / name)
+                    excluded = _excluded_fields_schema(schema)
+                    self.assertEqual(_excluded_field_required_consts(schema), PRIVATE_FIELDS)
+                    self.assertTrue(excluded.get("uniqueItems"))
+                    self.assertNotIn("enum", excluded.get("contains", {}))
 
     def test_new_p2p_examples_exist_and_backend_mirror_is_byte_identical(self):
         for name in EXAMPLE_FILES:
