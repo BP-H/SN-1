@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
+export const runtime = "nodejs";
+
 const MISSING_API_KEY_MESSAGE = "Missing OPENAI_API_KEY environment variable.";
 const OPENAI_FAILED_MESSAGE = "OpenAI request failed.";
 const INVALID_JSON_MESSAGE = "Request body must be valid JSON.";
