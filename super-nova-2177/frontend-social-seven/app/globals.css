@@ -256,17 +256,17 @@ h6 {
 .release-state-card {
   position: relative;
   isolation: isolate;
-  width: min(100%, 31rem);
+  width: min(100%, 29rem);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.15rem;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.035)),
-    rgba(11, 14, 20, 0.9);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
+    rgba(12, 15, 22, 0.94);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  padding: clamp(1.25rem, 4vw, 2rem);
+    0 22px 60px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  padding: clamp(1.15rem, 4vw, 1.85rem);
   text-align: center;
 }
 
@@ -313,7 +313,7 @@ h6 {
 .release-state-copy {
   max-width: 25rem;
   margin: 0.85rem auto 0;
-  color: var(--text-gray-light);
+  color: rgba(247, 240, 255, 0.72);
   font-size: 0.92rem;
   line-height: 1.62;
 }
@@ -329,18 +329,18 @@ h6 {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.65rem;
-  margin-top: 1.5rem;
+  gap: 0.55rem;
+  margin-top: 1.35rem;
 }
 
 .release-state-action {
   display: inline-flex;
-  min-height: 2.35rem;
+  min-height: 2.12rem;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  padding: 0.58rem 1rem;
-  font-size: 0.82rem;
+  padding: 0.52rem 0.86rem;
+  font-size: 0.76rem;
   font-weight: 900;
   line-height: 1;
 }
@@ -355,7 +355,7 @@ h6 {
 .release-state-action-secondary {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
-  color: var(--text-black);
+  color: rgba(247, 240, 255, 0.84);
 }
 
 .release-state-action:hover {
@@ -379,6 +379,10 @@ html[data-theme="light"] .release-state-mark {
 
 html[data-theme="light"] .release-state-reference {
   color: rgba(25, 31, 45, 0.58);
+}
+
+html[data-theme="light"] .release-state-copy {
+  color: #60697c;
 }
 
 html[data-theme="light"] .release-state-action-secondary {

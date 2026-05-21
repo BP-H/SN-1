@@ -286,8 +286,23 @@ export default function ProposalClient({ id }) {
   }, [id]);
 
   if (loading) return <Loading />;
-  if (fetchError) return <p className="text-red-600">Error: {fetchError}</p>;
-  if (!proposal) return <p>No signal found.</p>;
+  if (fetchError || !proposal) {
+    return (
+      <main className="social-shell">
+        <section className="rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-5 shadow-sm">
+          <p className="font-black text-[var(--text-black)]">
+            {fetchError ? "Signal unavailable" : "No signal found."}
+          </p>
+          {fetchError && (
+            <p className="mt-2 text-[0.84rem] leading-6 text-[var(--text-gray-light)]">{fetchError}</p>
+          )}
+          <Link href="/proposals" className="mt-3 inline-flex text-[0.82rem] font-bold text-[var(--pink)] hover:underline">
+            Browse signals
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div className="social-shell px-0">

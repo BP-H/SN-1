@@ -971,6 +971,12 @@ function InputFields({
           progress={publishProgress}
           hasMedia={publishHasMedia}
           collabCount={pendingCollabInvitees.length}
+          labels={{
+            attachmentIncluded: t("composer.attachmentIncluded"),
+            textSignal: t("composer.textSignal"),
+            collabInvite: t("composer.collabInvite"),
+            collabInvites: t("composer.collabInvites"),
+          }}
         />
       );
     }

@@ -2,12 +2,22 @@
 
 import { IoCloudUploadOutline, IoCheckmarkCircleOutline } from "react-icons/io5";
 
-export default function ComposerPublishProgress({ progress, hasMedia = false, collabCount = 0 }) {
+export default function ComposerPublishProgress({
+  progress,
+  hasMedia = false,
+  collabCount = 0,
+  labels = {},
+}) {
   const percent = Math.max(8, Math.min(100, Number(progress?.percent) || 12));
   const label = progress?.label || (hasMedia ? "Uploading media" : "Posting");
   const detail =
     progress?.detail ||
     "Keep this tab open while SuperNova finishes publishing your signal.";
+  const attachmentLabel = labels.attachmentIncluded || "Attachment included";
+  const textSignalLabel = labels.textSignal || "Text signal";
+  const collabInviteLabel = collabCount === 1
+    ? labels.collabInvite || "collab invite"
+    : labels.collabInvites || "collab invites";
 
   return (
     <div
@@ -43,8 +53,8 @@ export default function ComposerPublishProgress({ progress, hasMedia = false, co
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
-        <span>{hasMedia ? "Attachment included" : "Text signal"}</span>
-        {collabCount > 0 && <span>{collabCount} collab invite{collabCount === 1 ? "" : "s"}</span>}
+        <span>{hasMedia ? attachmentLabel : textSignalLabel}</span>
+        {collabCount > 0 && <span>{collabCount} {collabInviteLabel}</span>}
       </div>
     </div>
   );
