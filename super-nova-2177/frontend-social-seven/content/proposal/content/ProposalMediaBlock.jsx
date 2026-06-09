@@ -7,6 +7,7 @@ import PdfPager from "./PdfPager";
 export default function ProposalMediaBlock({
   displayFile,
   displayImages = [],
+  displayImageDimensions = null,
   displayLink,
   displayVideo,
   displayVideoUrl,
@@ -28,6 +29,7 @@ export default function ProposalMediaBlock({
       {displayImages.length > 0 && (
         <MediaGallery
           images={displayImages}
+          dimensions={displayImageDimensions}
           layout={mediaLayout}
           title={title}
           getUrl={getImageUrl}

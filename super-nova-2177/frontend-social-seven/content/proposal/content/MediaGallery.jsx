@@ -40,14 +40,24 @@ function getSwipePoint(event) {
   return { x: event.clientX, y: event.clientY };
 }
 
-export default function MediaGallery({ images = [], layout = "carousel", title = "", getUrl }) {
+export default function MediaGallery({ images = [], layout = "carousel", title = "", getUrl, dimensions = null }) {
   const railRef = useRef(null);
   const carouselSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
   const lightboxSwipeRef = useRef({ active: false, x: 0, y: 0, moved: false });
   const suppressCarouselClickRef = useRef(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState(null);
-  const [frameRatio, setFrameRatio] = useState(0.8);
+  const firstDimensions = Array.isArray(dimensions) ? dimensions[0] : null;
+  const firstWidth = Number(firstDimensions?.w || 0);
+  const firstHeight = Number(firstDimensions?.h || 0);
+  // dimensions recorded at upload time let the frame be exact before any bytes load
+  const knownRatio =
+    firstWidth > 0 && firstHeight > 0 ? Math.max(0.8, Math.min(1.36, firstWidth / firstHeight)) : null;
+  const [frameRatio, setFrameRatio] = useState(knownRatio ?? 0.8);
+
+  useEffect(() => {
+    if (knownRatio) setFrameRatio(knownRatio);
+  }, [knownRatio]);
 
   const urls = useMemo(
     () => images.map((image) => (getUrl ? getUrl(image) : image)).filter(Boolean),
