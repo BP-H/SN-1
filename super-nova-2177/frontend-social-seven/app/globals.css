@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --font-weight-black: 800;
+}
+
 * {
   box-sizing: border-box;
   font-family: var(--font-inter), "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -303,7 +307,7 @@ h6 {
   margin: 1rem 0 0.45rem;
   color: var(--pink);
   font-size: 0.68rem;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0.24em;
   text-transform: uppercase;
 }
@@ -311,7 +315,7 @@ h6 {
 .release-state-title {
   color: var(--text-black);
   font-size: clamp(1.55rem, 5vw, 2.25rem);
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1.05;
 }
 
@@ -346,7 +350,7 @@ h6 {
   border-radius: 999px;
   padding: 0.52rem 0.86rem;
   font-size: 0.76rem;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -440,7 +444,7 @@ html[data-theme="light"] .release-state-action-secondary {
   margin: 0 0 0.42rem;
   color: var(--pink);
   font-size: 0.62rem;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -450,7 +454,7 @@ html[data-theme="light"] .release-state-action-secondary {
   gap: 0.05rem;
   color: var(--text-black);
   font-size: clamp(1.35rem, 4vw, 2.15rem);
-  font-weight: 950;
+  font-weight: 800;
   line-height: 1.02;
 }
 
@@ -469,7 +473,7 @@ html[data-theme="light"] .release-state-action-secondary {
   margin: 0.62rem 0 0;
   color: rgba(247, 240, 255, 0.86);
   font-size: 0.92rem;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .home-mission-subcopy {
@@ -501,7 +505,7 @@ html[data-theme="light"] .release-state-action-secondary {
   background: rgba(255, 255, 255, 0.055);
   color: rgba(247, 240, 255, 0.78);
   font-size: 0.66rem;
-  font-weight: 850;
+  font-weight: 700;
   line-height: 1;
   padding: 0.36rem 0.58rem;
 }
@@ -571,7 +575,7 @@ html[data-theme="light"] .release-state-action-secondary {
     0 0 58px rgba(94, 141, 250, 0.22);
   color: white;
   font-size: 0.58rem;
-  font-weight: 950;
+  font-weight: 800;
   line-height: 1.05;
   text-align: center;
   text-transform: uppercase;
@@ -587,7 +591,7 @@ html[data-theme="light"] .release-state-action-secondary {
   border-radius: 999px;
   color: white;
   font-size: 0.58rem;
-  font-weight: 950;
+  font-weight: 800;
   box-shadow: 0 0 22px rgba(255, 255, 255, 0.1);
 }
 
@@ -3381,7 +3385,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   padding: 0.24rem 0.52rem;
   color: var(--text-gray-light);
   font-size: 0.58rem;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -3403,7 +3407,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   padding: 0.42rem 0.55rem;
   color: var(--text-gray-light);
   font-size: 0.64rem;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .ai-delegate-genesis-trait:hover,
@@ -3424,7 +3428,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   border-radius: 999px;
   padding: 0.55rem 0.8rem;
   font-size: 0.7rem;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .ai-delegate-picker-create {
@@ -3448,7 +3452,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   background: var(--pink);
   color: white;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 800;
   box-shadow: var(--shadow-pink);
 }
 
@@ -3487,7 +3491,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   background: rgba(255, 255, 255, 0.055);
   padding: 0.22rem 0.52rem;
   color: var(--text-gray-light);
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .ai-delegate-metadata-details > summary:hover {
@@ -3893,7 +3897,7 @@ html[data-theme="light"] .mention-autocomplete-panel {
 .for-ai-panel h2 {
   margin: 0;
   color: var(--text-black);
-  font-weight: 950;
+  font-weight: 800;
   letter-spacing: 0;
 }
 
@@ -3913,7 +3917,7 @@ html[data-theme="light"] .mention-autocomplete-panel {
   margin: 0;
   color: var(--pink) !important;
   font-size: 0.68rem;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -3936,7 +3940,7 @@ html[data-theme="light"] .mention-autocomplete-panel {
 .for-ai-species-row span {
   padding: 0.45rem 0.7rem;
   font-size: 0.78rem;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .for-ai-grid {
@@ -3990,7 +3994,7 @@ html[data-theme="light"] .mention-autocomplete-panel {
   padding: 0.7rem 0.9rem;
   color: var(--pink);
   font-size: 0.82rem;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 html[data-theme="light"] .for-ai-hero,
@@ -4065,14 +4069,14 @@ html[data-theme="light"] .for-ai-panel {
 .universe-header h1 {
   margin: 0;
   font-size: clamp(1.15rem, 2vw, 1.65rem);
-  font-weight: 950;
+  font-weight: 800;
   line-height: 1;
 }
 
 .universe-kicker {
   color: var(--pink);
   font-size: 0.64rem;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -4149,7 +4153,7 @@ html[data-theme="light"] .for-ai-panel {
 .universe-stats-card strong {
   color: var(--text-black);
   font-size: 2rem;
-  font-weight: 950;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -4211,7 +4215,7 @@ html[data-theme="light"] .for-ai-panel {
   margin: 0;
   color: var(--text-black);
   font-size: 1rem;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1.1;
 }
 
@@ -4231,7 +4235,7 @@ html[data-theme="light"] .for-ai-panel {
 .universe-fork-card a {
   border-radius: 999px;
   font-size: 0.64rem;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -4459,7 +4463,7 @@ html[data-theme="light"] .for-ai-panel {
 .universe-page .desktop-node-label {
   fill: rgba(255, 255, 255, 0.96);
   font-size: 0.31rem;
-  font-weight: 950;
+  font-weight: 800;
   pointer-events: none;
 }
 
@@ -4479,7 +4483,7 @@ html[data-theme="light"] .for-ai-panel {
   padding: 0.52rem 0.35rem;
   color: white;
   font-size: 0.62rem;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .universe-page .desktop-species-human {
@@ -4511,7 +4515,7 @@ html[data-theme="light"] .for-ai-panel {
   overflow: hidden;
   color: var(--text-black);
   font-size: 0.9rem;
-  font-weight: 950;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4519,7 +4523,7 @@ html[data-theme="light"] .for-ai-panel {
 .universe-page .desktop-detail-kicker {
   color: var(--pink);
   font-size: 0.62rem;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -4531,7 +4535,7 @@ html[data-theme="light"] .for-ai-panel {
   background: rgba(255, 79, 143, 0.15);
   color: var(--pink);
   font-size: 0.68rem;
-  font-weight: 850;
+  font-weight: 700;
   padding: 0.35rem 0.65rem;
 }
 
@@ -5207,7 +5211,7 @@ html[data-theme="light"] .post-action-bar {
     background: var(--pink);
     color: white;
     font-size: 0.82rem;
-    font-weight: 900;
+    font-weight: 800;
     box-shadow: var(--shadow-pink);
   }
 
@@ -5220,7 +5224,7 @@ html[data-theme="light"] .post-action-bar {
     background: var(--pink);
     color: white;
     font-size: 0.86rem;
-    font-weight: 900;
+    font-weight: 800;
     padding: 0.8rem 0.9rem;
     box-shadow:
       0 16px 34px rgba(255, 79, 143, 0.28),
@@ -5488,7 +5492,7 @@ html[data-theme="light"] .post-action-bar {
     display: block;
     margin-top: 0.25rem;
     font-size: 1rem;
-    font-weight: 950;
+    font-weight: 800;
   }
 
   .desktop-species-row {
@@ -5508,7 +5512,7 @@ html[data-theme="light"] .post-action-bar {
     padding: 0.45rem 0.2rem;
     color: white;
     font-size: 0.58rem;
-    font-weight: 850;
+    font-weight: 700;
   }
 
   .desktop-species-chip b {
@@ -5756,7 +5760,7 @@ html[data-theme="light"] .post-action-bar {
     width: 1.85rem;
     height: 1.85rem;
     font-size: 0.58rem;
-    font-weight: 950;
+    font-weight: 800;
   }
 
   .desktop-tooltip-avatar img,
@@ -5771,7 +5775,7 @@ html[data-theme="light"] .post-action-bar {
     min-width: 0;
     overflow: hidden;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: 800;
     line-height: 1.1;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -5917,7 +5921,7 @@ html[data-theme="light"] .post-action-bar {
   .desktop-node-label {
     fill: rgba(255, 255, 255, 0.94);
     font-size: 0.38rem;
-    font-weight: 950;
+    font-weight: 800;
     pointer-events: none;
   }
 
@@ -5945,7 +5949,7 @@ html[data-theme="light"] .post-action-bar {
     margin-top: 0.05rem;
     border: 1px solid rgba(255, 255, 255, 0.28);
     font-size: 0.68rem;
-    font-weight: 950;
+    font-weight: 800;
   }
 
   .desktop-constellation-detail strong {
@@ -5961,7 +5965,7 @@ html[data-theme="light"] .post-action-bar {
   .desktop-detail-kicker {
     color: var(--pink);
     font-size: 0.6rem;
-    font-weight: 850;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.12em;
   }
@@ -5982,7 +5986,7 @@ html[data-theme="light"] .post-action-bar {
     color: var(--pink);
     padding: 0.32rem 0.58rem;
     font-size: 0.64rem;
-    font-weight: 850;
+    font-weight: 700;
   }
 
   @keyframes constellationPulse {
