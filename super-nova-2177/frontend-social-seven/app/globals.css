@@ -2,7 +2,7 @@
 
 * {
   box-sizing: border-box;
-  font-family: "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-inter), "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
 :root {
@@ -133,7 +133,7 @@ h6 {
 }
 
 .social-six-font {
-  font-family: "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-inter), "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
 .bgGray {

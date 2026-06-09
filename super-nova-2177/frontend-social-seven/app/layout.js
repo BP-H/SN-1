@@ -1,5 +1,12 @@
+import { Inter } from "next/font/google";
 import "./globals.css";
 import LayoutClient from "./LayoutClient";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 const siteUrl = "https://2177.tech";
 const siteTitle = "SuperNova 2177";
@@ -39,7 +46,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html lang="en" data-scroll-behavior="smooth" className={inter.variable}>
       <body className="antialiased social-six-font">
         <LayoutClient>{children}</LayoutClient>
       </body>
