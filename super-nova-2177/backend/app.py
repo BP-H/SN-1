@@ -644,6 +644,117 @@ def _save_upload_file(
     return unique_name
 
 
+def _jpeg_exif_orientation(app1_payload: bytes) -> int:
+    try:
+        tiff = app1_payload[6:]
+        if len(tiff) < 14:
+            return 1
+        if tiff[0:2] == b"II":
+            endian = "little"
+        elif tiff[0:2] == b"MM":
+            endian = "big"
+        else:
+            return 1
+        ifd_offset = int.from_bytes(tiff[4:8], endian)
+        if ifd_offset + 2 > len(tiff):
+            return 1
+        entry_count = int.from_bytes(tiff[ifd_offset:ifd_offset + 2], endian)
+        for index in range(min(entry_count, 64)):
+            entry = tiff[ifd_offset + 2 + index * 12:ifd_offset + 14 + index * 12]
+            if len(entry) < 12:
+                break
+            if int.from_bytes(entry[0:2], endian) == 0x0112:
+                return int.from_bytes(entry[8:10], endian) or 1
+    except Exception:
+        pass
+    return 1
+
+
+def _probe_image_dimensions(file_path: str) -> Optional[Dict[str, int]]:
+    """Best-effort displayed width/height for common web image formats.
+
+    Header sniffing only (no imaging dependency). Returns None for formats it
+    cannot parse (e.g. AVIF/HEIC) so callers fall back to measuring on load.
+    JPEG dimensions are swapped for EXIF orientations 5-8 to match how
+    browsers display the image.
+    """
+    try:
+        with open(file_path, "rb") as stream:
+            header = stream.read(32)
+            if len(header) >= 24 and header.startswith(b"\x89PNG\r\n\x1a\n") and header[12:16] == b"IHDR":
+                return {"w": int.from_bytes(header[16:20], "big"), "h": int.from_bytes(header[20:24], "big")}
+            if header[:6] in (b"GIF87a", b"GIF89a") and len(header) >= 10:
+                return {"w": int.from_bytes(header[6:8], "little"), "h": int.from_bytes(header[8:10], "little")}
+            if header[:2] == b"BM" and len(header) >= 26:
+                return {
+                    "w": abs(int.from_bytes(header[18:22], "little", signed=True)),
+                    "h": abs(int.from_bytes(header[22:26], "little", signed=True)),
+                }
+            if header[:4] == b"RIFF" and header[8:12] == b"WEBP" and len(header) >= 30:
+                chunk = header[12:16]
+                if chunk == b"VP8X":
+                    return {
+                        "w": int.from_bytes(header[24:27], "little") + 1,
+                        "h": int.from_bytes(header[27:30], "little") + 1,
+                    }
+                if chunk == b"VP8 " and header[23:26] == b"\x9d\x01\x2a":
+                    return {
+                        "w": int.from_bytes(header[26:28], "little") & 0x3FFF,
+                        "h": int.from_bytes(header[28:30], "little") & 0x3FFF,
+                    }
+                if chunk == b"VP8L" and header[20] == 0x2F:
+                    bits = int.from_bytes(header[21:25], "little")
+                    return {"w": (bits & 0x3FFF) + 1, "h": ((bits >> 14) & 0x3FFF) + 1}
+                return None
+            if header[:2] == b"\xff\xd8":
+                stream.seek(2)
+                orientation = 1
+                size = None
+                for _ in range(96):
+                    lead = stream.read(1)
+                    if lead != b"\xff":
+                        break
+                    code_byte = stream.read(1)
+                    while code_byte == b"\xff":
+                        code_byte = stream.read(1)
+                    if not code_byte:
+                        break
+                    code = code_byte[0]
+                    if code == 0x01 or 0xD0 <= code <= 0xD8:
+                        continue
+                    if code in (0xD9, 0xDA):
+                        break
+                    length_bytes = stream.read(2)
+                    if len(length_bytes) < 2:
+                        break
+                    length = int.from_bytes(length_bytes, "big")
+                    if length < 2:
+                        break
+                    if code == 0xE1:
+                        payload = stream.read(length - 2)
+                        if payload.startswith(b"Exif\x00\x00"):
+                            orientation = _jpeg_exif_orientation(payload)
+                        continue
+                    if 0xC0 <= code <= 0xCF and code not in (0xC4, 0xC8, 0xCC):
+                        frame = stream.read(5)
+                        if len(frame) < 5:
+                            break
+                        size = {
+                            "h": int.from_bytes(frame[1:3], "big"),
+                            "w": int.from_bytes(frame[3:5], "big"),
+                        }
+                        break
+                    stream.seek(length - 2, os.SEEK_CUR)
+                if size and orientation in (5, 6, 7, 8):
+                    size = {"w": size["h"], "h": size["w"]}
+                if size and size["w"] > 0 and size["h"] > 0:
+                    return size
+                return None
+    except Exception:
+        return None
+    return None
+
+
 def _image_data_url_from_upload_file(file_name: str, content_type: Optional[str] = None) -> str:
     return image_data_url_from_upload_file(
         file_name,
@@ -1171,7 +1282,7 @@ def _media_payload(
 ) -> Dict:
     payload = _payload_dict(payload_value)
     images = _image_urls_from_storage(image_value, _image_data_urls_from_payload(payload))
-    return {
+    media = {
         "image": images[0] if images else "",
         "images": images,
         "video": _uploads_url(video_value),
@@ -1180,6 +1291,13 @@ def _media_payload(
         "layout": _normalize_media_layout(payload.get("media_layout") or payload.get("mediaLayout")),
         "governance": _proposal_governance_payload(payload, voting_deadline_value),
     }
+    dimensions = payload.get("image_dimensions")
+    if isinstance(dimensions, list) and len(dimensions) == len(images):
+        media["image_dimensions"] = [
+            entry if isinstance(entry, dict) and entry.get("w") and entry.get("h") else None
+            for entry in dimensions
+        ]
+    return media
 
 
 def _compute_vote_totals(db: Session, proposal_id: int) -> Dict[str, int]:
@@ -6136,6 +6254,7 @@ async def create_proposal(
     os.makedirs(uploads_dir, exist_ok=True)
     image_filename = None
     image_filenames = []
+    image_dimensions = []
     image_data_urls = []
     video_value = video or ""
     file_filename = None
@@ -6161,6 +6280,7 @@ async def create_proposal(
             UPLOAD_IMAGE_MAX_BYTES,
         )
         image_filenames.append(next_filename)
+        image_dimensions.append(_probe_image_dimensions(os.path.join(uploads_dir, next_filename)))
         image_data_url = _image_data_url_from_upload_file(next_filename, image_upload.content_type)
         if image_data_url:
             image_data_urls.append(image_data_url)
@@ -6199,6 +6319,8 @@ async def create_proposal(
         deadline_days = safe_voting_days if safe_governance_kind == "decision" else 7
         voting_deadline = created_at + timedelta(days=deadline_days)
     proposal_payload = {"media_layout": safe_media_layout}
+    if any(entry is not None for entry in image_dimensions):
+        proposal_payload["image_dimensions"] = image_dimensions
     if image_data_urls:
         proposal_payload["image_data_urls"] = image_data_urls
     if safe_governance_kind == "decision":

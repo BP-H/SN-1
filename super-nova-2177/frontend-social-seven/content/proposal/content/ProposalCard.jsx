@@ -650,6 +650,10 @@ function ProposalCard({
       : media.image
       ? [media.image]
       : [];
+  const displayImageDimensions =
+    Array.isArray(media.image_dimensions) && media.image_dimensions.length === displayImages.length
+      ? media.image_dimensions
+      : null;
   const displayFile = media.file ? getFullImageUrl(media.file) : "";
   const isPdfFile = /\.pdf(?:$|\?)/i.test(displayFile || "");
   const mediaLayout = media.layout === "grid" ? "grid" : "carousel";
@@ -900,6 +904,7 @@ function ProposalCard({
           <ProposalMediaBlock
             displayFile={displayFile}
             displayImages={displayImages}
+            displayImageDimensions={displayImageDimensions}
             displayLink={displayLink}
             displayVideo={displayVideo}
             displayVideoUrl={displayVideoUrl}
