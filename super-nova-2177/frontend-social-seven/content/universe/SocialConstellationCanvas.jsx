@@ -349,7 +349,7 @@ function pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidt
   });
 }
 
-function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasWidth, canvasHeight, camera) {
+function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasWidth, canvasHeight, camera, lineBoost = 1) {
   const positions = [];
   const colors = [];
   pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight, camera);
@@ -362,7 +362,7 @@ function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasW
     const sourceColor = active ? [1, 0.36, 0.64] : sourcePalette.line;
     const targetColor = active ? [1, 0.56, 0.75] : targetPalette.line;
     const strength = clamp(Number(edge.strength || 0), 1, 90);
-    const alpha = active ? 0.74 : clamp(0.16 + strength / 240, isImmersive ? 0.12 : 0.16, isImmersive ? 0.42 : 0.34);
+    const alpha = (active ? 0.74 : clamp(0.16 + strength / 240, isImmersive ? 0.12 : 0.16, isImmersive ? 0.42 : 0.34)) * lineBoost;
     const steps = active ? 10 : 6;
     let previous = pointOnCurve(curve, 0);
     for (let step = 1; step <= steps; step += 1) {
@@ -442,7 +442,9 @@ function drawWebglScene(gl, resources, latest, canvasWidth, canvasHeight, dpr, t
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
-  const lineArrays = buildLineArrays(edges, latest.selectedEdgeId, latest.isImmersive, time, latest.view, canvasWidth, canvasHeight, camera);
+  // thinner device-pixel lines at high DPR read fainter; lift alpha to match the low-DPR look
+  const lineBoost = clamp(dpr / 1.45, 1, 1.35);
+  const lineArrays = buildLineArrays(edges, latest.selectedEdgeId, latest.isImmersive, time, latest.view, canvasWidth, canvasHeight, camera, lineBoost);
   gl.useProgram(resources.lineProgram);
   bindArray(gl, resources.linePositionBuffer, resources.lineLocations.position, lineArrays.positions, 2);
   bindArray(gl, resources.lineColorBuffer, resources.lineLocations.color, lineArrays.colors, 4);
@@ -503,9 +505,9 @@ function drawFallback2d(ctx, latest, width, height, dpr, time) {
     ctx.arc(x, y, radius * 3.2, 0, Math.PI * 2);
     ctx.fill();
     if (latest.selectedNodeId === node.id || node.is_current) {
-      ctx.font = "800 6px SF Pro Display, Segoe UI, Arial, sans-serif";
+      ctx.font = "800 6px Segoe UI, Arial, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillStyle = "#101827";
+      ctx.fillStyle = "rgba(247, 240, 255, 0.92)";
       ctx.fillText(node.is_current ? "YOU" : initials(node.username), x, y + radius + 12);
     }
   });
@@ -592,7 +594,7 @@ export default function SocialConstellationCanvas({
       const rect = parent?.getBoundingClientRect?.() || { width: canvas.clientWidth || 1, height: canvas.clientHeight || 1 };
       canvasWidth = Math.max(1, rect.width || 1);
       canvasHeight = Math.max(1, rect.height || 1);
-      dpr = Math.min(latestRef.current.isImmersive ? 1.45 : 1.25, window.devicePixelRatio || 1);
+      dpr = Math.min(2, window.devicePixelRatio || 1);
       const targetWidth = Math.floor(canvasWidth * dpr);
       const targetHeight = Math.floor(canvasHeight * dpr);
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
@@ -611,8 +613,9 @@ export default function SocialConstellationCanvas({
     };
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const frameMs = latestRef.current.isImmersive ? 16 : 24;
     const tick = (time = 0) => {
+      const latest = latestRef.current;
+      const frameMs = latest.isImmersive || latest.pointer?.active ? 16 : 24;
       if (time - lastPaint >= frameMs || !lastPaint) {
         draw(time);
         lastPaint = time;
