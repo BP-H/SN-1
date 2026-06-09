@@ -146,6 +146,39 @@ h6 {
   font-weight: 700;
 }
 
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  accent-color: var(--pink);
+}
+
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgba(255, 79, 143, 0.36);
+  color: #fff;
+}
+
+:where(a, button, [role="button"], summary):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pink) 70%, transparent);
+  outline-offset: 2px;
+}
+
 .social-six-font {
   font-family: var(--font-inter), "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
