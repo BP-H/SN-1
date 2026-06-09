@@ -8,14 +8,28 @@ import {
   IoClose,
 } from "react-icons/io5";
 
-function CoverImage({ src, alt = "", onLoad }) {
+function CoverImage({ src, alt = "", onLoad, loading = "lazy" }) {
+  const imgRef = useRef(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    // cached images are complete before onLoad can fire; skip the fade for them
+    if (imgRef.current?.complete) setLoaded(true);
+  }, []);
+
   return (
     <img
+      ref={imgRef}
       src={src}
       alt={alt}
-      onLoad={onLoad}
+      loading={loading}
+      decoding="async"
+      onLoad={(event) => {
+        setLoaded(true);
+        onLoad?.(event);
+      }}
       draggable={false}
-      className="absolute inset-0 block h-full w-full object-cover"
+      className={`absolute inset-0 block h-full w-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
     />
   );
 }
@@ -47,13 +61,14 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
 
   const safeLayout = layout === "grid" && urls.length > 1 ? "grid" : "carousel";
   const showLightbox = lightboxIndex !== null && typeof document !== "undefined";
-  const carouselFrameStyle = { aspectRatio: `${frameRatio} / 1` };
+  const carouselFrameStyle = { aspectRatio: `${frameRatio} / 1`, transition: "aspect-ratio 0.3s ease" };
   const gridFrameStyle = { height: "clamp(11.5rem, 52vw, 18rem)" };
 
   const updateFrameRatio = (event) => {
     const { naturalWidth, naturalHeight } = event.currentTarget;
     if (!naturalWidth || !naturalHeight) return;
-    setFrameRatio(Math.max(0.82, Math.min(1.36, naturalWidth / naturalHeight)));
+    // clamp range must include the 0.8 initial ratio so 4:5 images settle with zero shift
+    setFrameRatio(Math.max(0.8, Math.min(1.36, naturalWidth / naturalHeight)));
   };
 
   const updateIndexFromScroll = () => {
@@ -220,6 +235,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
             <img
               src={urls[lightboxIndex]}
               alt={title || "Post image"}
+              decoding="async"
               draggable={false}
               className="max-h-[calc(100dvh-4.5rem)] max-w-full rounded-[0.9rem] object-contain shadow-[0_24px_90px_rgba(15,23,42,0.28)]"
             />
@@ -394,7 +410,12 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
               style={carouselFrameStyle}
               aria-label={`Open image ${index + 1}`}
             >
-              <CoverImage src={url} alt={title || `Post image ${index + 1}`} onLoad={index === 0 ? updateFrameRatio : undefined} />
+              <CoverImage
+                src={url}
+                alt={title || `Post image ${index + 1}`}
+                onLoad={index === 0 ? updateFrameRatio : undefined}
+                loading={index === 0 ? "lazy" : "eager"}
+              />
             </button>
           ))}
           </div>

@@ -49,6 +49,8 @@ export default function ProposalMediaBlock({
               <img
                 src={videoThumbnail}
                 alt={title}
+                loading="lazy"
+                decoding="async"
                 className="h-full w-full object-cover"
                 onError={(event) => {
                   if (event.currentTarget.src !== videoThumbnailFallback) {
