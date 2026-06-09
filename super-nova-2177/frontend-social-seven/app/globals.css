@@ -68,6 +68,11 @@ html[data-theme="light"] body {
     linear-gradient(180deg, #f7f9fd 0%, #eef2f8 48%, #f8faff 100%);
 }
 
+html {
+  /* 17px root: the rem-based scale was tuned too small (most labels 9-12px) */
+  font-size: 106.25%;
+}
+
 html,
 body {
   margin: 0;
