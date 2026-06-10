@@ -44,6 +44,10 @@ export const metadata = {
   },
 };
 
+export const viewport = {
+  themeColor: "#05070a",
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" data-scroll-behavior="smooth" className={inter.variable}>
