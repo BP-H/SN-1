@@ -150,6 +150,58 @@ h6 {
   font-family: var(--font-inter), "SF Pro Display", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
+/* Foundation feel: native controls, selection, focus, tap, and motion-preference
+   baselines. Everything here is zero-specificity (:where) or new-property-only,
+   so existing component styles always win. */
+:root {
+  color-scheme: dark;
+  accent-color: var(--pink);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+::selection {
+  background: rgba(255, 79, 143, 0.32);
+}
+
+:where(a, button, input, textarea, select, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pink) 72%, transparent);
+  outline-offset: 2px;
+}
+
+:where(a, button, input, textarea, select, [role="button"]) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(a, button, [role="button"]) {
+  touch-action: manipulation;
+}
+
+:where(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+:where(.post-text) {
+  text-wrap: pretty;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html,
+  body {
+    scroll-behavior: auto;
+  }
+}
+
 .bgGray {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -6237,3 +6289,46 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
     var(--shadow-blue) !important;
 }
 
+
+/* Round-2 feel details. Kept at end of file so equal-specificity ties resolve
+   in favor of these baselines; component rules above stay overridable. */
+:where(input, textarea) {
+  caret-color: var(--pink);
+}
+
+:where([role="button"]) {
+  cursor: pointer;
+}
+
+:where(button:disabled, [role="button"][aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
+:where([id]) {
+  scroll-margin-top: calc(var(--header-offset) + 0.75rem);
+}
+
+.post-action-bar,
+.comment-action-icon,
+.comment-inline-actions {
+  font-variant-numeric: tabular-nums;
+}
+
+.post-action-bar button:active,
+.comment-action-icon:active,
+.composer-collapsed-send:active {
+  transform: scale(0.94);
+}
+
+/* iOS Safari force-zooms the page when a focused field is under 16px.
+   Scoped to iOS only so desktop and Android stay pixel-identical. */
+@supports (-webkit-touch-callout: none) {
+  :where(textarea,
+    input[type="text"],
+    input[type="search"],
+    input[type="email"],
+    input[type="password"],
+    input[type="url"]) {
+    font-size: 16px;
+  }
+}
