@@ -7,6 +7,7 @@ import {
   IoChevronForward,
   IoClose,
 } from "react-icons/io5";
+import useBodyScrollLock from "@/utils/useBodyScrollLock";
 
 function CoverImage({ src, alt = "", onLoad, loading = "lazy" }) {
   const imgRef = useRef(null);
@@ -71,6 +72,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
 
   const safeLayout = layout === "grid" && urls.length > 1 ? "grid" : "carousel";
   const showLightbox = lightboxIndex !== null && typeof document !== "undefined";
+  useBodyScrollLock(lightboxIndex !== null);
   const carouselFrameStyle = { aspectRatio: `${frameRatio} / 1`, transition: "aspect-ratio 0.3s ease" };
   const gridFrameStyle = { height: "clamp(11.5rem, 52vw, 18rem)" };
 
@@ -146,8 +148,23 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
   };
 
   const finishLightboxSwipe = (event) => {
-    if (urls.length <= 1) return;
+    const start = lightboxSwipeRef.current;
+    const wasActive = start.active;
+    const startX = start.x;
+    const startY = start.y;
     const swipe = finishSwipe(lightboxSwipeRef, event, 42);
+    if (wasActive) {
+      const point = getSwipePoint(event);
+      const deltaX = point.x - startX;
+      const deltaY = point.y - startY;
+      // downward fling dismisses, matching the universal image-viewer gesture
+      if (deltaY >= 72 && Math.abs(deltaY) >= Math.abs(deltaX) * 1.2) {
+        event.preventDefault();
+        setLightboxIndex(null);
+        return;
+      }
+    }
+    if (urls.length <= 1) return;
     if (!swipe.direction) return;
     event.preventDefault();
     goTo(lightboxIndex + swipe.direction);

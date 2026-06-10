@@ -380,15 +380,23 @@ export default function MessagesPage() {
     pane.scrollTo({ top: pane.scrollHeight, behavior: "smooth" });
   }, [messages.length, selectedPeer]);
 
+  const canonicalThreadPeer = threadQuery.data?.peer || "";
+
   useEffect(() => {
     if (!selectedPeer || messages.length === 0 || typeof window === "undefined") return;
     const lastMessage = messages[messages.length - 1];
-    const selectedPeerKey = peerKey(selectedPeer);
     const lastSeen = lastMessage?.created_at || new Date().toISOString();
-    localStorage.setItem(`${readKey}${selectedPeerKey}`, lastSeen);
-    setReadMarkers((markers) => ({ ...markers, [selectedPeerKey]: lastSeen }));
+    // selectedPeer can be an alias (?to= links); the unread badge compares
+    // against the canonical peer name, so mark both keys as seen
+    const seenKeys = [...new Set([peerKey(selectedPeer), peerKey(canonicalThreadPeer)].filter(Boolean))];
+    const nextMarkers = {};
+    seenKeys.forEach((key) => {
+      localStorage.setItem(`${readKey}${key}`, lastSeen);
+      nextMarkers[key] = lastSeen;
+    });
+    setReadMarkers((markers) => ({ ...markers, ...nextMarkers }));
     window.dispatchEvent(new Event("supernova:dm-read"));
-  }, [messages, readKey, selectedPeer]);
+  }, [messages, readKey, selectedPeer, canonicalThreadPeer]);
 
   if (!isAuthenticated) {
     return (
