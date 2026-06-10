@@ -14,6 +14,7 @@ import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 import { useI18n } from "@/content/i18n/LocaleContext";
+import useBodyScrollLock from "@/utils/useBodyScrollLock";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
@@ -319,6 +320,8 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       setErrorMsg([formatBackendAuthErrorMessage(err, "System vote failed.")]);
     }
   };
+
+  useBodyScrollLock(showSystemVoteInfo);
 
   /* Close system vote overlay on outside click */
   useEffect(() => {

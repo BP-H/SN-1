@@ -12,6 +12,7 @@ import {
   formatBackendAuthErrorMessage,
   requireBackendAuthSession,
 } from "@/utils/authSession";
+import useBodyScrollLock from "@/utils/useBodyScrollLock";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 
@@ -82,6 +83,7 @@ function LikesDeslikes({
   const pct = Math.max(weighted.supportPercent || 0, 0);
   const approvalRatio = Math.round(pct);
   const knobColor = getSliderColor(pct);
+  useBodyScrollLock(showInfo);
   const voteModal =
     showInfo && typeof document !== "undefined"
       ? createPortal(
