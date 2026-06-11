@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaBriefcase, FaGithub, FaUser } from "react-icons/fa";
 import { FaFacebookF, FaGoogle } from "react-icons/fa6";
 import {
   IoClose,
+  IoEyeOffOutline,
+  IoEyeOutline,
   IoMailOutline,
   IoShieldCheckmarkOutline,
 } from "react-icons/io5";
@@ -48,10 +50,17 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const usernameInputRef = useRef(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  /* Start typing immediately: focus the first field when the panel opens. */
+  useEffect(() => {
+    if (open) usernameInputRef.current?.focus?.();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -215,6 +224,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
 
         <div className="grid gap-2">
           <input
+            ref={usernameInputRef}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
@@ -232,14 +242,24 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             />
           )}
           {mode !== "reset" && (
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="auth-input h-11 rounded-[0.95rem] px-3 text-[0.86rem] outline-none"
-              placeholder={t("account.password")}
-              type="password"
-              autoComplete={mode === "create" ? "new-password" : "current-password"}
-            />
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="auth-input h-11 w-full rounded-[0.95rem] py-0 pl-3 pr-11 text-[0.86rem] outline-none"
+                placeholder={t("account.password")}
+                type={showPassword ? "text" : "password"}
+                autoComplete={mode === "create" ? "new-password" : "current-password"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="auth-icon-button absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[0.95rem]"
+              >
+                {showPassword ? <IoEyeOffOutline /> : <IoEyeOutline />}
+              </button>
+            </div>
           )}
         </div>
 

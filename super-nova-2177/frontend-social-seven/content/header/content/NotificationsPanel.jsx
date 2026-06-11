@@ -118,10 +118,10 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
                 <div className="mb-1 flex items-center gap-2 text-[0.72rem] text-[var(--text-gray-light)]">
                   <IoEllipse className="text-[0.55rem] text-[var(--pink)]" />
                   <span>{item.label}</span>
-                  <span>-</span>
+                  <span>&middot;</span>
                   <span>{item.time}</span>
                 </div>
-                <p className="line-clamp-2 text-[0.84rem] font-medium text-[var(--text-black)]">
+                <p className="line-clamp-2 text-[0.84rem] font-medium text-[var(--text-black)]" title={item.title}>
                   {item.title}
                 </p>
                 {item.actionHint && (

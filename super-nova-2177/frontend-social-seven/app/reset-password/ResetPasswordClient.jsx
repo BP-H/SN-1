@@ -82,6 +82,8 @@ export default function ResetPasswordClient() {
             placeholder="New password"
             type="password"
             autoComplete="new-password"
+            aria-label="New password"
+            required
           />
           <input
             value={confirmPassword}
@@ -90,6 +92,8 @@ export default function ResetPasswordClient() {
             placeholder="Confirm new password"
             type="password"
             autoComplete="new-password"
+            aria-label="Confirm new password"
+            required
           />
         </div>
 

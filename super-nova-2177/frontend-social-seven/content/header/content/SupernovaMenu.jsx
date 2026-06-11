@@ -163,7 +163,7 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
             type="button"
             aria-label={t("common.closeMenu")}
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-[var(--text-gray-light)]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-[var(--text-gray-light)] transition-colors hover:bg-white/[0.12] hover:text-[var(--text-black)] active:scale-95"
           >
             <IoClose />
           </button>
