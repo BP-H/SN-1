@@ -1650,6 +1650,35 @@ html[data-theme="light"] .composer-governance-button.active {
   background: rgba(255, 255, 255, 0.025);
 }
 
+.vote-info-close {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-gray-light);
+  font-size: 1rem;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.vote-info-close:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-black);
+}
+
+.vote-info-close:active {
+  transform: scale(0.92);
+}
+
 .vote-info-voter-panel {
   display: flex;
   flex-direction: column;
@@ -2229,6 +2258,18 @@ html[data-theme="light"] .composer-governance-button.active {
     background: var(--scrollbar-thumb);
   }
 
+  .vote-modal-card {
+    animation: voteModalIn 0.22s cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+
+  .vote-modal-backdrop-closing {
+    animation: voteBackdropOut 0.16s ease-in forwards;
+  }
+
+  .vote-modal-backdrop-closing .vote-modal-card {
+    animation: voteModalOut 0.16s ease-in forwards;
+  }
+
   .supernova-menu-backdrop {
     overscroll-behavior: contain;
     animation: supernovaBackdropIn 0.18s ease-out;
@@ -2717,6 +2758,30 @@ html[data-theme="light"] .composer-governance-button.active {
   }
 }
 
+@keyframes voteModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.65rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes voteModalOut {
+  to {
+    opacity: 0;
+    transform: translateY(0.45rem) scale(0.97);
+  }
+}
+
+@keyframes voteBackdropOut {
+  to {
+    opacity: 0;
+  }
+}
+
 /* Final mobile polish overrides: keep these after media blocks so they win over
    the generic LiquidGlass/Tailwind class combinations. */
 .mobile-topbar,
@@ -2950,6 +3015,18 @@ html[data-theme="light"] .vote-info-voter-panel {
 html[data-theme="light"] .vote-info-count-button:disabled {
   background: rgba(17, 24, 39, 0.02);
   border-color: transparent;
+}
+
+html[data-theme="light"] .vote-info-close {
+  background: rgba(17, 24, 39, 0.045);
+  border-color: rgba(17, 24, 39, 0.09);
+  color: #6f768b;
+}
+
+html[data-theme="light"] .vote-info-close:hover {
+  background: rgba(17, 24, 39, 0.085);
+  border-color: rgba(17, 24, 39, 0.16);
+  color: #161924;
 }
 
 html[data-theme="light"] .vote-info-voter-row {

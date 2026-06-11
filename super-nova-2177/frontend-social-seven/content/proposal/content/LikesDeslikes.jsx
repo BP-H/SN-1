@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { IoChevronUp } from "react-icons/io5";
@@ -39,7 +39,11 @@ function LikesDeslikes({
   const [likesList, setLikesList] = useState(initialLikesList);
   const [dislikesList, setDislikesList] = useState(initialDislikesList);
   const [showInfo, setShowInfo] = useState(false);
+  const [closingInfo, setClosingInfo] = useState(false);
   const containerRef = useRef(null);
+  const modalCardRef = useRef(null);
+  const infoToggleRef = useRef(null);
+  const backdropPressRef = useRef(false);
   const { userData, isAuthenticated } = useUser();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
@@ -84,15 +88,66 @@ function LikesDeslikes({
   const approvalRatio = Math.round(pct);
   const knobColor = getSliderColor(pct);
   useBodyScrollLock(showInfo);
+
+  /* Close with a short exit animation, then unmount and restore focus. */
+  const closeInfo = useCallback(() => {
+    setClosingInfo(true);
+  }, []);
+
+  useEffect(() => {
+    if (!closingInfo) return undefined;
+    const timer = setTimeout(() => {
+      setShowInfo(false);
+      setClosingInfo(false);
+      infoToggleRef.current?.focus?.();
+    }, 170);
+    return () => clearTimeout(timer);
+  }, [closingInfo]);
+
+  /* Escape closes the breakdown */
+  useEffect(() => {
+    if (!showInfo) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") closeInfo();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showInfo, closeInfo]);
+
+  /* Move focus into the dialog when it opens */
+  useEffect(() => {
+    if (showInfo) modalCardRef.current?.focus?.();
+  }, [showInfo]);
+
   const voteModal =
     showInfo && typeof document !== "undefined"
       ? createPortal(
-          <div className="vote-modal-backdrop" onClick={() => setShowInfo(false)}>
-            <div data-vote-modal className="vote-modal-card" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`vote-modal-backdrop ${closingInfo ? "vote-modal-backdrop-closing" : ""}`}
+            onPointerDown={(e) => {
+              backdropPressRef.current = e.target === e.currentTarget;
+            }}
+            onClick={(e) => {
+              /* Only close when the press started AND ended on the backdrop,
+                 so drag-selecting text inside the card never dismisses it. */
+              if (e.target === e.currentTarget && backdropPressRef.current) closeInfo();
+            }}
+          >
+            <div
+              ref={modalCardRef}
+              data-vote-modal
+              role="dialog"
+              aria-modal="true"
+              aria-label="Vote breakdown"
+              tabIndex={-1}
+              className="vote-modal-card outline-none"
+              onClick={(e) => e.stopPropagation()}
+            >
               <LikesInfo
                 proposalId={proposalId}
                 likesData={likesList}
                 dislikesData={dislikesList}
+                onClose={closeInfo}
               />
             </div>
           </div>,
@@ -106,12 +161,12 @@ function LikesDeslikes({
     const handleOutsideClick = (e) => {
       if (e.target.closest("[data-vote-modal]")) return;
       if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setShowInfo(false);
+        closeInfo();
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showInfo]);
+  }, [showInfo, closeInfo]);
 
   async function getApiError(response, fallback) {
     try {
@@ -320,8 +375,9 @@ function LikesDeslikes({
 
       {/* Expand chevron */}
       <button
+        ref={infoToggleRef}
         type="button"
-        onClick={() => setShowInfo((v) => !v)}
+        onClick={() => (showInfo ? closeInfo() : setShowInfo(true))}
         aria-label={showInfo ? "Hide vote breakdown" : "Show vote breakdown"}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
       >
