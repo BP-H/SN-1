@@ -399,7 +399,7 @@ export default function AiDelegatesSettingsPage() {
               <span
                 key={step}
                 aria-current={isActive ? "step" : undefined}
-                className={`rounded-full border px-3 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.12em] transition-colors ${
+                className={`rounded-full border px-3.5 py-1.5 text-[0.72rem] font-black uppercase tracking-[0.12em] transition-colors ${
                   isActive
                     ? "border-[var(--pink)] bg-[var(--pink-soft)] text-[var(--pink)]"
                     : isDone
@@ -759,7 +759,7 @@ export default function AiDelegatesSettingsPage() {
           </>
         )}
 
-        {notice && <p className="mt-4 rounded-[0.8rem] bg-[var(--pink-soft)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--pink)]">{notice}</p>}
+        {notice && <p className="mt-4 rounded-[0.8rem] bg-[var(--blue-soft)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--blue)]">{notice}</p>}
         {error && <p className="mt-4 rounded-[0.8rem] bg-[var(--pink-soft)] px-3 py-2 text-[0.78rem] font-semibold text-[var(--pink)]">{error}</p>}
       </section>
     </main>

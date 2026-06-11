@@ -305,8 +305,8 @@ export default function Header({
               >
                 <IoNotificationsOutline className="text-[1.12rem]" />
                 {activityCount > 0 && (
-                  <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--pink)] text-[0.62rem] font-bold text-white shadow-[var(--shadow-pink)]">
-                    {activityCount}
+                  <span className="nav-badge-pop absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--pink)] px-1 text-[0.62rem] font-bold tabular-nums text-white shadow-[var(--shadow-pink)]">
+                    {activityCount > 9 ? "9+" : activityCount}
                   </span>
                 )}
               </button>

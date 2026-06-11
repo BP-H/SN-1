@@ -525,7 +525,7 @@ export default function MessagesPage() {
                         </span>
                       </button>
                       {unread && (
-                        <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.85)]" />
+                        <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]" />
                       )}
                     </div>
                   );

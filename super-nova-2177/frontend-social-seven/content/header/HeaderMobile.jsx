@@ -237,8 +237,8 @@ export default function HeaderMobile({
                     }`}
                   />
                   {item.key === "messages" && unreadCount > 0 && (
-                    <span className="absolute right-[30%] top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--pink)] px-1 text-[0.56rem] font-bold text-white shadow-[var(--shadow-pink)]">
-                      {Math.min(unreadCount, 9)}
+                    <span className="nav-badge-pop absolute right-[30%] top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--pink)] px-1 text-[0.56rem] font-bold tabular-nums text-white shadow-[var(--shadow-pink)]">
+                      {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                   {active && (

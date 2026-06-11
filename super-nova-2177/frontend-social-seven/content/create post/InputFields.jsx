@@ -711,7 +711,8 @@ function InputFields({
         <button
           type="button"
           onClick={handleRemoveMedia}
-          className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur hover:bg-black/80"
+          className="absolute right-2.5 top-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition-colors hover:bg-black/80 active:scale-95"
+          aria-label="Remove attachment"
           title="Remove attachment"
         >
           <IoClose />
@@ -862,11 +863,11 @@ function InputFields({
                       event.stopPropagation();
                       removeSelectedImage(index);
                     }}
-                    className="absolute -right-1 -top-1 flex h-[1.125rem] w-[1.125rem] items-center justify-center rounded-full bg-black/70 text-white shadow-sm backdrop-blur transition hover:bg-[var(--pink)]"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white shadow-sm backdrop-blur transition hover:bg-[var(--pink)] before:absolute before:-inset-1.5 before:content-['']"
                     aria-label={`Remove image ${index + 1}`}
                     title="Remove image"
                   >
-                    <IoClose className="text-[0.62rem]" />
+                    <IoClose className="text-[0.7rem]" />
                   </button>
                 </div>
               ))}
@@ -993,7 +994,14 @@ function InputFields({
             mentionAutocomplete.trackCaret(event.currentTarget);
           }}
           onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
-          onKeyDown={mentionAutocomplete.handleKeyDown}
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !mutation.isPending) {
+              event.preventDefault();
+              publish();
+              return;
+            }
+            mentionAutocomplete.handleKeyDown(event);
+          }}
           onKeyUp={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
           rows={1}
           className="composer-textarea min-h-[7.4rem] max-h-[min(72dvh,58rem)] w-full resize-none rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[rgba(255,255,255,0.06)] px-4 py-3 text-[0.92rem] outline-none placeholder:text-[var(--text-gray-light)]"
@@ -1194,7 +1202,7 @@ function InputFields({
             type="button"
             onClick={publish}
             disabled={mutation.isPending}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] font-semibold text-white shadow-[var(--shadow-pink)] transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] font-semibold text-white shadow-[var(--shadow-pink)] transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:scale-100"
             aria-label={mutation.isPending ? t("composer.publishing") : t("composer.post")}
             title={mutation.isPending ? t("composer.publishing") : t("composer.post")}
           >

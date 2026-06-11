@@ -6817,3 +6817,65 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
     font-size: 16px;
   }
 }
+
+/* Micro-UX sweep: small interaction-feedback baselines. */
+
+html[data-theme="light"] ::selection {
+  background: rgba(255, 79, 143, 0.2);
+}
+
+/* Inputs that opt out of the native outline still need a visible focus ring. */
+.composer-textarea:focus-visible,
+.auth-input:focus-visible,
+.ai-genesis-panel input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pink) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.mobile-nav-item {
+  transition: background 0.18s ease, transform 0.12s ease;
+}
+
+@media (hover: hover) {
+  .mobile-nav-item:hover {
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  html[data-theme="light"] .mobile-nav-item:hover {
+    background: rgba(17, 24, 39, 0.05);
+  }
+}
+
+.mobile-nav-item:active {
+  transform: scale(0.96);
+}
+
+.nav-badge-pop {
+  animation: badgePopIn 0.22s cubic-bezier(0.2, 0.85, 0.3, 1.2);
+}
+
+@keyframes badgePopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.supernova-language-options {
+  animation: languageOptionsIn 0.16s ease-out;
+}
+
+@keyframes languageOptionsIn {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
