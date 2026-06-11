@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
-import { IoChevronUp } from "react-icons/io5";
+import { IoChevronUp, IoClose } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import {
@@ -44,6 +44,7 @@ function LikesDeslikes({
   const modalCardRef = useRef(null);
   const infoToggleRef = useRef(null);
   const backdropPressRef = useRef(false);
+  const sheetDragRef = useRef({ startY: 0, delta: 0, dragging: false });
   const { userData, isAuthenticated } = useUser();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
@@ -119,6 +120,36 @@ function LikesDeslikes({
     if (showInfo) modalCardRef.current?.focus?.();
   }, [showInfo]);
 
+  /* Drag the sheet header down to dismiss (mobile bottom-sheet gesture). */
+  const handleSheetTouchStart = (e) => {
+    sheetDragRef.current = { startY: e.touches[0].clientY, delta: 0, dragging: true };
+    if (modalCardRef.current) modalCardRef.current.style.transition = "";
+  };
+
+  const handleSheetTouchMove = (e) => {
+    const state = sheetDragRef.current;
+    if (!state.dragging) return;
+    state.delta = Math.max(0, e.touches[0].clientY - state.startY);
+    if (modalCardRef.current) {
+      modalCardRef.current.style.transform = state.delta > 0 ? `translateY(${state.delta}px)` : "";
+    }
+  };
+
+  const handleSheetTouchEnd = () => {
+    const state = sheetDragRef.current;
+    if (!state.dragging) return;
+    state.dragging = false;
+    const card = modalCardRef.current;
+    if (state.delta > 72) {
+      /* Leave the inline transform in place: the exit animation only declares
+         a "to" frame, so it animates smoothly from the dragged position. */
+      closeInfo();
+    } else if (card) {
+      card.style.transition = "transform 0.18s ease";
+      card.style.transform = "";
+    }
+  };
+
   const voteModal =
     showInfo && typeof document !== "undefined"
       ? createPortal(
@@ -143,12 +174,32 @@ function LikesDeslikes({
               className="vote-modal-card outline-none"
               onClick={(e) => e.stopPropagation()}
             >
-              <LikesInfo
-                proposalId={proposalId}
-                likesData={likesList}
-                dislikesData={dislikesList}
-                onClose={closeInfo}
-              />
+              <div
+                className="vote-modal-chrome"
+                onTouchStart={handleSheetTouchStart}
+                onTouchMove={handleSheetTouchMove}
+                onTouchEnd={handleSheetTouchEnd}
+              >
+                <span className="vote-modal-grab" aria-hidden="true" />
+                <div className="vote-modal-chrome-row">
+                  <span className="vote-modal-title">Vote breakdown</span>
+                  <button
+                    type="button"
+                    onClick={closeInfo}
+                    aria-label="Close vote breakdown"
+                    className="vote-info-close"
+                  >
+                    <IoClose />
+                  </button>
+                </div>
+              </div>
+              <div className="vote-modal-scroll">
+                <LikesInfo
+                  proposalId={proposalId}
+                  likesData={likesList}
+                  dislikesData={dislikesList}
+                />
+              </div>
             </div>
           </div>,
           document.body
