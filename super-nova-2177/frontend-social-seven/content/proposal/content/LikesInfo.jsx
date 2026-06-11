@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BsFillCpuFill } from "react-icons/bs";
 import { FaBriefcase, FaUser } from "react-icons/fa";
-import { IoClose } from "react-icons/io5";
 import LiquidGlass from "@/content/liquid glass/LiquidGlass";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
@@ -109,7 +108,7 @@ function SpeciesVoteRow({
   );
 }
 
-function LikesInfo({ proposalId, likesData, dislikesData, className = "", onClose = null }) {
+function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
   const [likes, setLikes] = useState([]);
   const [dislikes, setDislikes] = useState([]);
   const [error, setError] = useState("");
@@ -189,21 +188,6 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "", onClos
   return (
     <LiquidGlass className={`vote-info-glass w-full rounded-[1.2rem] p-3 ${className}`.trim()}>
       <div className="vote-info-content flex w-full flex-col gap-2.5">
-        {onClose && (
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[0.66rem] font-bold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-              Vote breakdown
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close vote breakdown"
-              className="vote-info-close"
-            >
-              <IoClose />
-            </button>
-          </div>
-        )}
         {error ? (
           <p className="text-[0.76rem] text-red-400">{error}</p>
         ) : (
