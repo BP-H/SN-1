@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 const VIEWBOX_WIDTH = 280;
 const VIEWBOX_HEIGHT = 210;
 const SCENE_CENTER_X = VIEWBOX_WIDTH / 2;
 const SCENE_CENTER_Y = VIEWBOX_HEIGHT / 2;
+const DUST_COUNT = 110;
+const ORBIT_VERTEX_CAPACITY = 600;
+const EDGE_SEGMENTS_ACTIVE = 10;
+const EDGE_SEGMENTS = 6;
 
 const SPECIES_PALETTE = {
   human: {
@@ -97,6 +101,8 @@ function paletteFor(species = "human") {
   return SPECIES_PALETTE[species] || SPECIES_PALETTE.human;
 }
 
+/* Object-form curve helpers kept for the 2D fallback and pointer hit-testing
+   only; the WebGL frame path below works on flat typed arrays instead. */
 function edgeCurve(edge, index = 0, isImmersive = false) {
   const source = edge.sourceNode || {};
   const target = edge.targetNode || {};
@@ -221,14 +227,6 @@ function viewboxMetrics(canvasWidth = VIEWBOX_WIDTH, canvasHeight = VIEWBOX_HEIG
   };
 }
 
-function worldToClip(x, y, view = { x: 0, y: 0, scale: 1 }, canvasWidth = VIEWBOX_WIDTH, canvasHeight = VIEWBOX_HEIGHT) {
-  const scale = Number(view.scale || 1);
-  const metrics = viewboxMetrics(canvasWidth, canvasHeight);
-  const screenX = metrics.offsetX + (Number(view.x || 0) + x * scale) * metrics.fitScale;
-  const screenY = metrics.offsetY + (Number(view.y || 0) + y * scale) * metrics.fitScale;
-  return [(screenX / canvasWidth) * 2 - 1, 1 - (screenY / canvasHeight) * 2];
-}
-
 function sceneCamera(time = 0, isImmersive = false, pointer = {}) {
   const pointerX = pointer.active ? clamp(Number(pointer.x || 0), -1, 1) : 0;
   const pointerY = pointer.active ? clamp(Number(pointer.y || 0), -1, 1) : 0;
@@ -242,43 +240,414 @@ function sceneCamera(time = 0, isImmersive = false, pointer = {}) {
   };
 }
 
-function worldToScene(
-  x,
-  y,
-  depth = 0.72,
-  view = { x: 0, y: 0, scale: 1 },
-  canvasWidth = VIEWBOX_WIDTH,
-  canvasHeight = VIEWBOX_HEIGHT,
-  camera = sceneCamera(),
-) {
-  const centeredX = Number(x || 0) - SCENE_CENTER_X;
-  const centeredY = Number(y || 0) - SCENE_CENTER_Y;
-  const normalizedDepth = clamp(Number(depth || 0.72), 0.2, 1.3);
+/* Scalar world -> clip-space projection. Writes into `out` so the per-frame
+   path never allocates. */
+function projectInto(out, x, y, depth, frame) {
+  const camera = frame.camera;
+  const centeredX = x - SCENE_CENTER_X;
+  const centeredY = y - SCENE_CENTER_Y;
+  const normalizedDepth = clamp(depth || 0.72, 0.2, 1.3);
   const orbitalWarp = Math.sin(centeredX * 0.032 + centeredY * 0.026 + camera.yaw * 3.2) * camera.warp;
   const baseZ = (normalizedDepth - 0.68) * camera.depthScale + orbitalWarp;
-  const cosYaw = Math.cos(camera.yaw);
-  const sinYaw = Math.sin(camera.yaw);
-  const yawX = centeredX * cosYaw - baseZ * sinYaw;
-  const yawZ = centeredX * sinYaw + baseZ * cosYaw;
-  const cosTilt = Math.cos(camera.tilt);
-  const sinTilt = Math.sin(camera.tilt);
-  const tiltedY = centeredY * cosTilt - yawZ * sinTilt;
-  const tiltedZ = centeredY * sinTilt + yawZ * cosTilt;
-  const cosRoll = Math.cos(camera.roll);
-  const sinRoll = Math.sin(camera.roll);
-  const rolledX = yawX * cosRoll - tiltedY * sinRoll;
-  const rolledY = yawX * sinRoll + tiltedY * cosRoll;
+  const yawX = centeredX * camera.cosYaw - baseZ * camera.sinYaw;
+  const yawZ = centeredX * camera.sinYaw + baseZ * camera.cosYaw;
+  const tiltedY = centeredY * camera.cosTilt - yawZ * camera.sinTilt;
+  const tiltedZ = centeredY * camera.sinTilt + yawZ * camera.cosTilt;
+  const rolledX = yawX * camera.cosRoll - tiltedY * camera.sinRoll;
+  const rolledY = yawX * camera.sinRoll + tiltedY * camera.cosRoll;
   const perspective = clamp(camera.distance / Math.max(120, camera.distance - tiltedZ), 0.72, 1.46);
   const sceneX = SCENE_CENTER_X + rolledX * perspective;
   const sceneY = SCENE_CENTER_Y + rolledY * perspective;
-  const clip = worldToClip(sceneX, sceneY, view, canvasWidth, canvasHeight);
-  return {
-    clip,
-    sceneX,
-    sceneY,
-    perspective,
-    depth: clamp(0.44 + tiltedZ / 150 + normalizedDepth * 0.38, 0.16, 1.34),
+  const screenX = frame.offsetX + (frame.viewX + sceneX * frame.viewScale) * frame.fitScale;
+  const screenY = frame.offsetY + (frame.viewY + sceneY * frame.viewScale) * frame.fitScale;
+  out.clipX = (screenX / frame.canvasWidth) * 2 - 1;
+  out.clipY = 1 - (screenY / frame.canvasHeight) * 2;
+  out.perspective = perspective;
+  out.depth = clamp(0.44 + tiltedZ / 150 + normalizedDepth * 0.38, 0.16, 1.34);
+}
+
+/* Build the static graph cache once per nodes/edges change: flat typed arrays
+   the frame loop can read without touching the prop objects. */
+function buildGraphCache(nodes, edges, currentUser) {
+  const nodeCount = nodes.length;
+  const cache = {
+    nodeCount,
+    ids: new Array(nodeCount),
+    idToIndex: new Map(),
+    baseX: new Float32Array(nodeCount),
+    baseY: new Float32Array(nodeCount),
+    baseDepth: new Float32Array(nodeCount),
+    radius: new Float32Array(nodeCount),
+    coreColor: new Float32Array(nodeCount * 3),
+    emphasized: new Uint8Array(nodeCount),
+    animX: new Float32Array(nodeCount),
+    animY: new Float32Array(nodeCount),
+    animDepth: new Float32Array(nodeCount),
   };
+  const lowerUser = String(currentUser || "").toLowerCase();
+  nodes.forEach((node, index) => {
+    cache.ids[index] = node.id;
+    cache.idToIndex.set(node.id, index);
+    cache.baseX[index] = Number(node.visualX || 0);
+    cache.baseY[index] = Number(node.visualY || 0);
+    cache.baseDepth[index] = Number(node.depth || 0.74);
+    cache.radius[index] = Number(node.radius || 4);
+    const palette = paletteFor(node.species);
+    cache.coreColor[index * 3] = palette.core[0];
+    cache.coreColor[index * 3 + 1] = palette.core[1];
+    cache.coreColor[index * 3 + 2] = palette.core[2];
+    cache.emphasized[index] = node.is_current || (lowerUser && node.id === lowerUser) ? 1 : 0;
+  });
+
+  const validEdges = edges.filter(
+    (edge) => cache.idToIndex.has(edge.source) && cache.idToIndex.has(edge.target)
+  );
+  const edgeCount = validEdges.length;
+  cache.edgeCount = edgeCount;
+  cache.edgeIds = new Array(edgeCount);
+  cache.edgeSource = new Int32Array(edgeCount);
+  cache.edgeTarget = new Int32Array(edgeCount);
+  cache.edgeStrength = new Float32Array(edgeCount);
+  cache.edgeSourceColor = new Float32Array(edgeCount * 3);
+  cache.edgeTargetColor = new Float32Array(edgeCount * 3);
+  validEdges.forEach((edge, index) => {
+    cache.edgeIds[index] = edge.id;
+    cache.edgeSource[index] = cache.idToIndex.get(edge.source);
+    cache.edgeTarget[index] = cache.idToIndex.get(edge.target);
+    cache.edgeStrength[index] = clamp(Number(edge.strength || 0), 1, 90);
+    const sourcePalette = paletteFor(edge.sourceNode?.species);
+    const targetPalette = paletteFor(edge.targetNode?.species);
+    for (let channel = 0; channel < 3; channel += 1) {
+      cache.edgeSourceColor[index * 3 + channel] = sourcePalette.line[channel];
+      cache.edgeTargetColor[index * 3 + channel] = targetPalette.line[channel];
+    }
+  });
+
+  const lineVertexCapacity = ORBIT_VERTEX_CAPACITY + edgeCount * EDGE_SEGMENTS_ACTIVE * 2;
+  cache.linePositions = new Float32Array(lineVertexCapacity * 2);
+  cache.lineColors = new Float32Array(lineVertexCapacity * 4);
+  const pointCapacity = DUST_COUNT + nodeCount * 3;
+  cache.nodePositions = new Float32Array(pointCapacity * 2);
+  cache.nodeColors = new Float32Array(pointCapacity * 4);
+  cache.nodeSizes = new Float32Array(pointCapacity);
+  cache.nodeDepths = new Float32Array(pointCapacity);
+  return cache;
+}
+
+function createDustField() {
+  const dust = {
+    x: new Float32Array(DUST_COUNT),
+    y: new Float32Array(DUST_COUNT),
+    depth: new Float32Array(DUST_COUNT),
+    phase: new Float32Array(DUST_COUNT),
+    size: new Float32Array(DUST_COUNT),
+  };
+  for (let index = 0; index < DUST_COUNT; index += 1) {
+    dust.x[index] = -24 + Math.random() * (VIEWBOX_WIDTH + 48);
+    dust.y[index] = -18 + Math.random() * (VIEWBOX_HEIGHT + 36);
+    dust.depth[index] = 0.25 + Math.random() * 0.9;
+    dust.phase[index] = Math.random() * Math.PI * 2;
+    dust.size[index] = 0.5 + Math.random() * 0.9;
+  }
+  return dust;
+}
+
+/* Animated node positions, written into the cache scratch arrays. Same motion
+   formulas as before, minus the per-frame object clones. */
+function animateNodes(cache, time, isImmersive) {
+  const driftAmp = isImmersive ? 0.9 : 0.32;
+  const floatAmpX = isImmersive ? 1.75 : 0.72;
+  const floatAmpY = isImmersive ? 1.22 : 0.52;
+  for (let index = 0; index < cache.nodeCount; index += 1) {
+    const depth = cache.baseDepth[index];
+    const baseX = cache.baseX[index];
+    const baseY = cache.baseY[index];
+    const orbitDrift = Math.sin(time * 0.16 + baseX * 0.009) * driftAmp;
+    cache.animX[index] = baseX + Math.sin(time * 0.52 + baseX * 0.012 + depth) * floatAmpX * depth + orbitDrift;
+    cache.animY[index] = baseY + Math.cos(time * 0.44 + baseY * 0.011 + depth) * floatAmpY * depth;
+    cache.animDepth[index] = clamp(0.5 + depth * 0.34 + Math.sin(time * 0.31 + baseX * 0.018) * 0.1, 0.32, 1.18);
+  }
+}
+
+const projectionScratchA = { clipX: 0, clipY: 0, perspective: 1, depth: 0.72 };
+const projectionScratchB = { clipX: 0, clipY: 0, perspective: 1, depth: 0.72 };
+
+function writeLineVertexPair(cache, cursor, a, b, r, g, bChannel, alpha) {
+  const positionOffset = cursor * 2;
+  const colorOffset = cursor * 4;
+  cache.linePositions[positionOffset] = a.clipX;
+  cache.linePositions[positionOffset + 1] = a.clipY;
+  cache.linePositions[positionOffset + 2] = b.clipX;
+  cache.linePositions[positionOffset + 3] = b.clipY;
+  cache.lineColors[colorOffset] = r;
+  cache.lineColors[colorOffset + 1] = g;
+  cache.lineColors[colorOffset + 2] = bChannel;
+  cache.lineColors[colorOffset + 3] = alpha;
+  cache.lineColors[colorOffset + 4] = r;
+  cache.lineColors[colorOffset + 5] = g;
+  cache.lineColors[colorOffset + 6] = bChannel;
+  cache.lineColors[colorOffset + 7] = alpha;
+  return cursor + 2;
+}
+
+const ORBITS = [
+  { rx: 104, ry: 38, rotate: -0.18, color: [0.66, 0.78, 1], alpha: 0.18, z: 0.76 },
+  { rx: 124, ry: 54, rotate: 0.25, color: [0.66, 0.78, 1], alpha: 0.13, z: 0.62 },
+  { rx: 92, ry: 72, rotate: 0.62, color: [1, 0.34, 0.64], alpha: 0.13, z: 0.82 },
+  { rx: 56, ry: 94, rotate: 1.08, color: [0.72, 0.42, 1], alpha: 0.08, z: 0.54 },
+];
+
+function fillLineArrays(cache, frame, selectedEdgeId, isImmersive, time) {
+  let cursor = 0;
+  const orbitScale = isImmersive ? 1.18 : 1;
+  for (let orbitIndex = 0; orbitIndex < ORBITS.length; orbitIndex += 1) {
+    const orbit = ORBITS[orbitIndex];
+    const steps = isImmersive ? 72 : 44;
+    const skip = isImmersive ? 5 : 4;
+    let hasPrevious = false;
+    let previousX = 0;
+    let previousY = 0;
+    let previousDepth = 0;
+    for (let step = 0; step <= steps; step += 1) {
+      const angle = (step / steps) * Math.PI * 2 + time * (0.06 + orbitIndex * 0.006) * (orbitIndex % 2 ? -1 : 1);
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rotatedX = cos * orbit.rx * orbitScale;
+      const rotatedY = sin * orbit.ry * orbitScale;
+      const x = SCENE_CENTER_X + rotatedX * Math.cos(orbit.rotate) - rotatedY * Math.sin(orbit.rotate);
+      const y = SCENE_CENTER_Y + rotatedX * Math.sin(orbit.rotate) + rotatedY * Math.cos(orbit.rotate);
+      const depth = clamp(orbit.z + sin * 0.22 + cos * 0.08, 0.25, 1.18);
+      if (hasPrevious && step % skip !== 0) {
+        projectInto(projectionScratchA, previousX, previousY, previousDepth, frame);
+        projectInto(projectionScratchB, x, y, depth, frame);
+        const depthAlpha = clamp((projectionScratchA.depth + projectionScratchB.depth) * 0.46, 0.18, 1.12);
+        cursor = writeLineVertexPair(
+          cache,
+          cursor,
+          projectionScratchA,
+          projectionScratchB,
+          orbit.color[0],
+          orbit.color[1],
+          orbit.color[2],
+          orbit.alpha * depthAlpha,
+        );
+      }
+      previousX = x;
+      previousY = y;
+      previousDepth = depth;
+      hasPrevious = true;
+    }
+  }
+
+  const sweepMin = isImmersive ? 10 : 6;
+  const sweepMax = isImmersive ? 34 : 22;
+  const sweepFactor = isImmersive ? 0.2 : 0.16;
+  for (let index = 0; index < cache.edgeCount; index += 1) {
+    const sourceIndex = cache.edgeSource[index];
+    const targetIndex = cache.edgeTarget[index];
+    const startX = cache.animX[sourceIndex];
+    const startY = cache.animY[sourceIndex];
+    const startDepth = cache.animDepth[sourceIndex];
+    const endX = cache.animX[targetIndex];
+    const endY = cache.animY[targetIndex];
+    const endDepth = cache.animDepth[targetIndex];
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const distance = Math.max(1, Math.hypot(deltaX, deltaY));
+    const side = index % 2 === 0 ? 1 : -1;
+    const sweep = clamp(distance * sweepFactor, sweepMin, sweepMax);
+    const controlX = (startX + endX) / 2 - (deltaY / distance) * sweep * side;
+    const controlY = (startY + endY) / 2 + (deltaX / distance) * sweep * side * 0.76;
+    const controlDepth = clamp(Math.max(startDepth, endDepth) + distance / 460, 0.48, 1.18);
+
+    const active = selectedEdgeId === cache.edgeIds[index];
+    const strength = cache.edgeStrength[index];
+    const baseAlpha = active
+      ? 0.74
+      : clamp(0.16 + strength / 240, isImmersive ? 0.12 : 0.16, isImmersive ? 0.42 : 0.34);
+    const sourceR = active ? 1 : cache.edgeSourceColor[index * 3];
+    const sourceG = active ? 0.36 : cache.edgeSourceColor[index * 3 + 1];
+    const sourceB = active ? 0.64 : cache.edgeSourceColor[index * 3 + 2];
+    const targetR = active ? 1 : cache.edgeTargetColor[index * 3];
+    const targetG = active ? 0.56 : cache.edgeTargetColor[index * 3 + 1];
+    const targetB = active ? 0.75 : cache.edgeTargetColor[index * 3 + 2];
+    const steps = active ? EDGE_SEGMENTS_ACTIVE : EDGE_SEGMENTS;
+    /* A soft energy pulse travels each connection so the graph reads as a
+       living network rather than a static wireframe. */
+    const pulseT = (time * 0.22 + index * 0.137) % 1;
+    const pulseGain = active ? 0.5 : 0.3;
+
+    let previousT = 0;
+    projectInto(
+      projectionScratchA,
+      startX,
+      startY,
+      startDepth,
+      frame,
+    );
+    let previousClipX = projectionScratchA.clipX;
+    let previousClipY = projectionScratchA.clipY;
+    let previousDepthOut = projectionScratchA.depth;
+    for (let step = 1; step <= steps; step += 1) {
+      const t = step / steps;
+      const oneMinus = 1 - t;
+      const pointX = oneMinus * oneMinus * startX + 2 * oneMinus * t * controlX + t * t * endX;
+      const pointY = oneMinus * oneMinus * startY + 2 * oneMinus * t * controlY + t * t * endY;
+      const pointDepth = oneMinus * oneMinus * startDepth + 2 * oneMinus * t * controlDepth + t * t * endDepth;
+      projectInto(projectionScratchB, pointX, pointY, pointDepth, frame);
+      const mix = t;
+      const midT = (previousT + t) / 2;
+      const pulse = Math.max(0, 1 - Math.abs(midT - pulseT) * 5);
+      const glow = pulse * pulse * pulseGain;
+      const r = Math.min(1, sourceR * (1 - mix) + targetR * mix + glow * 0.7);
+      const g = Math.min(1, sourceG * (1 - mix) + targetG * mix + glow * 0.7);
+      const b = Math.min(1, sourceB * (1 - mix) + targetB * mix + glow * 0.7);
+      const depthAlpha = clamp((previousDepthOut + projectionScratchB.depth) * 0.46, 0.18, 1.12);
+      const alpha = (baseAlpha + glow * 0.5) * depthAlpha;
+      projectionScratchA.clipX = previousClipX;
+      projectionScratchA.clipY = previousClipY;
+      cursor = writeLineVertexPair(cache, cursor, projectionScratchA, projectionScratchB, r, g, b, alpha);
+      previousClipX = projectionScratchB.clipX;
+      previousClipY = projectionScratchB.clipY;
+      previousDepthOut = projectionScratchB.depth;
+      previousT = t;
+    }
+  }
+
+  return cursor;
+}
+
+function fillNodeArrays(cache, dust, frame, selectedNodeId, isImmersive, dpr, time) {
+  let cursor = 0;
+  const writePoint = (clipX, clipY, r, g, b, alpha, size, depth) => {
+    const positionOffset = cursor * 2;
+    const colorOffset = cursor * 4;
+    cache.nodePositions[positionOffset] = clipX;
+    cache.nodePositions[positionOffset + 1] = clipY;
+    cache.nodeColors[colorOffset] = r;
+    cache.nodeColors[colorOffset + 1] = g;
+    cache.nodeColors[colorOffset + 2] = b;
+    cache.nodeColors[colorOffset + 3] = alpha;
+    cache.nodeSizes[cursor] = size;
+    cache.nodeDepths[cursor] = depth;
+    cursor += 1;
+  };
+
+  /* Far star dust: tiny parallax points that give the scene real depth. */
+  for (let index = 0; index < DUST_COUNT; index += 1) {
+    projectInto(projectionScratchA, dust.x[index], dust.y[index], dust.depth[index], frame);
+    const twinkle = 0.7 + 0.3 * Math.sin(time * 0.8 + dust.phase[index]);
+    const alpha = (0.1 + dust.depth[index] * 0.16) * twinkle;
+    writePoint(
+      projectionScratchA.clipX,
+      projectionScratchA.clipY,
+      0.72,
+      0.82,
+      1,
+      alpha,
+      Math.max(1.5, dust.size[index] * (1.1 + dust.depth[index]) * dpr * frame.fitScale * 0.5),
+      projectionScratchA.depth * 0.6,
+    );
+  }
+
+  const selectedIndex = selectedNodeId ? cache.idToIndex.get(selectedNodeId) : undefined;
+  const breath = 1 + Math.sin(time * 2.6) * 0.09;
+  const layers = isImmersive
+    ? [
+        [7.4, 0.1, -0.08],
+        [4.0, 0.32, 0.03],
+        [1.55, 0.98, 0.1],
+      ]
+    : [
+        [6.2, 0.1, -0.08],
+        [3.05, 0.32, 0.03],
+        [1.34, 0.98, 0.1],
+      ];
+  for (let layer = 0; layer < layers.length; layer += 1) {
+    const [sizeMultiplier, alphaMultiplier, depthLift] = layers[layer];
+    for (let index = 0; index < cache.nodeCount; index += 1) {
+      const emphasized = cache.emphasized[index] === 1 || index === selectedIndex;
+      projectInto(
+        projectionScratchA,
+        cache.animX[index],
+        cache.animY[index],
+        cache.animDepth[index] + depthLift,
+        frame,
+      );
+      const boost = emphasized ? 1.35 : 1;
+      /* The halo layer of the selected/current node breathes gently. */
+      const pulse = emphasized && layer === 0 ? breath : 1;
+      const alpha = alphaMultiplier * boost * clamp(projectionScratchA.depth, 0.36, 1.24);
+      const size = Math.max(
+        7,
+        cache.radius[index] * 2 * frame.viewScale * frame.fitScale * dpr * sizeMultiplier * pulse
+          * projectionScratchA.perspective * (0.82 + projectionScratchA.depth * 0.28),
+      );
+      writePoint(
+        projectionScratchA.clipX,
+        projectionScratchA.clipY,
+        cache.coreColor[index * 3],
+        cache.coreColor[index * 3 + 1],
+        cache.coreColor[index * 3 + 2],
+        alpha,
+        size,
+        projectionScratchA.depth,
+      );
+    }
+  }
+
+  return cursor;
+}
+
+function uploadArray(gl, buffer, location, data, count, size) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, count * size), gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(location);
+  gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
+}
+
+function drawWebglScene(gl, resources, cache, dust, latest, canvasWidth, canvasHeight, dpr, time) {
+  animateNodes(cache, time, latest.isImmersive);
+  const camera = sceneCamera(time, latest.isImmersive, latest.pointer);
+  camera.cosYaw = Math.cos(camera.yaw);
+  camera.sinYaw = Math.sin(camera.yaw);
+  camera.cosTilt = Math.cos(camera.tilt);
+  camera.sinTilt = Math.sin(camera.tilt);
+  camera.cosRoll = Math.cos(camera.roll);
+  camera.sinRoll = Math.sin(camera.roll);
+  const metrics = viewboxMetrics(canvasWidth, canvasHeight);
+  const frame = {
+    camera,
+    canvasWidth,
+    canvasHeight,
+    fitScale: metrics.fitScale,
+    offsetX: metrics.offsetX,
+    offsetY: metrics.offsetY,
+    viewX: Number(latest.view?.x || 0),
+    viewY: Number(latest.view?.y || 0),
+    viewScale: Number(latest.view?.scale || 1),
+  };
+
+  gl.viewport(0, 0, Math.floor(canvasWidth * dpr), Math.floor(canvasHeight * dpr));
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+  const lineVertexCount = fillLineArrays(cache, frame, latest.selectedEdgeId, latest.isImmersive, time);
+  gl.useProgram(resources.lineProgram);
+  uploadArray(gl, resources.linePositionBuffer, resources.lineLocations.position, cache.linePositions, lineVertexCount, 2);
+  uploadArray(gl, resources.lineColorBuffer, resources.lineLocations.color, cache.lineColors, lineVertexCount, 4);
+  gl.drawArrays(gl.LINES, 0, lineVertexCount);
+
+  const pointCount = fillNodeArrays(cache, dust, frame, latest.selectedNodeId, latest.isImmersive, dpr, time);
+  gl.useProgram(resources.nodeProgram);
+  uploadArray(gl, resources.nodePositionBuffer, resources.nodeLocations.position, cache.nodePositions, pointCount, 2);
+  uploadArray(gl, resources.nodeColorBuffer, resources.nodeLocations.color, cache.nodeColors, pointCount, 4);
+  uploadArray(gl, resources.nodeSizeBuffer, resources.nodeLocations.size, cache.nodeSizes, pointCount, 1);
+  uploadArray(gl, resources.nodeDepthBuffer, resources.nodeLocations.depth, cache.nodeDepths, pointCount, 1);
+  gl.drawArrays(gl.POINTS, 0, pointCount);
 }
 
 function animatedNode(node, time, isImmersive) {
@@ -296,181 +665,18 @@ function animatedNode(node, time, isImmersive) {
   };
 }
 
-function graphFrame(nodes, edges, isImmersive, time) {
-  const animatedNodes = nodes.map((node) => animatedNode(node, time, isImmersive));
-  const byId = new Map(animatedNodes.map((node) => [node.id, node]));
-  const animatedEdges = edges
+function drawFallback2d(ctx, latest, width, height, dpr, time) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const nodes = latest.nodes.map((node) => animatedNode(node, time, latest.isImmersive));
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const edges = latest.edges
     .map((edge) => ({
       ...edge,
       sourceNode: byId.get(edge.source) || edge.sourceNode,
       targetNode: byId.get(edge.target) || edge.targetNode,
     }))
     .filter((edge) => edge.sourceNode && edge.targetNode);
-  return { nodes: animatedNodes, edges: animatedEdges };
-}
-
-function pushLineSegment(positions, colors, start, end, color, alpha, view, canvasWidth, canvasHeight, camera) {
-  const startScene = worldToScene(start.x, start.y, start.depth, view, canvasWidth, canvasHeight, camera);
-  const endScene = worldToScene(end.x, end.y, end.depth, view, canvasWidth, canvasHeight, camera);
-  const depthAlpha = clamp((startScene.depth + endScene.depth) * 0.46, 0.18, 1.12);
-  const finalAlpha = alpha * depthAlpha;
-  positions.push(startScene.clip[0], startScene.clip[1], endScene.clip[0], endScene.clip[1]);
-  colors.push(color[0], color[1], color[2], finalAlpha, color[0], color[1], color[2], finalAlpha);
-}
-
-function pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight, camera) {
-  const orbitScale = isImmersive ? 1.18 : 1;
-  const orbitColor = [0.66, 0.78, 1];
-  const pinkColor = [1, 0.34, 0.64];
-  const violetColor = [0.72, 0.42, 1];
-  const orbits = [
-    { rx: 104, ry: 38, rotate: -0.18, color: orbitColor, alpha: 0.18, z: 0.76 },
-    { rx: 124, ry: 54, rotate: 0.25, color: orbitColor, alpha: 0.13, z: 0.62 },
-    { rx: 92, ry: 72, rotate: 0.62, color: pinkColor, alpha: 0.13, z: 0.82 },
-    { rx: 56, ry: 94, rotate: 1.08, color: violetColor, alpha: 0.08, z: 0.54 },
-  ];
-  orbits.forEach((orbit, orbitIndex) => {
-    const steps = isImmersive ? 72 : 44;
-    let previous = null;
-    for (let step = 0; step <= steps; step += 1) {
-      const angle = (step / steps) * Math.PI * 2 + time * (0.06 + orbitIndex * 0.006) * (orbitIndex % 2 ? -1 : 1);
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      const rotatedX = cos * orbit.rx * orbitScale;
-      const rotatedY = sin * orbit.ry * orbitScale;
-      const x = SCENE_CENTER_X + rotatedX * Math.cos(orbit.rotate) - rotatedY * Math.sin(orbit.rotate);
-      const y = SCENE_CENTER_Y + rotatedX * Math.sin(orbit.rotate) + rotatedY * Math.cos(orbit.rotate);
-      const point = { x, y, depth: clamp(orbit.z + sin * 0.22 + cos * 0.08, 0.25, 1.18) };
-      if (previous && step % (isImmersive ? 5 : 4) !== 0) {
-        pushLineSegment(positions, colors, previous, point, orbit.color, orbit.alpha, view, canvasWidth, canvasHeight, camera);
-      }
-      previous = point;
-    }
-  });
-}
-
-function buildLineArrays(edges, selectedEdgeId, isImmersive, time, view, canvasWidth, canvasHeight, camera) {
-  const positions = [];
-  const colors = [];
-  pushOrbitalField(positions, colors, time, isImmersive, view, canvasWidth, canvasHeight, camera);
-
-  edges.forEach((edge, index) => {
-    const curve = edgeCurve(edge, index, isImmersive);
-    const active = selectedEdgeId === edge.id;
-    const sourcePalette = paletteFor(edge.sourceNode?.species);
-    const targetPalette = paletteFor(edge.targetNode?.species);
-    const sourceColor = active ? [1, 0.36, 0.64] : sourcePalette.line;
-    const targetColor = active ? [1, 0.56, 0.75] : targetPalette.line;
-    const strength = clamp(Number(edge.strength || 0), 1, 90);
-    const alpha = active ? 0.74 : clamp(0.16 + strength / 240, isImmersive ? 0.12 : 0.16, isImmersive ? 0.42 : 0.34);
-    const steps = active ? 10 : 6;
-    let previous = pointOnCurve(curve, 0);
-    for (let step = 1; step <= steps; step += 1) {
-      const current = pointOnCurve(curve, step / steps);
-      const mix = step / steps;
-      const color = [
-        sourceColor[0] * (1 - mix) + targetColor[0] * mix,
-        sourceColor[1] * (1 - mix) + targetColor[1] * mix,
-        sourceColor[2] * (1 - mix) + targetColor[2] * mix,
-      ];
-      pushLineSegment(positions, colors, previous, current, color, alpha, view, canvasWidth, canvasHeight, camera);
-      previous = current;
-    }
-  });
-
-  return {
-    positions: new Float32Array(positions),
-    colors: new Float32Array(colors),
-  };
-}
-
-function buildNodeArrays(nodes, selectedNodeId, currentUser, view, dpr, isImmersive, canvasWidth, canvasHeight, camera) {
-  const positions = [];
-  const colors = [];
-  const sizes = [];
-  const depths = [];
-  const screenScale = viewboxMetrics(canvasWidth, canvasHeight).fitScale;
-
-  const pushNode = (node, sizeMultiplier, alphaMultiplier, depthLift = 0) => {
-    const selected = selectedNodeId === node.id;
-    const current = node.is_current || (currentUser && node.id === currentUser.toLowerCase());
-    const palette = paletteFor(node.species);
-    const radius = Number(node.radius || 4);
-    const depth = Number(node.visualDepth || node.depth || 0.72);
-    const scene = worldToScene(
-      Number(node.visualX || 0),
-      Number(node.visualY || 0),
-      depth + depthLift,
-      view,
-      canvasWidth,
-      canvasHeight,
-      camera,
-    );
-    const boost = selected || current ? 1.35 : 1;
-    positions.push(scene.clip[0], scene.clip[1]);
-    colors.push(palette.core[0], palette.core[1], palette.core[2], alphaMultiplier * boost * clamp(scene.depth, 0.36, 1.24));
-    sizes.push(Math.max(7, radius * 2 * Number(view.scale || 1) * screenScale * dpr * sizeMultiplier * scene.perspective * (0.82 + scene.depth * 0.28)));
-    depths.push(scene.depth);
-  };
-
-  nodes.forEach((node) => pushNode(node, isImmersive ? 7.4 : 6.2, 0.1, -0.08));
-  nodes.forEach((node) => pushNode(node, isImmersive ? 4.0 : 3.05, 0.32, 0.03));
-  nodes.forEach((node) => pushNode(node, isImmersive ? 1.55 : 1.34, 0.98, 0.1));
-
-  return {
-    positions: new Float32Array(positions),
-    colors: new Float32Array(colors),
-    sizes: new Float32Array(sizes),
-    depths: new Float32Array(depths),
-  };
-}
-
-function bindArray(gl, buffer, location, data, size) {
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(location);
-  gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
-}
-
-function drawWebglScene(gl, resources, latest, canvasWidth, canvasHeight, dpr, time) {
-  const { nodes, edges } = graphFrame(latest.nodes, latest.edges, latest.isImmersive, time);
-  const camera = sceneCamera(time, latest.isImmersive, latest.pointer);
-  gl.viewport(0, 0, Math.floor(canvasWidth * dpr), Math.floor(canvasHeight * dpr));
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.disable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-
-  const lineArrays = buildLineArrays(edges, latest.selectedEdgeId, latest.isImmersive, time, latest.view, canvasWidth, canvasHeight, camera);
-  gl.useProgram(resources.lineProgram);
-  bindArray(gl, resources.linePositionBuffer, resources.lineLocations.position, lineArrays.positions, 2);
-  bindArray(gl, resources.lineColorBuffer, resources.lineLocations.color, lineArrays.colors, 4);
-  gl.drawArrays(gl.LINES, 0, lineArrays.positions.length / 2);
-
-  const nodeArrays = buildNodeArrays(
-    nodes,
-    latest.selectedNodeId,
-    latest.currentUser,
-    latest.view,
-    dpr,
-    latest.isImmersive,
-    canvasWidth,
-    canvasHeight,
-    camera,
-  );
-  gl.useProgram(resources.nodeProgram);
-  bindArray(gl, resources.nodePositionBuffer, resources.nodeLocations.position, nodeArrays.positions, 2);
-  bindArray(gl, resources.nodeColorBuffer, resources.nodeLocations.color, nodeArrays.colors, 4);
-  bindArray(gl, resources.nodeSizeBuffer, resources.nodeLocations.size, nodeArrays.sizes, 1);
-  bindArray(gl, resources.nodeDepthBuffer, resources.nodeLocations.depth, nodeArrays.depths, 1);
-  gl.drawArrays(gl.POINTS, 0, nodeArrays.positions.length / 2);
-}
-
-function drawFallback2d(ctx, latest, width, height, dpr, time) {
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  const { nodes, edges } = graphFrame(latest.nodes, latest.edges, latest.isImmersive, time);
   const scaleX = width / VIEWBOX_WIDTH;
   const scaleY = height / VIEWBOX_HEIGHT;
   ctx.save();
@@ -535,6 +741,11 @@ export default function SocialConstellationCanvas({
   const pointerStartRef = useRef(null);
   const pointerRef = useRef({ x: 0, y: 0, active: false });
   const hoverRef = useRef({ id: "", x: 0, y: 0 });
+  const dustRef = useRef(null);
+  if (!dustRef.current) dustRef.current = createDustField();
+  const graphCache = useMemo(() => buildGraphCache(nodes, edges, currentUser), [nodes, edges, currentUser]);
+  const cacheRef = useRef(graphCache);
+  cacheRef.current = graphCache;
   const latestRef = useRef({
     nodes,
     edges,
@@ -586,6 +797,7 @@ export default function SocialConstellationCanvas({
     let canvasWidth = 1;
     let canvasHeight = 1;
     let dpr = 1;
+    let visible = true;
 
     const resize = () => {
       const parent = canvas.parentElement;
@@ -604,20 +816,21 @@ export default function SocialConstellationCanvas({
     const draw = (time = 0) => {
       const seconds = time / 1000;
       if (gl && resources) {
-        drawWebglScene(gl, resources, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
+        drawWebglScene(gl, resources, cacheRef.current, dustRef.current, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
       } else if (fallbackContext) {
         drawFallback2d(fallbackContext, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
       }
     };
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const frameMs = latestRef.current.isImmersive ? 16 : 24;
     const tick = (time = 0) => {
-      if (time - lastPaint >= frameMs || !lastPaint) {
-        draw(time);
-        lastPaint = time;
-      }
-      if (!reducedMotion) raf = window.requestAnimationFrame(tick);
+      raf = window.requestAnimationFrame(tick);
+      if (!visible) return;
+      /* Immersive mode renders at native refresh; the rail caps at ~60fps. */
+      const frameMs = latestRef.current.isImmersive ? 0 : 16;
+      if (frameMs && lastPaint && time - lastPaint < frameMs) return;
+      draw(time);
+      lastPaint = time;
     };
 
     resize();
@@ -627,10 +840,17 @@ export default function SocialConstellationCanvas({
       draw(performance.now());
     }) : null;
     if (canvas.parentElement) observer?.observe(canvas.parentElement);
+    const intersection = typeof IntersectionObserver !== "undefined"
+      ? new IntersectionObserver((entries) => {
+          visible = entries[0]?.isIntersecting !== false;
+        })
+      : null;
+    intersection?.observe(canvas);
     if (!reducedMotion) raf = window.requestAnimationFrame(tick);
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
       observer?.disconnect();
+      intersection?.disconnect();
     };
   }, []);
 
@@ -653,11 +873,13 @@ export default function SocialConstellationCanvas({
     const point = graphPointFromEvent(event);
     if (!point) return {};
     const latest = latestRef.current;
-    const node = [...latest.nodes].reverse().find((candidate) => {
+    for (let index = latest.nodes.length - 1; index >= 0; index -= 1) {
+      const candidate = latest.nodes[index];
       const radius = Number(candidate.radius || 4) + (latest.isImmersive ? 6 : 8);
-      return Math.hypot(point.x - Number(candidate.visualX || 0), point.y - Number(candidate.visualY || 0)) <= radius;
-    });
-    if (node) return { node };
+      if (Math.hypot(point.x - Number(candidate.visualX || 0), point.y - Number(candidate.visualY || 0)) <= radius) {
+        return { node: candidate };
+      }
+    }
     const edge = latest.edges.find((candidate, index) => {
       const curve = edgeCurve(candidate, index, latest.isImmersive);
       return distanceToQuadratic(point, curve) <= (latest.isImmersive ? 4.8 : 6.5);
