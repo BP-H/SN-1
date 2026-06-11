@@ -1550,6 +1550,196 @@ html[data-theme="light"] .composer-governance-button.active {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.vote-info-filter-grid,
+.vote-info-choice-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.vote-info-filter-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vote-info-choice-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vote-info-filter-chip,
+.vote-info-choice-chip,
+.vote-info-count-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-gray-light);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.vote-info-filter-chip {
+  min-height: 2rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.vote-info-choice-chip {
+  min-height: 1.9rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.vote-info-count-button {
+  min-height: 1.8rem;
+  border-radius: 0.75rem;
+  padding: 0 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.vote-info-count-button strong {
+  color: var(--text-black);
+  font-size: 0.72rem;
+}
+
+.vote-info-filter-chip:hover,
+.vote-info-choice-chip:hover,
+.vote-info-count-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--pink) 28%, transparent);
+  background: color-mix(in srgb, var(--pink) 10%, rgba(255, 255, 255, 0.04));
+  color: var(--text-black);
+}
+
+.vote-info-filter-chip-active,
+.vote-info-choice-chip-active,
+.vote-info-count-button-active,
+.vote-info-row-active {
+  border-color: color-mix(in srgb, var(--pink) 34%, transparent) !important;
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--pink) 16%, transparent), transparent 48%),
+    rgba(255, 255, 255, 0.065) !important;
+  color: var(--text-black) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.vote-info-count-button:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.vote-info-voter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.15rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    rgba(255, 255, 255, 0.035);
+  padding: 0.75rem;
+}
+
+.vote-info-voter-count {
+  display: inline-flex;
+  min-width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pink) 18%, rgba(255, 255, 255, 0.06));
+  color: var(--text-black);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.vote-info-voter-list {
+  display: flex;
+  max-height: min(14rem, 32dvh);
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding-right: 0.1rem;
+  scrollbar-width: thin;
+}
+
+.vote-info-voter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.52rem 0.58rem;
+}
+
+.vote-info-voter-avatar {
+  display: inline-flex;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: white;
+  font-size: 0.66rem;
+  font-weight: 900;
+  box-shadow: 0 0 18px rgba(255, 79, 143, 0.22);
+}
+
+.vote-info-voter-avatar-human {
+  background: var(--gradient-pink);
+}
+
+.vote-info-voter-avatar-ai {
+  background: var(--gradient-blue);
+}
+
+.vote-info-voter-avatar-company {
+  background: linear-gradient(135deg, #9aa3b2, #6b7280);
+}
+
+.vote-info-choice-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.vote-info-choice-badge-yes {
+  background: color-mix(in srgb, var(--pink) 18%, transparent);
+  color: var(--pink);
+}
+
+.vote-info-choice-badge-no {
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+  color: var(--blue);
+}
+
+.vote-info-empty {
+  border-radius: 0.85rem;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  padding: 0.8rem;
+  text-align: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-gray-light);
+}
+
 .supernova-toast-stack {
   position: fixed;
   right: max(0.75rem, env(safe-area-inset-right, 0px));
@@ -2668,6 +2858,45 @@ html[data-theme="light"] .vote-info-icon {
 
 html[data-theme="light"] .vote-info-track {
   background: rgba(17, 24, 39, 0.1) !important;
+}
+
+html[data-theme="light"] .vote-info-filter-chip,
+html[data-theme="light"] .vote-info-choice-chip,
+html[data-theme="light"] .vote-info-count-button {
+  background: rgba(17, 24, 39, 0.035);
+  border-color: rgba(17, 24, 39, 0.07);
+  color: #6f768b;
+}
+
+html[data-theme="light"] .vote-info-filter-chip:hover,
+html[data-theme="light"] .vote-info-choice-chip:hover,
+html[data-theme="light"] .vote-info-count-button:hover:not(:disabled),
+html[data-theme="light"] .vote-info-filter-chip-active,
+html[data-theme="light"] .vote-info-choice-chip-active,
+html[data-theme="light"] .vote-info-count-button-active,
+html[data-theme="light"] .vote-info-row-active {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 79, 143, 0.1), transparent 48%),
+    rgba(255, 79, 143, 0.055) !important;
+  border-color: rgba(255, 79, 143, 0.22) !important;
+  color: #161924 !important;
+}
+
+html[data-theme="light"] .vote-info-voter-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(236, 242, 252, 0.42)),
+    rgba(17, 24, 39, 0.035);
+  border-color: rgba(17, 24, 39, 0.07);
+}
+
+html[data-theme="light"] .vote-info-voter-row {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(17, 24, 39, 0.06);
+}
+
+html[data-theme="light"] .vote-info-empty {
+  border-color: rgba(17, 24, 39, 0.1);
+  color: #6f768b;
 }
 
 html[data-theme="light"] .profile-auth-card {
