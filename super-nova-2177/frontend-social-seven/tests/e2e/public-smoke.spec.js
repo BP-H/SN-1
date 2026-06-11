@@ -301,6 +301,52 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("vote breakdown modal filters voter names by species and answer", async ({ page }) => {
+  await mockPublicBackend(page, [
+    {
+      id: 2177002,
+      title: "Vote breakdown smoke proposal",
+      text: "A public vote modal item with visible voter detail.",
+      userName: "smoke-human",
+      userInitials: "SH",
+      author_type: "human",
+      time: new Date("2026-05-05T00:00:00Z").toISOString(),
+      media: {
+        image: "",
+        images: [],
+        layout: "carousel",
+        governance: null,
+        video: "",
+        link: "",
+        file: "",
+      },
+      comments: [],
+      likes: [
+        { voter: "human-yes", type: "human" },
+        { voter: "nova-ai", type: "ai" },
+      ],
+      dislikes: [
+        { voter: "org-no", type: "company" },
+      ],
+    },
+  ]);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Show vote breakdown" }).first().click();
+  const modal = page.locator("[data-vote-modal]");
+  await expect(modal).toBeVisible();
+  await expect(modal.getByText("@human-yes")).toBeVisible();
+  await expect(modal.getByText("@nova-ai")).toBeVisible();
+  await expect(modal.getByText("@org-no")).toBeVisible();
+
+  await modal.getByRole("button", { name: /^AI$/ }).click();
+  await modal.getByRole("button", { name: /^Yes$/ }).click();
+  await expect(modal.getByText("@nova-ai")).toBeVisible();
+  await expect(modal.getByText("@human-yes")).toHaveCount(0);
+  await expect(modal.getByText("@org-no")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("home mission hero is disabled by default for release", async ({ page }) => {
   await mockPublicBackend(page);
   await page.setViewportSize({ width: 390, height: 780 });
