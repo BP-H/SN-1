@@ -391,19 +391,26 @@ export default function AiDelegatesSettingsPage() {
           </Link>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {GENESIS_STEPS.map((step, index) => (
-            <span
-              key={step}
-              aria-current={currentGenesisStep === step ? "step" : undefined}
-              className={`rounded-full border px-3 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.12em] ${
-                currentGenesisStep === step
-                  ? "border-[var(--pink)] bg-[var(--pink-soft)] text-[var(--pink)]"
-                  : "border-[var(--horizontal-line)] bg-white/[0.035] text-[var(--text-gray-light)]"
-              }`}
-            >
-              {index + 1}. {step}
-            </span>
-          ))}
+          {GENESIS_STEPS.map((step, index) => {
+            const currentIndex = GENESIS_STEPS.indexOf(currentGenesisStep);
+            const isDone = index < currentIndex;
+            const isActive = currentGenesisStep === step;
+            return (
+              <span
+                key={step}
+                aria-current={isActive ? "step" : undefined}
+                className={`rounded-full border px-3 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.12em] transition-colors ${
+                  isActive
+                    ? "border-[var(--pink)] bg-[var(--pink-soft)] text-[var(--pink)]"
+                    : isDone
+                    ? "border-[var(--pink-glow)] bg-white/[0.035] text-[var(--text-black)]"
+                    : "border-[var(--horizontal-line)] bg-white/[0.035] text-[var(--text-gray-light)]"
+                }`}
+              >
+                {isDone ? "✓" : `${index + 1}.`} {step}
+              </span>
+            );
+          })}
         </div>
 
         {!isAuthenticated && (
@@ -483,7 +490,13 @@ export default function AiDelegatesSettingsPage() {
                       placeholder="Search traits..."
                       className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] text-[var(--text-black)] outline-none"
                     />
-                    <span className="shrink-0 rounded-full bg-white/[0.06] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[0.68rem] font-bold tabular-nums transition-colors ${
+                        traits.length > 0
+                          ? "bg-[var(--pink-soft)] text-[var(--pink)]"
+                          : "bg-white/[0.06] text-[var(--text-gray-light)]"
+                      }`}
+                    >
                       {traits.length}/5 selected
                     </span>
                   </div>
@@ -496,9 +509,11 @@ export default function AiDelegatesSettingsPage() {
                             key={trait}
                             type="button"
                             onClick={() => toggleTrait(trait)}
-                            className="rounded-full border border-[var(--pink)] bg-[var(--pink-soft)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--pink)]"
+                            title={`Remove ${trait}`}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--pink)] bg-[var(--pink-soft)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--pink)] transition-colors hover:border-[var(--pink-glow)]"
                           >
                             {trait}
+                            <span aria-hidden="true" className="text-[0.66rem] opacity-70">×</span>
                           </button>
                         ))}
                       </div>
@@ -511,13 +526,17 @@ export default function AiDelegatesSettingsPage() {
                           key={trait}
                           type="button"
                           onClick={() => toggleTrait(trait)}
-                          className="rounded-full border border-[var(--horizontal-line)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--text-gray-light)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
+                          className="rounded-full border border-[var(--horizontal-line)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--text-gray-light)] transition-colors hover:border-[var(--pink)] hover:text-[var(--pink)]"
                         >
                           {trait}
                         </button>
                       ))}
-                      {filteredTraits.length === 0 && (
-                        <p className="text-[0.74rem] text-[var(--text-gray-light)]">No matching traits.</p>
+                      {availableTraits.length === 0 && (
+                        <p className="text-[0.74rem] text-[var(--text-gray-light)]">
+                          {filteredTraits.length === 0
+                            ? "No matching traits."
+                            : "All matching traits are selected."}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -541,11 +560,23 @@ export default function AiDelegatesSettingsPage() {
                   type="button"
                   onClick={requestPersonaDraft}
                   disabled={draftBusy || busy}
-                  className="rounded-full border border-[var(--horizontal-line)] px-4 py-2 text-[0.82rem] font-bold text-[var(--text-black)] disabled:opacity-60"
+                  className={`rounded-full px-4 py-2 text-[0.82rem] font-bold transition-colors disabled:opacity-60 ${
+                    personaDraft
+                      ? "border border-[var(--horizontal-line)] text-[var(--text-black)] hover:border-[var(--pink)]"
+                      : "bg-[var(--pink)] text-white"
+                  } ${draftBusy ? "animate-pulse" : ""}`}
                 >
                   {draftBusy ? "Generating..." : personaDraft ? "Regenerate persona" : "Generate persona"}
                 </button>
-                <button type="submit" disabled={busy || !personaDraft} className="rounded-full bg-[var(--pink)] px-4 py-2 text-[0.82rem] font-bold text-white disabled:opacity-60">
+                <button
+                  type="submit"
+                  disabled={busy || !personaDraft}
+                  className={`rounded-full px-4 py-2 text-[0.82rem] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    personaDraft
+                      ? "bg-[var(--pink)] text-white"
+                      : "border border-[var(--horizontal-line)] text-[var(--text-gray-light)]"
+                  }`}
+                >
                   {busy ? "Chartering..." : "Approve and create"}
                 </button>
               </div>

@@ -70,7 +70,7 @@ function SpeciesVoteRow({
       <div className="min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[0.78rem] font-semibold text-[var(--text-black)]">{label}</span>
-          <span className="text-right text-[0.72rem] text-[var(--text-gray-light)]">
+          <span className="text-right text-[0.72rem] tabular-nums text-[var(--text-gray-light)]">
             {hasVotes ? `${ratio}% support` : "No votes yet"}
           </span>
         </div>
@@ -197,7 +197,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
               <span className="text-[0.76rem] font-semibold text-[var(--text-black)]">
                 Weighted Approval
               </span>
-              <span className="text-[0.82rem] font-bold" style={{ color: getSliderColor(overallApproval) }}>
+              <span className="text-[0.82rem] font-bold tabular-nums" style={{ color: getSliderColor(overallApproval) }}>
                 {overallApproval}%
               </span>
             </div>
@@ -210,8 +210,8 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                 }}
               />
             </div>
-            <p className="mb-1 text-center text-[0.66rem] text-[var(--text-gray-light)]">
-              {totalVotes} total vote{totalVotes !== 1 ? "s" : ""} - Each species carries 33% weight
+            <p className="mb-1 text-center text-[0.66rem] tabular-nums text-[var(--text-gray-light)]">
+              {totalVotes} total vote{totalVotes !== 1 ? "s" : ""} &middot; Each species carries 33% weight
             </p>
 
             <div className="vote-info-filter-grid" aria-label="Filter votes by species">
@@ -293,7 +293,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                     Voters
                   </p>
                   <p className="text-[0.72rem] text-[var(--text-gray-light)]">
-                    {activeSpeciesLabel} - {activeChoiceLabel}
+                    {activeSpeciesLabel} &middot; {activeChoiceLabel}
                   </p>
                 </div>
                 <span className="vote-info-voter-count">{filteredVoters.length}</span>
@@ -309,7 +309,10 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                           {voterInitials(vote.name)}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[0.78rem] font-semibold text-[var(--text-black)]">
+                          <span
+                            className="block truncate text-[0.78rem] font-semibold text-[var(--text-black)]"
+                            title={vote.name.startsWith("@") ? vote.name : `@${vote.name}`}
+                          >
                             {vote.name.startsWith("@") ? vote.name : `@${vote.name}`}
                           </span>
                           <span className="flex items-center gap-1 text-[0.64rem] font-semibold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
@@ -326,7 +329,11 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                 </div>
               ) : (
                 <p className="vote-info-empty">
-                  No voters match this view yet.
+                  {activeSpecies === "all" && activeChoice === "all"
+                    ? "No votes have been cast yet."
+                    : `No ${activeSpeciesLabel === "All" ? "" : `${activeSpeciesLabel} `}${
+                        activeChoiceLabel === "All votes" ? "votes" : `"${activeChoiceLabel}" votes`
+                      } yet.`}
                 </p>
               )}
             </section>
