@@ -59,7 +59,7 @@ export default function LayoutClient({ children }) {
                 errorMsg={errorMsg}
                 setErrorMsg={setErrorMsg}
               />
-              <main className="app-shell w-full">{children}</main>
+              <main id="main-content" className="app-shell w-full">{children}</main>
             </ActiveBEProvider>
           </UserProvider>
         </SearchInputContext.Provider>

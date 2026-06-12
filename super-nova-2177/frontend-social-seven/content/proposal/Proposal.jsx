@@ -227,7 +227,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                     className="flex min-w-[8.25rem] max-w-[8.25rem] shrink-0 items-center gap-2 rounded-full bg-white/[0.045] px-2 py-2 hover:bg-white/[0.08]"
                   >
                     {image ? (
-                      <img src={image} alt="" className="h-8 w-8 shrink-0 rounded-full border object-cover" style={avatarStyle} />
+                      <img src={image} alt="" loading="lazy" decoding="async" className="h-8 w-8 shrink-0 rounded-full border object-cover" style={avatarStyle} />
                     ) : (
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bgGray text-[0.68rem] font-bold" style={avatarStyle}>
                         {(person.username || "SN").slice(0, 2).toUpperCase()}
