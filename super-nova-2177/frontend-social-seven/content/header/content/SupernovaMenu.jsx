@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -43,6 +43,17 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
   const router = useRouter();
   const { userData, defaultAvatar, isAuthenticated, signOut } = useUser();
   const { localeLabel, preference, setPreference, supportedLocales, t } = useI18n();
+  const backdropPressRef = useRef(false);
+
+  /* Escape closes the drawer. */
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
   const [theme, setTheme] = useState("light");
   const [languageOpen, setLanguageOpen] = useState(false);
   const avatar = isAuthenticated ? avatarDisplayUrl(userData?.avatar, defaultAvatar) : defaultAvatar;
@@ -131,7 +142,15 @@ export default function SupernovaMenu({ open, onClose, openProfileSettings }) {
     languageOptions.find((item) => item.key === preference)?.label || t("language.autoWithLocale", { locale: localeLabel });
 
   return createPortal(
-    <div className="supernova-menu-backdrop fixed inset-0 z-[2147483600] bg-black/60 backdrop-blur-[10px]" onClick={onClose}>
+    <div
+      className="supernova-menu-backdrop fixed inset-0 z-[2147483600] bg-black/60 backdrop-blur-[10px]"
+      onPointerDown={(event) => {
+        backdropPressRef.current = event.target === event.currentTarget;
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && backdropPressRef.current) onClose?.();
+      }}
+    >
       <aside
         className="supernova-menu-drawer h-full w-[min(86vw,23rem)] overflow-y-auto bg-[#0b1015] text-[var(--text-black)] shadow-[18px_0_48px_rgba(0,0,0,0.55)]"
         onClick={(event) => event.stopPropagation()}

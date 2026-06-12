@@ -44,6 +44,16 @@ export default function HeaderWrapper({
     setAccountModalOpen(true);
   }, [authLoading, isAuthenticated, setShowSettings, showSettings]);
 
+  /* Escape closes the settings modal. */
+  useEffect(() => {
+    if (!showSettings) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setShowSettings(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showSettings, setShowSettings]);
+
   return (
     <>
       <Header

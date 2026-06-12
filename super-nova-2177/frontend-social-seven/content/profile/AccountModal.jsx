@@ -52,6 +52,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const usernameInputRef = useRef(null);
+  const backdropPressRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -61,6 +62,16 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   useEffect(() => {
     if (open) usernameInputRef.current?.focus?.();
   }, [open]);
+
+  /* Escape closes the panel. */
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -161,7 +172,14 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
   return createPortal(
     <div
       className="profile-auth-portal fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-sm"
-      onClick={onClose}
+      onPointerDown={(event) => {
+        backdropPressRef.current = event.target === event.currentTarget;
+      }}
+      onClick={(event) => {
+        /* Close only when the press started AND ended on the backdrop, so
+           drag-selecting text in a field never throws away typed input. */
+        if (event.target === event.currentTarget && backdropPressRef.current) onClose();
+      }}
     >
       <form
         onSubmit={submit}

@@ -791,7 +791,7 @@ function InputFields({
               selectedFiles.length >= 4 ? (
                 <div className="grid min-h-0 grid-cols-[minmax(0,1.58fr)_minmax(0,0.9fr)] gap-1 overflow-hidden rounded-[0.8rem]" style={gridPreviewStyle}>
                   <div className="relative h-full overflow-hidden bg-black/20">
-                    <img src={imagePreviewUrls[0]} alt="Preview 1" className="absolute inset-0 h-full w-full object-cover" />
+                    <img src={imagePreviewUrls[0]} alt={selectedFiles[0]?.name || "Preview 1"} className="absolute inset-0 h-full w-full object-cover" />
                   </div>
                   <div className="grid grid-rows-3 gap-1">
                     {selectedFiles.slice(1, 4).map((file, offset) => {
