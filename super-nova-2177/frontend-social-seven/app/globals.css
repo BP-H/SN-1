@@ -4834,9 +4834,10 @@ html[data-theme="light"] .for-ai-panel {
   mix-blend-mode: screen;
 }
 
+/* No filter here: a CSS filter on a repainting canvas re-runs every frame.
+   The canvas draws saturated glow sprites directly instead. */
 .universe-page .desktop-constellation-ambient {
-  opacity: 0.82;
-  filter: saturate(1.18) contrast(1.06);
+  opacity: 0.86;
 }
 
 .universe-page .desktop-constellation-stage::before,
@@ -4846,6 +4847,8 @@ html[data-theme="light"] .for-ai-panel {
   pointer-events: none;
 }
 
+/* Static texture only: the WebGL layer now draws real animated star dust, and
+   animating background-position repainted the whole stage on the CPU. */
 .universe-page .desktop-constellation-stage::before {
   inset: 0;
   background-image:
@@ -4853,18 +4856,18 @@ html[data-theme="light"] .for-ai-panel {
     radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px);
   background-position: 0 0, 14px 18px;
   background-size: 42px 42px, 56px 56px;
-  opacity: 0.18;
-  animation: constellationStarDrift 18s linear infinite;
+  opacity: 0.14;
 }
 
 .universe-page .desktop-constellation-stage::after {
-  inset: -34%;
+  inset: -22%;
   z-index: 0;
   background:
     conic-gradient(from 120deg, transparent, rgba(255, 79, 143, 0.18), transparent, rgba(117, 210, 255, 0.16), transparent),
     radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08), transparent 34%);
-  filter: blur(23px);
+  filter: blur(18px);
   opacity: 0.76;
+  will-change: transform, opacity;
   animation: constellationAurora 24s ease-in-out infinite alternate;
 }
 
@@ -6170,6 +6173,8 @@ html[data-theme="light"] .post-action-bar {
     cursor: grabbing;
   }
 
+  /* Static texture: animating background-position repainted the rail stage on
+     the CPU on every desktop page; the GL dust layer animates instead. */
   .desktop-constellation-stage::before {
     content: "";
     position: absolute;
@@ -6179,22 +6184,22 @@ html[data-theme="light"] .post-action-bar {
       radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px);
     background-position: 0 0, 14px 18px;
     background-size: 42px 42px, 56px 56px;
-    opacity: 0.16;
+    opacity: 0.13;
     pointer-events: none;
-    animation: constellationStarDrift 18s linear infinite;
   }
 
   .desktop-constellation-stage::after {
     content: "";
     position: absolute;
-    inset: -38%;
+    inset: -24%;
     z-index: 0;
     background:
       conic-gradient(from 120deg, transparent, rgba(255, 79, 143, 0.14), transparent, rgba(117, 210, 255, 0.12), transparent),
       radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08), transparent 34%);
-    filter: blur(20px);
+    filter: blur(16px);
     opacity: 0.66;
     pointer-events: none;
+    will-change: transform, opacity;
     animation: constellationAurora 24s ease-in-out infinite alternate;
   }
 
@@ -6555,15 +6560,6 @@ html[data-theme="light"] .post-action-bar {
     }
     100% {
       transform: rotate(0.9deg) translate3d(1px, -1px, 0);
-    }
-  }
-
-  @keyframes constellationStarDrift {
-    0% {
-      background-position: 0 0, 14px 18px;
-    }
-    100% {
-      background-position: 42px 42px, 70px 74px;
     }
   }
 

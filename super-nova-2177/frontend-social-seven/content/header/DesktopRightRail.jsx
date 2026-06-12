@@ -421,7 +421,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
           className="desktop-constellation-ambient"
           density={isImmersive ? 34 : 18}
           anchors={ambientAnchors}
-          frameMs={isImmersive ? 42 : 58}
+          frameMs={isImmersive ? 28 : 40}
           maxDpr={isImmersive ? 1.3 : 1.18}
         />
         <div className="desktop-constellation-controls" aria-label="Constellation controls">
