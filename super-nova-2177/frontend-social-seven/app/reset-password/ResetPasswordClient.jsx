@@ -19,6 +19,10 @@ export default function ResetPasswordClient() {
     window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
   };
 
+  /* Live field-level hints so errors appear next to their cause. */
+  const passwordTooShort = password.length > 0 && password.length < 6;
+  const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
+
   const submit = async (event) => {
     event.preventDefault();
     setError("");
@@ -83,8 +87,15 @@ export default function ResetPasswordClient() {
             type="password"
             autoComplete="new-password"
             aria-label="New password"
+            aria-invalid={passwordTooShort || undefined}
+            minLength={6}
             required
           />
+          {passwordTooShort && (
+            <span className="px-1 text-[0.7rem] font-semibold text-[var(--pink)]">
+              Use at least 6 characters.
+            </span>
+          )}
           <input
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
@@ -93,8 +104,14 @@ export default function ResetPasswordClient() {
             type="password"
             autoComplete="new-password"
             aria-label="Confirm new password"
+            aria-invalid={passwordsMismatch || undefined}
             required
           />
+          {passwordsMismatch && (
+            <span className="px-1 text-[0.7rem] font-semibold text-[var(--pink)]">
+              Passwords do not match yet.
+            </span>
+          )}
         </div>
 
         {error && <p className="auth-error mt-3 rounded-[0.85rem] px-3 py-2 text-[0.76rem]">{error}</p>}

@@ -106,9 +106,11 @@ export default function AssistantAiActionsList({
       )}
 
       {loading ? (
-        <AssistantStatusBox className="rounded-[0.85rem] p-3 text-[0.78rem]">
-          Loading AI Actions...
-        </AssistantStatusBox>
+        <div className="flex flex-col gap-2" role="status" aria-label="Loading AI Actions">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <span key={index} className="load h-20 w-full rounded-[0.9rem]" />
+          ))}
+        </div>
       ) : error ? (
         <AssistantStatusBox tone="error" className="rounded-[0.85rem] p-3 text-[0.78rem]">
           {error}
@@ -129,6 +131,7 @@ export default function AssistantAiActionsList({
             const isAiPostDraft = action.action_type === "draft_ai_post";
             const isApprovableDraft = isVoteDraft || isAiReviewDraft || isAiCommentDraft || isAiPostDraft;
             const confidenceLabel = assistantAiActionConfidenceLabel(action);
+            const createdAtLabel = connectorActionCreatedAt(action);
             return (
               <article key={action.id} className="ai-action-card rounded-[0.9rem] p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -149,8 +152,9 @@ export default function AssistantAiActionsList({
                 </p>
                 <AssistantAiActionDetails action={action} />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                    {[connectorActionCreatedAt(action), confidenceLabel].filter(Boolean).join(" - ")}
+                  <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-[0.68rem] text-[var(--text-gray-light)]">
+                    {createdAtLabel && <span className="ai-action-meta-pill">{createdAtLabel}</span>}
+                    {confidenceLabel && <span className="ai-action-meta-pill">{confidenceLabel}</span>}
                   </span>
                   <AssistantAiActionButtons
                     canApprove={isApprovableDraft}

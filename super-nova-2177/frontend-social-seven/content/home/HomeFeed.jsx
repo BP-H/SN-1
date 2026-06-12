@@ -100,6 +100,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
   const [pendingAiOpen, setPendingAiOpen] = useState(false);
+  const [pendingDroppedFiles, setPendingDroppedFiles] = useState(null);
   const [systemNow, setSystemNow] = useState(() => Date.now());
 
   // Auto-open composer if navigated from a global '+' button click
@@ -152,6 +153,15 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       return;
     }
     setPendingAiOpen(true);
+    setDiscard(false);
+  };
+
+  const openComposerWithFiles = (files) => {
+    if (!isAuthenticated) {
+      requireAccount(t("composer.signInAttachMedia"));
+      return;
+    }
+    setPendingDroppedFiles(files);
     setDiscard(false);
   };
 
@@ -468,6 +478,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               onMedia={() => openComposerWithMedia("media")}
               onFile={() => openComposerWithMedia("file")}
               onAi={openComposerWithAi}
+              onDropFiles={openComposerWithFiles}
             />
           ) : (
             <InputFields
@@ -479,6 +490,8 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               onAutoOpenConsumed={() => setPendingMediaPicker("")}
               autoOpenAi={pendingAiOpen}
               onAutoOpenAiConsumed={() => setPendingAiOpen(false)}
+              pendingFiles={pendingDroppedFiles}
+              onPendingFilesConsumed={() => setPendingDroppedFiles(null)}
               refetchPosts={refetch}
             />
           )}

@@ -1225,6 +1225,16 @@ html.messages-keyboard-open .mobile-bottom-shell {
   grid-template-columns: auto minmax(6.75rem, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--duration-base) ease, background var(--duration-base) ease;
+}
+
+/* Highlight while files are dragged over the collapsed composer. */
+.composer-collapsed-drop {
+  background: color-mix(in srgb, var(--pink) 7%, transparent);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--pink) 55%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--pink) 12%, transparent);
 }
 
 .composer-collapsed-avatar {
@@ -6934,6 +6944,21 @@ html[data-theme="light"] .composer-optimizing-note {
   border-radius: var(--radius-pill);
   background: var(--pink);
   animation: composerOptimizingPulse 1s ease-in-out infinite;
+}
+
+.ai-action-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--horizontal-line);
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.16rem 0.5rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+html[data-theme="light"] .ai-action-meta-pill {
+  background: rgba(17, 24, 39, 0.045);
 }
 
 @keyframes composerOptimizingPulse {
