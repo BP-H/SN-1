@@ -386,6 +386,8 @@ function DisplayComments({
             <img
               src={imageUrl}
               alt={name}
+              loading="lazy"
+              decoding="async"
               className="h-9 w-9 rounded-full border object-cover"
               style={avatarStyle}
               onError={() => setImageFailed(true)}

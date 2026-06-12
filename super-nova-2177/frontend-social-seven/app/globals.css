@@ -6903,6 +6903,28 @@ html[data-theme="light"] ::selection {
   }
 }
 
+/* Keyboard users can jump past the fixed header straight to the feed. */
+.skip-to-content {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 2147483647;
+  transform: translate(-50%, calc(-100% - 1.5rem));
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--pink) 45%, transparent);
+  background: var(--surface-strong);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-black);
+  box-shadow: var(--shadow);
+  transition: transform var(--duration-base) ease;
+}
+
+.skip-to-content:focus-visible {
+  transform: translate(-50%, 0);
+}
+
 /* Composer drag-and-drop + image-optimization feedback. */
 
 .composer-drop-overlay {

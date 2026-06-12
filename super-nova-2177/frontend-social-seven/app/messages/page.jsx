@@ -504,7 +504,7 @@ export default function MessagesPage() {
                         onClick={(event) => event.stopPropagation()}
                       >
                         {image ? (
-                          <img src={image} alt="" className="h-8 w-8 rounded-full border object-cover" style={peerAvatarStyle} />
+                          <img src={image} alt="" loading="lazy" decoding="async" className="h-8 w-8 rounded-full border object-cover" style={peerAvatarStyle} />
                         ) : (
                           <span className="flex h-8 w-8 items-center justify-center rounded-full border bg-black/25 text-[0.68rem] font-bold" style={peerAvatarStyle}>
                             {initials(peer.username)}

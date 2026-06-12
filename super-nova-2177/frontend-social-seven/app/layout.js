@@ -1,6 +1,7 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import LayoutClient from "./LayoutClient";
+import { API_BASE_URL } from "@/utils/apiBase";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -52,6 +53,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" data-scroll-behavior="smooth" className={inter.variable}>
       <body className="antialiased social-six-font">
+        {/* React hoists these into <head>; warming the API origin saves a
+            DNS+TLS round-trip on the first fetch. */}
+        <link rel="preconnect" href={API_BASE_URL} crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href={API_BASE_URL} />
+        <a href="#main-content" className="skip-to-content">
+          Skip to content
+        </a>
         <LayoutClient>{children}</LayoutClient>
       </body>
     </html>
