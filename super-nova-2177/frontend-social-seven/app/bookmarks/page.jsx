@@ -103,7 +103,7 @@ export default function BookmarksPage() {
             </span>
             <div className="min-w-0">
               <h1 className="truncate text-[1rem] font-black">Saved posts</h1>
-              <p className="mt-0.5 text-[0.78rem] text-[var(--text-gray-light)]">
+              <p className="mt-0.5 truncate text-[0.78rem] tabular-nums text-[var(--text-gray-light)]" title={bookmarkIds.length ? `${bookmarkIds.length} saved posts` : undefined}>
                 {bookmarkIds.length ? `${bookmarkIds.length} saved` : "Posts you save from the 3-dot menu live here."}
               </p>
             </div>

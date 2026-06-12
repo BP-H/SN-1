@@ -30,8 +30,14 @@ function Input({ setSearch, search, inputRef }) {
       <input
         ref={inputRef}
         onChange={(e) => setSearch(e.target.value)}
+        onKeyDown={(e) => {
+          /* Results filter live; Enter just dismisses the mobile keyboard. */
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
         value={search}
         type="text"
+        enterKeyHint="search"
+        aria-label="Search posts, people, ideas"
         placeholder="Search posts, people, ideas"
         className="h-11 w-full rounded-full border border-[var(--horizontal-line)] bg-[var(--surface)] pl-10 pr-4 text-[0.92rem] text-[var(--text-black)] shadow-md outline-none placeholder:text-[var(--text-gray-light)]"
       />

@@ -375,10 +375,11 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             <>
               <label
                 htmlFor="avatarInputSocialSeven"
-                className={`absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] ${
+                className={`absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] before:absolute before:-inset-2 before:content-[''] ${
                   saveBusy ? "pointer-events-none opacity-70" : "cursor-pointer"
                 }`}
                 title="Upload profile photo"
+                aria-label="Upload profile photo"
                 onClick={(event) => event.stopPropagation()}
               >
                 <IoCameraOutline />
