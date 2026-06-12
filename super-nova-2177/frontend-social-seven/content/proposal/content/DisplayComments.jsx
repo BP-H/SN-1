@@ -432,6 +432,10 @@ function DisplayComments({
             <textarea
               value={editText}
               onChange={(event) => setEditText(event.target.value)}
+              onInput={(event) => {
+                event.currentTarget.style.height = "auto";
+                event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 320)}px`;
+              }}
               className="composer-textarea min-h-20 resize-none rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.055] px-3 py-2 text-[0.86rem] leading-5 outline-none"
             />
             <div className="flex justify-end gap-2">

@@ -8,6 +8,8 @@ function Filters({ filter, setFilter }) {
   return (
     <button
       type="button"
+      aria-haspopup="listbox"
+      aria-expanded={open}
       className="relative z-50 flex min-h-11 w-full min-w-[9.5rem] flex-col justify-center rounded-[16px] border border-[var(--horizontal-line)] bg-[var(--surface)] px-3 py-2 text-left shadow-md lg:w-[12rem]"
       onClick={() => setOpen(!open)}
     >
@@ -18,12 +20,23 @@ function Filters({ filter, setFilter }) {
       <div
         className={`${open ? "" : "hidden"} absolute left-0 top-[calc(100%+0.45rem)] w-full rounded-[18px] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-1 shadow-lg`}
       >
-        <ul className="flex flex-col gap-1 py-1 text-left">
+        <ul className="flex flex-col gap-1 py-1 text-left" role="listbox" aria-label="Filter posts">
           {Object.values(content.filters).map((filterItem, index) => (
             <li
+              role="option"
+              aria-selected={filterItem === filter}
+              tabIndex={open ? 0 : -1}
               onClick={() => {
                 setFilter(filterItem);
                 setOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setFilter(filterItem);
+                  setOpen(false);
+                }
               }}
               key={index}
               className={`rounded-full px-3 py-2 text-[0.9rem] ${

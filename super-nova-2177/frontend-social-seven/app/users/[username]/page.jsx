@@ -1055,6 +1055,10 @@ export default function UserPostsPage() {
                 onChange={(event) => setDomainDraft(event.target.value)}
                 className="min-w-0 flex-1 bg-transparent text-[0.84rem] outline-none placeholder:text-[var(--text-gray-light)]"
                 placeholder="yourdomain.com or https://yourdomain.com"
+                inputMode="url"
+                autoComplete="url"
+                spellCheck={false}
+                aria-label="Personal domain URL"
               />
             </div>
             <label
@@ -1077,13 +1081,13 @@ export default function UserPostsPage() {
                 className="sr-only"
               />
               <span
-                className={`relative h-6 w-11 shrink-0 rounded-full border border-[var(--horizontal-line)] ${
+                className={`relative h-6 w-11 shrink-0 rounded-full border border-[var(--horizontal-line)] transition-colors duration-200 ${
                   domainAsProfileDraft ? "bg-[var(--pink)]" : "bg-black/15"
                 }`}
                 aria-hidden="true"
               >
                 <span
-                  className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-sm ${
+                  className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-sm transition-all duration-200 ease-out ${
                     domainAsProfileDraft ? "left-[1.45rem]" : "left-1"
                   }`}
                 />
@@ -1107,8 +1111,11 @@ export default function UserPostsPage() {
                 type="button"
                 onClick={handleSaveProfileDetails}
                 disabled={profileSaveBusy}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] disabled:opacity-55"
-                aria-label="Save profile details"
+                className={`flex h-10 w-10 items-center justify-center rounded-full bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] disabled:opacity-55 ${
+                  profileSaveBusy ? "animate-pulse" : ""
+                }`}
+                aria-label={profileSaveBusy ? "Saving profile details" : "Save profile details"}
+                title={profileSaveBusy ? "Saving..." : "Save"}
               >
                 <IoCheckmark />
               </button>
