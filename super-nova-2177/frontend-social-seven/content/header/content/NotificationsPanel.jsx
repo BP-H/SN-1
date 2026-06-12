@@ -68,7 +68,7 @@ function notificationTitle(item) {
 
 export default function NotificationsPanel({ onSelect = () => {} }) {
   const { userData, isAuthenticated } = useUser();
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["header-notifications", isAuthenticated, userData?.name || ""],
     queryFn: async () => {
       const endpoint = isAuthenticated && userData?.name
@@ -102,7 +102,13 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
           </span>
         </div>
 
-        {items.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col gap-2" aria-hidden="true">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <span key={index} className="load h-14 w-full rounded-[1rem]" />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-[1rem] bg-[rgba(255,255,255,0.04)] px-4 py-4 text-[0.82rem] text-[var(--text-gray-light)]">
             No new notifications yet.
           </div>

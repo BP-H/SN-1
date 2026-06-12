@@ -70,6 +70,9 @@ function InputFields({
   const [collabNotice, setCollabNotice] = useState("");
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
   const [publishProgress, setPublishProgress] = useState(null);
+  const [optimizingCount, setOptimizingCount] = useState(0);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const dragDepthRef = useRef(0);
   const textAreaRef = useRef(null);
   const imageInputRef = useRef(null);
   const addImagesInputRef = useRef(null);
@@ -263,6 +266,7 @@ function InputFields({
     const append = Boolean(options.append && mediaType === "image" && selectedFiles.length > 0);
     const baseFiles = append ? selectedFiles : [];
     setErrorMsg([]);
+    setOptimizingCount(imageFiles.length);
     try {
       const compressionOptions = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
       const compressedFiles = await Promise.all(
@@ -280,6 +284,8 @@ function InputFields({
         layout: mediaLayout,
         previewIndex: append ? baseFiles.length : 0,
       });
+    } finally {
+      setOptimizingCount(0);
     }
   };
 
@@ -289,6 +295,76 @@ function InputFields({
     setSelectedFiles([]);
     setMediaType("video");
     setMediaValue(fileObj.name);
+  };
+
+  /* Shared media ingestion for the picker, drag-and-drop, and paste. */
+  const ingestMediaFiles = async (files) => {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const videoFiles = files.filter((file) => file.type.startsWith("video/"));
+    if (imageFiles.length > 0 && videoFiles.length > 0) {
+      setErrorMsg([t("composer.chooseEitherImagesOrVideo")]);
+      return;
+    }
+    if (videoFiles.length > 1) {
+      setErrorMsg([t("composer.chooseOneVideo")]);
+      return;
+    }
+    if (videoFiles.length > 0) {
+      applyVideoFile(videoFiles[0]);
+    } else if (imageFiles.length > 0) {
+      await applyImageFiles(imageFiles, { append: mediaType === "image" });
+    } else {
+      setErrorMsg([t("composer.chooseImageOrVideo")]);
+    }
+  };
+
+  const dragHasFiles = (event) =>
+    Array.from(event.dataTransfer?.types || []).includes("Files");
+
+  const handleDragEnter = (event) => {
+    if (!dragHasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragActive(true);
+  };
+
+  const handleDragOver = (event) => {
+    if (!dragHasFiles(event)) return;
+    event.preventDefault();
+  };
+
+  const handleDragLeave = (event) => {
+    if (!dragHasFiles(event)) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragActive(false);
+  };
+
+  const handleDrop = async (event) => {
+    if (!dragHasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDragActive(false);
+    if (!isAuthenticated) {
+      requireAccount(t("composer.signInBeforeMedia"));
+      return;
+    }
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (files.length) await ingestMediaFiles(files);
+  };
+
+  const handlePaste = async (event) => {
+    const items = Array.from(event.clipboardData?.items || []);
+    const imageFiles = items
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    if (!isAuthenticated) {
+      requireAccount(t("composer.signInBeforeMedia"));
+      return;
+    }
+    await applyImageFiles(imageFiles, { append: mediaType === "image" });
   };
 
   const handleFileChange = async (event, type) => {
@@ -302,25 +378,7 @@ function InputFields({
     if (files.length === 0) return;
 
     if (type === "media") {
-      const imageFiles = files.filter((file) => file.type.startsWith("image/"));
-      const videoFiles = files.filter((file) => file.type.startsWith("video/"));
-      if (imageFiles.length > 0 && videoFiles.length > 0) {
-        setErrorMsg([t("composer.chooseEitherImagesOrVideo")]);
-        event.target.value = null;
-        return;
-      }
-      if (videoFiles.length > 1) {
-        setErrorMsg([t("composer.chooseOneVideo")]);
-        event.target.value = null;
-        return;
-      }
-      if (videoFiles.length > 0) {
-        applyVideoFile(videoFiles[0]);
-      } else if (imageFiles.length > 0) {
-        await applyImageFiles(imageFiles, { append: mediaType === "image" });
-      } else {
-        setErrorMsg([t("composer.chooseImageOrVideo")]);
-      }
+      await ingestMediaFiles(files);
     } else if (type === "image") {
       const imageFiles = files.filter((file) => file.type.startsWith("image/"));
       if (imageFiles.length === 0) {
@@ -983,7 +1041,18 @@ function InputFields({
     }
 
     return (
-    <div className="flex flex-col gap-3 text-[var(--text-black)]">
+    <div
+      className="relative flex flex-col gap-3 text-[var(--text-black)]"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragActive && (
+        <div className="composer-drop-overlay" aria-hidden="true">
+          Drop to attach
+        </div>
+      )}
       <div className="relative">
         <textarea
           ref={textAreaRef}
@@ -994,8 +1063,9 @@ function InputFields({
             mentionAutocomplete.trackCaret(event.currentTarget);
           }}
           onClick={(event) => mentionAutocomplete.trackCaret(event.currentTarget)}
+          onPaste={handlePaste}
           onKeyDown={(event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !mutation.isPending) {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !mutation.isPending && !optimizingCount) {
               event.preventDefault();
               publish();
               return;
@@ -1125,6 +1195,13 @@ function InputFields({
 
       {renderMediaPreview()}
 
+      {optimizingCount > 0 && (
+        <div className="composer-optimizing-note" role="status">
+          <span className="composer-optimizing-dot" aria-hidden="true" />
+          Optimizing {optimizingCount === 1 ? "photo" : `${optimizingCount} photos`}...
+        </div>
+      )}
+
       <div className="flex flex-nowrap items-center justify-between gap-1.5 text-[0.78rem]">
         <div className="flex min-w-0 shrink-0 items-center gap-1">
           {userAvatar ? (
@@ -1201,10 +1278,10 @@ function InputFields({
           <button
             type="button"
             onClick={publish}
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || optimizingCount > 0}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--pink)] font-semibold text-white shadow-[var(--shadow-pink)] transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:scale-100"
-            aria-label={mutation.isPending ? t("composer.publishing") : t("composer.post")}
-            title={mutation.isPending ? t("composer.publishing") : t("composer.post")}
+            aria-label={mutation.isPending ? t("composer.publishing") : optimizingCount > 0 ? "Optimizing photos" : t("composer.post")}
+            title={mutation.isPending ? t("composer.publishing") : optimizingCount > 0 ? "Optimizing photos..." : t("composer.post")}
           >
             <IoSend className="text-[1.05rem]" />
           </button>

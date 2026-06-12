@@ -33,6 +33,14 @@
   --neon-blue: #5e8dfa;
   --scrollbar-thumb: rgba(255, 255, 255, 0.16);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+  /* Shared scales for new work; existing values migrate incrementally. */
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.35rem;
+  --radius-pill: 999px;
+  --duration-fast: 0.12s;
+  --duration-base: 0.18s;
+  --duration-slow: 0.26s;
   --shell-max: 27rem;
   --shell-gutter: 0.75rem;
   --shell-inner: calc(var(--shell-max) - 1rem);
@@ -6873,5 +6881,69 @@ html[data-theme="light"] ::selection {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Composer drag-and-drop + image-optimization feedback. */
+
+.composer-drop-overlay {
+  position: absolute;
+  inset: -0.3rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed color-mix(in srgb, var(--pink) 65%, transparent);
+  background: color-mix(in srgb, var(--pink) 10%, rgba(5, 7, 10, 0.78));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: var(--text-black);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  animation: fadeSlideIn var(--duration-base) ease-out;
+}
+
+html[data-theme="light"] .composer-drop-overlay {
+  background: color-mix(in srgb, var(--pink) 8%, rgba(255, 255, 255, 0.84));
+}
+
+.composer-optimizing-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--horizontal-line);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-gray-light);
+}
+
+html[data-theme="light"] .composer-optimizing-note {
+  background: rgba(17, 24, 39, 0.045);
+}
+
+.composer-optimizing-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--pink);
+  animation: composerOptimizingPulse 1s ease-in-out infinite;
+}
+
+@keyframes composerOptimizingPulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
   }
 }

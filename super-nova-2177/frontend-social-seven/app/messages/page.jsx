@@ -566,7 +566,12 @@ export default function MessagesPage() {
               >
                 {threadQuery.isLoading ? (
                   Array.from({ length: 5 }).map((_, index) => (
-                    <span key={index} className="load h-10 w-3/4 rounded-[1rem]" />
+                    <span
+                      key={index}
+                      className={`load h-10 rounded-[1rem] ${
+                        index % 2 ? "w-1/2 self-end" : "w-3/4 self-start"
+                      }`}
+                    />
                   ))
                 ) : threadQuery.isError ? (
                   <div className="m-auto max-w-[18rem] text-center text-[0.84rem] font-semibold leading-5 text-[var(--pink)]">
@@ -622,6 +627,12 @@ export default function MessagesPage() {
                   onChange={(event) => setDraft(event.target.value)}
                   onFocus={() => setComposerFocused(true)}
                   onBlur={() => setComposerFocused(false)}
+                  onKeyDown={(event) => {
+                    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                      event.preventDefault();
+                      if (draft.trim() && selectedPeer && !sendMutation.isPending) sendMutation.mutate();
+                    }
+                  }}
                   placeholder={`Message ${selectedPeer}`}
                   rows={1}
                   className="composer-textarea max-h-32 min-h-11 flex-1 resize-none overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.045] px-3 py-2.5 text-[0.88rem] outline-none placeholder:text-[var(--text-gray-light)]"
