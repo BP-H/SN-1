@@ -51,6 +51,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
   const [pendingAiOpen, setPendingAiOpen] = useState(false);
+  const [pendingDroppedFiles, setPendingDroppedFiles] = useState(null);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const { inputRef } = useContext(SearchInputContext);
@@ -79,6 +80,15 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
       return;
     }
     setPendingAiOpen(true);
+    setDiscard(false);
+  };
+
+  const openComposerWithFiles = (files) => {
+    if (!isAuthenticated) {
+      requireAccount(t("composer.signInAttachMedia"));
+      return;
+    }
+    setPendingDroppedFiles(files);
     setDiscard(false);
   };
 
@@ -180,6 +190,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
               onMedia={() => openComposerWithMedia("media")}
               onFile={() => openComposerWithMedia("file")}
               onAi={openComposerWithAi}
+              onDropFiles={openComposerWithFiles}
             />
           ) : (
             <InputFields
@@ -191,6 +202,8 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
               onAutoOpenConsumed={() => setPendingMediaPicker("")}
               autoOpenAi={pendingAiOpen}
               onAutoOpenAiConsumed={() => setPendingAiOpen(false)}
+              pendingFiles={pendingDroppedFiles}
+              onPendingFilesConsumed={() => setPendingDroppedFiles(null)}
               refetchPosts={refetch}
             />
           )}

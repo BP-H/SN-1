@@ -47,6 +47,8 @@ function InputFields({
   autoFocus = false,
   autoOpenMediaType = "",
   onAutoOpenConsumed,
+  pendingFiles = null,
+  onPendingFilesConsumed,
   autoOpenAi = false,
   onAutoOpenAiConsumed,
 }) {
@@ -174,6 +176,13 @@ function InputFields({
     textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > viewportMax ? "auto" : "hidden";
   }, [text]);
+
+  /* Files dropped on the collapsed bar arrive here once the composer opens. */
+  useEffect(() => {
+    if (!pendingFiles?.length) return;
+    onPendingFilesConsumed?.();
+    ingestMediaFiles(Array.from(pendingFiles));
+  }, [pendingFiles, onPendingFilesConsumed]);
 
   useEffect(() => {
     if (!autoOpenMediaType) return;

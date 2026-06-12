@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import {
   IoDocumentTextOutline,
   IoImageOutline,
@@ -18,13 +19,52 @@ export default function CollapsedComposerBar({
   onMedia,
   onFile,
   onAi,
+  onDropFiles,
 }) {
   const { t } = useI18n();
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  const dragDepthRef = useRef(0);
   const avatarInitials = String(avatarFallback || "SN").slice(0, 2).toUpperCase();
   const promptLabel = prompt || t("composer.postPrompt");
 
+  const dragHasFiles = (event) =>
+    Array.from(event.dataTransfer?.types || []).includes("Files");
+
+  const handleDragEnter = (event) => {
+    if (!onDropFiles || !dragHasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDropTarget(true);
+  };
+
+  const handleDragOver = (event) => {
+    if (!onDropFiles || !dragHasFiles(event)) return;
+    event.preventDefault();
+  };
+
+  const handleDragLeave = (event) => {
+    if (!onDropFiles || !dragHasFiles(event)) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDropTarget(false);
+  };
+
+  const handleDrop = (event) => {
+    if (!onDropFiles || !dragHasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDropTarget(false);
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (files.length) onDropFiles(files);
+  };
+
   return (
-    <div className="composer-collapsed-bar">
+    <div
+      className={`composer-collapsed-bar ${isDropTarget ? "composer-collapsed-drop" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {avatarSrc ? (
         <img
           src={avatarSrc}
