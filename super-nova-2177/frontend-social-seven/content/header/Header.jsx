@@ -125,6 +125,16 @@ export default function Header({
     };
   }, []);
 
+  /* Escape closes the notifications dropdown. */
+  useEffect(() => {
+    if (!showNotifications) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setShowNotifications(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showNotifications]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     setSeenActivityIds(loadSeenActivityIds(activityStorageKey));

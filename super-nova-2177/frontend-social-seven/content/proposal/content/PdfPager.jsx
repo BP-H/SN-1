@@ -127,7 +127,7 @@ export default function PdfPager({ src, title = "PDF preview", compact = false }
       </object>
 
       <div className="pointer-events-none absolute inset-x-0 top-2 flex items-center justify-center">
-        <span className="rounded-full bg-black/55 px-2.5 py-1 text-[0.68rem] font-semibold text-white backdrop-blur">
+        <span className="rounded-full bg-black/55 px-2.5 py-1 text-[0.68rem] font-semibold tabular-nums text-white backdrop-blur">
           Page {page}{pageCount ? `/${pageCount}` : ""}
         </span>
       </div>
