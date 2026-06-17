@@ -2343,8 +2343,10 @@ html[data-theme="light"] .vote-weight-cursor::before {
     place-items: center;
     padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
     background: rgba(0, 0, 0, 0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    /* 8px reads the same through a 72%-black overlay as the old 12px but is
+       cheaper to raster on the fade-in frame. */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: fadeSlideIn 0.18s ease-out;
   }
 
@@ -2384,6 +2386,11 @@ html[data-theme="light"] .vote-weight-cursor::before {
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
     padding: 0.55rem 0.55rem 0.6rem;
     animation: voteModalIn 0.22s cubic-bezier(0.2, 0.85, 0.25, 1);
+    /* Card only exists in the DOM while the modal is open, so hinting the
+       compositor here is naturally scoped: the open/close animation and the
+       swipe-to-dismiss drag both stay on the GPU instead of repainting. */
+    will-change: transform;
+    backface-visibility: hidden;
   }
 
   .vote-modal-chrome {
@@ -3104,8 +3111,12 @@ html[data-theme="light"] .composer-collapsed-prompt {
   background:
     radial-gradient(circle at 14% 12%, rgba(255, 79, 143, 0.13), transparent 42%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)) !important;
-  backdrop-filter: blur(18px) saturate(1.18) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(1.18) !important;
+  /* The glass surface sits at ~94% opacity over the card's near-opaque
+     background, so a live backdrop-filter blur was invisible yet forced a full
+     re-rasterization on every transform frame (open/close + sheet drag). Drop
+     it: identical look, compositor-only animation. */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   filter: none !important;
 }
 
