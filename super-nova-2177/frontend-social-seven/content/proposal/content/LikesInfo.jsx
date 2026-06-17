@@ -205,12 +205,12 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
               </span>
             </div>
             {/* Three equal-weight voices: each species owns one slot (the 33%
-                rule made visual) and fills it with its own approval. The marker
-                shows where the weighted total lands. */}
+                rule made visual) and fills it with its own internal approval.
+                The combined weighted total gets its own bar below. */}
             <div
               className="vote-weight-bar mx-3 mb-1"
               role="img"
-              aria-label={`Weighted approval ${overallApproval}%. ${WEIGHTED_SPECIES.map((option) => {
+              aria-label={`Approval by voice: ${WEIGHTED_SPECIES.map((option) => {
                 const entry = counts.bySpecies[option.key];
                 return entry.total
                   ? `${option.label} ${Math.round(entry.internalPercent)}% support`
@@ -239,11 +239,24 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                   </span>
                 );
               })}
-              <span
-                className="vote-weight-cursor"
-                style={{ left: `${Math.min(counts.supportPercent, 100)}%` }}
-                aria-hidden="true"
-              />
+            </div>
+            {/* Weighted total on its own honest 0–100 axis — the three voices
+                above combine into this; abstaining voices keep it from 100. */}
+            <div className="vote-weight-total mx-3 mb-1">
+              <div
+                className="vote-weight-total-track"
+                role="img"
+                aria-label={`Weighted total approval ${overallApproval} percent`}
+              >
+                <div
+                  className="vote-weight-total-fill"
+                  style={{
+                    width: `${Math.min(counts.supportPercent, 100)}%`,
+                    background: `linear-gradient(90deg, ${SLIDER_BLUE} 0%, ${getSliderColor(counts.supportPercent)} 100%)`,
+                  }}
+                />
+              </div>
+              <span className="vote-weight-total-value tabular-nums">{overallApproval}%</span>
             </div>
             <p className="mb-1 text-center text-[0.66rem] tabular-nums text-[var(--text-gray-light)]">
               {totalVotes} total vote{totalVotes !== 1 ? "s" : ""} &middot; Each species carries 33% weight

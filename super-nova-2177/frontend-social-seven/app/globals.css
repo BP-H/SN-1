@@ -1628,32 +1628,36 @@ html[data-theme="light"] .composer-governance-button.active {
   transition: width 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.vote-weight-cursor {
-  position: absolute;
-  top: -0.14rem;
-  bottom: -0.14rem;
-  width: 1.5px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow:
-    0 0 5px color-mix(in srgb, var(--pink) 60%, transparent),
-    0 0 11px color-mix(in srgb, var(--pink) 28%, transparent);
-  transition: left 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
-  pointer-events: none;
+/* Weighted total: the three voices above combine into one value, shown on its
+   own honest 0–100 axis (separate strip, not overlaid on the lanes). */
+.vote-weight-total {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.vote-weight-cursor::before {
-  content: "";
-  position: absolute;
-  top: -0.12rem;
-  left: 50%;
-  width: 0.36rem;
-  height: 0.36rem;
-  transform: translateX(-50%);
+.vote-weight-total-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 0.3rem;
+  overflow: hidden;
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--pink) 55%, transparent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.vote-weight-total-fill {
+  height: 100%;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: width 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.vote-weight-total-value {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-gray-light);
 }
 
 html[data-theme="light"] .vote-weight-seg {
@@ -1677,13 +1681,8 @@ html[data-theme="light"] .vote-weight-seg[data-abstained="true"] {
   box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.07);
 }
 
-html[data-theme="light"] .vote-weight-cursor {
-  background: rgba(25, 30, 48, 0.82);
-}
-
-html[data-theme="light"] .vote-weight-cursor::before {
-  background: var(--pink);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--pink) 40%, transparent);
+html[data-theme="light"] .vote-weight-total-track {
+  background: rgba(17, 24, 39, 0.08);
 }
 
 .vote-info-filter-grid,
