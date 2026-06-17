@@ -21,6 +21,9 @@ const CHOICE_OPTIONS = [
   { key: "yes", label: "Yes" },
   { key: "no", label: "No" },
 ];
+/* Real voting species in fixed order (drops the "all" filter pseudo-option) —
+   feeds the weighted composition bar. */
+const WEIGHTED_SPECIES = SPECIES_OPTIONS.filter((option) => option.key !== "all");
 
 function normalizeSpecies(value) {
   const species = String(value || "human").toLowerCase();
@@ -201,13 +204,45 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
                 {overallApproval}%
               </span>
             </div>
-            <div className="vote-info-track mx-3 mb-1 h-1 rounded-full">
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${Math.min(counts.supportPercent, 100)}%`,
-                  background: `linear-gradient(90deg, ${SLIDER_BLUE} 0%, ${getSliderColor(counts.supportPercent)} 100%)`,
-                }}
+            {/* Three equal-weight voices: each species owns one slot (the 33%
+                rule made visual) and fills it with its own approval. The marker
+                shows where the weighted total lands. */}
+            <div
+              className="vote-weight-bar mx-3 mb-1"
+              role="img"
+              aria-label={`Weighted approval ${overallApproval}%. ${WEIGHTED_SPECIES.map((option) => {
+                const entry = counts.bySpecies[option.key];
+                return entry.total
+                  ? `${option.label} ${Math.round(entry.internalPercent)}% support`
+                  : `${option.label} no votes`;
+              }).join(", ")}.`}
+            >
+              {WEIGHTED_SPECIES.map((option) => {
+                const entry = counts.bySpecies[option.key];
+                const filled = Math.max(0, Math.min(Math.round(entry.internalPercent || 0), 100));
+                return (
+                  <span
+                    key={option.key}
+                    className="vote-weight-seg"
+                    data-species={option.key}
+                    data-abstained={entry.total === 0 ? "true" : undefined}
+                    title={
+                      entry.total
+                        ? `${option.label}: ${filled}% support (${entry.yes}/${entry.total})`
+                        : `${option.label}: no votes yet`
+                    }
+                  >
+                    <span
+                      className="vote-weight-seg-fill"
+                      style={{ width: `${filled}%`, background: speciesAccentGradient(option.key) }}
+                    />
+                  </span>
+                );
+              })}
+              <span
+                className="vote-weight-cursor"
+                style={{ left: `${Math.min(counts.supportPercent, 100)}%` }}
+                aria-hidden="true"
               />
             </div>
             <p className="mb-1 text-center text-[0.66rem] tabular-nums text-[var(--text-gray-light)]">
