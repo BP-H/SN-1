@@ -1586,6 +1586,60 @@ html[data-theme="light"] .composer-governance-button.active {
   pointer-events: none;
 }
 
+/* ---- "View N replies" / "Hide replies" toggle (YouTube-style) ----------- */
+.comment-thread-toggle-row {
+  position: relative;
+  margin-top: 0.15rem;
+  padding-left: 2.4rem;
+}
+
+/* Collapsed: a short rounded connector tucks into the toggle, hinting at the
+   hidden thread (matches YouTube's curved "view replies" stub). */
+.comment-thread-toggle-row[data-collapsed="true"]::before {
+  content: "";
+  position: absolute;
+  left: 1.125rem;
+  top: 0.05rem;
+  width: 1.15rem;
+  height: 0.85rem;
+  border-left: 1px solid var(--thread-line-strong);
+  border-bottom: 1px solid var(--thread-line-strong);
+  border-bottom-left-radius: 0.7rem;
+  pointer-events: none;
+}
+
+.comment-thread-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.85rem;
+  padding: 0.1rem 0.7rem 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--blue);
+  background: transparent;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.comment-thread-toggle:hover,
+.comment-thread-toggle:focus-visible {
+  background: color-mix(in srgb, var(--blue) 13%, transparent);
+}
+
+.comment-thread-toggle:active {
+  transform: scale(0.97);
+}
+
+.comment-thread-toggle-chevron {
+  font-size: 0.95rem;
+  transition: transform 0.2s ease;
+}
+
+.comment-thread-toggle-chevron.is-open {
+  transform: rotate(180deg);
+}
+
 .comment-action-icon {
   position: relative;
   display: inline-flex;

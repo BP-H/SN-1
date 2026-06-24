@@ -141,6 +141,9 @@ function ProposalCard({
   const [localLogo, setLocalLogo] = useState(logo || "");
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
+  // Top-level reply threads collapse behind a "View N replies" toggle (YouTube
+  // style). This holds the ids of the threads the viewer has expanded.
+  const [expandedThreads, setExpandedThreads] = useState(() => new Set());
   const [aiCommentFocus, setAiCommentFocus] = useState("");
   const [aiCommentParentId, setAiCommentParentId] = useState(null);
   const [localUserName, setLocalUserName] = useState(userName || "");
@@ -154,6 +157,7 @@ function ProposalCard({
   const [aiActionModalMode, setAiActionModalMode] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
+  const pendingHashCommentRef = useRef("");
 
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
@@ -318,6 +322,14 @@ function ProposalCard({
       }
     });
 
+    const countDescendants = (key) => {
+      const kids = children.get(key) || [];
+      return kids.reduce((sum, child) => {
+        const childKey = child.comment?.id == null ? "" : String(child.comment.id);
+        return sum + 1 + (childKey ? countDescendants(childKey) : 0);
+      }, 0);
+    };
+
     const ordered = [];
     // Carry lineage hints so the thread rail knows where to stop. Ancestor rail
     // depths keep an outer reply spine visible while a nested child is rendered.
@@ -325,13 +337,21 @@ function ProposalCard({
       const renderDepth = Math.min(depth, 2);
       const key = item.comment?.id == null ? "" : String(item.comment.id);
       const kids = children.get(key) || [];
+      // Only top-level comments collapse, and a single toggle reveals the whole
+      // reply subtree at once (YouTube reveals every reply on one click).
+      const collapsible = depth === 0 && kids.length > 0;
+      const isCollapsed = collapsible && Boolean(key) && !expandedThreads.has(key);
       ordered.push({
         ...item,
         depth: renderDepth,
         isLastChild,
         hasChildren: kids.length > 0,
         ancestorRailDepths,
+        collapsed: isCollapsed,
+        replyCount: collapsible ? countDescendants(key) : 0,
       });
+      // Collapsed threads stop here, so lineage stays correct for what renders.
+      if (isCollapsed) return;
       const childAncestorRailDepths =
         renderDepth > 0 && !isLastChild
           ? [...ancestorRailDepths, renderDepth]
@@ -342,7 +362,87 @@ function ProposalCard({
     };
     roots.forEach((item, rootIndex) => visit(item, 0, rootIndex === roots.length - 1));
     return ordered;
-  }, [commentsById, localComments]);
+  }, [commentsById, localComments, expandedThreads]);
+
+  const handleToggleThread = (commentId) => {
+    const key = commentId == null ? "" : String(commentId);
+    if (!key) return;
+    setExpandedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Walk up to the top-level comment so replying to a nested comment opens the
+  // whole thread (otherwise the new reply would land inside a collapsed thread).
+  const rootCommentIdOf = (commentId) => {
+    let current = commentId == null ? null : commentsById.get(String(commentId));
+    let safety = 0;
+    while (current && current.parent_comment_id != null && safety < 64) {
+      const parent = commentsById.get(String(current.parent_comment_id));
+      if (!parent) break;
+      current = parent;
+      safety += 1;
+    }
+    return current?.id ?? null;
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const getHashCommentId = () => {
+      const hash = window.location.hash || "";
+      if (!hash.startsWith("#comment-")) return "";
+      try {
+        return decodeURIComponent(hash.slice("#comment-".length));
+      } catch {
+        return hash.slice("#comment-".length);
+      }
+    };
+
+    const revealHashComment = () => {
+      const targetId = getHashCommentId();
+      if (!targetId || !commentsById.has(String(targetId))) return;
+      pendingHashCommentRef.current = String(targetId);
+      setShowComments(true);
+      const rootId = rootCommentIdOf(targetId);
+      if (rootId == null) return;
+      setExpandedThreads((prev) => {
+        const key = String(rootId);
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    };
+
+    revealHashComment();
+    window.addEventListener("hashchange", revealHashComment);
+    return () => window.removeEventListener("hashchange", revealHashComment);
+  }, [commentsById]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return undefined;
+    const targetId = pendingHashCommentRef.current;
+    if (!targetId) return undefined;
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const target = document.getElementById(`comment-${targetId}`);
+        if (!target) return;
+        pendingHashCommentRef.current = "";
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [threadedComments]);
 
   const getFullImageUrl = (url) => {
     const value = normalizeAvatarValue(url);
@@ -990,7 +1090,12 @@ function ProposalCard({
           onReply={(target) => {
             setReplyTarget(target);
             setShowComments(true);
+            const rootId = rootCommentIdOf(target?.id);
+            if (rootId != null) {
+              setExpandedThreads((prev) => new Set(prev).add(String(rootId)));
+            }
           }}
+          onToggleThread={handleToggleThread}
           proposalId={id}
           replyTarget={replyTarget}
           setErrorMsg={setErrorMsg}
