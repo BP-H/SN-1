@@ -125,8 +125,11 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
       setLikes(likesData || []);
       setDislikes(dislikesData || []);
       setError("");
-      return;
+      return undefined;
     }
+
+    // Guard against a slow response for a stale proposalId overwriting newer state.
+    let cancelled = false;
 
     async function fetchVotes() {
       if (!backendUrl) {
@@ -137,20 +140,25 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
       try {
         setError("");
         const response = await fetch(`${backendUrl}/proposals/${proposalId}`);
+        if (cancelled) return;
         if (!response.ok) {
           setError(`Failed to load proposal: ${response.status} ${response.statusText}`);
           return;
         }
 
         const data = await response.json();
+        if (cancelled) return;
         setLikes(data.likes || []);
         setDislikes(data.dislikes || []);
       } catch (err) {
-        setError(`Failed to fetch vote details: ${err.message}`);
+        if (!cancelled) setError(`Failed to fetch vote details: ${err.message}`);
       }
     }
 
     fetchVotes();
+    return () => {
+      cancelled = true;
+    };
   }, [backendUrl, proposalId, likesData, dislikesData]);
 
   const counts = useMemo(() => buildWeightedVoteSummary(likes, dislikes), [likes, dislikes]);
