@@ -42,6 +42,8 @@ function DisplayComments({
   onAskAi = () => {},
   replyingToName = "",
   depth = 0,
+  isLastChild = true,
+  hasChildren = false,
   deleting = false,
   setErrorMsg = () => {},
   setNotify = () => {},
@@ -77,8 +79,12 @@ function DisplayComments({
   const imageUrl = normalizeAvatarValue(image) ? avatarDisplayUrl(image) : "";
   const avatarStyle = speciesAvatarStyle(species);
   const profileHref = name ? `/users/${encodeURIComponent(name)}` : "/profile";
-  const depthOffsetStyle = depth
-    ? { marginLeft: `${Math.min(depth, 2) * 0.85}rem`, width: `calc(100% - ${Math.min(depth, 2) * 0.85}rem)` }
+  // Reply indent. Wider than before so the thread rail has a clean gutter to the
+  // left of the avatar (the YouTube-style connector lives in this space).
+  const renderDepth = Math.min(depth, 2);
+  const indentRem = renderDepth * 1.75;
+  const depthOffsetStyle = renderDepth
+    ? { marginLeft: `${indentRem}rem`, width: `calc(100% - ${indentRem}rem)` }
     : undefined;
   const isSelf = Boolean(
     name && userData?.name && String(name).toLowerCase() === String(userData.name).toLowerCase()
@@ -370,9 +376,15 @@ function DisplayComments({
   return (
     <>
     <div
+      className="comment-thread-item"
+      data-depth={renderDepth || undefined}
+      data-last-child={renderDepth && isLastChild ? "true" : undefined}
+      data-has-children={hasChildren ? "true" : undefined}
+      style={depthOffsetStyle}
+    >
+    <div
       id={commentId ? `comment-${commentId}` : undefined}
       className="comment-row flex w-full min-w-0 items-start gap-2"
-      style={depthOffsetStyle}
     >
       {isDeleted ? (
         <div className="shrink-0" aria-hidden="true">
@@ -480,7 +492,7 @@ function DisplayComments({
       </div>
     </div>
     {!isDeleted && (
-      <div className="comment-inline-actions flex w-full min-w-0" style={depthOffsetStyle}>
+      <div className="comment-inline-actions flex w-full min-w-0">
         <div className="ml-11 flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
@@ -537,12 +549,13 @@ function DisplayComments({
       </div>
     )}
     {children && (
-      <div className="comment-inline-reply flex w-full min-w-0" style={depthOffsetStyle}>
+      <div className="comment-inline-reply flex w-full min-w-0">
         <div className="ml-11 min-w-0 flex-1">
           {children}
         </div>
       </div>
     )}
+    </div>
     {menuPanel}
     </>
   );

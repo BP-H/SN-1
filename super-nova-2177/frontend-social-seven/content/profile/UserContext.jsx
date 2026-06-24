@@ -637,6 +637,21 @@ export function UserProvider({ children }) {
       throw new Error("Enter your email or username.");
     }
     const redirectBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+    // When Supabase is configured and we have an email, send the reset through
+    // Supabase (link returns to /reset-password where a recovery session lets the
+    // user set a new password). Username-only resets fall through to the backend.
+    const looksLikeEmail = /.+@.+\..+/.test(cleanIdentifier);
+    if (isSupabaseConfigured && supabase && looksLikeEmail) {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanIdentifier, {
+        redirectTo: redirectBaseUrl ? `${redirectBaseUrl}/reset-password` : undefined,
+      });
+      if (error) {
+        throw new Error(error.message || "Unable to request password reset.");
+      }
+      return { email_configured: true, provider: "supabase" };
+    }
+
     const response = await fetch(`${API_BASE_URL}/auth/password-reset/request`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -319,12 +319,17 @@ function ProposalCard({
     });
 
     const ordered = [];
-    const visit = (item, depth = 0) => {
-      ordered.push({ ...item, depth });
+    // Carry lineage hints so the thread rail knows where to stop: `isLastChild`
+    // ends the vertical line at this reply's elbow; `hasChildren` keeps it going.
+    const visit = (item, depth = 0, isLastChild = true) => {
       const key = item.comment?.id == null ? "" : String(item.comment.id);
-      (children.get(key) || []).forEach((child) => visit(child, Math.min(depth + 1, 2)));
+      const kids = children.get(key) || [];
+      ordered.push({ ...item, depth, isLastChild, hasChildren: kids.length > 0 });
+      kids.forEach((child, childIndex) =>
+        visit(child, Math.min(depth + 1, 2), childIndex === kids.length - 1)
+      );
     };
-    roots.forEach((item) => visit(item, 0));
+    roots.forEach((item, rootIndex) => visit(item, 0, rootIndex === roots.length - 1));
     return ordered;
   }, [commentsById, localComments]);
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { IoShieldCheckmarkOutline } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
+import supabase, { isSupabaseConfigured } from "@/supabaseClient";
 
 export default function ResetPasswordClient() {
   const searchParams = useSearchParams();
@@ -13,6 +14,27 @@ export default function ResetPasswordClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // When the user arrives from a Supabase reset email, supabaseClient's
+  // detectSessionInUrl parses the recovery token and opens a session — that's our
+  // cue to finish the reset through Supabase instead of the backend code flow.
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return undefined;
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active && data?.session) setHasRecoverySession(true);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || session) setHasRecoverySession(true);
+    });
+    return () => {
+      active = false;
+      subscription?.unsubscribe?.();
+    };
+  }, []);
 
   const openSignIn = () => {
     if (typeof window === "undefined") return;
@@ -23,11 +45,13 @@ export default function ResetPasswordClient() {
   const passwordTooShort = password.length > 0 && password.length < 6;
   const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
+  const useSupabaseRecovery = isSupabaseConfigured && supabase && hasRecoverySession;
+
   const submit = async (event) => {
     event.preventDefault();
     setError("");
     setNotice("");
-    if (!code) {
+    if (!useSupabaseRecovery && !code) {
       setError("This password reset link is missing or incomplete.");
       return;
     }
@@ -41,6 +65,19 @@ export default function ResetPasswordClient() {
     }
     setBusy(true);
     try {
+      if (useSupabaseRecovery) {
+        // Supabase recovery session is live — set the new password directly.
+        const { error: supabaseError } = await supabase.auth.updateUser({ password });
+        if (supabaseError) {
+          throw new Error(supabaseError.message || "Unable to reset password.");
+        }
+        await supabase.auth.signOut().catch(() => {});
+        setPassword("");
+        setConfirmPassword("");
+        setNotice("Password updated. You can sign in now.");
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/auth/password-reset/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
