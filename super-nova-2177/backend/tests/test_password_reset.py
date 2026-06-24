@@ -124,6 +124,32 @@ class PasswordResetTests(unittest.TestCase):
             "https://2177.tech",
         )
 
+    def test_debug_reset_base_url_only_for_local_origin_with_flag(self):
+        # Disabled by default — no link is ever logged without the opt-in flag.
+        self.assertEqual(
+            password_reset.resolve_password_reset_debug_base_url(
+                "http://localhost:3007", environ={}
+            ),
+            "",
+        )
+        # Enabled + local origin → usable base URL for a console-logged link.
+        self.assertEqual(
+            password_reset.resolve_password_reset_debug_base_url(
+                "http://localhost:3007",
+                environ={"SUPERNOVA_PASSWORD_RESET_DEBUG_LOG": "1"},
+            ),
+            "http://localhost:3007",
+        )
+        # Enabled but a NON-local origin is refused, so prod hosts never get a
+        # logged reset link even if the flag is left on by accident.
+        self.assertEqual(
+            password_reset.resolve_password_reset_debug_base_url(
+                "https://2177.tech",
+                environ={"SUPERNOVA_PASSWORD_RESET_DEBUG_LOG": "1"},
+            ),
+            "",
+        )
+
     def test_password_reset_ttl_parser_handles_invalid_values(self):
         self.assertEqual(password_reset._safe_positive_int("120", 1800), 120)
         self.assertEqual(password_reset._safe_positive_int("", 1800), 1800)

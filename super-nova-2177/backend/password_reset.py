@@ -160,6 +160,33 @@ def resolve_password_reset_base_url(
     return candidate.rstrip("/")
 
 
+def password_reset_debug_log_enabled(*, environ: Optional[Mapping[str, str]] = None) -> bool:
+    """Local-dev opt-in: when email delivery isn't configured, the server logs the
+    reset link to the console so the flow can be tested without an email provider.
+    Off by default; never enable in production (logs would expose reset links)."""
+    return _env_bool(environ, "SUPERNOVA_PASSWORD_RESET_DEBUG_LOG", False)
+
+
+def resolve_password_reset_debug_base_url(
+    requested_base_url: str = "",
+    *,
+    environ: Optional[Mapping[str, str]] = None,
+) -> str:
+    """Base URL used only for a console-logged reset link in local development.
+
+    Returns "" unless debug logging is enabled AND the requested origin is a
+    local-dev host, so a production host can never be handed a logged reset link."""
+    if not password_reset_debug_log_enabled(environ=environ):
+        return ""
+    candidate = str(requested_base_url or "").strip()
+    if not _is_local_reset_base_url(candidate):
+        return ""
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    return candidate.rstrip("/")
+
+
 def password_reset_email_configured(
     *,
     base_url: str = "",
