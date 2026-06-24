@@ -8,6 +8,7 @@ import {
   IoArrowUndoOutline,
   IoChatbubbleOutline,
   IoCheckmark,
+  IoChevronDown,
   IoClose,
   IoCreateOutline,
   IoEllipsisHorizontal,
@@ -45,6 +46,9 @@ function DisplayComments({
   isLastChild = true,
   hasChildren = false,
   ancestorRailDepths = [],
+  collapsed = false,
+  replyCount = 0,
+  onToggleThread = () => {},
   deleting = false,
   setErrorMsg = () => {},
   setNotify = () => {},
@@ -401,7 +405,9 @@ function DisplayComments({
       />
     ))}
     {renderDepth > 0 && !isLastChild && <span className="comment-thread-sibling-rail" aria-hidden="true" />}
-    {hasChildren && renderDepth === 0 && <span className="comment-thread-child-stub" aria-hidden="true" />}
+    {hasChildren && !collapsed && renderDepth < 2 && (
+      <span className="comment-thread-child-stub" aria-hidden="true" />
+    )}
     <div
       id={commentId ? `comment-${commentId}` : undefined}
       className="comment-row flex w-full min-w-0 items-start gap-2"
@@ -566,6 +572,23 @@ function DisplayComments({
             <IoShareSocialOutline />
           </button>
         </div>
+      </div>
+    )}
+    {replyCount > 0 && (
+      <div className="comment-thread-toggle-row" data-collapsed={collapsed ? "true" : undefined}>
+        <button
+          type="button"
+          onClick={() => onToggleThread(commentId)}
+          className="comment-thread-toggle"
+          aria-expanded={!collapsed}
+        >
+          <IoChevronDown className={`comment-thread-toggle-chevron ${collapsed ? "" : "is-open"}`} />
+          <span>
+            {collapsed
+              ? `View ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`
+              : "Hide replies"}
+          </span>
+        </button>
       </div>
     )}
     {children && (
