@@ -319,14 +319,25 @@ function ProposalCard({
     });
 
     const ordered = [];
-    // Carry lineage hints so the thread rail knows where to stop: `isLastChild`
-    // ends the vertical line at this reply's elbow; `hasChildren` keeps it going.
-    const visit = (item, depth = 0, isLastChild = true) => {
+    // Carry lineage hints so the thread rail knows where to stop. Ancestor rail
+    // depths keep an outer reply spine visible while a nested child is rendered.
+    const visit = (item, depth = 0, isLastChild = true, ancestorRailDepths = []) => {
+      const renderDepth = Math.min(depth, 2);
       const key = item.comment?.id == null ? "" : String(item.comment.id);
       const kids = children.get(key) || [];
-      ordered.push({ ...item, depth, isLastChild, hasChildren: kids.length > 0 });
+      ordered.push({
+        ...item,
+        depth: renderDepth,
+        isLastChild,
+        hasChildren: kids.length > 0,
+        ancestorRailDepths,
+      });
+      const childAncestorRailDepths =
+        renderDepth > 0 && !isLastChild
+          ? [...ancestorRailDepths, renderDepth]
+          : ancestorRailDepths;
       kids.forEach((child, childIndex) =>
-        visit(child, Math.min(depth + 1, 2), childIndex === kids.length - 1)
+        visit(child, renderDepth + 1, childIndex === kids.length - 1, childAncestorRailDepths)
       );
     };
     roots.forEach((item, rootIndex) => visit(item, 0, rootIndex === roots.length - 1));
