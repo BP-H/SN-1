@@ -394,6 +394,7 @@ function DisplayComments({
       data-depth={renderDepth || undefined}
       data-last-child={renderDepth && isLastChild ? "true" : undefined}
       data-has-children={hasChildren ? "true" : undefined}
+      data-collapsed={collapsed ? "true" : undefined}
       style={depthOffsetStyle}
     >
     {ancestorRails.map(({ depth: railDepth, offsetRem }) => (
@@ -405,7 +406,7 @@ function DisplayComments({
       />
     ))}
     {renderDepth > 0 && !isLastChild && <span className="comment-thread-sibling-rail" aria-hidden="true" />}
-    {hasChildren && !collapsed && renderDepth < 2 && (
+    {hasChildren && renderDepth < 2 && (
       <span className="comment-thread-child-stub" aria-hidden="true" />
     )}
     <div

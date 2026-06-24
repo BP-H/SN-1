@@ -1526,18 +1526,20 @@ html[data-theme="light"] .composer-governance-button.active {
   --thread-elbow-height: 0.78rem;
   --thread-elbow-width: 0.72rem;
   --thread-gap-bridge: 0.5rem;
+  --thread-collapsed-toggle-join: 1.8rem;
   --thread-line: color-mix(in srgb, var(--text-gray-light) 32%, transparent);
   --thread-line-strong: color-mix(in srgb, var(--text-gray-light) 44%, transparent);
 }
 
-/* Incoming connector: reaches exactly to the top of the elbow curve. */
+/* Incoming connector: starts at this item boundary. The parent/sibling rail owns
+   the inter-item gap, so two 1px borders never stack into a thicker line. */
 .comment-thread-item[data-depth]::before {
   content: "";
   position: absolute;
   left: var(--thread-rail-x);
-  top: calc(var(--thread-gap-bridge) * -1);
+  top: 0;
   width: 0;
-  height: calc(var(--thread-elbow-y) - var(--thread-elbow-height) + var(--thread-gap-bridge));
+  height: calc(var(--thread-elbow-y) - var(--thread-elbow-height));
   border-left: 1px solid var(--thread-line-strong);
   pointer-events: none;
 }
@@ -1579,11 +1581,15 @@ html[data-theme="light"] .composer-governance-button.active {
 .comment-thread-child-stub {
   position: absolute;
   left: 1.125rem;
-  top: 2.35rem;
+  top: var(--thread-elbow-y);
   bottom: calc(var(--thread-gap-bridge) * -1);
   width: 0;
   border-left: 1px solid var(--thread-line);
   pointer-events: none;
+}
+
+.comment-thread-item[data-collapsed="true"] .comment-thread-child-stub {
+  bottom: var(--thread-collapsed-toggle-join);
 }
 
 /* ---- "View N replies" / "Hide replies" toggle (YouTube-style) ----------- */
