@@ -24,6 +24,10 @@ function getSliderColor(ratio) {
   return `color-mix(in srgb, ${SLIDER_BLUE} ${100 - pinkShare}%, var(--pink) ${pinkShare}%)`;
 }
 
+/* Voter identity is case-insensitive everywhere on the backend, so optimistic
+   list edits must match that to avoid leaving a stale duplicate of the voter. */
+const sameVoter = (a, b) => String(a || "").toLowerCase() === String(b || "").toLowerCase();
+
 function LikesDeslikes({
   initialLikes,
   initialDislikes,
@@ -45,6 +49,9 @@ function LikesDeslikes({
   const infoToggleRef = useRef(null);
   const backdropPressRef = useRef(false);
   const sheetDragRef = useRef({ startY: 0, delta: 0, dragging: false });
+  /* Guards against re-entrant votes (rapid double-click / overlapping AI action)
+     that would fire two requests and double-count the optimistic tally. */
+  const voteInFlightRef = useRef(false);
   const { userData, isAuthenticated } = useUser();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
@@ -280,47 +287,59 @@ function LikesDeslikes({
 
   const handleLikeClick = async ({ allowToggle = true } = {}) => {
     if (!validateProfile()) return;
-    if (clicked === "like") {
-      if (!allowToggle) return;
-      if (await removeVote()) {
-        setLikes((v) => Math.max(0, v - 1));
-        setLikesList((v) => v.filter((vote) => vote.voter !== userData.name));
-        setClicked(null);
+    if (voteInFlightRef.current) return;
+    voteInFlightRef.current = true;
+    try {
+      if (clicked === "like") {
+        if (!allowToggle) return;
+        if (await removeVote()) {
+          setLikes((v) => Math.max(0, v - 1));
+          setLikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
+          setClicked(null);
+        }
+        return;
       }
-      return;
-    }
-    if (clicked === "dislike") {
-      if (!(await removeVote())) return;
-      setDislikes((v) => Math.max(0, v - 1));
-      setDislikesList((v) => v.filter((vote) => vote.voter !== userData.name));
-    }
-    if (await sendVote("up")) {
-      setLikes((v) => v + 1);
-      setLikesList((v) => [...v, { voter: userData.name, type: voterType }]);
-      setClicked("like");
+      if (clicked === "dislike") {
+        if (!(await removeVote())) return;
+        setDislikes((v) => Math.max(0, v - 1));
+        setDislikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
+      }
+      if (await sendVote("up")) {
+        setLikes((v) => v + 1);
+        setLikesList((v) => [...v.filter((vote) => !sameVoter(vote.voter, userData.name)), { voter: userData.name, type: voterType }]);
+        setClicked("like");
+      }
+    } finally {
+      voteInFlightRef.current = false;
     }
   };
 
   const handleDislikeClick = async ({ allowToggle = true } = {}) => {
     if (!validateProfile()) return;
-    if (clicked === "dislike") {
-      if (!allowToggle) return;
-      if (await removeVote()) {
-        setDislikes((v) => Math.max(0, v - 1));
-        setDislikesList((v) => v.filter((vote) => vote.voter !== userData.name));
-        setClicked(null);
+    if (voteInFlightRef.current) return;
+    voteInFlightRef.current = true;
+    try {
+      if (clicked === "dislike") {
+        if (!allowToggle) return;
+        if (await removeVote()) {
+          setDislikes((v) => Math.max(0, v - 1));
+          setDislikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
+          setClicked(null);
+        }
+        return;
       }
-      return;
-    }
-    if (clicked === "like") {
-      if (!(await removeVote())) return;
-      setLikes((v) => Math.max(0, v - 1));
-      setLikesList((v) => v.filter((vote) => vote.voter !== userData.name));
-    }
-    if (await sendVote("down")) {
-      setDislikes((v) => v + 1);
-      setDislikesList((v) => [...v, { voter: userData.name, type: voterType }]);
-      setClicked("dislike");
+      if (clicked === "like") {
+        if (!(await removeVote())) return;
+        setLikes((v) => Math.max(0, v - 1));
+        setLikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
+      }
+      if (await sendVote("down")) {
+        setDislikes((v) => v + 1);
+        setDislikesList((v) => [...v.filter((vote) => !sameVoter(vote.voter, userData.name)), { voter: userData.name, type: voterType }]);
+        setClicked("dislike");
+      }
+    } finally {
+      voteInFlightRef.current = false;
     }
   };
 
