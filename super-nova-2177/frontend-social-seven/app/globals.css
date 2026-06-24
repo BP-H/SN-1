@@ -1513,6 +1513,66 @@ html[data-theme="light"] .composer-governance-button.active {
   margin-top: 0.35rem;
 }
 
+/* ---- Threaded-comment connector rail (YouTube-style) --------------------
+   Each comment (row + actions + inline reply) is wrapped in .comment-thread-item.
+   Replies carry data-depth (1–2) and are indented 1.75rem per level by
+   DisplayComments, leaving a clean gutter on the left where we draw a vertical
+   spine + a curved elbow into the avatar so "who replied to whom" is trackable.
+   Geometry: the avatar (2.25rem, top-aligned) has its centre 1.125rem down; the
+   gutter line lands at a constant -0.65rem from each reply's left edge because
+   the indent step (1.75rem) and avatar centre are the same at every level. */
+.comment-thread-item {
+  position: relative;
+  --thread-rail-x: -0.65rem;
+  --thread-elbow-y: 1.125rem;
+  --thread-line: color-mix(in srgb, var(--text-gray-light) 36%, transparent);
+}
+
+/* Vertical spine: ties this reply to the one above and continues to the next
+   sibling. Bridges the 0.5rem list gap on each side so a run reads as one line. */
+.comment-thread-item[data-depth]::before {
+  content: "";
+  position: absolute;
+  left: var(--thread-rail-x);
+  top: -0.3rem;
+  width: 0;
+  height: calc(100% + 0.6rem);
+  border-left: 1.5px solid var(--thread-line);
+  pointer-events: none;
+}
+
+/* Last child of a thread: stop the spine at its own elbow. */
+.comment-thread-item[data-depth][data-last-child="true"]::before {
+  height: calc(var(--thread-elbow-y) + 0.3rem);
+}
+
+/* Curved elbow from the spine into the avatar. */
+.comment-thread-item[data-depth]::after {
+  content: "";
+  position: absolute;
+  left: var(--thread-rail-x);
+  top: calc(var(--thread-elbow-y) - 0.7rem);
+  width: 0.65rem;
+  height: 0.7rem;
+  border-left: 1.5px solid var(--thread-line);
+  border-bottom: 1.5px solid var(--thread-line);
+  border-bottom-left-radius: 0.6rem;
+  pointer-events: none;
+}
+
+/* Top-level comment that has replies: drop a short stub from under its avatar so
+   the reply rail visibly hangs from the parent (the common, most-visible case). */
+.comment-thread-item[data-has-children]:not([data-depth])::after {
+  content: "";
+  position: absolute;
+  left: 1.1rem;
+  top: 2.25rem;
+  bottom: -0.3rem;
+  width: 0;
+  border-left: 1.5px solid var(--thread-line);
+  pointer-events: none;
+}
+
 .comment-action-icon {
   position: relative;
   display: inline-flex;
@@ -1566,10 +1626,16 @@ html[data-theme="light"] .composer-governance-button.active {
   color: var(--text-black);
 }
 
-.vote-info-header,
-.vote-info-row {
+.vote-info-header {
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Species rows read as a quiet list (faint fill, no border) rather than three
+   stacked cards — the active row still lifts via .vote-info-row-active. */
+.vote-info-row {
+  background: rgba(255, 255, 255, 0.022);
+  border: 1px solid transparent;
 }
 
 .vote-info-icon {
@@ -3229,10 +3295,14 @@ html[data-theme="light"] .vote-info-content .text-\[var\(--text-gray-light\)\] {
   color: #6f768b !important;
 }
 
-html[data-theme="light"] .vote-info-header,
-html[data-theme="light"] .vote-info-row {
+html[data-theme="light"] .vote-info-header {
   background: rgba(17, 24, 39, 0.045) !important;
   border-color: rgba(17, 24, 39, 0.065) !important;
+}
+
+html[data-theme="light"] .vote-info-row {
+  background: rgba(17, 24, 39, 0.028) !important;
+  border-color: transparent !important;
 }
 
 html[data-theme="light"] .vote-info-icon {

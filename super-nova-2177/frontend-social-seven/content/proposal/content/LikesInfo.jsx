@@ -66,8 +66,8 @@ function SpeciesVoteRow({
   const isActiveSpecies = activeSpecies === speciesKey;
 
   return (
-    <div className={`vote-info-row grid w-full grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-[1rem] px-3 py-2.5 ${isActiveSpecies ? "vote-info-row-active" : ""}`}>
-      <span className="vote-info-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+    <div className={`vote-info-row grid w-full grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5 gap-y-1 rounded-[0.9rem] px-2.5 py-2 ${isActiveSpecies ? "vote-info-row-active" : ""}`}>
+      <span className="vote-info-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
         <Icon />
       </span>
       <div className="min-w-0">
@@ -77,7 +77,7 @@ function SpeciesVoteRow({
             {hasVotes ? `${ratio}% support` : "No votes yet"}
           </span>
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <div className="mt-1.5 grid grid-cols-2 gap-1.5">
           <button
             type="button"
             className={`vote-info-count-button ${activeSpecies === speciesKey && activeChoice === "yes" ? "vote-info-count-button-active" : ""}`}

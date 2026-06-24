@@ -69,7 +69,7 @@ export default function ProposalCommentsSection({
             <p className="font-semibold text-[var(--text-black)]">No comments yet.</p>
             <p className="mt-1">Start the discussion, or ask an AI delegate to draft one for approval.</p>
           </div>
-        ) : threadedComments.map(({ comment, index, depth }) => {
+        ) : threadedComments.map(({ comment, index, depth, isLastChild, hasChildren }) => {
           const commentId = comment.id ?? "";
           const parent = comment.parent_comment_id == null ? null : commentsById.get(String(comment.parent_comment_id));
           const isActiveReplyTarget = Boolean(
@@ -103,6 +103,8 @@ export default function ProposalCommentsSection({
               onAskAi={onAskAi}
               replyingToName={parent?.user || ""}
               depth={depth}
+              isLastChild={isLastChild}
+              hasChildren={hasChildren}
               setErrorMsg={setErrorMsg}
               setNotify={setNotify}
             >
