@@ -7982,10 +7982,10 @@ def get_user_karma(username: str, db: Session = Depends(get_db)):
     if not SUPER_NOVA_AVAILABLE:
         raise HTTPException(status_code=501, detail="Karma system not available")
     
-    user = db.query(Harmonizer).filter(Harmonizer.username == username).first()
+    user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     return {
         "username": user.username,
         "karma": float(user.karma_score),

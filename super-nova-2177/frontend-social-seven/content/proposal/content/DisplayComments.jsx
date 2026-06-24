@@ -8,6 +8,7 @@ import {
   IoArrowUndoOutline,
   IoChatbubbleOutline,
   IoCheckmark,
+  IoChevronDown,
   IoClose,
   IoCreateOutline,
   IoEllipsisHorizontal,
@@ -44,6 +45,10 @@ function DisplayComments({
   depth = 0,
   isLastChild = true,
   hasChildren = false,
+  ancestorRailDepths = [],
+  collapsed = false,
+  replyCount = 0,
+  onToggleThread = () => {},
   deleting = false,
   setErrorMsg = () => {},
   setNotify = () => {},
@@ -82,10 +87,19 @@ function DisplayComments({
   // Reply indent. Wider than before so the thread rail has a clean gutter to the
   // left of the avatar (the YouTube-style connector lives in this space).
   const renderDepth = Math.min(depth, 2);
+  const threadRailOffsetRem = 0.625;
   const indentRem = renderDepth * 1.75;
   const depthOffsetStyle = renderDepth
     ? { marginLeft: `${indentRem}rem`, width: `calc(100% - ${indentRem}rem)` }
     : undefined;
+  const ancestorRails = Array.isArray(ancestorRailDepths)
+    ? [...new Set(ancestorRailDepths)]
+        .filter((railDepth) => railDepth > 0 && railDepth < renderDepth)
+        .map((railDepth) => ({
+          depth: railDepth,
+          offsetRem: railDepth * 1.75 - threadRailOffsetRem - indentRem,
+        }))
+    : [];
   const isSelf = Boolean(
     name && userData?.name && String(name).toLowerCase() === String(userData.name).toLowerCase()
   );
@@ -382,6 +396,18 @@ function DisplayComments({
       data-has-children={hasChildren ? "true" : undefined}
       style={depthOffsetStyle}
     >
+    {ancestorRails.map(({ depth: railDepth, offsetRem }) => (
+      <span
+        key={`ancestor-rail-${railDepth}`}
+        className="comment-thread-ancestor-rail"
+        style={{ "--ancestor-rail-x": `${offsetRem}rem` }}
+        aria-hidden="true"
+      />
+    ))}
+    {renderDepth > 0 && !isLastChild && <span className="comment-thread-sibling-rail" aria-hidden="true" />}
+    {hasChildren && !collapsed && renderDepth < 2 && (
+      <span className="comment-thread-child-stub" aria-hidden="true" />
+    )}
     <div
       id={commentId ? `comment-${commentId}` : undefined}
       className="comment-row flex w-full min-w-0 items-start gap-2"
@@ -546,6 +572,23 @@ function DisplayComments({
             <IoShareSocialOutline />
           </button>
         </div>
+      </div>
+    )}
+    {replyCount > 0 && (
+      <div className="comment-thread-toggle-row" data-collapsed={collapsed ? "true" : undefined}>
+        <button
+          type="button"
+          onClick={() => onToggleThread(commentId)}
+          className="comment-thread-toggle"
+          aria-expanded={!collapsed}
+        >
+          <IoChevronDown className={`comment-thread-toggle-chevron ${collapsed ? "" : "is-open"}`} />
+          <span>
+            {collapsed
+              ? `View ${replyCount} ${replyCount === 1 ? "reply" : "replies"}`
+              : "Hide replies"}
+          </span>
+        </button>
       </div>
     )}
     {children && (
