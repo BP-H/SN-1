@@ -157,6 +157,7 @@ function ProposalCard({
   const [aiActionModalMode, setAiActionModalMode] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
+  const pendingHashCommentRef = useRef("");
 
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
@@ -387,6 +388,61 @@ function ProposalCard({
     }
     return current?.id ?? null;
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const getHashCommentId = () => {
+      const hash = window.location.hash || "";
+      if (!hash.startsWith("#comment-")) return "";
+      try {
+        return decodeURIComponent(hash.slice("#comment-".length));
+      } catch {
+        return hash.slice("#comment-".length);
+      }
+    };
+
+    const revealHashComment = () => {
+      const targetId = getHashCommentId();
+      if (!targetId || !commentsById.has(String(targetId))) return;
+      pendingHashCommentRef.current = String(targetId);
+      setShowComments(true);
+      const rootId = rootCommentIdOf(targetId);
+      if (rootId == null) return;
+      setExpandedThreads((prev) => {
+        const key = String(rootId);
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    };
+
+    revealHashComment();
+    window.addEventListener("hashchange", revealHashComment);
+    return () => window.removeEventListener("hashchange", revealHashComment);
+  }, [commentsById]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return undefined;
+    const targetId = pendingHashCommentRef.current;
+    if (!targetId) return undefined;
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const target = document.getElementById(`comment-${targetId}`);
+        if (!target) return;
+        pendingHashCommentRef.current = "";
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [threadedComments]);
 
   const getFullImageUrl = (url) => {
     const value = normalizeAvatarValue(url);
