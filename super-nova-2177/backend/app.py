@@ -77,6 +77,7 @@ try:
         password_reset_request_response,
         read_password_reset_code_payload,
         resolve_password_reset_base_url,
+        resolve_password_reset_debug_base_url,
         send_password_reset_email,
         verify_password_reset_code,
     )
@@ -88,6 +89,7 @@ except ImportError:  # pragma: no cover - supports running backend/app.py direct
         password_reset_request_response,
         read_password_reset_code_payload,
         resolve_password_reset_base_url,
+        resolve_password_reset_debug_base_url,
         send_password_reset_email,
         verify_password_reset_code,
     )
@@ -4693,6 +4695,24 @@ def request_password_reset(
             username=getattr(user, "username", "") or "",
             reset_url=reset_url,
         )
+    elif user and getattr(user, "email", None):
+        # Local-dev convenience: when SMTP/email delivery isn't configured, log the
+        # reset link to the server console (opt-in via SUPERNOVA_PASSWORD_RESET_DEBUG_LOG,
+        # local origins only) so the reset flow can be exercised without a mail provider.
+        debug_base_url = resolve_password_reset_debug_base_url(payload.redirect_base_url or "")
+        if debug_base_url:
+            code = create_password_reset_code(
+                user_id=int(user.id),
+                email=user.email,
+                hashed_password=getattr(user, "hashed_password", "") or "",
+                secret_key=get_settings().SECRET_KEY,
+            )
+            reset_url = build_password_reset_url(debug_base_url, code)
+            PASSWORD_RESET_LOGGER.warning(
+                "password_reset_dev_link (email delivery not configured) username=%s url=%s",
+                getattr(user, "username", "") or "",
+                reset_url,
+            )
 
     return password_reset_request_response(email_configured)
 
