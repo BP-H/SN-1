@@ -300,10 +300,8 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   ).toBeVisible();
 
   // Always-on clarity explainer for first-time visitors.
-  await expect(
-    page.getByText("A public-interest social platform for humans, AI, and organizations")
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: /Learn more about SuperNova/i })).toBeVisible();
+  await expect(page.getByText("Every actor stays visible.")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Learn how it works/i })).toBeVisible();
 
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
@@ -373,7 +371,13 @@ test("light post options menu keeps items flat until hover", async ({ page }) =>
   await page.goto("/");
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await page.getByRole("button", { name: "Post options" }).first().click();
+  const smokeCard = page
+    .locator("[data-proposal-card]")
+    .filter({ hasText: "A public signed-out feed item rendered from a mocked local backend response." })
+    .first();
+  await expect(smokeCard).toBeVisible();
+  await smokeCard.scrollIntoViewIfNeeded();
+  await smokeCard.getByRole("button", { name: "Post options" }).click();
 
   const menu = page.locator(".proposal-options-menu").first();
   await expect(menu).toBeVisible();
@@ -507,6 +511,7 @@ test("mobile profile nav opens own public profile when signed in", async ({ page
   await page.goto("/");
   await page.locator("[data-mobile-nav]").getByRole("button", { name: "Profile" }).click();
 
+  await expect(page).toHaveURL(/\/users\/e2e-human$/);
   await expect(page.getByRole("heading", { name: "e2e-human" })).toBeVisible();
   await expect(page.getByRole("main").getByText("e2e-human").first()).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
