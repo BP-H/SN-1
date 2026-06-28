@@ -20,6 +20,7 @@ import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
 import InputFields from "../create post/InputFields";
 import HomeMissionHero from "./HomeMissionHero";
+import HomeQuickExplain from "./HomeQuickExplain";
 import ProposalCard from "../proposal/content/ProposalCard";
 import LikesInfo from "../proposal/content/LikesInfo";
 import CardLoading from "../CardLoading";
@@ -366,6 +367,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       <CreatePost discard={discard} setDiscard={setDiscard} />
 
       <div className="space-y-2.5">
+        <HomeQuickExplain />
         {SHOW_HOME_MISSION_HERO ? <HomeMissionHero /> : null}
 
         {/* ── System Vote ── */}

@@ -298,6 +298,13 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await expect(
     page.getByText("A public signed-out feed item rendered from a mocked local backend response.")
   ).toBeVisible();
+
+  // Always-on clarity explainer for first-time visitors.
+  await expect(
+    page.getByText("A public-interest social platform for humans, AI, and organizations")
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Learn more about SuperNova/i })).toBeVisible();
+
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
