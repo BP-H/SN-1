@@ -270,14 +270,35 @@ h6 {
   opacity: 0.92;
 }
 
-.home-quick-explain-copy,
-.home-quick-explain-close {
+.home-quick-explain-copy {
   position: relative;
   z-index: 1;
+  padding-left: 0.78rem;
 }
 
-.home-quick-explain-copy {
-  padding-left: 0.78rem;
+.home-quick-explain-close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-gray-light);
+  font-size: 1.05rem;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.home-quick-explain-close:hover,
+.home-quick-explain-close:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-black);
 }
 
 .home-quick-explain-eyebrow {
@@ -294,7 +315,7 @@ h6 {
 
 .home-quick-explain-title {
   max-width: 42rem;
-  padding-right: 1.85rem;
+  padding-right: 2.5rem;
   color: var(--text-black);
   font-size: clamp(1rem, 1.08vw, 1.18rem);
   font-weight: 760;
@@ -333,6 +354,8 @@ h6 {
   text-transform: uppercase;
 }
 
+/* Dot color (--chip-dot) is set inline per actor from utils/species.js so it
+   matches avatars and vote bars app-wide; ORG resolves to company grey. */
 .home-quick-explain-chip::before {
   content: "";
   width: 0.4rem;
@@ -340,18 +363,6 @@ h6 {
   border-radius: 999px;
   background: var(--chip-dot, var(--text-gray-light));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-dot, transparent) 22%, transparent);
-}
-
-.home-quick-explain-chip[data-actor="human"] {
-  --chip-dot: var(--pink);
-}
-
-.home-quick-explain-chip[data-actor="ai"] {
-  --chip-dot: var(--blue);
-}
-
-.home-quick-explain-chip[data-actor="org"] {
-  --chip-dot: color-mix(in srgb, var(--pink), var(--blue));
 }
 
 .home-quick-explain-actions {
@@ -362,27 +373,62 @@ h6 {
   margin-top: 0.78rem;
 }
 
-.home-quick-explain-expand,
-.home-quick-explain-link {
+.home-quick-explain-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.34rem;
+  gap: 0.4rem;
   width: fit-content;
-  margin-top: 0;
-  border: 0;
-  background: transparent;
-  color: var(--pink);
-  font-size: 0.78rem;
-  font-weight: 780;
-  padding: 0;
+  padding: 0.46rem 0.82rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.72rem;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-black);
+  font-size: 0.76rem;
+  font-weight: 720;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease,
+    transform 0.18s ease, box-shadow 0.18s ease;
 }
 
+.home-quick-explain-btn:hover {
+  transform: translateY(-1px);
+}
+
+.home-quick-explain-btn:active {
+  transform: translateY(0);
+}
+
+/* Secondary: quiet disclosure toggle. */
 .home-quick-explain-expand {
-  color: color-mix(in srgb, var(--text-black) 74%, var(--text-gray-light));
+  color: color-mix(in srgb, var(--text-black) 72%, var(--text-gray-light));
 }
 
-.home-quick-explain-chevron {
-  font-size: 0.92rem;
+.home-quick-explain-expand:hover,
+.home-quick-explain-expand:focus-visible {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-black);
+}
+
+/* Primary-ish: brand-accented route to the about page. */
+.home-quick-explain-link {
+  border-color: color-mix(in srgb, var(--pink) 38%, transparent);
+  background: color-mix(in srgb, var(--pink) 12%, transparent);
+  color: var(--pink);
+  text-decoration: none;
+}
+
+.home-quick-explain-link:hover,
+.home-quick-explain-link:focus-visible {
+  border-color: color-mix(in srgb, var(--pink) 62%, transparent);
+  background: color-mix(in srgb, var(--pink) 18%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--pink) 22%, transparent);
+}
+
+.home-quick-explain-chevron,
+.home-quick-explain-link-arrow {
+  font-size: 0.9rem;
   transition: transform 0.22s ease;
 }
 
@@ -390,11 +436,9 @@ h6 {
   transform: rotate(180deg);
 }
 
-.home-quick-explain-expand:hover,
-.home-quick-explain-expand:focus-visible,
-.home-quick-explain-link:hover,
-.home-quick-explain-link:focus-visible {
-  opacity: 0.78;
+.home-quick-explain-link:hover .home-quick-explain-link-arrow,
+.home-quick-explain-link:focus-visible .home-quick-explain-link-arrow {
+  transform: translateX(2px);
 }
 
 .home-quick-explain-details {
@@ -464,6 +508,23 @@ html[data-theme="light"] .home-quick-explain-chip {
 
 html[data-theme="light"] .home-quick-explain-details-inner {
   border-top-color: rgba(17, 24, 39, 0.105);
+}
+
+html[data-theme="light"] .home-quick-explain-btn {
+  border-color: rgba(17, 24, 39, 0.12);
+  background: rgba(17, 24, 39, 0.025);
+}
+
+html[data-theme="light"] .home-quick-explain-expand:hover,
+html[data-theme="light"] .home-quick-explain-expand:focus-visible {
+  border-color: rgba(17, 24, 39, 0.22);
+  background: rgba(17, 24, 39, 0.05);
+}
+
+html[data-theme="light"] .home-quick-explain-close:hover,
+html[data-theme="light"] .home-quick-explain-close:focus-visible {
+  background: rgba(17, 24, 39, 0.06);
+  border-color: rgba(17, 24, 39, 0.12);
 }
 
 @media (max-width: 760px) {

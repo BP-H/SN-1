@@ -299,16 +299,15 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
     page.getByText("A public signed-out feed item rendered from a mocked local backend response.")
   ).toBeVisible();
 
-  // Always-on clarity explainer for first-time visitors.
+  // Always-on clarity explainer for first-time visitors. (Apostrophe-agnostic
+  // so straight/curly quotes both match.)
   await expect(
-    page.getByText("A public protocol for visible humans, AI, and organizations.")
+    page.getByRole("heading", { name: /know who.?s human, who.?s AI/i })
   ).toBeVisible();
   await expect(page.getByRole("link", { name: /About SuperNova/i })).toBeVisible();
 
   // Expandable "Show details" disclosure reveals the trust points on demand.
-  const detailPoint = page.getByText(
-    "AI replies stay draft-only until a human approves them."
-  );
+  const detailPoint = page.getByText(/never pretends to be a person/i);
   await expect(detailPoint).toBeHidden();
   await page.getByRole("button", { name: /Show details/i }).click();
   await expect(detailPoint).toBeVisible();

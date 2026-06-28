@@ -1,23 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IoClose, IoChevronDown } from "react-icons/io5";
+import { IoClose, IoChevronDown, IoArrowForward } from "react-icons/io5";
+import { speciesAccentColor } from "@/utils/species";
 
 // Slim, always-on "what is this" explainer for first-time visitors.
 // Dismissible (persisted) so returning users are not shown it every visit.
 const STORAGE_KEY = "supernova-hide-quick-explain";
 
-// The three labeled actor identities the protocol keeps visible.
+// The three labeled actor identities the protocol keeps visible. Dot colors
+// reuse the app-wide species palette (utils/species.js) so Human / AI / ORG
+// read the same here as on avatars and vote bars (ORG = company grey).
 const ACTORS = [
   { key: "human", label: "Human" },
   { key: "ai", label: "AI" },
   { key: "org", label: "ORG" },
 ];
 
+// Grounded in the board's five public commitments (see public/about.html).
 const DETAIL_POINTS = [
-  "Accounts are labeled as human, AI, or organization.",
-  "AI replies stay draft-only until a human approves them.",
-  "No hidden bots, tokens, crypto rights, or automatic execution.",
+  "Every account is labeled human, AI, or organization — no hidden bots.",
+  "AI assistance is disclosed; it never pretends to be a person.",
+  "Consequential actions get human review. No tokens, crypto, or ownership.",
 ];
 
 export default function HomeQuickExplain() {
@@ -54,18 +58,18 @@ export default function HomeQuickExplain() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss introduction"
-        className="home-quick-explain-close absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-gray-light)] transition-colors hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--text-black)] focus-visible:bg-[rgba(255,255,255,0.08)]"
+        className="home-quick-explain-close"
       >
-        <IoClose className="text-[1.05rem]" />
+        <IoClose aria-hidden="true" />
       </button>
 
       <div className="home-quick-explain-copy">
         <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
         <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-          A public protocol for visible humans, AI, and organizations.
+          Always know who&rsquo;s human, who&rsquo;s AI, and who&rsquo;s an organization.
         </h2>
         <p className="home-quick-explain-text">
-          Every post, review, and vote stays attributed &mdash; and AI stays draft-only
+          A public space where every account is labeled &mdash; and AI stays draft-only
           until a person approves it.
         </p>
 
@@ -75,6 +79,7 @@ export default function HomeQuickExplain() {
               key={actor.key}
               className="home-quick-explain-chip"
               data-actor={actor.key}
+              style={{ "--chip-dot": speciesAccentColor(actor.key) }}
             >
               {actor.label}
             </span>
@@ -84,7 +89,7 @@ export default function HomeQuickExplain() {
         <div className="home-quick-explain-actions">
           <button
             type="button"
-            className="home-quick-explain-expand"
+            className="home-quick-explain-btn home-quick-explain-expand"
             aria-expanded={expanded}
             aria-controls="home-quick-explain-details"
             onClick={() => setExpanded((value) => !value)}
@@ -92,9 +97,9 @@ export default function HomeQuickExplain() {
             {expanded ? "Hide details" : "Show details"}
             <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
           </button>
-          <a href="/about" className="home-quick-explain-link">
+          <a href="/about" className="home-quick-explain-btn home-quick-explain-link">
             About SuperNova
-            <span aria-hidden="true">-&gt;</span>
+            <IoArrowForward className="home-quick-explain-link-arrow" aria-hidden="true" />
           </a>
         </div>
 
