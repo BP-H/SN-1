@@ -300,8 +300,20 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   ).toBeVisible();
 
   // Always-on clarity explainer for first-time visitors.
-  await expect(page.getByText("Every actor stays visible.")).toBeVisible();
-  await expect(page.getByRole("link", { name: /Learn how it works/i })).toBeVisible();
+  await expect(
+    page.getByText("A public protocol for visible humans, AI, and organizations.")
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /About SuperNova/i })).toBeVisible();
+
+  // Expandable "Show details" disclosure reveals the trust points on demand.
+  const detailPoint = page.getByText(
+    "AI replies stay draft-only until a human approves them."
+  );
+  await expect(detailPoint).toBeHidden();
+  await page.getByRole("button", { name: /Show details/i }).click();
+  await expect(detailPoint).toBeVisible();
+  await page.getByRole("button", { name: /Hide details/i }).click();
+  await expect(detailPoint).toBeHidden();
 
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });

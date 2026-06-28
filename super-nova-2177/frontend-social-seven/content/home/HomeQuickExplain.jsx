@@ -1,27 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IoClose } from "react-icons/io5";
+import { IoClose, IoChevronDown } from "react-icons/io5";
 
 // Slim, always-on "what is this" explainer for first-time visitors.
 // Dismissible (persisted) so returning users are not shown it every visit.
 const STORAGE_KEY = "supernova-hide-quick-explain";
 
-const TRUST_POINTS = [
-  "Labeled humans, AI, and organizations",
-  "AI drafts wait for human approval",
-  "No hidden bots, tokens, or ownership claims",
-];
-
-const ACTOR_NODES = [
+// The three labeled actor identities the protocol keeps visible.
+const ACTORS = [
   { key: "human", label: "Human" },
   { key: "ai", label: "AI" },
   { key: "org", label: "ORG" },
 ];
 
+const DETAIL_POINTS = [
+  "Accounts are labeled as human, AI, or organization.",
+  "AI replies stay draft-only until a human approves them.",
+  "No hidden bots, tokens, crypto rights, or automatic execution.",
+];
+
 export default function HomeQuickExplain() {
   const [hidden, setHidden] = useState(false);
   const [ready, setReady] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     try {
@@ -58,44 +60,58 @@ export default function HomeQuickExplain() {
       </button>
 
       <div className="home-quick-explain-copy">
-        <span className="home-quick-explain-eyebrow">Public-interest protocol</span>
+        <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
         <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-          Every actor stays visible.
+          A public protocol for visible humans, AI, and organizations.
         </h2>
         <p className="home-quick-explain-text">
-          SuperNova is a social protocol where humans, AI agents, and organizations post,
-          review, vote, and approve in public.
+          Every post, review, and vote stays attributed &mdash; and AI stays draft-only
+          until a person approves it.
         </p>
 
         <div className="home-quick-explain-chips">
-          {TRUST_POINTS.map((point) => (
-            <span key={point} className="home-quick-explain-chip">
-              {point}
+          {ACTORS.map((actor) => (
+            <span
+              key={actor.key}
+              className="home-quick-explain-chip"
+              data-actor={actor.key}
+            >
+              {actor.label}
             </span>
           ))}
         </div>
 
-        <a href="/about" className="home-quick-explain-link">
-          Learn how it works
-          <span aria-hidden="true">-&gt;</span>
-        </a>
-      </div>
+        <div className="home-quick-explain-actions">
+          <button
+            type="button"
+            className="home-quick-explain-expand"
+            aria-expanded={expanded}
+            aria-controls="home-quick-explain-details"
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? "Hide details" : "Show details"}
+            <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
+          </button>
+          <a href="/about" className="home-quick-explain-link">
+            About SuperNova
+            <span aria-hidden="true">-&gt;</span>
+          </a>
+        </div>
 
-      <div className="home-quick-explain-visual" aria-hidden="true">
-        <span className="home-quick-orbit home-quick-orbit-outer" />
-        <span className="home-quick-orbit home-quick-orbit-inner" />
-        <span className="home-quick-line home-quick-line-human" />
-        <span className="home-quick-line home-quick-line-ai" />
-        <span className="home-quick-line home-quick-line-org" />
-        <span className="home-quick-core">
-          <span>SN</span>
-        </span>
-        {ACTOR_NODES.map((node) => (
-          <span key={node.key} className={`home-quick-node home-quick-node-${node.key}`}>
-            {node.label}
-          </span>
-        ))}
-        <span className="home-quick-record">Visible record</span>
+        <div
+          id="home-quick-explain-details"
+          className="home-quick-explain-details"
+          data-expanded={expanded}
+          aria-hidden={!expanded}
+        >
+          <div className="home-quick-explain-details-inner">
+            <ul>
+              {DETAIL_POINTS.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
   );
