@@ -629,6 +629,23 @@ test("about page route renders the standalone page", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("about page reads as a quiet, non-fundraising briefing", async ({ page }) => {
+  await page.goto("/about");
+
+  // Explainer + FAQ content is present.
+  await expect(page.locator("body")).toContainText(/What is SuperNova 2177\?/i);
+  await expect(page.locator("body")).toContainText(/How is it different from Instagram, X, or Facebook\?/i);
+  await expect(page.locator("body")).toContainText(/Is this a fundraising page\?/i);
+
+  // Legal disclaimer is present.
+  await expect(page.locator("body")).toContainText(/does not offer tokens, crypto products/i);
+  await expect(page.locator("body")).toContainText(/AI-assisted drafts do not publish automatically/i);
+
+  // The loud fundraising CTA and tax-deductibility claim are gone from the QR page.
+  await expect(page.locator("body")).not.toContainText(/Support the Mission/i);
+  await expect(page.locator("body")).not.toContainText(/tax-deductible/i);
+});
+
 test("not found route renders the branded release state in dark mode", async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("supernova-theme", "dark");
