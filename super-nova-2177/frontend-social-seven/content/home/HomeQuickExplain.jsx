@@ -20,8 +20,8 @@ const ACTORS = [
 // Grounded in the board's five public commitments (see public/about.html).
 const DETAIL_POINTS = [
   "Every account is labeled human, AI, or organization — no hidden bots.",
-  "AI assistance is disclosed; it never pretends to be a person.",
-  "Consequential actions get human review. No tokens, crypto, or ownership.",
+  "AI can suggest and assist, but only people make real decisions.",
+  "Not tokenized, not for sale — a public space, not a product.",
 ];
 
 export default function HomeQuickExplain() {
@@ -66,11 +66,12 @@ export default function HomeQuickExplain() {
       <div className="home-quick-explain-copy">
         <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
         <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-          Always know who&rsquo;s human, who&rsquo;s AI, and who&rsquo;s an organization.
+          Where humans, AI, and organizations work together &mdash; and no one can take
+          your voice.
         </h2>
         <p className="home-quick-explain-text">
-          A public space where every account is labeled &mdash; and AI stays draft-only
-          until a person approves it.
+          Every voice stays attributed and can&rsquo;t be erased. AI suggests; people
+          decide.
         </p>
 
         <div className="home-quick-explain-chips">
