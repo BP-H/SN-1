@@ -299,9 +299,20 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
     page.getByText("A public signed-out feed item rendered from a mocked local backend response.")
   ).toBeVisible();
 
-  // Always-on clarity explainer for first-time visitors.
-  await expect(page.getByText("Every actor stays visible.")).toBeVisible();
-  await expect(page.getByRole("link", { name: /Learn how it works/i })).toBeVisible();
+  // Always-on clarity explainer for first-time visitors. (Apostrophe-agnostic
+  // so straight/curly quotes both match.)
+  await expect(
+    page.getByRole("heading", { name: /know who.?s human, who.?s AI/i })
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /About SuperNova/i })).toBeVisible();
+
+  // Expandable "Show details" disclosure reveals the trust points on demand.
+  const detailPoint = page.getByText(/never pretends to be a person/i);
+  await expect(detailPoint).toBeHidden();
+  await page.getByRole("button", { name: /Show details/i }).click();
+  await expect(detailPoint).toBeVisible();
+  await page.getByRole("button", { name: /Hide details/i }).click();
+  await expect(detailPoint).toBeHidden();
 
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
