@@ -261,7 +261,7 @@ export default function Header({
                 <span className="mobile-brand truncate text-[clamp(0.78rem,3.25vw,1rem)] font-black text-[var(--text-black)]">
                   SUPERN
                 </span>
-                <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />
+                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--pink)] shadow-[var(--shadow-pink)]" />
                 <span className="mobile-brand truncate text-[clamp(0.78rem,3.25vw,1rem)] font-black text-[var(--text-black)]">
                   VA
                 </span>
@@ -269,12 +269,12 @@ export default function Header({
                   2177
                 </span>
               </div>
-              <p className="mt-1 truncate text-[0.46rem] uppercase tracking-[0.24em] text-[var(--text-gray-light)]">
+              <p className="mt-[3px] truncate text-[0.46rem] uppercase tracking-[0.24em] text-[var(--text-gray-light)]">
                 AI x Humans x ORG
               </p>
             </button>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5">
               <AssistantOrb />
               <a
                 href="https://github.com/BP-H/SN-1"
