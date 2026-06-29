@@ -44,9 +44,9 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
-// Backend can override these via /system-vote so live deployments avoid stale UI.
+// Frontend copy is the source of truth so cached backend records cannot flash stale question text.
 const SYSTEM_VOTE_CONFIG = {
-  question: "Can clearly labeled AI comments make public conversations better?",
+  question: "Can clearly labeled AI contributions make public conversations better?",
   deadline: "2026-04-27T18:00:00-07:00",
 };
 const FEED_PAGE_SIZE = 30;
@@ -256,14 +256,14 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     keepPreviousData: true,
   });
 
-  /* Dedicated yes/no system vote; backend config wins, local constant is only a safe fallback. */
+  /* Dedicated yes/no system vote; local copy wins so stale backend config cannot flash old text. */
   const systemVote = useMemo(() => {
     const likes = systemVoteData?.likes || [];
     const dislikes = systemVoteData?.dislikes || [];
     const weighted = buildWeightedVoteSummary(likes, dislikes);
     const userVote = systemVoteData?.user_vote || null;
-    const question = systemVoteData?.question || SYSTEM_VOTE_CONFIG.question;
-    const deadline = systemVoteData?.deadline || SYSTEM_VOTE_CONFIG.deadline;
+    const question = SYSTEM_VOTE_CONFIG.question || systemVoteData?.question;
+    const deadline = SYSTEM_VOTE_CONFIG.deadline || systemVoteData?.deadline;
 
     return {
       question,
