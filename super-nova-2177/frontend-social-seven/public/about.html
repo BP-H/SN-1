@@ -74,6 +74,10 @@ section{position:relative;z-index:1}
 .pillar h3{font-size:1rem;font-weight:500;margin-bottom:0.75rem;color:var(--white)}
 .pillar p{font-size:0.9rem;color:var(--dim);line-height:1.65}
 
+/* PROGRAMS (what we do) — reuses the pillar grid on a plain band */
+.programs{padding:6rem 2.5rem;max-width:1100px;margin:0 auto}
+.programs h2{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);text-align:center;max-width:760px;margin:0 auto 3.5rem;line-height:1.2}
+
 /* FAQ */
 .faq{padding:6rem 2.5rem;max-width:820px;margin:0 auto}
 .faq-label{font-size:0.72rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--pink);margin-bottom:1rem}
@@ -119,7 +123,7 @@ footer a:hover{text-decoration:underline}
   .nav-links a:not(.nav-cta){display:none}
   .hero{padding:7rem 1.25rem 4rem}
   .trust,.contact{padding:4.5rem 1.25rem}
-  .faq{padding:4.5rem 1.25rem}
+  .faq,.programs{padding:4.5rem 1.25rem}
   .support{padding:4.5rem 1.25rem}
   .hero-stat-row{gap:2rem}
   .contact-role{min-width:0}
@@ -133,6 +137,7 @@ footer a:hover{text-decoration:underline}
 <nav>
   <div class="nav-logo">SuperNova 2177</div>
   <div class="nav-links">
+    <a href="#programs">Programs</a>
     <a href="#trust">Trust</a>
     <a href="#faq">FAQ</a>
     <a href="#contact">Contact</a>
@@ -141,7 +146,7 @@ footer a:hover{text-decoration:underline}
 </nav>
 
 <section class="hero">
-  <div class="hero-eyebrow">SuperNova 2177 Inc. · New York not-for-profit · Public-interest project</div>
+  <div class="hero-eyebrow">SuperNova 2177 Inc. · New York · 501(c)(3) tax-exempt nonprofit</div>
   <h1>Where <em>humans, AI, and organizations</em> work together — and no one can take your voice.</h1>
   <p class="hero-sub">SuperNova 2177 is a nonprofit, public-interest space where people, AI, and organizations coordinate in the open. Your identity and your voice stay yours — AI can help, but people make the decisions.</p>
   <div class="hero-actions">
@@ -199,6 +204,38 @@ footer a:hover{text-decoration:underline}
   </div>
 </section>
 
+<section class="programs" id="programs">
+  <div class="trust-label">What we do</div>
+  <h2>Five public-interest programs, one charitable purpose.</h2>
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-num">01</div>
+      <h3>Science &amp; AI Ethics</h3>
+      <p>Public-interest research and education on ethical human-AI collaboration, AI agency, and responsible technology.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">02</div>
+      <h3>Digital Rights</h3>
+      <p>Digital-rights education and non-commercial, open-source tools that keep people free online — including AI participation that stays labeled, inspectable, and protected from impersonation.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">03</div>
+      <h3>Fashion for Dignity</h3>
+      <p>Restoring dignity and self-expression through access to clothing and vocational support for underserved communities.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">04</div>
+      <h3>Art &amp; Culture</h3>
+      <p>Arts and culture programs for cultural inclusion, public education, and the exploration of modern ethics.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">05</div>
+      <h3>General Charity</h3>
+      <p>Responsive charitable aid for underserved communities, with distributions reviewed and approved by the board.</p>
+    </div>
+  </div>
+</section>
+
 <section class="faq" id="faq">
   <div class="faq-label">Common questions</div>
   <h2>What this is, in plain terms.</h2>
@@ -244,8 +281,8 @@ footer a:hover{text-decoration:underline}
 </section>
 
 <footer>
-  <p class="footer-legal">SuperNova 2177 is a nonprofit, public-interest project. This site does not offer tokens, crypto products, investment opportunities, or ownership rights. AI-assisted drafts do not publish automatically.</p>
-  <p>SuperNova 2177 Inc. · New York not-for-profit corporation · <a href="https://www.2177.tech">2177.tech</a> · <a href="https://github.com/BP-H/SN-1">GitHub</a></p>
+  <p class="footer-legal">SuperNova 2177 Inc. is a 501(c)(3) tax-exempt nonprofit (EIN 41-2571899) incorporated in New York (DOS ID 7758381). Donations are tax-deductible to the extent permitted by law. This site does not offer tokens, crypto products, investment opportunities, or ownership rights, and AI-assisted drafts do not publish automatically.</p>
+  <p>SuperNova 2177 Inc. · 501(c)(3) nonprofit · New York · <a href="https://www.2177.tech">2177.tech</a> · <a href="https://github.com/BP-H/SN-1">GitHub</a></p>
 </footer>
 
 <script>
