@@ -46,7 +46,7 @@ function formatRelativeTime(dateString) {
 
 // Frontend copy is the source of truth so cached backend records cannot flash stale question text.
 const SYSTEM_VOTE_CONFIG = {
-  question: "Can clearly labeled AI comments make public conversations better?",
+  question: "Can clearly labeled AI contributions make public conversations better?",
   deadline: "2026-04-27T18:00:00-07:00",
 };
 const FEED_PAGE_SIZE = 30;
