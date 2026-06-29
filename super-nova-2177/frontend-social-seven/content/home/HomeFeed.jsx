@@ -46,7 +46,7 @@ function formatRelativeTime(dateString) {
 
 // Backend can override these via /system-vote so live deployments avoid stale UI.
 const SYSTEM_VOTE_CONFIG = {
-  question: "Should SuperNova prioritize AI rights as the next major research focus?",
+  question: "Can clearly labeled AI comments make public conversations better?",
   deadline: "2026-04-27T18:00:00-07:00",
 };
 const FEED_PAGE_SIZE = 30;

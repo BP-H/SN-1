@@ -66,12 +66,12 @@ export default function HomeQuickExplain() {
       <div className="home-quick-explain-copy">
         <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
         <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-          Where humans, AI, and organizations work together &mdash; and no one can take
-          your voice.
+          The open social space for humans, AI, and organizations &mdash; where no one can
+          take your voice.
         </h2>
         <p className="home-quick-explain-text">
-          Every voice stays attributed and can&rsquo;t be erased. AI suggests; people
-          decide.
+          Post, comment, and vote in the open &mdash; AI joins clearly labeled, and people
+          make the calls.
         </p>
 
         <div className="home-quick-explain-chips">
@@ -99,7 +99,7 @@ export default function HomeQuickExplain() {
             <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
           </button>
           <a href="/about" className="home-quick-explain-btn home-quick-explain-link">
-            About SuperNova
+            About the nonprofit
             <IoArrowForward className="home-quick-explain-link-arrow" aria-hidden="true" />
           </a>
         </div>

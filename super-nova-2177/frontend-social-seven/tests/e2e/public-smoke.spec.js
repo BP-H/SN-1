@@ -303,7 +303,7 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await expect(
     page.getByRole("heading", { name: /no one can take your voice/i })
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /About SuperNova/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /About the nonprofit/i })).toBeVisible();
 
   // Expandable "Show details" disclosure reveals the trust points on demand.
   const detailPoint = page.getByText(/only people make real decisions/i);
