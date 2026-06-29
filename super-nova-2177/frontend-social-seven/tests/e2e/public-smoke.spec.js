@@ -663,9 +663,12 @@ test("about page reads as a quiet, non-fundraising briefing", async ({ page }) =
   await expect(page.locator("body")).toContainText(/does not offer tokens, crypto products/i);
   await expect(page.locator("body")).toContainText(/AI-assisted drafts do not publish automatically/i);
 
-  // The loud fundraising CTA and tax-deductibility claim are gone from the QR page.
+  // Nonprofit status and the public-interest programs are shown honestly.
+  await expect(page.locator("body")).toContainText(/501\(c\)\(3\)/i);
+  await expect(page.locator("body")).toContainText(/Fashion for Dignity/i);
+
+  // The loud fundraising CTA stays off the quiet QR page.
   await expect(page.locator("body")).not.toContainText(/Support the Mission/i);
-  await expect(page.locator("body")).not.toContainText(/tax-deductible/i);
 });
 
 test("not found route renders the branded release state in dark mode", async ({ page }) => {
