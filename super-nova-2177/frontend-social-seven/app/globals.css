@@ -244,6 +244,7 @@ h6 {
     linear-gradient(90deg, rgba(255, 79, 143, 0.11), transparent 32%),
     linear-gradient(180deg, rgba(13, 16, 23, 0.985), rgba(8, 11, 16, 0.965));
   border-color: rgba(255, 255, 255, 0.105);
+  box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.6);
 }
 
 .home-quick-explain::before,
@@ -263,11 +264,11 @@ h6 {
 .home-quick-explain::after {
   left: 1rem;
   top: 1rem;
-  width: 0.18rem;
+  width: 0.15rem;
   height: calc(100% - 2rem);
   border-radius: 999px;
   background: linear-gradient(180deg, var(--pink), rgba(94, 141, 250, 0.72));
-  opacity: 0.92;
+  opacity: 0.82;
 }
 
 .home-quick-explain-copy {
@@ -320,6 +321,8 @@ h6 {
   font-size: clamp(1rem, 1.08vw, 1.18rem);
   font-weight: 760;
   line-height: 1.18;
+  letter-spacing: -0.011em;
+  text-wrap: balance;
 }
 
 .home-quick-explain-text {
@@ -411,6 +414,11 @@ h6 {
   color: var(--text-black);
 }
 
+/* Hover-only lift so the keyboard :focus-visible ring stays clean. */
+.home-quick-explain-expand:hover {
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.5);
+}
+
 /* Primary-ish: brand-accented route to the about page. */
 .home-quick-explain-link {
   border-color: color-mix(in srgb, var(--pink) 38%, transparent);
@@ -499,6 +507,7 @@ html[data-theme="light"] .home-quick-explain.social-panel {
     linear-gradient(90deg, rgba(255, 79, 143, 0.08), transparent 32%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.992), rgba(249, 251, 255, 0.972));
   border-color: rgba(17, 24, 39, 0.11);
+  box-shadow: 0 14px 30px -20px rgba(17, 24, 39, 0.28);
 }
 
 html[data-theme="light"] .home-quick-explain-chip {
@@ -539,6 +548,13 @@ html[data-theme="light"] .home-quick-explain-close:focus-visible {
 
   .home-quick-explain-text {
     font-size: 0.8rem;
+  }
+
+  /* Larger, easier tap target for the dismiss control on touch screens. */
+  .home-quick-explain-close {
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 1.15rem;
   }
 }
 
