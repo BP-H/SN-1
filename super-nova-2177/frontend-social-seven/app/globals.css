@@ -3478,7 +3478,7 @@ html[data-theme="light"] .vote-weight-cursor::before {
   }
 
   .vote-modal-backdrop-closing .vote-modal-card {
-    animation: voteSheetOut 0.2s ease-in forwards;
+    animation: voteSheetOut 0.18s ease-in forwards;
   }
 
   .vote-modal-grab {
