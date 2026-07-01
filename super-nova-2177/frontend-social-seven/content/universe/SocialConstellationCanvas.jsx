@@ -101,8 +101,8 @@ function paletteFor(species = "human") {
   return SPECIES_PALETTE[species] || SPECIES_PALETTE.human;
 }
 
-/* Object-form curve helpers kept for the 2D fallback and pointer hit-testing
-   only; the WebGL frame path below works on flat typed arrays instead. */
+/* Object-form curve helpers kept for the 2D fallback renderer only; the WebGL
+   frame path below works on flat typed arrays instead. */
 function edgeCurve(edge, index = 0, isImmersive = false) {
   const source = edge.sourceNode || {};
   const target = edge.targetNode || {};
@@ -141,24 +141,6 @@ function pointOnCurve(curve, t) {
       + 2 * oneMinus * t * Number(curve.controlDepth || 0.78)
       + t * t * Number(curve.endDepth || 0.72),
   };
-}
-
-function distanceToQuadratic(point, curve) {
-  let nearest = Infinity;
-  let previous = { x: curve.startX, y: curve.startY };
-  const samples = 12;
-  for (let step = 1; step <= samples; step += 1) {
-    const next = pointOnCurve(curve, step / samples);
-    const segmentX = next.x - previous.x;
-    const segmentY = next.y - previous.y;
-    const segmentLength = Math.max(1, segmentX * segmentX + segmentY * segmentY);
-    const projection = clamp(((point.x - previous.x) * segmentX + (point.y - previous.y) * segmentY) / segmentLength, 0, 1);
-    const hitX = previous.x + segmentX * projection;
-    const hitY = previous.y + segmentY * projection;
-    nearest = Math.min(nearest, Math.hypot(point.x - hitX, point.y - hitY));
-    previous = next;
-  }
-  return nearest;
 }
 
 function compileShader(gl, type, source) {
@@ -231,12 +213,16 @@ function sceneCamera(time = 0, isImmersive = false, pointer = {}) {
   const pointerX = pointer.active ? clamp(Number(pointer.x || 0), -1, 1) : 0;
   const pointerY = pointer.active ? clamp(Number(pointer.y || 0), -1, 1) : 0;
   return {
-    yaw: Math.sin(time * 0.17) * (isImmersive ? 0.34 : 0.2) + pointerX * (isImmersive ? 0.18 : 0.1),
-    tilt: (isImmersive ? 0.46 : 0.34) + Math.cos(time * 0.13) * (isImmersive ? 0.06 : 0.035) - pointerY * 0.06,
-    roll: Math.sin(time * 0.09) * (isImmersive ? 0.04 : 0.022),
-    depthScale: isImmersive ? 48 : 30,
-    distance: isImmersive ? 245 : 285,
-    warp: isImmersive ? 9 : 5,
+    /* A wide, readable rocking orbit (~18s period) plus pointer steering —
+       rotation is the strongest 3D cue. The camera rocks rather than spins a
+       full turntable because the layout would swing edge-on twice per
+       revolution and collapse into a line. */
+    yaw: Math.sin(time * 0.34) * (isImmersive ? 0.56 : 0.44) + pointerX * (isImmersive ? 0.26 : 0.17),
+    tilt: (isImmersive ? 0.5 : 0.38) + Math.cos(time * 0.21) * (isImmersive ? 0.09 : 0.055) - pointerY * 0.09,
+    roll: Math.sin(time * 0.09) * (isImmersive ? 0.05 : 0.028),
+    depthScale: isImmersive ? 78 : 54,
+    distance: isImmersive ? 215 : 235,
+    warp: isImmersive ? 12 : 8,
   };
 }
 
@@ -255,7 +241,7 @@ function projectInto(out, x, y, depth, frame) {
   const tiltedZ = centeredY * camera.sinTilt + yawZ * camera.cosTilt;
   const rolledX = yawX * camera.cosRoll - tiltedY * camera.sinRoll;
   const rolledY = yawX * camera.sinRoll + tiltedY * camera.cosRoll;
-  const perspective = clamp(camera.distance / Math.max(120, camera.distance - tiltedZ), 0.72, 1.46);
+  const perspective = clamp(camera.distance / Math.max(110, camera.distance - tiltedZ), 0.6, 1.62);
   const sceneX = SCENE_CENTER_X + rolledX * perspective;
   const sceneY = SCENE_CENTER_Y + rolledY * perspective;
   const screenX = frame.offsetX + (frame.viewX + sceneX * frame.viewScale) * frame.fitScale;
@@ -331,7 +317,25 @@ function buildGraphCache(nodes, edges, currentUser) {
   cache.nodeColors = new Float32Array(pointCapacity * 4);
   cache.nodeSizes = new Float32Array(pointCapacity);
   cache.nodeDepths = new Float32Array(pointCapacity);
+
+  /* Screen-space (CSS px) positions written by whichever renderer painted the
+     last frame, so pointer hit-testing always matches what the 3D camera
+     actually drew instead of the flat pre-projection layout. */
+  cache.screenX = new Float32Array(nodeCount);
+  cache.screenY = new Float32Array(nodeCount);
+  cache.screenR = new Float32Array(nodeCount);
+  cache.edgeScreen = new Float32Array(edgeCount * (EDGE_SEGMENTS_ACTIVE + 1) * 2);
+  cache.edgeScreenCounts = new Uint8Array(edgeCount);
+  cache.screenReady = false;
   return cache;
+}
+
+function distanceToSegment(px, py, ax, ay, bx, by) {
+  const deltaX = bx - ax;
+  const deltaY = by - ay;
+  const lengthSq = Math.max(1e-6, deltaX * deltaX + deltaY * deltaY);
+  const t = clamp(((px - ax) * deltaX + (py - ay) * deltaY) / lengthSq, 0, 1);
+  return Math.hypot(px - (ax + deltaX * t), py - (ay + deltaY * t));
 }
 
 function createDustField() {
@@ -488,6 +492,10 @@ function fillLineArrays(cache, frame, selectedEdgeId, isImmersive, time) {
     let previousClipX = projectionScratchA.clipX;
     let previousClipY = projectionScratchA.clipY;
     let previousDepthOut = projectionScratchA.depth;
+    const edgeScreenBase = index * (EDGE_SEGMENTS_ACTIVE + 1) * 2;
+    cache.edgeScreen[edgeScreenBase] = (previousClipX + 1) * 0.5 * frame.canvasWidth;
+    cache.edgeScreen[edgeScreenBase + 1] = (1 - previousClipY) * 0.5 * frame.canvasHeight;
+    cache.edgeScreenCounts[index] = steps + 1;
     for (let step = 1; step <= steps; step += 1) {
       const t = step / steps;
       const oneMinus = 1 - t;
@@ -507,6 +515,8 @@ function fillLineArrays(cache, frame, selectedEdgeId, isImmersive, time) {
       projectionScratchA.clipX = previousClipX;
       projectionScratchA.clipY = previousClipY;
       cursor = writeLineVertexPair(cache, cursor, projectionScratchA, projectionScratchB, r, g, b, alpha);
+      cache.edgeScreen[edgeScreenBase + step * 2] = (projectionScratchB.clipX + 1) * 0.5 * frame.canvasWidth;
+      cache.edgeScreen[edgeScreenBase + step * 2 + 1] = (1 - projectionScratchB.clipY) * 0.5 * frame.canvasHeight;
       previousClipX = projectionScratchB.clipX;
       previousClipY = projectionScratchB.clipY;
       previousDepthOut = projectionScratchB.depth;
@@ -563,6 +573,7 @@ function fillNodeArrays(cache, dust, frame, selectedNodeId, isImmersive, dpr, ti
         [3.05, 0.32, 0.03],
         [1.34, 0.98, 0.1],
       ];
+  const coreMultiplier = isImmersive ? 1.55 : 1.34;
   for (let layer = 0; layer < layers.length; layer += 1) {
     const [sizeMultiplier, alphaMultiplier, depthLift] = layers[layer];
     for (let index = 0; index < cache.nodeCount; index += 1) {
@@ -574,6 +585,15 @@ function fillNodeArrays(cache, dust, frame, selectedNodeId, isImmersive, dpr, ti
         cache.animDepth[index] + depthLift,
         frame,
       );
+      if (layer === 0) {
+        cache.screenX[index] = (projectionScratchA.clipX + 1) * 0.5 * frame.canvasWidth;
+        cache.screenY[index] = (1 - projectionScratchA.clipY) * 0.5 * frame.canvasHeight;
+        cache.screenR[index] = Math.max(
+          3.5,
+          cache.radius[index] * frame.viewScale * frame.fitScale * coreMultiplier
+            * projectionScratchA.perspective * (0.6 + projectionScratchA.depth * 0.46),
+        );
+      }
       const boost = emphasized ? 1.35 : 1;
       /* The halo layer of the selected/current node breathes gently. */
       const pulse = emphasized && layer === 0 ? breath : 1;
@@ -581,7 +601,7 @@ function fillNodeArrays(cache, dust, frame, selectedNodeId, isImmersive, dpr, ti
       const size = Math.max(
         7,
         cache.radius[index] * 2 * frame.viewScale * frame.fitScale * dpr * sizeMultiplier * pulse
-          * projectionScratchA.perspective * (0.82 + projectionScratchA.depth * 0.28),
+          * projectionScratchA.perspective * (0.6 + projectionScratchA.depth * 0.46),
       );
       writePoint(
         projectionScratchA.clipX,
@@ -596,6 +616,7 @@ function fillNodeArrays(cache, dust, frame, selectedNodeId, isImmersive, dpr, ti
     }
   }
 
+  cache.screenReady = true;
   return cursor;
 }
 
@@ -665,7 +686,7 @@ function animatedNode(node, time, isImmersive) {
   };
 }
 
-function drawFallback2d(ctx, latest, width, height, dpr, time) {
+function drawFallback2d(ctx, latest, cache, width, height, dpr, time) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
   const nodes = latest.nodes.map((node) => animatedNode(node, time, latest.isImmersive));
@@ -679,13 +700,38 @@ function drawFallback2d(ctx, latest, width, height, dpr, time) {
     .filter((edge) => edge.sourceNode && edge.targetNode);
   const scaleX = width / VIEWBOX_WIDTH;
   const scaleY = height / VIEWBOX_HEIGHT;
+  const viewX = Number(latest.view?.x || 0);
+  const viewY = Number(latest.view?.y || 0);
+  const viewScale = Number(latest.view?.scale || 1);
   ctx.save();
   ctx.scale(scaleX, scaleY);
-  ctx.translate(Number(latest.view?.x || 0), Number(latest.view?.y || 0));
-  ctx.scale(Number(latest.view?.scale || 1), Number(latest.view?.scale || 1));
+  ctx.translate(viewX, viewY);
+  ctx.scale(viewScale, viewScale);
+
+  /* Mirror what this flat renderer paints into the shared screen-space hit
+     buffers (the fallback draws without the 3D camera). */
+  const toScreenX = (value) => (value * viewScale + viewX) * scaleX;
+  const toScreenY = (value) => (value * viewScale + viewY) * scaleY;
+  nodes.forEach((node, index) => {
+    if (index >= cache.nodeCount) return;
+    cache.screenX[index] = toScreenX(Number(node.visualX || 0));
+    cache.screenY[index] = toScreenY(Number(node.visualY || 0));
+    cache.screenR[index] = Math.max(3.5, Number(node.radius || 4) * viewScale * scaleX * 1.6);
+  });
 
   edges.forEach((edge, index) => {
     const curve = edgeCurve(edge, index, latest.isImmersive);
+    const cacheIndex = cache.edgeIds.indexOf(edge.id);
+    if (cacheIndex >= 0) {
+      const base = cacheIndex * (EDGE_SEGMENTS_ACTIVE + 1) * 2;
+      const samples = EDGE_SEGMENTS;
+      cache.edgeScreenCounts[cacheIndex] = samples + 1;
+      for (let step = 0; step <= samples; step += 1) {
+        const point = pointOnCurve(curve, step / samples);
+        cache.edgeScreen[base + step * 2] = toScreenX(point.x);
+        cache.edgeScreen[base + step * 2 + 1] = toScreenY(point.y);
+      }
+    }
     const palette = paletteFor(edge.sourceNode?.species);
     ctx.strokeStyle = `rgba(${Math.round(palette.line[0] * 255)}, ${Math.round(palette.line[1] * 255)}, ${Math.round(palette.line[2] * 255)}, 0.28)`;
     ctx.lineWidth = latest.selectedEdgeId === edge.id ? 1.2 : 0.55;
@@ -694,6 +740,7 @@ function drawFallback2d(ctx, latest, width, height, dpr, time) {
     ctx.quadraticCurveTo(curve.controlX, curve.controlY, curve.endX, curve.endY);
     ctx.stroke();
   });
+  cache.screenReady = true;
 
   nodes.forEach((node) => {
     const palette = paletteFor(node.species);
@@ -818,7 +865,7 @@ export default function SocialConstellationCanvas({
       if (gl && resources) {
         drawWebglScene(gl, resources, cacheRef.current, dustRef.current, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
       } else if (fallbackContext) {
-        drawFallback2d(fallbackContext, latestRef.current, canvasWidth, canvasHeight, dpr, seconds);
+        drawFallback2d(fallbackContext, latestRef.current, cacheRef.current, canvasWidth, canvasHeight, dpr, seconds);
       }
     };
 
@@ -854,37 +901,46 @@ export default function SocialConstellationCanvas({
     };
   }, []);
 
-  const graphPointFromEvent = (event) => {
+  /* Hit-test against the screen positions the last frame actually painted, so
+     picking stays exact while the 3D camera orbits the scene. */
+  const hitTest = (event) => {
     const canvas = canvasRef.current;
     const rect = canvas?.getBoundingClientRect?.();
-    if (!rect) return null;
-    const metrics = viewboxMetrics(Math.max(1, rect.width), Math.max(1, rect.height));
-    const viewX = (event.clientX - rect.left - metrics.offsetX) / metrics.fitScale;
-    const viewY = (event.clientY - rect.top - metrics.offsetY) / metrics.fitScale;
+    if (!rect) return {};
+    const cache = cacheRef.current;
     const latest = latestRef.current;
-    const scale = Number(latest.view?.scale || 1);
-    return {
-      x: (viewX - Number(latest.view?.x || 0)) / scale,
-      y: (viewY - Number(latest.view?.y || 0)) / scale,
-    };
-  };
-
-  const hitTest = (event) => {
-    const point = graphPointFromEvent(event);
-    if (!point) return {};
-    const latest = latestRef.current;
-    for (let index = latest.nodes.length - 1; index >= 0; index -= 1) {
-      const candidate = latest.nodes[index];
-      const radius = Number(candidate.radius || 4) + (latest.isImmersive ? 6 : 8);
-      if (Math.hypot(point.x - Number(candidate.visualX || 0), point.y - Number(candidate.visualY || 0)) <= radius) {
-        return { node: candidate };
+    if (!cache.screenReady || cache.nodeCount !== latest.nodes.length) return {};
+    const pointX = event.clientX - rect.left;
+    const pointY = event.clientY - rect.top;
+    const slop = latest.isImmersive ? 6 : 8;
+    for (let index = cache.nodeCount - 1; index >= 0; index -= 1) {
+      const reach = cache.screenR[index] + slop;
+      if (Math.hypot(pointX - cache.screenX[index], pointY - cache.screenY[index]) <= reach) {
+        const node = latest.nodes[index];
+        if (node) return { node };
       }
     }
-    const edge = latest.edges.find((candidate, index) => {
-      const curve = edgeCurve(candidate, index, latest.isImmersive);
-      return distanceToQuadratic(point, curve) <= (latest.isImmersive ? 4.8 : 6.5);
-    });
-    return { edge };
+    const edgeSlop = latest.isImmersive ? 5.5 : 7;
+    const stride = (EDGE_SEGMENTS_ACTIVE + 1) * 2;
+    for (let index = 0; index < cache.edgeCount; index += 1) {
+      const samples = cache.edgeScreenCounts[index];
+      const base = index * stride;
+      for (let step = 0; step + 1 < samples; step += 1) {
+        const hit = distanceToSegment(
+          pointX,
+          pointY,
+          cache.edgeScreen[base + step * 2],
+          cache.edgeScreen[base + step * 2 + 1],
+          cache.edgeScreen[base + step * 2 + 2],
+          cache.edgeScreen[base + step * 2 + 3],
+        ) <= edgeSlop;
+        if (hit) {
+          const edge = latest.edges.find((candidate) => candidate.id === cache.edgeIds[index]);
+          if (edge) return { edge };
+        }
+      }
+    }
+    return {};
   };
 
   const updatePointerParallax = (event) => {
