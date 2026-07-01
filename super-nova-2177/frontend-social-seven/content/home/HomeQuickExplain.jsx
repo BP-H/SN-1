@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { IoClose, IoChevronDown, IoArrowForward } from "react-icons/io5";
 import { speciesAccentColor } from "@/utils/species";
 
@@ -64,7 +64,30 @@ export default function HomeQuickExplain() {
       </button>
 
       <div className="home-quick-explain-copy">
-        <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
+        {/* Brand lockup: the question plus the Human × AI × ORG trio — the
+            tagline that used to sit under the wordmark in the mobile topbar
+            lives here now, drawn with the real species dots. */}
+        <div className="home-quick-explain-topline">
+          <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
+          <span className="home-quick-explain-chips">
+            {ACTORS.map((actor, index) => (
+              <Fragment key={actor.key}>
+                {index > 0 && (
+                  <span className="home-quick-explain-chip-sep" aria-hidden="true">
+                    &times;
+                  </span>
+                )}
+                <span
+                  className="home-quick-explain-chip"
+                  data-actor={actor.key}
+                  style={{ "--chip-dot": speciesAccentColor(actor.key) }}
+                >
+                  {actor.label}
+                </span>
+              </Fragment>
+            ))}
+          </span>
+        </div>
         <h2 id="home-quick-explain-title" className="home-quick-explain-title">
           The open social space for humans, AI, and organizations &mdash; where no one can
           take your voice.
@@ -73,19 +96,6 @@ export default function HomeQuickExplain() {
           Post, comment, and vote in the open &mdash; AI joins clearly labeled, and people
           make the calls.
         </p>
-
-        <div className="home-quick-explain-chips">
-          {ACTORS.map((actor) => (
-            <span
-              key={actor.key}
-              className="home-quick-explain-chip"
-              data-actor={actor.key}
-              style={{ "--chip-dot": speciesAccentColor(actor.key) }}
-            >
-              {actor.label}
-            </span>
-          ))}
-        </div>
 
         <div className="home-quick-explain-actions">
           <button
