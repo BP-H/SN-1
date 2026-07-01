@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
-import { IoChevronUp, IoClose } from "react-icons/io5";
+import { IoChevronUp } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import {
@@ -12,9 +11,9 @@ import {
   formatBackendAuthErrorMessage,
   requireBackendAuthSession,
 } from "@/utils/authSession";
-import useBodyScrollLock from "@/utils/useBodyScrollLock";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
+import VoteBreakdownModal from "./VoteBreakdownModal";
 
 const SLIDER_BLUE = "#5e8dfa";
 
@@ -45,10 +44,7 @@ function LikesDeslikes({
   const [showInfo, setShowInfo] = useState(false);
   const [closingInfo, setClosingInfo] = useState(false);
   const containerRef = useRef(null);
-  const modalCardRef = useRef(null);
   const infoToggleRef = useRef(null);
-  const backdropPressRef = useRef(false);
-  const sheetDragRef = useRef({ startY: 0, delta: 0, dragging: false });
   /* Guards against re-entrant votes (rapid double-click / overlapping AI action)
      that would fire two requests and double-count the optimistic tally. */
   const voteInFlightRef = useRef(false);
@@ -95,136 +91,27 @@ function LikesDeslikes({
   const pct = Math.max(weighted.supportPercent || 0, 0);
   const approvalRatio = Math.round(pct);
   const knobColor = getSliderColor(pct);
-  useBodyScrollLock(showInfo);
 
   /* Close with a short exit animation, then unmount and restore focus. */
   const closeInfo = useCallback(() => {
     setClosingInfo(true);
   }, []);
 
-  useEffect(() => {
-    if (!closingInfo) return undefined;
-    const timer = setTimeout(() => {
-      setShowInfo(false);
-      setClosingInfo(false);
-      infoToggleRef.current?.focus?.();
-    }, 170);
-    return () => clearTimeout(timer);
-  }, [closingInfo]);
+  const handleInfoClosed = useCallback(() => {
+    setShowInfo(false);
+    setClosingInfo(false);
+    infoToggleRef.current?.focus?.();
+  }, []);
 
-  /* Escape closes the breakdown */
-  useEffect(() => {
-    if (!showInfo) return undefined;
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") closeInfo();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showInfo, closeInfo]);
-
-  /* Move focus into the dialog when it opens */
-  useEffect(() => {
-    if (showInfo) modalCardRef.current?.focus?.();
-  }, [showInfo]);
-
-  /* Drag the sheet header down to dismiss (mobile bottom-sheet gesture). */
-  const handleSheetTouchStart = (e) => {
-    sheetDragRef.current = { startY: e.touches[0].clientY, delta: 0, dragging: true };
-    if (modalCardRef.current) modalCardRef.current.style.transition = "";
-  };
-
-  const handleSheetTouchMove = (e) => {
-    const state = sheetDragRef.current;
-    if (!state.dragging) return;
-    state.delta = Math.max(0, e.touches[0].clientY - state.startY);
-    if (modalCardRef.current) {
-      modalCardRef.current.style.transform = state.delta > 0 ? `translateY(${state.delta}px)` : "";
-    }
-  };
-
-  const handleSheetTouchEnd = () => {
-    const state = sheetDragRef.current;
-    if (!state.dragging) return;
-    state.dragging = false;
-    const card = modalCardRef.current;
-    if (state.delta > 72) {
-      /* Leave the inline transform in place: the exit animation only declares
-         a "to" frame, so it animates smoothly from the dragged position. */
-      closeInfo();
-    } else if (card) {
-      card.style.transition = "transform 0.18s ease";
-      card.style.transform = "";
-    }
-  };
-
-  const voteModal =
-    showInfo && typeof document !== "undefined"
-      ? createPortal(
-          <div
-            className={`vote-modal-backdrop ${closingInfo ? "vote-modal-backdrop-closing" : ""}`}
-            onPointerDown={(e) => {
-              backdropPressRef.current = e.target === e.currentTarget;
-            }}
-            onClick={(e) => {
-              /* Only close when the press started AND ended on the backdrop,
-                 so drag-selecting text inside the card never dismisses it. */
-              if (e.target === e.currentTarget && backdropPressRef.current) closeInfo();
-            }}
-          >
-            <div
-              ref={modalCardRef}
-              data-vote-modal
-              role="dialog"
-              aria-modal="true"
-              aria-label="Vote breakdown"
-              tabIndex={-1}
-              className="vote-modal-card outline-none"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                className="vote-modal-chrome"
-                onTouchStart={handleSheetTouchStart}
-                onTouchMove={handleSheetTouchMove}
-                onTouchEnd={handleSheetTouchEnd}
-              >
-                <span className="vote-modal-grab" aria-hidden="true" />
-                <div className="vote-modal-chrome-row">
-                  <span className="vote-modal-title">Vote breakdown</span>
-                  <button
-                    type="button"
-                    onClick={closeInfo}
-                    aria-label="Close vote breakdown"
-                    className="vote-info-close"
-                  >
-                    <IoClose />
-                  </button>
-                </div>
-              </div>
-              <div className="vote-modal-scroll">
-                <LikesInfo
-                  proposalId={proposalId}
-                  likesData={likesList}
-                  dislikesData={dislikesList}
-                />
-              </div>
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
-
-  /* Close popup on outside click */
-  useEffect(() => {
-    if (!showInfo) return undefined;
-    const handleOutsideClick = (e) => {
-      if (e.target.closest("[data-vote-modal]")) return;
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        closeInfo();
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showInfo, closeInfo]);
+  const voteModal = showInfo ? (
+    <VoteBreakdownModal
+      closing={closingInfo}
+      onRequestClose={closeInfo}
+      onClosed={handleInfoClosed}
+    >
+      <LikesInfo proposalId={proposalId} likesData={likesList} dislikesData={dislikesList} />
+    </VoteBreakdownModal>
+  ) : null;
 
   async function getApiError(response, fallback) {
     try {

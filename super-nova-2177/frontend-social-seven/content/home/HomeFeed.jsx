@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IoBarChartOutline,
@@ -14,7 +13,6 @@ import { avatarDisplayUrl } from "@/utils/avatar";
 import { speciesAvatarStyle } from "@/utils/species";
 import { useUser } from "@/content/profile/UserContext";
 import { useI18n } from "@/content/i18n/LocaleContext";
-import useBodyScrollLock from "@/utils/useBodyScrollLock";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import CreatePost from "../create post/CreatePost";
 import CollapsedComposerBar from "../create post/CollapsedComposerBar";
@@ -23,6 +21,7 @@ import HomeMissionHero from "./HomeMissionHero";
 import HomeQuickExplain from "./HomeQuickExplain";
 import ProposalCard from "../proposal/content/ProposalCard";
 import LikesInfo from "../proposal/content/LikesInfo";
+import VoteBreakdownModal from "../proposal/content/VoteBreakdownModal";
 import CardLoading from "../CardLoading";
 
 function formatRelativeTime(dateString) {
@@ -113,6 +112,8 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     }
   }, []);
   const [showSystemVoteInfo, setShowSystemVoteInfo] = useState(false);
+  const [closingSystemVoteInfo, setClosingSystemVoteInfo] = useState(false);
+  const systemVoteInfoToggleRef = useRef(null);
   const [systemVoteClicked, setSystemVoteClicked] = useState(null);
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
@@ -332,35 +333,30 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     }
   };
 
-  useBodyScrollLock(showSystemVoteInfo);
+  /* System vote breakdown shares the exact same popup shell as post votes:
+     close ×, Escape, backdrop, swipe-down sheet, animated exit. */
+  const closeSystemVoteInfo = useCallback(() => {
+    setClosingSystemVoteInfo(true);
+  }, []);
 
-  /* Close system vote overlay on outside click */
-  useEffect(() => {
-    if (!showSystemVoteInfo) return undefined;
-    const close = (e) => {
-      if (!e.target.closest("[data-system-vote-overlay]")) setShowSystemVoteInfo(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [showSystemVoteInfo]);
+  const handleSystemVoteInfoClosed = useCallback(() => {
+    setShowSystemVoteInfo(false);
+    setClosingSystemVoteInfo(false);
+    systemVoteInfoToggleRef.current?.focus?.();
+  }, []);
 
   const pct = Math.max(systemVote.weighted.supportPercent || 0, 0);
   const voteAccentColor = "var(--pink)";
-  const systemVoteModal =
-    showSystemVoteInfo && typeof document !== "undefined"
-      ? createPortal(
-          <div className="vote-modal-backdrop" onClick={() => setShowSystemVoteInfo(false)}>
-            <div
-              data-system-vote-overlay
-              className="vote-modal-card"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <LikesInfo likesData={systemVote.likes} dislikesData={systemVote.dislikes} />
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
+  const systemVoteModal = showSystemVoteInfo ? (
+    <VoteBreakdownModal
+      closing={closingSystemVoteInfo}
+      onRequestClose={closeSystemVoteInfo}
+      onClosed={handleSystemVoteInfoClosed}
+      ariaLabel="System vote breakdown"
+    >
+      <LikesInfo likesData={systemVote.likes} dislikesData={systemVote.dislikes} />
+    </VoteBreakdownModal>
+  ) : null;
 
   return (
     <div className="social-shell px-0 pb-5">
@@ -448,8 +444,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
             {/* Breakdown */}
             <button
+              ref={systemVoteInfoToggleRef}
               type="button"
-              onClick={() => setShowSystemVoteInfo((v) => !v)}
+              onClick={() => (showSystemVoteInfo ? closeSystemVoteInfo() : setShowSystemVoteInfo(true))}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.14)]"
               aria-label="Show species vote breakdown"
             >

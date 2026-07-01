@@ -359,6 +359,29 @@ test("vote breakdown modal filters voter names by species and answer", async ({ 
   await expect(modal.getByText("@nova-ai")).toBeVisible();
   await expect(modal.getByText("@human-yes")).toHaveCount(0);
   await expect(modal.getByText("@org-no")).toHaveCount(0);
+
+  await modal.getByRole("button", { name: "Close vote breakdown" }).click();
+  await expect(modal).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("system decision breakdown shares the polished vote popup shell", async ({ page }) => {
+  await mockPublicBackend(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Show species vote breakdown" }).click();
+  const modal = page.locator("[data-vote-modal]");
+  await expect(modal).toBeVisible();
+  await expect(modal.getByText("Vote breakdown")).toBeVisible();
+
+  await modal.getByRole("button", { name: "Close vote breakdown" }).click();
+  await expect(modal).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Show species vote breakdown" }).click();
+  await expect(modal).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
+
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
