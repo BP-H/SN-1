@@ -265,7 +265,7 @@ export default function Header({
                 <span className="mobile-brand truncate text-[clamp(0.78rem,3.25vw,1rem)] font-black text-[var(--text-black)]">
                   VA
                 </span>
-                <span className="hidden shrink-0 text-[0.54rem] font-bold tracking-[0.18em] text-[var(--text-gray-light)] min-[380px]:inline">
+                <span className="hidden shrink-0 text-[0.54rem] font-bold tracking-[0.18em] text-[var(--text-gray-light)] min-[400px]:inline">
                   2177
                 </span>
               </div>
@@ -281,7 +281,7 @@ export default function Header({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}
-                className="mobile-topbar-action hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bgGray text-[var(--text-black)] min-[390px]:flex"
+                className="mobile-topbar-action hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bgGray text-[var(--text-black)] min-[460px]:flex"
                 aria-label={t("header.openGithub")}
                 title={t("header.openGithub")}
               >

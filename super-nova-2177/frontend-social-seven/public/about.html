@@ -41,7 +41,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1.25rem 2.5rem;displ
 .nav-cta{background:var(--pink);color:#0A0710!important;padding:0.5rem 1.25rem;border-radius:6px;font-weight:500!important;box-shadow:0 6px 18px rgba(255,79,143,0.28)}
 .nav-cta:hover{background:var(--pink-bright)!important;color:#0A0710!important}
 
-section{position:relative;z-index:1}
+section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 
 /* HERO */
 .hero{min-height:90vh;display:flex;flex-direction:column;justify-content:center;padding:8rem 2.5rem 5rem;max-width:1100px;margin:0 auto}
@@ -357,24 +357,41 @@ initStars();
 drawStars();
 window.addEventListener('resize',()=>{resize();initStars()});
 
-// Intersection observer for scroll animations
+// Intersection observer for scroll animations. Fail open: content starts
+// visible and is only hidden when the observer is confirmed working, and a
+// timer force-reveals stragglers so nothing can ever be stuck invisible
+// (snapshot crawlers, in-app browsers, print, observer quirks).
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-if(!prefersReducedMotion){
+if(!prefersReducedMotion && 'IntersectionObserver' in window){
+  const revealables = [...document.querySelectorAll('.pillar,.faq-item,.stat,.contact-list li')];
+  let revealedAny = false;
+  const reveal = (el)=>{
+    revealedAny = true;
+    el.style.opacity='1';
+    el.style.transform='translateY(0)';
+  };
+  const revealAll = ()=>revealables.forEach(reveal);
   const observer = new IntersectionObserver((entries)=>{
     entries.forEach(e=>{
       if(e.isIntersecting){
-        e.target.style.opacity='1';
-        e.target.style.transform='translateY(0)';
+        reveal(e.target);
+        observer.unobserve(e.target);
       }
     });
   },{threshold:0.1});
 
-  document.querySelectorAll('.pillar,.faq-item,.stat,.contact-list li').forEach(el=>{
+  revealables.forEach(el=>{
     el.style.opacity='0';
     el.style.transform='translateY(16px)';
     el.style.transition='opacity 0.6s ease, transform 0.6s ease';
     observer.observe(el);
   });
+
+  // Safety nets: if the observer never fires at all (snapshot crawlers,
+  // odd in-app browsers), show everything rather than a blank page — and
+  // always show everything for print.
+  setTimeout(()=>{if(!revealedAny) revealAll()},2500);
+  window.addEventListener('beforeprint', revealAll);
 }
 </script>
 </body>
