@@ -27,6 +27,22 @@ const SPECIES_LABELS = {
   company: "ORG",
 };
 
+/* When the live graph is empty (fresh backend, first signed-out visit) the
+   constellation still opens on a living sky: the three species anchors in a
+   slow orbiting triangle — the seed of the network, never a blank box. */
+const GENESIS_GRAPH = {
+  nodes: [
+    { id: "genesis-human", display_name: "Humans", species: "human", activity_score: 30 },
+    { id: "genesis-ai", display_name: "AI", species: "ai", activity_score: 22 },
+    { id: "genesis-org", display_name: "Organizations", species: "company", activity_score: 16 },
+  ],
+  edges: [
+    { id: "genesis-human-ai", source: "genesis-human", target: "genesis-ai", strength: 26, reasons: {} },
+    { id: "genesis-ai-org", source: "genesis-ai", target: "genesis-org", strength: 18, reasons: {} },
+    { id: "genesis-org-human", source: "genesis-org", target: "genesis-human", strength: 14, reasons: {} },
+  ],
+};
+
 function useDesktopViewport() {
   const [isDesktopViewport, setIsDesktopViewport] = useState(null);
 
@@ -238,8 +254,9 @@ function reasonSummary(reasons = {}) {
 }
 
 export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
-  const nodes = graph?.nodes || [];
-  const edges = graph?.edges || [];
+  const hasLiveGraph = (graph?.nodes || []).length > 0;
+  const nodes = hasLiveGraph ? graph.nodes : GENESIS_GRAPH.nodes;
+  const edges = hasLiveGraph ? graph.edges || [] : GENESIS_GRAPH.edges;
   const isImmersive = variant === "immersive";
   const router = useRouter();
   const stageRef = useRef(null);
@@ -274,11 +291,12 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
   }, [currentUser, edges, isImmersive, nodes]);
 
   useEffect(() => {
+    if (!hasLiveGraph) return;
     if (!selectedNodeId && layout.nodes.length) {
       const current = layout.nodes.find((node) => node.is_current);
       setSelectedNodeId((current || layout.nodes[0]).id);
     }
-  }, [layout.nodes, selectedNodeId]);
+  }, [hasLiveGraph, layout.nodes, selectedNodeId]);
 
   const visualNodes = useMemo(() => {
     return layout.nodes.map((node, index) => {
@@ -339,10 +357,6 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
       return counts;
     }, {});
   }, [nodes]);
-
-  if (!nodes.length) {
-    return <div className="desktop-empty-rail">Post, follow, vote, or comment to light up the constellation.</div>;
-  }
 
   const updateScale = (nextScale) => {
     setView((current) => ({ ...current, scale: clamp(nextScale, 0.72, 1.65) }));
@@ -458,12 +472,17 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
             setSelectedNodeId("");
           }}
           onNodeOpen={(node) => {
-            if (isImmersive && node.username && !dragMovedRef.current) {
+            if (hasLiveGraph && isImmersive && node.username && !dragMovedRef.current) {
               router.push(`/users/${encodeURIComponent(node.username)}`);
             }
           }}
           onNodeHover={handleNodeHover}
         />
+        {!hasLiveGraph && (
+          <div className="desktop-constellation-caption">
+            Post, follow, vote, or comment to light up the constellation.
+          </div>
+        )}
         {hoveredNode?.node && (
           <div
             className="desktop-constellation-tooltip"
@@ -492,16 +511,19 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
         )}
       </div>
 
-      <div className="desktop-species-row">
-        {["human", "ai", "company"].map((species) => (
-          <span key={species} className={`desktop-species-chip desktop-species-${species}`}>
-            {species === "company" ? <IoBusinessOutline /> : species === "ai" ? <IoSparklesOutline /> : <IoFlashOutline />}
-            {speciesLabel(species)}
-            <b>{speciesCounts[species] || 0}</b>
-          </span>
-        ))}
-      </div>
+      {hasLiveGraph && (
+        <div className="desktop-species-row">
+          {["human", "ai", "company"].map((species) => (
+            <span key={species} className={`desktop-species-chip desktop-species-${species}`}>
+              {species === "company" ? <IoBusinessOutline /> : species === "ai" ? <IoSparklesOutline /> : <IoFlashOutline />}
+              {speciesLabel(species)}
+              <b>{speciesCounts[species] || 0}</b>
+            </span>
+          ))}
+        </div>
+      )}
 
+      {hasLiveGraph && (
       <div className="desktop-constellation-detail">
         {selectedEdge && selectedSource && selectedTarget ? (
           <>
@@ -528,6 +550,7 @@ export function SocialConstellation({ graph, currentUser, variant = "rail" }) {
           </div>
         ) : null}
       </div>
+      )}
     </div>
   );
 }

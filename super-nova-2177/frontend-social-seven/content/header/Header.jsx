@@ -224,7 +224,7 @@ export default function Header({
       }}
     >
       <div ref={headerRef} className="relative">
-        <LiquidGlass className="mobile-topbar rounded-[1.65rem] px-4 py-2.5">
+        <LiquidGlass className="mobile-topbar rounded-[1.65rem] px-4 py-2">
           <div className="mobile-top-content flex items-center justify-between gap-3">
             <button
               type="button"
@@ -234,7 +234,7 @@ export default function Header({
                 setShowMenu(true);
                 setHeaderHidden(false);
               }}
-              className="mobile-profile-menu-button relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+              className="mobile-profile-menu-button relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
               aria-label={t("header.openMenu")}
               title={t("header.openMenu")}
             >
@@ -244,7 +244,7 @@ export default function Header({
                 onError={(event) => {
                   event.currentTarget.src = defaultAvatar;
                 }}
-                className="h-11 w-11 rounded-full object-cover ring-1 ring-white/15"
+                className="h-10 w-10 rounded-full object-cover ring-1 ring-white/15"
               />
               <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--pink)] text-[0.78rem] text-white shadow-[var(--shadow-pink)] ring-1 ring-white/20">
                 <IoMenu />
@@ -269,7 +269,8 @@ export default function Header({
                   2177
                 </span>
               </div>
-              <p className="mt-[3px] truncate text-[0.46rem] uppercase tracking-[0.24em] text-[var(--text-gray-light)]">
+              {/* One-line brand on phones; the tagline returns on wider bars. */}
+              <p className="mt-[3px] hidden truncate text-[0.46rem] uppercase tracking-[0.24em] text-[var(--text-gray-light)] min-[768px]:block">
                 AI x Humans x ORG
               </p>
             </button>
