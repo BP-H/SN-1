@@ -870,6 +870,14 @@ def _proposal_created_at_from_request(date_value: Optional[str]) -> tuple[dateti
     return server_created_at, client_reported_date
 
 
+def _proposal_voting_closed(deadline_value, now: Optional[datetime.datetime] = None) -> bool:
+    deadline = _parse_utc_naive_datetime(deadline_value)
+    if deadline is None:
+        return False
+    current = _parse_utc_naive_datetime(now) or datetime.datetime.utcnow()
+    return current > deadline
+
+
 def _find_harmonizer_by_username(db: Session, username: Optional[str]):
     clean_username = (username or "").strip()
     if not clean_username or not CRUD_MODELS_AVAILABLE or Harmonizer is None:
@@ -3127,6 +3135,7 @@ class ProposalSchema(BaseModel):
     comments: List[Dict] = []
     media: Dict = {}
     collabs: List[Dict] = []
+    voting_closed: Optional[bool] = False
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -6582,7 +6591,8 @@ async def create_proposal(
                 db_proposal.file,
                 getattr(db_proposal, "payload", None),
                 getattr(db_proposal, "voting_deadline", None),
-            )
+            ),
+            voting_closed=_proposal_voting_closed(getattr(db_proposal, "voting_deadline", None)),
         )
     except Exception as e:
         db.rollback()
@@ -7065,7 +7075,8 @@ def list_proposals(
                     getattr(prop, "file", ""),
                     getattr(prop, "payload", None),
                     getattr(prop, "voting_deadline", None),
-                )
+                ),
+                "voting_closed": _proposal_voting_closed(getattr(prop, "voting_deadline", None)),
             })
 
         return proposals_list
@@ -8188,7 +8199,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             dislikes=dislikes,
             comments=comments_list,
             collabs=_approved_proposal_collabs(db, row.id),
-            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline)
+            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline),
+            voting_closed=_proposal_voting_closed(getattr(row, "voting_deadline", None)),
         )
     else:
         result = db.execute(
@@ -8249,7 +8261,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "file", ""),
                 getattr(row, "payload", None),
                 getattr(row, "voting_deadline", None),
-            )
+            ),
+            voting_closed=_proposal_voting_closed(getattr(row, "voting_deadline", None)),
         )
 
 app.include_router(create_uploads_router(
