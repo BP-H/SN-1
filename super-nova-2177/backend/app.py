@@ -838,6 +838,38 @@ def _format_timestamp(value) -> str:
     return str(value)
 
 
+def _parse_utc_naive_datetime(value) -> Optional[datetime.datetime]:
+    if not value:
+        return None
+    try:
+        if isinstance(value, datetime.datetime):
+            parsed = value
+        elif isinstance(value, str):
+            normalized = value.strip()
+            if not normalized:
+                return None
+            parsed = datetime.datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        else:
+            return None
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def _proposal_created_at_from_request(date_value: Optional[str]) -> tuple[datetime.datetime, str]:
+    server_created_at = datetime.datetime.utcnow()
+    client_reported_date = str(date_value or "").strip()[:120]
+    if os.environ.get("ALLOW_CLIENT_POST_DATES") == "1":
+        parsed_client_date = _parse_utc_naive_datetime(client_reported_date)
+        if parsed_client_date is not None:
+            skew_seconds = abs((parsed_client_date - server_created_at).total_seconds())
+            if skew_seconds <= 300:
+                return parsed_client_date, client_reported_date
+    return server_created_at, client_reported_date
+
+
 def _find_harmonizer_by_username(db: Session, username: Optional[str]):
     clean_username = (username or "").strip()
     if not clean_username or not CRUD_MODELS_AVAILABLE or Harmonizer is None:
@@ -6399,16 +6431,13 @@ async def create_proposal(
             max_bytes=UPLOAD_DOCUMENT_MAX_BYTES,
         )
 
-    from datetime import datetime as dt
-    if date:
-        normalized_date = date.replace("Z", "+00:00")
-        created_at = dt.fromisoformat(normalized_date)
-    else:
-        created_at = dt.utcnow()
+    created_at, client_reported_date = _proposal_created_at_from_request(date)
     if not voting_deadline:
         deadline_days = safe_voting_days if safe_governance_kind == "decision" else 7
         voting_deadline = created_at + timedelta(days=deadline_days)
     proposal_payload = {"media_layout": safe_media_layout}
+    if client_reported_date:
+        proposal_payload["client_reported_date"] = client_reported_date
     if any(entry is not None for entry in image_dimensions):
         proposal_payload["image_dimensions"] = image_dimensions
     if image_data_urls:
@@ -6429,8 +6458,6 @@ async def create_proposal(
         final_user = None
         if author and author.strip():
             final_user = author.strip()
-        if 'userName' in locals() and userName and userName.strip():
-            final_user = userName.strip()
         if not final_user:
             final_user = "Unknown"
         initials = (final_user[:2].upper() if final_user else "UN")

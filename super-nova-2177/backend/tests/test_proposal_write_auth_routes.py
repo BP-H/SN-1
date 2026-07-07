@@ -12,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def run_proposal_auth_probe(probe: str) -> dict:
+def run_proposal_auth_probe(probe: str, env_overrides: dict[str, str] | None = None) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "proposal_write_auth_routes.sqlite"
         env = os.environ.copy()
@@ -29,6 +29,8 @@ def run_proposal_auth_probe(probe: str) -> dict:
         )
         env.pop("RAILWAY_ENVIRONMENT", None)
         env.pop("ENABLE_BULK_PROPOSAL_DELETE", None)
+        if env_overrides:
+            env.update(env_overrides)
 
         completed = subprocess.run(
             [sys.executable, "-c", probe],
@@ -186,6 +188,23 @@ def proposal_title(proposal_id):
         db.close()
 
 
+def proposal_row(proposal_id):
+    db = backend_app.SessionLocal()
+    try:
+        proposal = db.query(backend_app.Proposal).filter(backend_app.Proposal.id == proposal_id).first()
+        if not proposal:
+            return {}
+        payload = backend_app._json_loads(getattr(proposal, "payload", None), {})
+        return {
+            "id": getattr(proposal, "id", None),
+            "title": getattr(proposal, "title", ""),
+            "created_at": backend_app._format_timestamp(getattr(proposal, "created_at", None)),
+            "payload": payload,
+        }
+    finally:
+        db.close()
+
+
 def collab_count_for(proposal_id):
     db = backend_app.SessionLocal()
     try:
@@ -245,6 +264,87 @@ class ProposalWriteAuthRoutesTests(unittest.TestCase):
         self.assertEqual(result["userName"], "alice")
         self.assertEqual(result["public_read_status"], 200)
         self.assertGreaterEqual(result["public_read_count"], 1)
+
+    def test_create_proposal_uses_server_time_and_preserves_client_reported_date(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            before = datetime.datetime.utcnow()
+            future_client_date = (before + datetime.timedelta(days=7)).replace(microsecond=0).isoformat() + "Z"
+            form = {
+                "title": "Future client date",
+                "body": "Client dates should not control ordering.",
+                "author": "alice",
+                "author_type": "human",
+                "date": future_client_date,
+            }
+            response = client.post("/proposals", data=form, headers=alice_headers)
+            payload = response.json()
+            client.post(
+                "/proposals",
+                data={
+                    "title": "Current server date",
+                    "body": "This normal server-time post should be latest.",
+                    "author": "alice",
+                    "author_type": "human",
+                },
+                headers=alice_headers,
+            )
+            row = proposal_row(payload.get("id"))
+            created_at = datetime.datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")).replace(tzinfo=None)
+            latest = client.get("/proposals?filter=latest&limit=1").json()
+            result = {
+                "status": response.status_code,
+                "client_reported_date": row.get("payload", {}).get("client_reported_date"),
+                "created_is_near_server_time": abs((created_at - before).total_seconds()) < 120,
+                "created_is_not_future_client_time": (datetime.datetime.fromisoformat(future_client_date.replace("Z", "+00:00")).replace(tzinfo=None) - created_at).total_seconds() > 6 * 24 * 3600,
+                "latest_title": latest[0].get("title") if latest else "",
+            }
+            print("PROPOSAL_WRITE_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_proposal_auth_probe(probe)
+
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["client_reported_date"], result["client_reported_date"].strip())
+        self.assertTrue(result["client_reported_date"].endswith("Z"))
+        self.assertTrue(result["created_is_near_server_time"])
+        self.assertTrue(result["created_is_not_future_client_time"])
+        self.assertEqual(result["latest_title"], "Current server date")
+
+    def test_create_proposal_allows_small_client_date_skew_only_when_explicitly_enabled(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            requested = (datetime.datetime.utcnow() + datetime.timedelta(seconds=120)).replace(microsecond=0)
+            requested_text = requested.isoformat() + "Z"
+            response = client.post(
+                "/proposals",
+                data={
+                    "title": "Backfill-skew date",
+                    "body": "A small explicit skew can be accepted in controlled mode.",
+                    "author": "alice",
+                    "author_type": "human",
+                    "date": requested_text,
+                },
+                headers=alice_headers,
+            )
+            payload = response.json()
+            row = proposal_row(payload.get("id"))
+            created_at = datetime.datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")).replace(tzinfo=None)
+            result = {
+                "status": response.status_code,
+                "client_reported_date": row.get("payload", {}).get("client_reported_date"),
+                "created_matches_requested_skew": abs((created_at - requested).total_seconds()) <= 2,
+            }
+            print("PROPOSAL_WRITE_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_proposal_auth_probe(probe, {"ALLOW_CLIENT_POST_DATES": "1"})
+
+        self.assertEqual(result["status"], 200)
+        self.assertTrue(result["created_matches_requested_skew"])
+        self.assertTrue(result["client_reported_date"].endswith("Z"))
 
     def test_edit_proposal_requires_matching_author_bearer(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
