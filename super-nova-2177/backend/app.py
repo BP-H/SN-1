@@ -8372,6 +8372,7 @@ def delete_proposal(
 
 def delete_all_proposals(
     x_confirm_delete: Optional[str] = Header(default=None, alias="x-confirm-delete"),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Delete all proposals. Requires 'x-confirm-delete: yes' header to prevent accidental calls."""
@@ -8382,6 +8383,13 @@ def delete_all_proposals(
             status_code=400,
             detail="Send header 'x-confirm-delete: yes' to confirm bulk deletion"
         )
+    admin_username = (os.environ.get("SUPERNOVA_ADMIN_USERNAME") or "").strip()
+    if not admin_username:
+        raise HTTPException(
+            status_code=403,
+            detail="Bulk proposal deletion requires SUPERNOVA_ADMIN_USERNAME",
+        )
+    _require_token_identity_match(authorization, db, admin_username)
     try:
         if CRUD_MODELS_AVAILABLE:
             if ProposalCollab is not None:

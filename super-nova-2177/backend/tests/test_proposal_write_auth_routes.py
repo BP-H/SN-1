@@ -479,6 +479,130 @@ class ProposalWriteAuthRoutesTests(unittest.TestCase):
         self.assertEqual(result["detail"], "Bulk proposal deletion is disabled")
         self.assertTrue(result["proposal_exists"])
 
+    def test_bulk_delete_requires_confirmation_when_explicitly_enabled(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            proposal_id = create_proposal("Bulk delete missing confirmation")
+            response = client.delete("/proposals", headers=alice_headers)
+            result = {
+                "status": response.status_code,
+                "detail": response.json().get("detail"),
+                "proposal_exists": proposal_exists(proposal_id),
+            }
+            print("PROPOSAL_WRITE_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_proposal_auth_probe(
+            probe,
+            {
+                "ENABLE_BULK_PROPOSAL_DELETE": "true",
+                "SUPERNOVA_ADMIN_USERNAME": "alice",
+            },
+        )
+
+        self.assertEqual(result["status"], 400)
+        self.assertIn("x-confirm-delete", result["detail"])
+        self.assertTrue(result["proposal_exists"])
+
+    def test_bulk_delete_requires_configured_admin_username_when_enabled(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            proposal_id = create_proposal("Bulk delete missing admin env")
+            headers = dict(alice_headers)
+            headers["x-confirm-delete"] = "yes"
+            response = client.delete("/proposals", headers=headers)
+            result = {
+                "status": response.status_code,
+                "detail": response.json().get("detail"),
+                "proposal_exists": proposal_exists(proposal_id),
+            }
+            print("PROPOSAL_WRITE_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_proposal_auth_probe(
+            probe,
+            {"ENABLE_BULK_PROPOSAL_DELETE": "true"},
+        )
+
+        self.assertEqual(result["status"], 403)
+        self.assertEqual(result["detail"], "Bulk proposal deletion requires SUPERNOVA_ADMIN_USERNAME")
+        self.assertTrue(result["proposal_exists"])
+
+    def test_bulk_delete_requires_matching_admin_bearer_when_enabled(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            missing_id = create_proposal("Bulk delete missing bearer")
+            invalid_id = create_proposal("Bulk delete invalid bearer")
+            wrong_id = create_proposal("Bulk delete wrong bearer")
+            confirm_headers = {"x-confirm-delete": "yes"}
+            invalid_confirm_headers = dict(invalid_headers)
+            invalid_confirm_headers["x-confirm-delete"] = "yes"
+            wrong_confirm_headers = dict(bob_headers)
+            wrong_confirm_headers["x-confirm-delete"] = "yes"
+            missing = client.delete("/proposals", headers=confirm_headers)
+            invalid = client.delete("/proposals", headers=invalid_confirm_headers)
+            wrong = client.delete("/proposals", headers=wrong_confirm_headers)
+            result = {
+                "missing_status": missing.status_code,
+                "invalid_status": invalid.status_code,
+                "wrong_status": wrong.status_code,
+                "missing_exists": proposal_exists(missing_id),
+                "invalid_exists": proposal_exists(invalid_id),
+                "wrong_exists": proposal_exists(wrong_id),
+            }
+            print("PROPOSAL_WRITE_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_proposal_auth_probe(
+            probe,
+            {
+                "ENABLE_BULK_PROPOSAL_DELETE": "true",
+                "SUPERNOVA_ADMIN_USERNAME": "alice",
+            },
+        )
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["invalid_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertTrue(result["missing_exists"])
+        self.assertTrue(result["invalid_exists"])
+        self.assertTrue(result["wrong_exists"])
+
+    def test_bulk_delete_succeeds_only_with_enabled_confirmed_admin_token(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            first_id = create_proposal("Bulk delete success one")
+            second_id = create_proposal("Bulk delete success two")
+            headers = dict(alice_headers)
+            headers["x-confirm-delete"] = "yes"
+            response = client.delete("/proposals", headers=headers)
+            result = {
+                "status": response.status_code,
+                "payload": response.json(),
+                "first_exists": proposal_exists(first_id),
+                "second_exists": proposal_exists(second_id),
+            }
+            print("PROPOSAL_WRITE_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_proposal_auth_probe(
+            probe,
+            {
+                "ENABLE_BULK_PROPOSAL_DELETE": "true",
+                "SUPERNOVA_ADMIN_USERNAME": "alice",
+            },
+        )
+
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["payload"].get("ok"), True)
+        self.assertGreaterEqual(result["payload"].get("deleted_count", 0), 2)
+        self.assertFalse(result["first_exists"])
+        self.assertFalse(result["second_exists"])
+
 
 if __name__ == "__main__":
     unittest.main()
