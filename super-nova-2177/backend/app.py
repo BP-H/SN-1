@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlparse
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -422,6 +423,14 @@ def persist_weighted_vote_record(
             session.close()
 
 # --- FastAPI setup ---
+class SuperNovaGZipMiddleware(GZipMiddleware):
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path") == "/health":
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
 app = FastAPI(
     title="SuperNova 2177 API",
     description="Backend API for SuperNova 2177 - Unified Version",
@@ -435,6 +444,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SuperNovaGZipMiddleware, minimum_size=1024)
 
 
 @app.middleware("http")
