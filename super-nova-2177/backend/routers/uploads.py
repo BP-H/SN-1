@@ -1,7 +1,7 @@
 import os
 from typing import Callable, Optional
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -20,8 +20,31 @@ def create_uploads_router(
     save_upload_file: Callable,
     require_token_identity_match: Callable,
     sync_user_avatar_references: Callable,
+    load_fallback_image: Callable,
 ) -> APIRouter:
     router = APIRouter()
+
+    @router.get("/uploads-fallback/{proposal_id}/{index}")
+    def read_uploads_fallback_image(
+        proposal_id: int,
+        index: int,
+        db: Session = Depends(get_db),
+    ):
+        """Stream a proposal's stored data-URL fallback image as real bytes.
+
+        Feed JSON links here instead of inlining base64 when the original
+        upload is missing from disk; the stored fallback never changes, so
+        the response is immutable-cacheable. Public read, like /uploads.
+        """
+        loaded = load_fallback_image(db, proposal_id, index)
+        if not loaded:
+            raise HTTPException(status_code=404, detail="Fallback image not found")
+        image_bytes, media_type = loaded
+        return Response(
+            content=image_bytes,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
 
     @router.post("/upload-image")
     async def upload_image(

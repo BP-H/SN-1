@@ -1,4 +1,5 @@
 import datetime
+import base64
 import hashlib
 import json
 import logging
@@ -1369,7 +1370,15 @@ def _image_data_urls_from_payload(payload: Dict) -> List[str]:
     ]
 
 
-def _image_urls_from_storage(value, fallback_data_urls: Optional[List[str]] = None) -> List[str]:
+def _upload_fallback_inline_enabled() -> bool:
+    return os.environ.get("UPLOAD_FALLBACK_INLINE", "").strip() == "1"
+
+
+def _image_urls_from_storage(
+    value,
+    fallback_data_urls: Optional[List[str]] = None,
+    proposal_id: Optional[int] = None,
+) -> List[str]:
     raw = str(value or "").strip()
     if not raw:
         return []
@@ -1380,9 +1389,11 @@ def _image_urls_from_storage(value, fallback_data_urls: Optional[List[str]] = No
     fallback_iter = iter(fallback_data_urls or [])
     urls = []
     values = parsed if isinstance(parsed, list) else [raw]
+    fallback_index = -1
     for item in values:
         if not str(item or "").strip():
             continue
+        fallback_index += 1
         media_url = _uploads_url(item)
         fallback_url = next(fallback_iter, "")
         if (
@@ -1390,10 +1401,55 @@ def _image_urls_from_storage(value, fallback_data_urls: Optional[List[str]] = No
             and media_url.startswith("/uploads/")
             and not _upload_media_file_exists(media_url)
         ):
-            urls.append(fallback_url)
+            # The disk bytes are gone but a stored data-URL fallback exists.
+            # Serialize a stable streaming URL instead of inlining megabytes
+            # of base64 into feed JSON (F03); UPLOAD_FALLBACK_INLINE=1
+            # restores the old inline behavior.
+            if proposal_id and not _upload_fallback_inline_enabled():
+                urls.append(f"/uploads-fallback/{int(proposal_id)}/{fallback_index}")
+            else:
+                urls.append(fallback_url)
         else:
             urls.append(media_url)
     return urls
+
+
+def _load_proposal_fallback_image(
+    db: Session, proposal_id: int, index: int
+) -> Optional[tuple[bytes, str]]:
+    """Decode one stored data-URL fallback for /uploads-fallback/{pid}/{index}."""
+    row = None
+    if CRUD_MODELS_AVAILABLE and Proposal is not None:
+        try:
+            row = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+        except Exception:
+            db.rollback()
+            row = None
+    else:
+        try:
+            row = db.execute(
+                text("SELECT payload FROM proposals WHERE id = :pid"),
+                {"pid": proposal_id},
+            ).fetchone()
+        except Exception:
+            db.rollback()
+            row = None
+    if row is None:
+        return None
+    data_urls = _image_data_urls_from_payload(_payload_dict(getattr(row, "payload", None)))
+    if index < 0 or index >= len(data_urls):
+        return None
+    header, _, encoded = data_urls[index].partition(",")
+    if not header.startswith("data:") or not encoded:
+        return None
+    media_type = header[5:].split(";", 1)[0].strip() or "application/octet-stream"
+    try:
+        image_bytes = base64.b64decode(encoded)
+    except Exception:
+        return None
+    if not image_bytes:
+        return None
+    return image_bytes, media_type
 
 
 def _normalize_media_layout(value: Optional[str]) -> str:
@@ -1468,9 +1524,12 @@ def _media_payload(
     file_value="",
     payload_value=None,
     voting_deadline_value=None,
+    proposal_id=None,
 ) -> Dict:
     payload = _payload_dict(payload_value)
-    images = _image_urls_from_storage(image_value, _image_data_urls_from_payload(payload))
+    images = _image_urls_from_storage(
+        image_value, _image_data_urls_from_payload(payload), proposal_id=proposal_id
+    )
     media = {
         "image": images[0] if images else "",
         "images": images,
@@ -1671,6 +1730,7 @@ def _proposal_public_context(proposal) -> Dict[str, Any]:
         getattr(proposal, "file", ""),
         getattr(proposal, "payload", None),
         getattr(proposal, "voting_deadline", None),
+        proposal_id=getattr(proposal, "id", None),
     )
     indicators: List[str] = []
     if media.get("images"):
@@ -6759,6 +6819,7 @@ async def create_proposal(
                 db_proposal.file,
                 getattr(db_proposal, "payload", None),
                 getattr(db_proposal, "voting_deadline", None),
+                proposal_id=getattr(db_proposal, "id", None),
             ),
             voting_closed=_proposal_voting_closed(
                 getattr(db_proposal, "voting_deadline", None),
@@ -7273,6 +7334,7 @@ def _serialize_proposal_page_from_maps(
                 getattr(prop, "file", ""),
                 getattr(prop, "payload", None),
                 getattr(prop, "voting_deadline", None),
+                proposal_id=getattr(prop, "id", None),
             ),
             "voting_closed": _proposal_voting_closed(
                 getattr(prop, "voting_deadline", None),
@@ -7647,6 +7709,7 @@ def list_proposals(
                     getattr(prop, "file", ""),
                     getattr(prop, "payload", None),
                     getattr(prop, "voting_deadline", None),
+                    proposal_id=getattr(prop, "id", None),
                 ),
                 "voting_closed": _proposal_voting_closed(
                     getattr(prop, "voting_deadline", None),
@@ -8782,7 +8845,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             dislikes=dislikes,
             comments=comments_list,
             collabs=_approved_proposal_collabs(db, row.id),
-            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline),
+            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline, proposal_id=row.id),
             voting_closed=_proposal_voting_closed(
                 getattr(row, "voting_deadline", None),
                 getattr(row, "payload", None),
@@ -8850,6 +8913,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "file", ""),
                 getattr(row, "payload", None),
                 getattr(row, "voting_deadline", None),
+                proposal_id=getattr(row, "id", None),
             ),
             voting_closed=_proposal_voting_closed(
                 getattr(row, "voting_deadline", None),
@@ -8862,6 +8926,7 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
 
 app.include_router(create_uploads_router(
     get_db=get_db,
+    load_fallback_image=_load_proposal_fallback_image,
     uploads_dir=uploads_dir,
     image_upload_extensions=IMAGE_UPLOAD_EXTENSIONS,
     document_upload_extensions=DOCUMENT_UPLOAD_EXTENSIONS,

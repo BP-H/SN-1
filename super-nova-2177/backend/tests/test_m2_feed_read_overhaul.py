@@ -532,5 +532,116 @@ class M2BatchedSerializerTests(unittest.TestCase):
         self.assertEqual(result["comment_count"], 2)
 
 
+class M2FallbackByUrlTests(unittest.TestCase):
+    def test_missing_upload_serializes_fallback_url_and_streams_bytes(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            import base64
+            import os
+
+            TINY_PNG_B64 = (
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+                "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            )
+            DATA_URL = "data:image/png;base64," + TINY_PNG_B64
+
+            db = backend_app.SessionLocal()
+            try:
+                author = backend_app.Harmonizer(
+                    username="alice",
+                    email="alice@example.test",
+                    hashed_password="test",
+                    species="human",
+                    profile_pic="default.jpg",
+                )
+                db.add(author)
+                db.commit()
+                db.refresh(author)
+                now = datetime.datetime.utcnow()
+                missing = backend_app.Proposal(
+                    title="Missing upload proposal",
+                    description="Disk bytes are gone; fallback stored in payload.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=author.id,
+                    image="missing-image.png",
+                    payload={"media_layout": "carousel", "image_data_urls": [DATA_URL]},
+                    created_at=now,
+                    voting_deadline=now + datetime.timedelta(days=7),
+                )
+                uploads_dir = Path(backend_app.uploads_dir)
+                uploads_dir.mkdir(parents=True, exist_ok=True)
+                (uploads_dir / "present-image.png").write_bytes(
+                    base64.b64decode(TINY_PNG_B64)
+                )
+                present = backend_app.Proposal(
+                    title="Present upload proposal",
+                    description="Disk bytes exist; fallback must stay unused.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=author.id,
+                    image="present-image.png",
+                    payload={"media_layout": "carousel", "image_data_urls": [DATA_URL]},
+                    created_at=now - datetime.timedelta(minutes=1),
+                    voting_deadline=now + datetime.timedelta(days=7),
+                )
+                db.add_all([missing, present])
+                db.commit()
+                db.refresh(missing)
+                db.refresh(present)
+                missing_id, present_id = missing.id, present.id
+            finally:
+                db.close()
+
+            feed_response = client.get("/proposals?filter=latest&limit=10")
+            feed = feed_response.json()
+            single = client.get(f"/proposals/{missing_id}").json()
+            stream = client.get(f"/uploads-fallback/{missing_id}/0")
+            bad_index = client.get(f"/uploads-fallback/{missing_id}/9")
+            bad_proposal = client.get("/uploads-fallback/999999/0")
+
+            os.environ["UPLOAD_FALLBACK_INLINE"] = "1"
+            inline_feed = client.get("/proposals?filter=latest&limit=10").json()
+            os.environ.pop("UPLOAD_FALLBACK_INLINE", None)
+
+            result = {
+                "missing_id": missing_id,
+                "missing_feed_image": feed_entry(feed, missing_id)["media"]["images"][0],
+                "present_feed_image": feed_entry(feed, present_id)["media"]["images"][0],
+                "feed_has_inline_base64": "data:image/png;base64" in feed_response.text,
+                "single_image": single["media"]["images"][0],
+                "stream_status": stream.status_code,
+                "stream_content_type": stream.headers.get("content-type"),
+                "stream_cache_control": stream.headers.get("cache-control"),
+                "stream_bytes_match": stream.content == base64.b64decode(TINY_PNG_B64),
+                "bad_index_status": bad_index.status_code,
+                "bad_proposal_status": bad_proposal.status_code,
+                "inline_feed_image_prefix": feed_entry(inline_feed, missing_id)["media"]["images"][0][:22],
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+
+        expected_fallback_url = f"/uploads-fallback/{result['missing_id']}/0"
+        self.assertEqual(result["missing_feed_image"], expected_fallback_url)
+        self.assertEqual(result["present_feed_image"], "/uploads/present-image.png")
+        self.assertFalse(result["feed_has_inline_base64"])
+        self.assertEqual(result["single_image"], expected_fallback_url)
+        self.assertEqual(result["stream_status"], 200)
+        self.assertTrue(result["stream_content_type"].startswith("image/png"))
+        self.assertEqual(
+            result["stream_cache_control"], "public, max-age=31536000, immutable"
+        )
+        self.assertTrue(result["stream_bytes_match"])
+        self.assertEqual(result["bad_index_status"], 404)
+        self.assertEqual(result["bad_proposal_status"], 404)
+        # UPLOAD_FALLBACK_INLINE=1 restores the legacy inline behavior.
+        self.assertEqual(result["inline_feed_image_prefix"], "data:image/png;base64,")
+
+
 if __name__ == "__main__":
     unittest.main()
