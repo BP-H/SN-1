@@ -346,6 +346,14 @@ Status:
 - Keeps the lower-username index non-unique in runtime startup DDL until the
   read-only collision report proves there are no case-variant username
   collisions in the target environment.
+- Adds a read-only collision preflight:
+
+  ```bash
+  python scripts/check_username_collisions.py --json
+  ```
+
+  Only after that report is clean in the target environment should a future PR
+  consider changing `idx_harmonizers_username_lower` to a unique index.
 
 Rollback note:
 

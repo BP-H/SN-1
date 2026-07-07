@@ -181,6 +181,21 @@ class M1BackendHardeningTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, source)
 
+    def test_username_collision_preflight_exists_before_unique_lower_index(self):
+        app_source = (PROJECT_ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+        script_path = PROJECT_ROOT.parent / "scripts" / "check_username_collisions.py"
+        self.assertTrue(script_path.exists())
+        script_source = script_path.read_text(encoding="utf-8")
+
+        self.assertIn("SELECT id, username FROM harmonizers", script_source)
+        self.assertIn("case-insensitive username collisions", script_source)
+        self.assertNotIn("hashed_password", script_source)
+        self.assertNotIn("password_hash", script_source)
+        self.assertNotIn("refresh_token", script_source)
+        self.assertNotIn("access_token", script_source)
+        self.assertIn("CREATE INDEX IF NOT EXISTS idx_harmonizers_username_lower", app_source)
+        self.assertNotIn("CREATE UNIQUE INDEX IF NOT EXISTS idx_harmonizers_username_lower", app_source)
+
     def test_procfile_runs_two_workers_by_default_and_rate_limit_note_is_present(self):
         procfile = PROJECT_ROOT / "Procfile"
         self.assertTrue(procfile.exists())
