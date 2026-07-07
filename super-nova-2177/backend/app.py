@@ -957,12 +957,30 @@ PROPOSAL_READ_INDEX_STATEMENTS = (
     "ON proposals (created_at, id)",
     "CREATE INDEX IF NOT EXISTS idx_proposal_votes_proposal_vote "
     "ON proposal_votes (proposal_id, vote)",
+    "CREATE INDEX IF NOT EXISTS idx_comments_proposal_id "
+    "ON comments (proposal_id, id)",
+    "CREATE INDEX IF NOT EXISTS idx_comment_votes_comment_id "
+    "ON comment_votes (comment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_proposal_collabs_proposal_status "
+    "ON proposal_collabs (proposal_id, status)",
 )
 
 
 def _execute_index_statements(db: Session, statements: tuple[str, ...]) -> None:
     for statement in statements:
         db.execute(text(statement))
+
+
+def _harmonizer_username_lower_index_statement() -> str:
+    if str(DB_ENGINE_URL or "").startswith("sqlite"):
+        return (
+            "CREATE INDEX IF NOT EXISTS idx_harmonizers_username_lower "
+            "ON harmonizers (username COLLATE NOCASE)"
+        )
+    return (
+        "CREATE INDEX IF NOT EXISTS idx_harmonizers_username_lower "
+        "ON harmonizers (LOWER(username))"
+    )
 
 
 def _ensure_comments_read_indexes(db: Session) -> None:
@@ -976,6 +994,7 @@ def _ensure_direct_messages_read_indexes(db: Session) -> None:
 def _ensure_proposal_read_indexes(db: Session) -> None:
     try:
         _execute_index_statements(db, PROPOSAL_READ_INDEX_STATEMENTS)
+        db.execute(text(_harmonizer_username_lower_index_statement()))
         db.commit()
     except Exception:
         db.rollback()
@@ -3004,9 +3023,12 @@ def _ensure_system_votes_table(db: Session) -> None:
 
 
 def _ensure_startup_schema_compatibility(db: Session) -> None:
-    _ensure_proposal_read_indexes(db)
     _ensure_comment_thread_columns(db)
     _ensure_comment_votes_table(db)
+    _ensure_direct_messages_table(db)
+    _ensure_comments_read_indexes(db)
+    _ensure_direct_messages_read_indexes(db)
+    _ensure_proposal_read_indexes(db)
     _ensure_system_votes_table(db)
 
 

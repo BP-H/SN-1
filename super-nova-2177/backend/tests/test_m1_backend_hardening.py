@@ -163,6 +163,24 @@ class M1BackendHardeningTests(unittest.TestCase):
         self.assertIn("likes", result["first_keys"])
         self.assertEqual(result["first_keys"], result["second_keys"])
 
+    def test_m1_startup_index_definitions_include_safe_read_indexes(self):
+        source = (PROJECT_ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+
+        for fragment in [
+            "idx_harmonizers_username_lower",
+            "ON harmonizers (LOWER(username))",
+            "ON harmonizers (username COLLATE NOCASE)",
+            "idx_comments_proposal_id",
+            "ON comments (proposal_id, id)",
+            "idx_comment_votes_comment_id",
+            "ON comment_votes (comment_id)",
+            "idx_proposal_collabs_proposal_status",
+            "ON proposal_collabs (proposal_id, status)",
+            "idx_direct_messages_conversation_created_id",
+            "ON direct_messages (conversation_id, created_at, id)",
+        ]:
+            self.assertIn(fragment, source)
+
     def test_procfile_runs_two_workers_by_default_and_rate_limit_note_is_present(self):
         procfile = PROJECT_ROOT / "Procfile"
         self.assertTrue(procfile.exists())

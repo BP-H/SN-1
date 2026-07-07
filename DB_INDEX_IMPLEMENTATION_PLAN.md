@@ -325,6 +325,37 @@ Rollback:
 - If DDL was applied to an environment, run the `DROP INDEX IF EXISTS`
   statements listed in Step B.
 
+## M1 Backend Speed And Hardening Follow-Up
+
+Branch:
+
+`codex/m1-backend-speed-hardening`
+
+Status:
+
+- Extends the startup compatibility index set with additional idempotent
+  read-path indexes:
+  - `idx_harmonizers_username_lower`
+  - `idx_comments_proposal_id`
+  - `idx_comment_votes_comment_id`
+  - `idx_proposal_collabs_proposal_status`
+  - `idx_direct_messages_conversation_created_id`
+- Uses a database-specific lower-username index:
+  - PostgreSQL: `LOWER(username)`
+  - SQLite: `username COLLATE NOCASE`
+- Keeps the lower-username index non-unique in runtime startup DDL until the
+  read-only collision report proves there are no case-variant username
+  collisions in the target environment.
+
+Rollback note:
+
+```sql
+DROP INDEX IF EXISTS idx_harmonizers_username_lower;
+DROP INDEX IF EXISTS idx_comments_proposal_id;
+DROP INDEX IF EXISTS idx_comment_votes_comment_id;
+DROP INDEX IF EXISTS idx_proposal_collabs_proposal_status;
+```
+
 ## SQLite Versus Production-Like Validation
 
 SQLite-compatible tests are enough to prove:
