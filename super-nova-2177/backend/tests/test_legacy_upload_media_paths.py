@@ -277,13 +277,17 @@ class LegacyUploadMediaPathTests(unittest.TestCase):
             detail = client.get(f"/proposals/{proposal_id}")
             detail_payload = detail.json()
             image_after_missing_file = detail_payload.get("media", {}).get("image", "")
+            fallback_stream = client.get(image_after_missing_file)
             result = {
                 "created_status": created.status_code,
                 "detail_status": detail.status_code,
                 "file_existed_before": file_existed_before,
                 "created_image": upload_url,
-                "image_after_missing_file_prefix": image_after_missing_file[:22],
-                "image_after_missing_file_is_data": image_after_missing_file.startswith("data:image/png;base64,"),
+                "image_after_missing_file": image_after_missing_file,
+                "expected_fallback_url": f"/uploads-fallback/{proposal_id}/0",
+                "fallback_stream_status": fallback_stream.status_code,
+                "fallback_stream_content_type": fallback_stream.headers.get("content-type", ""),
+                "fallback_bytes_match": fallback_stream.content == png,
             }
             print("IMAGE_FALLBACK_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -295,7 +299,14 @@ class LegacyUploadMediaPathTests(unittest.TestCase):
         self.assertEqual(result["detail_status"], 200)
         self.assertTrue(result["file_existed_before"])
         self.assertTrue(result["created_image"].startswith("/uploads/"))
-        self.assertTrue(result["image_after_missing_file_is_data"])
+        # Since the M2 feed overhaul the image survives a missing upload file
+        # as a stable streaming URL instead of inline base64 in the JSON.
+        self.assertEqual(
+            result["image_after_missing_file"], result["expected_fallback_url"]
+        )
+        self.assertEqual(result["fallback_stream_status"], 200)
+        self.assertTrue(result["fallback_stream_content_type"].startswith("image/"))
+        self.assertTrue(result["fallback_bytes_match"])
 
 
 if __name__ == "__main__":
