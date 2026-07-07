@@ -526,6 +526,8 @@ class SuperNovaUploadStaticFiles(StaticFiles):
             legacy_media_type = _sniff_legacy_upload_media_type(full_path)
             if legacy_media_type:
                 response.headers["content-type"] = legacy_media_type
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 
 

@@ -159,6 +159,41 @@ class M1BackendHardeningTests(unittest.TestCase):
         self.assertEqual(result["health_status"], 200)
         self.assertIsNone(result["health_encoding"])
 
+    def test_upload_static_files_are_immutable_cached_only_on_200(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            upload_dir = Path(backend_app.uploads_dir)
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            (upload_dir / "cached-image.png").write_bytes(
+                b"\\x89PNG\\r\\n\\x1a\\n" + (b"\\x00" * 64)
+            )
+            existing = client.get("/uploads/cached-image.png")
+            missing = client.get("/uploads/missing-image.png")
+            result = {
+                "existing_status": existing.status_code,
+                "existing_cache_control": existing.headers.get("cache-control"),
+                "existing_content_type": existing.headers.get("content-type"),
+                "missing_status": missing.status_code,
+                "missing_cache_control": missing.headers.get("cache-control"),
+            }
+            print("M1_HARDENING_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m1_probe(probe)
+
+        self.assertEqual(result["existing_status"], 200)
+        self.assertEqual(
+            result["existing_cache_control"],
+            "public, max-age=31536000, immutable",
+        )
+        self.assertTrue(result["existing_content_type"].startswith("image/png"))
+        self.assertEqual(result["missing_status"], 404)
+        self.assertNotEqual(
+            result["missing_cache_control"],
+            "public, max-age=31536000, immutable",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
