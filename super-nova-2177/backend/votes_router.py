@@ -2,6 +2,7 @@
 # --- Ensure the backend directory is importable ---
 import sys
 import os
+import json
 import logging
 import datetime
 
@@ -108,7 +109,36 @@ def _parse_utc_naive_datetime(value) -> datetime.datetime | None:
         return None
 
 
+def _proposal_payload_dict(proposal) -> dict:
+    payload = getattr(proposal, "payload", None)
+    if isinstance(payload, dict):
+        return payload
+    if not payload:
+        return {}
+    try:
+        parsed = json.loads(payload) if isinstance(payload, str) else {}
+    except Exception:
+        parsed = {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _proposal_deadline_enforced(proposal) -> bool:
+    # Mirrors app._normalize_governance_kind: only decision proposals carry a
+    # poster-configured voting window. Standard posts never close, so their
+    # legacy row-level voting_deadline must not gate votes.
+    payload = _proposal_payload_dict(proposal)
+    kind = str(
+        payload.get("governance_kind")
+        or payload.get("proposal_kind")
+        or payload.get("kind")
+        or "post"
+    ).strip().lower()
+    return kind in {"decision", "proposal", "governance"}
+
+
 def _proposal_voting_closed(proposal, now: datetime.datetime | None = None) -> bool:
+    if not _proposal_deadline_enforced(proposal):
+        return False
     deadline = _parse_utc_naive_datetime(getattr(proposal, "voting_deadline", None))
     if deadline is None:
         return False

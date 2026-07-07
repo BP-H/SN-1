@@ -149,6 +149,31 @@ def set_proposal_deadline(proposal_id, deadline):
         db.close()
 
 
+def seed_decision_proposal(author_id, deadline):
+    db = backend_app.SessionLocal()
+    try:
+        proposal = backend_app.Proposal(
+            title="Votes router decision proposal",
+            description="Pins decision voting-window behavior.",
+            userName="alice",
+            userInitials="AL",
+            author_type="human",
+            author_id=author_id,
+            voting_deadline=deadline,
+            payload={
+                "governance_kind": "decision",
+                "decision_level": "standard",
+                "voting_days": 3,
+            },
+        )
+        db.add(proposal)
+        db.commit()
+        db.refresh(proposal)
+        return proposal.id
+    finally:
+        db.close()
+
+
 def dummy_harmonizers():
     db = backend_app.SessionLocal()
     try:
@@ -258,27 +283,42 @@ class VotesRouterAuthTests(unittest.TestCase):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             seeded = seed_vote_world()
-            proposal_id = seeded["proposal_id"]
-            set_proposal_deadline(proposal_id, datetime.datetime.utcnow() + datetime.timedelta(seconds=60))
-            open_read = client.get(f"/proposals/{proposal_id}").json()
+            post_id = seeded["proposal_id"]
+            decision_id = seed_decision_proposal(
+                seeded["alice_id"],
+                datetime.datetime.utcnow() + datetime.timedelta(seconds=60),
+            )
+            open_read = client.get(f"/proposals/{decision_id}").json()
             open_vote = client.post(
                 "/votes",
                 json={
-                    "proposal_id": proposal_id,
+                    "proposal_id": decision_id,
                     "username": "alice",
                     "choice": "up",
                     "voter_type": "human",
                 },
                 headers=alice_headers,
             )
-            set_proposal_deadline(proposal_id, datetime.datetime.utcnow() - datetime.timedelta(seconds=1))
-            closed_read = client.get(f"/proposals/{proposal_id}").json()
+            set_proposal_deadline(decision_id, datetime.datetime.utcnow() - datetime.timedelta(seconds=1))
+            closed_read = client.get(f"/proposals/{decision_id}").json()
             closed_vote = client.post(
                 "/votes",
                 json={
-                    "proposal_id": proposal_id,
+                    "proposal_id": decision_id,
                     "username": "bob",
                     "choice": "down",
+                    "voter_type": "ai",
+                },
+                headers=bob_headers,
+            )
+            set_proposal_deadline(post_id, datetime.datetime.utcnow() - datetime.timedelta(days=30))
+            stale_post_read = client.get(f"/proposals/{post_id}").json()
+            stale_post_vote = client.post(
+                "/votes",
+                json={
+                    "proposal_id": post_id,
+                    "username": "bob",
+                    "choice": "up",
                     "voter_type": "ai",
                 },
                 headers=bob_headers,
@@ -294,11 +334,15 @@ class VotesRouterAuthTests(unittest.TestCase):
                 headers=alice_headers,
             )
             result = {
+                "post_id": post_id,
+                "decision_id": decision_id,
                 "open_read_voting_closed": open_read.get("voting_closed"),
                 "open_vote_status": open_vote.status_code,
                 "closed_read_voting_closed": closed_read.get("voting_closed"),
                 "closed_vote_status": closed_vote.status_code,
                 "closed_vote_detail": closed_vote.json().get("detail"),
+                "stale_post_read_voting_closed": stale_post_read.get("voting_closed"),
+                "stale_post_vote_status": stale_post_vote.status_code,
                 "missing_proposal_status": missing_proposal.status_code,
                 "missing_proposal_detail": missing_proposal.json().get("detail"),
                 "votes": vote_rows(),
@@ -314,10 +358,16 @@ class VotesRouterAuthTests(unittest.TestCase):
         self.assertTrue(result["closed_read_voting_closed"])
         self.assertEqual(result["closed_vote_status"], 409)
         self.assertEqual(result["closed_vote_detail"], "Voting closed")
+        # Standard posts never close: a month-past legacy deadline must not
+        # block votes nor read as closed.
+        self.assertFalse(result["stale_post_read_voting_closed"])
+        self.assertEqual(result["stale_post_vote_status"], 200)
         self.assertEqual(result["missing_proposal_status"], 404)
         self.assertEqual(result["missing_proposal_detail"], "Proposal not found")
-        self.assertEqual(len(result["votes"]), 1)
-        self.assertEqual(result["votes"][0]["vote"], "up")
+        votes_by_proposal = {row["proposal_id"]: row for row in result["votes"]}
+        self.assertEqual(len(result["votes"]), 2)
+        self.assertEqual(votes_by_proposal[result["decision_id"]]["vote"], "up")
+        self.assertEqual(votes_by_proposal[result["post_id"]]["vote"], "up")
 
     def test_post_votes_does_not_auto_create_unknown_harmonizer(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(

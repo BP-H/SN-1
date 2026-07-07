@@ -870,7 +870,24 @@ def _proposal_created_at_from_request(date_value: Optional[str]) -> tuple[dateti
     return server_created_at, client_reported_date
 
 
-def _proposal_voting_closed(deadline_value, now: Optional[datetime.datetime] = None) -> bool:
+def _proposal_governance_kind_from_payload(payload_value) -> str:
+    payload = _payload_dict(payload_value)
+    return _normalize_governance_kind(
+        payload.get("governance_kind") or payload.get("proposal_kind") or payload.get("kind")
+    )
+
+
+def _proposal_voting_closed(
+    deadline_value,
+    payload_value=None,
+    now: Optional[datetime.datetime] = None,
+) -> bool:
+    # Standard posts stay votable forever, like any social post; only
+    # decision proposals (where the poster configured a voting window)
+    # ever close. The row-level voting_deadline on plain posts is legacy
+    # scaffolding and must not gate participation.
+    if _proposal_governance_kind_from_payload(payload_value) != "decision":
+        return False
     deadline = _parse_utc_naive_datetime(deadline_value)
     if deadline is None:
         return False
@@ -1346,9 +1363,7 @@ def _governance_threshold(level: str) -> float:
 
 
 def _proposal_governance_payload(payload: Dict, voting_deadline_value=None) -> Optional[Dict]:
-    if _normalize_governance_kind(
-        payload.get("governance_kind") or payload.get("proposal_kind") or payload.get("kind")
-    ) != "decision":
+    if _proposal_governance_kind_from_payload(payload) != "decision":
         return None
     level = _normalize_decision_level(payload.get("decision_level"))
     threshold = payload.get("approval_threshold")
@@ -6592,7 +6607,10 @@ async def create_proposal(
                 getattr(db_proposal, "payload", None),
                 getattr(db_proposal, "voting_deadline", None),
             ),
-            voting_closed=_proposal_voting_closed(getattr(db_proposal, "voting_deadline", None)),
+            voting_closed=_proposal_voting_closed(
+                getattr(db_proposal, "voting_deadline", None),
+                getattr(db_proposal, "payload", None),
+            ),
         )
     except Exception as e:
         db.rollback()
@@ -7076,7 +7094,10 @@ def list_proposals(
                     getattr(prop, "payload", None),
                     getattr(prop, "voting_deadline", None),
                 ),
-                "voting_closed": _proposal_voting_closed(getattr(prop, "voting_deadline", None)),
+                "voting_closed": _proposal_voting_closed(
+                    getattr(prop, "voting_deadline", None),
+                    getattr(prop, "payload", None),
+                ),
             })
 
         return proposals_list
@@ -8200,7 +8221,10 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             comments=comments_list,
             collabs=_approved_proposal_collabs(db, row.id),
             media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline),
-            voting_closed=_proposal_voting_closed(getattr(row, "voting_deadline", None)),
+            voting_closed=_proposal_voting_closed(
+                getattr(row, "voting_deadline", None),
+                getattr(row, "payload", None),
+            ),
         )
     else:
         result = db.execute(
@@ -8262,7 +8286,10 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "payload", None),
                 getattr(row, "voting_deadline", None),
             ),
-            voting_closed=_proposal_voting_closed(getattr(row, "voting_deadline", None)),
+            voting_closed=_proposal_voting_closed(
+                getattr(row, "voting_deadline", None),
+                getattr(row, "payload", None),
+            ),
         )
 
 app.include_router(create_uploads_router(
