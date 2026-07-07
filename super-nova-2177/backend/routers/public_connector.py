@@ -131,6 +131,7 @@ def create_public_connector_router(
                 getattr(proposal, "file", ""),
                 getattr(proposal, "payload", None),
                 getattr(proposal, "voting_deadline", None),
+                proposal_id=proposal_id,
             ),
         }
         if include_text:

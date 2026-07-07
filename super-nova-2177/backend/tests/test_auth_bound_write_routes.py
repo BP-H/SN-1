@@ -800,10 +800,13 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
             {
                 "author_img",
                 "author_type",
+                "comment_count",
                 "comments",
+                "dislike_count",
                 "dislikes",
                 "domain_as_profile",
                 "id",
+                "like_count",
                 "likes",
                 "media",
                 "profile_url",
@@ -812,6 +815,7 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "title",
                 "userInitials",
                 "userName",
+                "voting_closed",
             },
         )
         self.assertEqual(result["title"], "Authenticated proposal")

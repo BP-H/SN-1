@@ -418,6 +418,7 @@ def create_ai_action_approvals_router(
                     getattr(post, "file", ""),
                     getattr(post, "payload", None),
                     getattr(post, "voting_deadline", None),
+                    proposal_id=getattr(post, "id", None),
                 ),
             }
             summary = {
