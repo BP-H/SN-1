@@ -1,3 +1,9 @@
+"""Commons-wide rate limiting helpers.
+
+The default in-process deques are per Python worker, so multi-worker deploys
+have an effective ceiling of roughly the configured limit times worker count.
+"""
+
 import logging
 import os
 import threading

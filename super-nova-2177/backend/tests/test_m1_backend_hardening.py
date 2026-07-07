@@ -120,6 +120,21 @@ def seed_large_feed(count=30):
 
 
 class M1BackendHardeningTests(unittest.TestCase):
+    def test_procfile_runs_two_workers_by_default_and_rate_limit_note_is_present(self):
+        procfile = PROJECT_ROOT / "Procfile"
+        self.assertTrue(procfile.exists())
+        self.assertEqual(
+            procfile.read_text(encoding="utf-8").strip(),
+            "web: uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000} "
+            "--workers ${WEB_CONCURRENCY:-2} --timeout-keep-alive 20",
+        )
+
+        rate_limit_source = (PROJECT_ROOT / "backend" / "commons_rate_limits.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("per Python worker", rate_limit_source)
+        self.assertIn("limit times worker count", rate_limit_source)
+
     def test_large_feed_responses_are_gzipped_without_losing_cors(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
