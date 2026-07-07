@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import and_, asc, bindparam, desc, func, or_, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 
 PASSWORD_RESET_LOGGER = logging.getLogger("supernova.password_reset")
@@ -956,10 +956,33 @@ def _comment_vote_summary(db: Session, comment_id: Optional[int]) -> Dict[str, A
     return {"likes": likes, "dislikes": dislikes, "total": len(likes) + len(dislikes)}
 
 
-def _serialize_comment_record(db: Session, comment) -> Dict:
+def _comment_vote_summary_from_map(
+    comment_id: Optional[int],
+    comment_votes_by_comment_id: Dict[int, List[Any]],
+) -> Dict[str, Any]:
+    if not comment_id:
+        return {"likes": [], "dislikes": [], "total": 0}
+    likes: List[Dict[str, str]] = []
+    dislikes: List[Dict[str, str]] = []
+    for data in comment_votes_by_comment_id.get(comment_id) or ():
+        entry = {"voter": data["voter"], "type": data["voter_type"] or "human"}
+        if data["vote"] == "up":
+            likes.append(entry)
+        elif data["vote"] == "down":
+            dislikes.append(entry)
+    return {"likes": likes, "dislikes": dislikes, "total": len(likes) + len(dislikes)}
+
+
+def _serialize_comment_record_from_maps(
+    comment,
+    users_by_id: Dict[int, Any],
+    users_by_name: Dict[str, Any],
+    comment_votes_by_comment_id: Dict[int, List[Any]],
+) -> Dict:
+    """Pure counterpart of _serialize_comment_record: same output, no queries."""
     author_obj = None
     if CRUD_MODELS_AVAILABLE and getattr(comment, "author_id", None):
-        author_obj = db.query(Harmonizer).filter(Harmonizer.id == comment.author_id).first()
+        author_obj = users_by_id.get(comment.author_id)
 
     user_name = (
         getattr(author_obj, "username", None)
@@ -967,7 +990,7 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
         or "Anonymous"
     )
     if author_obj is None:
-        author_obj = _find_harmonizer_by_username(db, user_name)
+        author_obj = users_by_name.get(_safe_user_key(user_name))
     user_img = (
         getattr(author_obj, "profile_pic", None)
         or getattr(comment, "user_img", None)
@@ -980,7 +1003,9 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
     )
     content = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
     deleted = str(content or "").strip() == DELETED_COMMENT_TEXT
-    vote_summary = _comment_vote_summary(db, getattr(comment, "id", None))
+    vote_summary = _comment_vote_summary_from_map(
+        getattr(comment, "id", None), comment_votes_by_comment_id
+    )
 
     return {
         "id": getattr(comment, "id", None),
@@ -995,6 +1020,43 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
         "dislikes": [] if deleted else vote_summary.get("dislikes", []),
         "created_at": _format_timestamp(getattr(comment, "created_at", None)),
     }
+
+
+def _serialize_comment_record(db: Session, comment) -> Dict:
+    """Single-record delegate: fetches this comment's lookups, then serializes
+    through the pure from-maps function so both paths cannot drift."""
+    users_by_id: Dict[int, Any] = {}
+    users_by_name: Dict[str, Any] = {}
+    author_id = getattr(comment, "author_id", None)
+    if CRUD_MODELS_AVAILABLE and author_id:
+        author_obj = db.query(Harmonizer).filter(Harmonizer.id == author_id).first()
+        if author_obj is not None:
+            users_by_id[author_id] = author_obj
+    if not (CRUD_MODELS_AVAILABLE and author_id and author_id in users_by_id):
+        fallback_name = getattr(comment, "user", None) or "Anonymous"
+        name_obj = _find_harmonizer_by_username(db, fallback_name)
+        if name_obj is not None:
+            users_by_name[_safe_user_key(fallback_name)] = name_obj
+    comment_votes_by_comment_id: Dict[int, List[Any]] = {}
+    comment_id = getattr(comment, "id", None)
+    if comment_id:
+        try:
+            rows = db.execute(
+                text(
+                    "SELECT voter, voter_type, vote FROM comment_votes "
+                    "WHERE comment_id = :comment_id ORDER BY id ASC"
+                ),
+                {"comment_id": int(comment_id)},
+            ).fetchall()
+            comment_votes_by_comment_id[comment_id] = [
+                getattr(row, "_mapping", row) for row in rows
+            ]
+        except Exception:
+            db.rollback()
+            comment_votes_by_comment_id[comment_id] = []
+    return _serialize_comment_record_from_maps(
+        comment, users_by_id, users_by_name, comment_votes_by_comment_id
+    )
 
 
 COMMENTS_READ_INDEX_STATEMENTS = (
@@ -1199,12 +1261,15 @@ def _prune_empty_deleted_comment_ancestors(db: Session, parent_comment_id: Optio
     return pruned
 
 
-def _serialize_vote_record(db: Session, vote) -> tuple[Optional[Dict], Optional[Dict]]:
+def _serialize_vote_record_from_maps(
+    vote, users_by_id: Dict[int, Any]
+) -> tuple[Optional[Dict], Optional[Dict]]:
+    """Pure counterpart of _serialize_vote_record: same output, no queries."""
     voter_name = getattr(vote, "voter", None) or getattr(vote, "username", None)
     voter_type = getattr(vote, "voter_type", None) or getattr(vote, "species", None) or "human"
 
     if CRUD_MODELS_AVAILABLE and getattr(vote, "harmonizer_id", None):
-        harmonizer_obj = db.query(Harmonizer).filter(Harmonizer.id == vote.harmonizer_id).first()
+        harmonizer_obj = users_by_id.get(vote.harmonizer_id)
         if harmonizer_obj and hasattr(harmonizer_obj, "username"):
             voter_name = harmonizer_obj.username
 
@@ -1218,6 +1283,18 @@ def _serialize_vote_record(db: Session, vote) -> tuple[Optional[Dict], Optional[
     if vote_field == "down":
         return None, payload
     return None, None
+
+
+def _serialize_vote_record(db: Session, vote) -> tuple[Optional[Dict], Optional[Dict]]:
+    """Single-record delegate: fetches this vote's voter, then serializes
+    through the pure from-maps function so both paths cannot drift."""
+    users_by_id: Dict[int, Any] = {}
+    harmonizer_id = getattr(vote, "harmonizer_id", None)
+    if CRUD_MODELS_AVAILABLE and harmonizer_id:
+        harmonizer_obj = db.query(Harmonizer).filter(Harmonizer.id == harmonizer_id).first()
+        if harmonizer_obj is not None:
+            users_by_id[harmonizer_id] = harmonizer_obj
+    return _serialize_vote_record_from_maps(vote, users_by_id)
 
 
 def _uploads_url(value: str) -> str:
@@ -3157,6 +3234,7 @@ def _ensure_startup_schema_compatibility(db: Session) -> None:
     _ensure_direct_messages_read_indexes(db)
     _ensure_proposal_read_indexes(db)
     _ensure_system_votes_table(db)
+    _ensure_profile_metadata_table(db)
 
 
 @app.on_event("startup")
@@ -6826,6 +6904,391 @@ def read_current_user(
     current_user = get_current_harmonizer(authorization, db)
     return serialize_harmonizer(current_user)
 
+def _feed_serializer_legacy_mode() -> bool:
+    return os.environ.get("FEED_SERIALIZER", "").strip().lower() == "legacy"
+
+
+def _proposal_collab_user_summary_from_maps(
+    user_id: Optional[int], users_by_id: Dict[int, Any]
+) -> Dict[str, Any]:
+    if not user_id or Harmonizer is None:
+        return {}
+    user = users_by_id.get(user_id)
+    if not user:
+        return {}
+    return {
+        "id": getattr(user, "id", None),
+        "username": getattr(user, "username", ""),
+        "species": getattr(user, "species", "human"),
+        "avatar": _social_avatar(getattr(user, "profile_pic", "") or getattr(user, "avatar_url", "")),
+    }
+
+
+def _approved_proposal_collabs_from_maps(
+    proposal_id: Optional[int],
+    collabs_by_proposal_id: Dict[int, List[Any]],
+    users_by_id: Dict[int, Any],
+) -> List[Dict[str, Any]]:
+    if not proposal_id or ProposalCollab is None or Harmonizer is None or not CRUD_MODELS_AVAILABLE:
+        return []
+    collabs = []
+    seen = set()
+    for row in collabs_by_proposal_id.get(proposal_id) or ():
+        user = _proposal_collab_user_summary_from_maps(
+            getattr(row, "collaborator_user_id", None), users_by_id
+        )
+        username = (user.get("username") or "").strip()
+        key = username.lower()
+        if not username or key in seen:
+            continue
+        seen.add(key)
+        collabs.append(
+            {
+                "id": getattr(row, "id", None),
+                "username": username,
+                "species": user.get("species", "human"),
+                "avatar": user.get("avatar", ""),
+                "status": "approved",
+            }
+        )
+    return collabs
+
+
+def _profile_metadata_map(db: Session, usernames) -> Dict[str, Dict[str, Any]]:
+    keys = sorted({_safe_user_key(name) for name in usernames if _safe_user_key(name)})
+    metadata = {key: {"domain_url": "", "domain_as_profile": False} for key in keys}
+    if not keys:
+        return metadata
+    try:
+        rows = db.execute(
+            text(
+                "SELECT username_key, domain_url, domain_as_profile "
+                "FROM profile_metadata WHERE username_key IN :keys"
+            ).bindparams(bindparam("keys", expanding=True)),
+            {"keys": keys},
+        ).fetchall()
+    except Exception:
+        db.rollback()
+        return metadata
+    for row in rows:
+        data = getattr(row, "_mapping", row)
+        metadata[data["username_key"]] = {
+            "domain_url": data["domain_url"] or "",
+            "domain_as_profile": _coerce_profile_boolean(data["domain_as_profile"]),
+        }
+    return metadata
+
+
+def _load_feed_serializer_maps(
+    db: Session,
+    proposals,
+    *,
+    has_comment_cap: bool,
+    safe_comment_cap: Optional[int],
+    has_vote_cap: bool,
+    safe_vote_cap: Optional[int],
+) -> Dict[str, Any]:
+    """Set-based loads for the /proposals page: votes, comments (windowed
+    per-proposal caps), approved collabs, comment votes, and every referenced
+    Harmonizer, in one IN() query each (F01)."""
+    page_ids = [prop.id for prop in proposals]
+    votes_by_proposal_id: Dict[int, List[Any]] = {pid: [] for pid in page_ids}
+    comments_by_proposal_id: Dict[int, List[Any]] = {pid: [] for pid in page_ids}
+    collabs_by_proposal_id: Dict[int, List[Any]] = {pid: [] for pid in page_ids}
+    comment_votes_by_comment_id: Dict[int, List[Any]] = {}
+    users_by_id: Dict[int, Any] = {}
+    users_by_name: Dict[str, Any] = {}
+    maps = {
+        "votes_by_proposal_id": votes_by_proposal_id,
+        "comments_by_proposal_id": comments_by_proposal_id,
+        "collabs_by_proposal_id": collabs_by_proposal_id,
+        "comment_votes_by_comment_id": comment_votes_by_comment_id,
+        "users_by_id": users_by_id,
+        "users_by_name": users_by_name,
+    }
+    if not page_ids:
+        return maps
+
+    use_sql_window = not str(DB_ENGINE_URL or "").startswith("sqlite")
+
+    if has_vote_cap and use_sql_window:
+        vote_window = (
+            db.query(
+                ProposalVote,
+                func.row_number()
+                .over(
+                    partition_by=ProposalVote.proposal_id,
+                    order_by=ProposalVote.harmonizer_id.asc(),
+                )
+                .label("feed_row_number"),
+            )
+            .filter(ProposalVote.proposal_id.in_(page_ids))
+            .subquery()
+        )
+        vote_entity = aliased(ProposalVote, vote_window)
+        votes = (
+            db.query(vote_entity)
+            .filter(vote_window.c.feed_row_number <= safe_vote_cap)
+            .order_by(
+                vote_window.c.proposal_id.asc(), vote_window.c.harmonizer_id.asc()
+            )
+            .all()
+        )
+        for vote in votes:
+            votes_by_proposal_id.setdefault(vote.proposal_id, []).append(vote)
+    else:
+        vote_rows = (
+            db.query(ProposalVote)
+            .filter(ProposalVote.proposal_id.in_(page_ids))
+            .order_by(ProposalVote.proposal_id.asc(), ProposalVote.harmonizer_id.asc())
+            .all()
+        )
+        for vote in vote_rows:
+            bucket = votes_by_proposal_id.setdefault(vote.proposal_id, [])
+            if not has_vote_cap or len(bucket) < safe_vote_cap:
+                bucket.append(vote)
+
+    if has_comment_cap and use_sql_window:
+        comment_window = (
+            db.query(
+                Comment,
+                func.row_number()
+                .over(partition_by=Comment.proposal_id, order_by=Comment.id.asc())
+                .label("feed_row_number"),
+            )
+            .filter(Comment.proposal_id.in_(page_ids))
+            .subquery()
+        )
+        comment_entity = aliased(Comment, comment_window)
+        comments = (
+            db.query(comment_entity)
+            .filter(comment_window.c.feed_row_number <= safe_comment_cap)
+            .order_by(comment_window.c.proposal_id.asc(), comment_window.c.id.asc())
+            .all()
+        )
+        for comment in comments:
+            comments_by_proposal_id.setdefault(comment.proposal_id, []).append(comment)
+    else:
+        comment_rows = (
+            db.query(Comment)
+            .filter(Comment.proposal_id.in_(page_ids))
+            .order_by(Comment.proposal_id.asc(), Comment.id.asc())
+            .all()
+        )
+        for comment in comment_rows:
+            bucket = comments_by_proposal_id.setdefault(comment.proposal_id, [])
+            if not has_comment_cap or len(bucket) < safe_comment_cap:
+                bucket.append(comment)
+
+    if ProposalCollab is not None:
+        try:
+            collab_rows = (
+                db.query(ProposalCollab)
+                .filter(ProposalCollab.proposal_id.in_(page_ids))
+                .filter(ProposalCollab.status == "approved")
+                .order_by(ProposalCollab.proposal_id.asc(), ProposalCollab.id.asc())
+                .all()
+            )
+            for collab in collab_rows:
+                collabs_by_proposal_id.setdefault(collab.proposal_id, []).append(collab)
+        except Exception:
+            db.rollback()
+
+    loaded_comment_ids = [
+        int(comment.id)
+        for bucket in comments_by_proposal_id.values()
+        for comment in bucket
+        if getattr(comment, "id", None)
+    ]
+    if loaded_comment_ids:
+        try:
+            rows = db.execute(
+                text(
+                    "SELECT comment_id, voter, voter_type, vote FROM comment_votes "
+                    "WHERE comment_id IN :ids ORDER BY id ASC"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {"ids": loaded_comment_ids},
+            ).fetchall()
+            for row in rows:
+                data = getattr(row, "_mapping", row)
+                comment_votes_by_comment_id.setdefault(data["comment_id"], []).append(data)
+        except Exception:
+            db.rollback()
+
+    referenced_user_ids = set()
+    candidate_names = set()
+    for prop in proposals:
+        author_id = getattr(prop, "author_id", None)
+        if author_id:
+            referenced_user_ids.add(author_id)
+        fallback_name = (
+            getattr(prop, "userName", None)
+            or getattr(prop, "author_username", None)
+            or getattr(prop, "author", None)
+            or "Unknown"
+        )
+        candidate_names.add(str(fallback_name))
+    for bucket in votes_by_proposal_id.values():
+        for vote in bucket:
+            harmonizer_id = getattr(vote, "harmonizer_id", None)
+            if harmonizer_id:
+                referenced_user_ids.add(harmonizer_id)
+    for bucket in comments_by_proposal_id.values():
+        for comment in bucket:
+            author_id = getattr(comment, "author_id", None)
+            if author_id:
+                referenced_user_ids.add(author_id)
+            candidate_names.add(str(getattr(comment, "user", None) or "Anonymous"))
+    for bucket in collabs_by_proposal_id.values():
+        for collab in bucket:
+            collaborator_id = getattr(collab, "collaborator_user_id", None)
+            if collaborator_id:
+                referenced_user_ids.add(collaborator_id)
+
+    if Harmonizer is not None and referenced_user_ids:
+        try:
+            for user in (
+                db.query(Harmonizer)
+                .filter(Harmonizer.id.in_(sorted(referenced_user_ids)))
+                .all()
+            ):
+                users_by_id[user.id] = user
+        except Exception:
+            db.rollback()
+    clean_names = sorted(
+        {_safe_user_key(name) for name in candidate_names if _safe_user_key(name)}
+    )
+    if Harmonizer is not None and clean_names:
+        try:
+            for user in (
+                db.query(Harmonizer)
+                .filter(func.lower(Harmonizer.username).in_(clean_names))
+                .all()
+            ):
+                users_by_name.setdefault(_safe_user_key(getattr(user, "username", "")), user)
+        except Exception:
+            db.rollback()
+
+    return maps
+
+
+def _serialize_proposal_page_from_maps(
+    db: Session,
+    proposals,
+    *,
+    has_comment_cap: bool,
+    safe_comment_cap: Optional[int],
+    has_vote_cap: bool,
+    safe_vote_cap: Optional[int],
+    engagement_counts: Optional[Dict[int, Dict[str, int]]],
+) -> List[Dict[str, Any]]:
+    """Batched serializer for the ORM feed page. Reproduces the legacy
+    per-proposal loop's JSON exactly (FEED_SERIALIZER=legacy keeps the old
+    path for one release) while issuing a fixed number of queries."""
+    maps = _load_feed_serializer_maps(
+        db,
+        proposals,
+        has_comment_cap=has_comment_cap,
+        safe_comment_cap=safe_comment_cap,
+        has_vote_cap=has_vote_cap,
+        safe_vote_cap=safe_vote_cap,
+    )
+    users_by_id = maps["users_by_id"]
+    users_by_name = maps["users_by_name"]
+
+    resolved_authors = []
+    for prop in proposals:
+        user_name = ""
+        author_obj = None
+        if getattr(prop, "author_id", None):
+            author_obj = users_by_id.get(prop.author_id)
+            if author_obj is not None and hasattr(author_obj, "username"):
+                user_name = author_obj.username
+        if not user_name:
+            if getattr(prop, "userName", None):
+                user_name = prop.userName
+            elif getattr(prop, "author_username", None):
+                user_name = prop.author_username
+            elif getattr(prop, "author", None):
+                user_name = prop.author
+            else:
+                user_name = "Unknown"
+        if author_obj is None:
+            author_obj = users_by_name.get(_safe_user_key(user_name))
+        resolved_authors.append((prop, user_name, author_obj))
+
+    profile_metadata_by_key = _profile_metadata_map(
+        db, [user_name for _, user_name, _ in resolved_authors]
+    )
+
+    proposals_list = []
+    for prop, user_name, author_obj in resolved_authors:
+        user_initials = (user_name[:2].upper() if user_name else "UN")
+
+        likes = []
+        dislikes = []
+        for vote in maps["votes_by_proposal_id"].get(prop.id) or ():
+            like_entry, dislike_entry = _serialize_vote_record_from_maps(vote, users_by_id)
+            if like_entry:
+                likes.append(like_entry)
+            if dislike_entry:
+                dislikes.append(dislike_entry)
+
+        comments_list = [
+            _serialize_comment_record_from_maps(
+                comment, users_by_id, users_by_name, maps["comment_votes_by_comment_id"]
+            )
+            for comment in maps["comments_by_proposal_id"].get(prop.id) or ()
+        ]
+
+        author_img = getattr(prop, "author_img", "")
+        if author_obj is not None:
+            author_img = getattr(author_obj, "profile_pic", None) or author_img
+        author_key = _safe_user_key(user_name)
+        author_metadata = profile_metadata_by_key.get(
+            author_key, {"domain_url": "", "domain_as_profile": False}
+        )
+
+        serialized_proposal = {
+            "id": prop.id,
+            "title": getattr(prop, "title", ""),
+            "userName": str(user_name),
+            "userInitials": user_initials,
+            "text": getattr(prop, "description", "") if SUPER_NOVA_AVAILABLE else getattr(prop, "body", None) or getattr(prop, "description", ""),
+            "author_img": _social_avatar(author_img),
+            "time": _format_timestamp(getattr(prop, "created_at", None) or getattr(prop, "date", "")),
+            "author_type": getattr(prop, "author_type", "human"),
+            "profile_url": author_metadata.get("domain_url", ""),
+            "domain_as_profile": bool(author_metadata.get("domain_as_profile", False)),
+            "likes": likes,
+            "dislikes": dislikes,
+            "comments": comments_list,
+            "collabs": _approved_proposal_collabs_from_maps(
+                prop.id, maps["collabs_by_proposal_id"], users_by_id
+            ),
+            "media": _media_payload(
+                getattr(prop, "image", ""),
+                getattr(prop, "video", ""),
+                getattr(prop, "link", ""),
+                getattr(prop, "file", ""),
+                getattr(prop, "payload", None),
+                getattr(prop, "voting_deadline", None),
+            ),
+            "voting_closed": _proposal_voting_closed(
+                getattr(prop, "voting_deadline", None),
+                getattr(prop, "payload", None),
+            ),
+        }
+        if engagement_counts is not None:
+            serialized_proposal.update(
+                engagement_counts.get(prop.id)
+                or {"like_count": 0, "dislike_count": 0, "comment_count": 0}
+            )
+        proposals_list.append(serialized_proposal)
+
+    return proposals_list
+
+
 def list_proposals(
     filter: str = Query("all"),
     search: Optional[str] = Query(None),
@@ -7054,6 +7517,16 @@ def list_proposals(
         engagement_counts = _proposal_engagement_counts(
             db, [getattr(prop, "id", None) for prop in proposals]
         )
+        if CRUD_MODELS_AVAILABLE and not _feed_serializer_legacy_mode():
+            return _serialize_proposal_page_from_maps(
+                db,
+                proposals,
+                has_comment_cap=has_comment_cap,
+                safe_comment_cap=safe_comment_cap,
+                has_vote_cap=has_vote_cap,
+                safe_vote_cap=safe_vote_cap,
+                engagement_counts=engagement_counts,
+            )
         proposals_list = []
         profile_metadata_cache: Dict[str, Dict[str, Any]] = {}
         for prop in proposals:

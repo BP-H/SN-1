@@ -82,6 +82,7 @@ def current_bind():
 
 
 Base.metadata.create_all(bind=current_bind())
+backend_app._ensure_schema_compatibility_once()
 
 
 def seed_engagement_world():
@@ -176,6 +177,128 @@ def feed_entry(feed, proposal_id):
         if item.get("id") == proposal_id:
             return item
     raise AssertionError(f"proposal {proposal_id} missing from feed")
+
+
+def seed_busy_world(proposal_count=30, comments_per=10, votes_per=20):
+    db = backend_app.SessionLocal()
+    try:
+        author = backend_app.Harmonizer(
+            username="alice",
+            email="alice@example.test",
+            hashed_password="test",
+            species="human",
+            profile_pic="default.jpg",
+        )
+        db.add(author)
+        voters = []
+        for index in range(votes_per):
+            species = ("human", "ai", "company")[index % 3]
+            voter = backend_app.Harmonizer(
+                username=f"voter{index:02d}",
+                email=f"voter{index:02d}@example.test",
+                hashed_password="test",
+                species=species,
+                profile_pic="default.jpg" if index % 2 else f"/uploads/avatar{index}.jpg",
+            )
+            db.add(voter)
+            voters.append(voter)
+        db.commit()
+        db.refresh(author)
+        for voter in voters:
+            db.refresh(voter)
+
+        vibenode = backend_app.VibeNode(name="default", author_id=author.id)
+        db.add(vibenode)
+        db.commit()
+        db.refresh(vibenode)
+
+        base_time = datetime.datetime(2026, 7, 1, 12, 0, 0)
+        proposals = []
+        for index in range(proposal_count):
+            proposal = backend_app.Proposal(
+                title=f"Busy fixture proposal {index:02d}",
+                description=f"Body {index:02d}. " * 20,
+                userName="alice",
+                userInitials="AL",
+                author_type="human",
+                # every 5th proposal exercises the name-fallback resolution
+                author_id=None if index % 5 == 0 else author.id,
+                created_at=base_time - datetime.timedelta(minutes=index),
+                voting_deadline=base_time + datetime.timedelta(days=7),
+            )
+            db.add(proposal)
+            proposals.append(proposal)
+        db.commit()
+        for proposal in proposals:
+            db.refresh(proposal)
+
+        comment_ids = []
+        for p_index, proposal in enumerate(proposals):
+            for v_index, voter in enumerate(voters):
+                db.add(
+                    backend_app.ProposalVote(
+                        proposal_id=proposal.id,
+                        harmonizer_id=voter.id,
+                        vote="up" if v_index % 4 else "down",
+                        voter_type=voter.species,
+                    )
+                )
+            for c_index in range(comments_per):
+                if c_index == 7:
+                    content = backend_app.DELETED_COMMENT_TEXT
+                else:
+                    content = f"Comment {c_index} on proposal {p_index}."
+                comment = backend_app.Comment(
+                    content=content,
+                    # one dangling author per proposal exercises the
+                    # Anonymous fallback; the rest rotate through voters
+                    author_id=999999 if c_index == 3 else voters[c_index % len(voters)].id,
+                    vibenode_id=vibenode.id,
+                    proposal_id=proposal.id,
+                    created_at=base_time - datetime.timedelta(minutes=p_index, seconds=c_index),
+                )
+                db.add(comment)
+        db.commit()
+
+        comment_rows = db.query(backend_app.Comment).order_by(backend_app.Comment.id.asc()).all()
+        comment_ids = [row.id for row in comment_rows]
+
+        from sqlalchemy import text as sql_text
+
+        for offset, comment_id in enumerate(comment_ids[:40]):
+            db.execute(
+                sql_text(
+                    "INSERT INTO comment_votes "
+                    "(comment_id, harmonizer_id, voter, voter_type, vote) "
+                    "VALUES (:comment_id, :harmonizer_id, :voter, :voter_type, :vote)"
+                ),
+                {
+                    "comment_id": comment_id,
+                    "harmonizer_id": voters[offset % len(voters)].id,
+                    "voter": voters[offset % len(voters)].username,
+                    "voter_type": voters[offset % len(voters)].species,
+                    "vote": "up" if offset % 3 else "down",
+                },
+            )
+
+        collab_statuses = ("approved", "pending", "approved", "declined")
+        for p_index, proposal in enumerate(proposals[:8]):
+            for c_index, status in enumerate(collab_statuses):
+                db.add(
+                    backend_app.ProposalCollab(
+                        proposal_id=proposal.id,
+                        author_user_id=author.id,
+                        collaborator_user_id=voters[(p_index + c_index) % len(voters)].id,
+                        requested_by_user_id=author.id,
+                        status=status,
+                    )
+                )
+        db.commit()
+
+        backend_app._upsert_profile_metadata(db, "alice", "https://alice.example", True)
+        return [proposal.id for proposal in proposals]
+    finally:
+        db.close()
 """
 
 
@@ -268,6 +391,145 @@ class M2AdditiveCountsTests(unittest.TestCase):
         self.assertEqual(result["single_p1"]["like_count"], 3)
         self.assertEqual(result["single_p1"]["dislike_count"], 1)
         self.assertEqual(result["single_p1"]["comment_count"], 2)
+
+
+class M2BatchedSerializerTests(unittest.TestCase):
+    def test_batched_serializer_matches_legacy_byte_for_byte(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            import os
+
+            seed_busy_world()
+            urls = (
+                "/proposals?filter=latest&limit=30",
+                "/proposals?filter=latest&limit=30"
+                "&embedded_comments_limit=3&embedded_votes_limit=5",
+                "/proposals?filter=all&limit=12&offset=6",
+            )
+            os.environ["FEED_SERIALIZER"] = "legacy"
+            legacy_bodies = [client.get(url).text for url in urls]
+            os.environ.pop("FEED_SERIALIZER", None)
+            new_bodies = [client.get(url).text for url in urls]
+            first_page = json.loads(new_bodies[0])
+            result = {
+                "equal": [legacy == new for legacy, new in zip(legacy_bodies, new_bodies)],
+                "items": len(first_page),
+                "sample_counts": {
+                    "like_count": first_page[0].get("like_count"),
+                    "dislike_count": first_page[0].get("dislike_count"),
+                    "comment_count": first_page[0].get("comment_count"),
+                },
+                "sample_comment_user": first_page[0]["comments"][3].get("user"),
+                "collabs_nonempty": any(entry.get("collabs") for entry in first_page),
+                "comment_vote_likes": first_page[0]["comments"][0].get("likes"),
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+
+        self.assertEqual(result["equal"], [True, True, True])
+        self.assertEqual(result["items"], 30)
+        # 20 votes per proposal: every 4th is a down vote.
+        self.assertEqual(
+            result["sample_counts"],
+            {"like_count": 15, "dislike_count": 5, "comment_count": 9},
+        )
+        # Dangling comment author resolves through the Anonymous fallback in
+        # both serializer paths.
+        self.assertEqual(result["sample_comment_user"], "Anonymous")
+        self.assertTrue(result["collabs_nonempty"])
+
+    def test_feed_query_budget_within_twelve_statements(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            from sqlalchemy import event
+
+            seed_busy_world()
+            engine = current_bind()
+            warm = client.get("/proposals?filter=latest&limit=30")
+            statements = []
+
+            def count_statement(conn, cursor, statement, parameters, context, executemany):
+                statements.append(statement)
+
+            event.listen(engine, "before_cursor_execute", count_statement)
+            try:
+                measured = client.get("/proposals?filter=latest&limit=30")
+            finally:
+                event.remove(engine, "before_cursor_execute", count_statement)
+            result = {
+                "warm_status": warm.status_code,
+                "measured_status": measured.status_code,
+                "items": len(measured.json()),
+                "statement_count": len(statements),
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+
+        self.assertEqual(result["warm_status"], 200)
+        self.assertEqual(result["measured_status"], 200)
+        self.assertEqual(result["items"], 30)
+        self.assertLessEqual(result["statement_count"], 12)
+
+    def test_raw_sql_fallback_branch_keeps_shape(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seed_busy_world(proposal_count=6, comments_per=2, votes_per=3)
+            backend_app.CRUD_MODELS_AVAILABLE = False
+            try:
+                response = client.get("/proposals?filter=latest&limit=6")
+            finally:
+                backend_app.CRUD_MODELS_AVAILABLE = True
+            payload = response.json()
+            first = payload[0] if payload else {}
+            result = {
+                "status": response.status_code,
+                "items": len(payload),
+                "keys": sorted(first.keys()),
+                "likes_len": len(first.get("likes") or []),
+                "comments_len": len(first.get("comments") or []),
+                "like_count": first.get("like_count"),
+                "comment_count": first.get("comment_count"),
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["items"], 6)
+        for key in (
+            "id",
+            "title",
+            "userName",
+            "userInitials",
+            "text",
+            "author_img",
+            "time",
+            "author_type",
+            "profile_url",
+            "domain_as_profile",
+            "likes",
+            "dislikes",
+            "comments",
+            "collabs",
+            "media",
+            "voting_closed",
+            "like_count",
+            "dislike_count",
+            "comment_count",
+        ):
+            self.assertIn(key, result["keys"])
+        self.assertEqual(result["likes_len"], 2)
+        self.assertEqual(result["comments_len"], 2)
+        self.assertEqual(result["like_count"], 2)
+        self.assertEqual(result["comment_count"], 2)
 
 
 if __name__ == "__main__":
