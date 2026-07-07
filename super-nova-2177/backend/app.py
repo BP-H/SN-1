@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import urllib.request
 import uuid
 from datetime import timedelta
@@ -14,6 +15,7 @@ from urllib.parse import unquote, urlparse
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -367,6 +369,30 @@ else:
 
         return Settings()
 
+_base_get_db = get_db
+_SCHEMA_COMPATIBILITY_READY = False
+_SCHEMA_COMPATIBILITY_LOCK = threading.Lock()
+
+
+def _ensure_schema_compatibility_once() -> None:
+    global _SCHEMA_COMPATIBILITY_READY
+    if _SCHEMA_COMPATIBILITY_READY:
+        return
+    with _SCHEMA_COMPATIBILITY_LOCK:
+        if _SCHEMA_COMPATIBILITY_READY:
+            return
+        db = SessionLocal()
+        try:
+            _ensure_startup_schema_compatibility(db)
+            _SCHEMA_COMPATIBILITY_READY = True
+        finally:
+            db.close()
+
+
+def get_db():
+    _ensure_schema_compatibility_once()
+    yield from _base_get_db()
+
 try:
     from db_models import Notification
 except Exception:  # pragma: no cover - optional in partial backend environments
@@ -422,6 +448,14 @@ def persist_weighted_vote_record(
             session.close()
 
 # --- FastAPI setup ---
+class SuperNovaGZipMiddleware(GZipMiddleware):
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path") == "/health":
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
 app = FastAPI(
     title="SuperNova 2177 API",
     description="Backend API for SuperNova 2177 - Unified Version",
@@ -435,6 +469,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SuperNovaGZipMiddleware, minimum_size=1024)
 
 
 @app.middleware("http")
@@ -516,6 +551,8 @@ class SuperNovaUploadStaticFiles(StaticFiles):
             legacy_media_type = _sniff_legacy_upload_media_type(full_path)
             if legacy_media_type:
                 response.headers["content-type"] = legacy_media_type
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 
 
@@ -801,6 +838,46 @@ def _format_timestamp(value) -> str:
     return str(value)
 
 
+def _parse_utc_naive_datetime(value) -> Optional[datetime.datetime]:
+    if not value:
+        return None
+    try:
+        if isinstance(value, datetime.datetime):
+            parsed = value
+        elif isinstance(value, str):
+            normalized = value.strip()
+            if not normalized:
+                return None
+            parsed = datetime.datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        else:
+            return None
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def _proposal_created_at_from_request(date_value: Optional[str]) -> tuple[datetime.datetime, str]:
+    server_created_at = datetime.datetime.utcnow()
+    client_reported_date = str(date_value or "").strip()[:120]
+    if os.environ.get("ALLOW_CLIENT_POST_DATES") == "1":
+        parsed_client_date = _parse_utc_naive_datetime(client_reported_date)
+        if parsed_client_date is not None:
+            skew_seconds = abs((parsed_client_date - server_created_at).total_seconds())
+            if skew_seconds <= 300:
+                return parsed_client_date, client_reported_date
+    return server_created_at, client_reported_date
+
+
+def _proposal_voting_closed(deadline_value, now: Optional[datetime.datetime] = None) -> bool:
+    deadline = _parse_utc_naive_datetime(deadline_value)
+    if deadline is None:
+        return False
+    current = _parse_utc_naive_datetime(now) or datetime.datetime.utcnow()
+    return current > deadline
+
+
 def _find_harmonizer_by_username(db: Session, username: Optional[str]):
     clean_username = (username or "").strip()
     if not clean_username or not CRUD_MODELS_AVAILABLE or Harmonizer is None:
@@ -842,7 +919,6 @@ def _comment_vote_summary(db: Session, comment_id: Optional[int]) -> Dict[str, A
     if not comment_id:
         return {"likes": [], "dislikes": [], "total": 0}
     try:
-        _ensure_comment_votes_table(db)
         rows = db.execute(
             text("SELECT voter, voter_type, vote FROM comment_votes WHERE comment_id = :comment_id ORDER BY id ASC"),
             {"comment_id": int(comment_id)},
@@ -921,12 +997,30 @@ PROPOSAL_READ_INDEX_STATEMENTS = (
     "ON proposals (created_at, id)",
     "CREATE INDEX IF NOT EXISTS idx_proposal_votes_proposal_vote "
     "ON proposal_votes (proposal_id, vote)",
+    "CREATE INDEX IF NOT EXISTS idx_comments_proposal_id "
+    "ON comments (proposal_id, id)",
+    "CREATE INDEX IF NOT EXISTS idx_comment_votes_comment_id "
+    "ON comment_votes (comment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_proposal_collabs_proposal_status "
+    "ON proposal_collabs (proposal_id, status)",
 )
 
 
 def _execute_index_statements(db: Session, statements: tuple[str, ...]) -> None:
     for statement in statements:
         db.execute(text(statement))
+
+
+def _harmonizer_username_lower_index_statement() -> str:
+    if str(DB_ENGINE_URL or "").startswith("sqlite"):
+        return (
+            "CREATE INDEX IF NOT EXISTS idx_harmonizers_username_lower "
+            "ON harmonizers (username COLLATE NOCASE)"
+        )
+    return (
+        "CREATE INDEX IF NOT EXISTS idx_harmonizers_username_lower "
+        "ON harmonizers (LOWER(username))"
+    )
 
 
 def _ensure_comments_read_indexes(db: Session) -> None:
@@ -940,6 +1034,7 @@ def _ensure_direct_messages_read_indexes(db: Session) -> None:
 def _ensure_proposal_read_indexes(db: Session) -> None:
     try:
         _execute_index_statements(db, PROPOSAL_READ_INDEX_STATEMENTS)
+        db.execute(text(_harmonizer_username_lower_index_statement()))
         db.commit()
     except Exception:
         db.rollback()
@@ -2967,6 +3062,21 @@ def _ensure_system_votes_table(db: Session) -> None:
     db.commit()
 
 
+def _ensure_startup_schema_compatibility(db: Session) -> None:
+    _ensure_comment_thread_columns(db)
+    _ensure_comment_votes_table(db)
+    _ensure_direct_messages_table(db)
+    _ensure_comments_read_indexes(db)
+    _ensure_direct_messages_read_indexes(db)
+    _ensure_proposal_read_indexes(db)
+    _ensure_system_votes_table(db)
+
+
+@app.on_event("startup")
+def _run_startup_schema_compatibility() -> None:
+    _ensure_schema_compatibility_once()
+
+
 def _serialize_system_vote_rows(rows, username: Optional[str] = None) -> Dict:
     requester = _safe_user_key(username or "")
     likes: List[Dict] = []
@@ -3025,6 +3135,7 @@ class ProposalSchema(BaseModel):
     comments: List[Dict] = []
     media: Dict = {}
     collabs: List[Dict] = []
+    voting_closed: Optional[bool] = False
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -6329,16 +6440,13 @@ async def create_proposal(
             max_bytes=UPLOAD_DOCUMENT_MAX_BYTES,
         )
 
-    from datetime import datetime as dt
-    if date:
-        normalized_date = date.replace("Z", "+00:00")
-        created_at = dt.fromisoformat(normalized_date)
-    else:
-        created_at = dt.utcnow()
+    created_at, client_reported_date = _proposal_created_at_from_request(date)
     if not voting_deadline:
         deadline_days = safe_voting_days if safe_governance_kind == "decision" else 7
         voting_deadline = created_at + timedelta(days=deadline_days)
     proposal_payload = {"media_layout": safe_media_layout}
+    if client_reported_date:
+        proposal_payload["client_reported_date"] = client_reported_date
     if any(entry is not None for entry in image_dimensions):
         proposal_payload["image_dimensions"] = image_dimensions
     if image_data_urls:
@@ -6359,8 +6467,6 @@ async def create_proposal(
         final_user = None
         if author and author.strip():
             final_user = author.strip()
-        if 'userName' in locals() and userName and userName.strip():
-            final_user = userName.strip()
         if not final_user:
             final_user = "Unknown"
         initials = (final_user[:2].upper() if final_user else "UN")
@@ -6485,7 +6591,8 @@ async def create_proposal(
                 db_proposal.file,
                 getattr(db_proposal, "payload", None),
                 getattr(db_proposal, "voting_deadline", None),
-            )
+            ),
+            voting_closed=_proposal_voting_closed(getattr(db_proposal, "voting_deadline", None)),
         )
     except Exception as e:
         db.rollback()
@@ -6641,7 +6748,6 @@ def list_proposals(
     - search: string search on title/description/username
     """
     try:
-        _ensure_proposal_read_indexes(db)
         has_comment_cap = embedded_comments_limit is not None
         has_vote_cap = embedded_votes_limit is not None
         safe_comment_cap = max(0, min(int(embedded_comments_limit), 500)) if has_comment_cap else None
@@ -6969,7 +7075,8 @@ def list_proposals(
                     getattr(prop, "file", ""),
                     getattr(prop, "payload", None),
                     getattr(prop, "voting_deadline", None),
-                )
+                ),
+                "voting_closed": _proposal_voting_closed(getattr(prop, "voting_deadline", None)),
             })
 
         return proposals_list
@@ -6985,7 +7092,6 @@ def list_proposals(
 # --- Dedicated yes/no system vote ---
 def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends(get_db)):
     try:
-        _ensure_system_votes_table(db)
         rows = db.execute(
             text("SELECT username, choice, voter_type FROM system_votes ORDER BY updated_at DESC")
         ).fetchall()
@@ -7019,7 +7125,6 @@ def cast_system_vote(
     now = datetime.datetime.utcnow()
 
     try:
-        _ensure_system_votes_table(db)
         db.execute(
             text("DELETE FROM system_votes WHERE lower(username) = lower(:username)"),
             {"username": username},
@@ -7060,7 +7165,6 @@ def remove_system_vote(
         raise HTTPException(status_code=400, detail="username is required")
     _require_token_identity_match(authorization, db, requester)
     try:
-        _ensure_system_votes_table(db)
         db.execute(
             text("DELETE FROM system_votes WHERE lower(username) = lower(:username)"),
             {"username": requester},
@@ -7319,7 +7423,6 @@ def list_notifications(
 ):
     clean_user = (user or "").strip()
     items: List[Dict[str, Any]] = []
-    _ensure_comment_thread_columns(db)
 
     def add_recent_posts() -> None:
         remaining = max(0, limit - len(items))
@@ -7439,7 +7542,6 @@ def list_comments(
     offset: int = Query(0),
     db: Session = Depends(get_db),
 ):
-    _ensure_comment_thread_columns(db)
     has_pagination = limit is not None
     safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
     safe_offset = max(0, int(offset or 0))
@@ -7543,7 +7645,6 @@ def add_comment(
     import datetime
     try:
         _require_token_identity_match(authorization, db, c.user)
-        _ensure_comment_thread_columns(db)
         # --- 1. Obter ou criar Harmonizer ---
         author_obj = db.query(Harmonizer).filter(Harmonizer.username == c.user).first() if CRUD_MODELS_AVAILABLE else None
         if CRUD_MODELS_AVAILABLE and not author_obj:
@@ -7751,7 +7852,6 @@ def vote_comment(
     username = getattr(current_user, "username", "") or username
 
     try:
-        _ensure_comment_votes_table(db)
         if CRUD_MODELS_AVAILABLE:
             comment = db.query(Comment).filter(Comment.id == comment_id).first()
             if not comment:
@@ -7818,7 +7918,6 @@ def remove_comment_vote(
         raise HTTPException(status_code=400, detail="username is required")
     current_user = _require_token_identity_match(authorization, db, clean_username)
     try:
-        _ensure_comment_votes_table(db)
         harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first() if Harmonizer is not None else None
         if not harmonizer:
             harmonizer = _find_harmonizer_by_username(db, clean_username)
@@ -8041,7 +8140,6 @@ def list_runs(db: Session = Depends(get_db)):
 
 # --- Proposal detail endpoint (final version, single definition) ---
 def get_proposal(pid: int, db: Session = Depends(get_db)):
-    _ensure_proposal_read_indexes(db)
     if CRUD_MODELS_AVAILABLE:
         row = db.query(Proposal).filter(Proposal.id == pid).first()
         if not row:
@@ -8101,7 +8199,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             dislikes=dislikes,
             comments=comments_list,
             collabs=_approved_proposal_collabs(db, row.id),
-            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline)
+            media=_media_payload(row.image, row.video, row.link, row.file, getattr(row, "payload", None), row.voting_deadline),
+            voting_closed=_proposal_voting_closed(getattr(row, "voting_deadline", None)),
         )
     else:
         result = db.execute(
@@ -8162,7 +8261,8 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "file", ""),
                 getattr(row, "payload", None),
                 getattr(row, "voting_deadline", None),
-            )
+            ),
+            voting_closed=_proposal_voting_closed(getattr(row, "voting_deadline", None)),
         )
 
 app.include_router(create_uploads_router(
@@ -8285,6 +8385,7 @@ def delete_proposal(
 
 def delete_all_proposals(
     x_confirm_delete: Optional[str] = Header(default=None, alias="x-confirm-delete"),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Delete all proposals. Requires 'x-confirm-delete: yes' header to prevent accidental calls."""
@@ -8295,6 +8396,13 @@ def delete_all_proposals(
             status_code=400,
             detail="Send header 'x-confirm-delete: yes' to confirm bulk deletion"
         )
+    admin_username = (os.environ.get("SUPERNOVA_ADMIN_USERNAME") or "").strip()
+    if not admin_username:
+        raise HTTPException(
+            status_code=403,
+            detail="Bulk proposal deletion requires SUPERNOVA_ADMIN_USERNAME",
+        )
+    _require_token_identity_match(authorization, db, admin_username)
     try:
         if CRUD_MODELS_AVAILABLE:
             if ProposalCollab is not None:

@@ -97,8 +97,10 @@ PROBE = textwrap.dedent(
     try:
         backend_app._ensure_comment_thread_columns(db)
         backend_app._ensure_direct_messages_table(db)
+        backend_app._ensure_comment_votes_table(db)
         backend_app._ensure_comment_thread_columns(db)
         backend_app._ensure_direct_messages_table(db)
+        backend_app._ensure_comment_votes_table(db)
         backend_app._ensure_proposal_read_indexes(db)
         backend_app._ensure_proposal_read_indexes(db)
 
@@ -106,9 +108,15 @@ PROBE = textwrap.dedent(
         direct_messages_indexes = index_names(db, "direct_messages")
         proposals_indexes = index_names(db, "proposals")
         proposal_votes_indexes = index_names(db, "proposal_votes")
+        harmonizers_indexes = index_names(db, "harmonizers")
+        comment_votes_indexes = index_names(db, "comment_votes")
+        proposal_collabs_indexes = index_names(db, "proposal_collabs")
         result = {
             "comments_indexes": comments_indexes,
             "direct_messages_indexes": direct_messages_indexes,
+            "harmonizers_indexes": harmonizers_indexes,
+            "comment_votes_indexes": comment_votes_indexes,
+            "proposal_collabs_indexes": proposal_collabs_indexes,
             "proposals_indexes": proposals_indexes,
             "proposal_votes_indexes": proposal_votes_indexes,
             "index_columns": {
@@ -126,6 +134,18 @@ PROBE = textwrap.dedent(
                 ),
                 "idx_proposal_votes_proposal_vote": index_columns(
                     db, "idx_proposal_votes_proposal_vote"
+                ),
+                "idx_comments_proposal_id": index_columns(
+                    db, "idx_comments_proposal_id"
+                ),
+                "idx_comment_votes_comment_id": index_columns(
+                    db, "idx_comment_votes_comment_id"
+                ),
+                "idx_proposal_collabs_proposal_status": index_columns(
+                    db, "idx_proposal_collabs_proposal_status"
+                ),
+                "idx_harmonizers_username_lower": index_columns(
+                    db, "idx_harmonizers_username_lower"
                 ),
             },
         }
@@ -185,6 +205,36 @@ class DbIndexTests(unittest.TestCase):
         self.assertEqual(
             result["index_columns"]["idx_proposal_votes_proposal_vote"],
             ["proposal_id", "vote"],
+        )
+
+    def test_m1_startup_indexes_are_created_idempotently(self):
+        result = run_probe(PROBE)
+
+        self.assertIn("idx_comments_proposal_id", result["comments_indexes"])
+        self.assertIn("idx_comment_votes_comment_id", result["comment_votes_indexes"])
+        self.assertIn(
+            "idx_proposal_collabs_proposal_status",
+            result["proposal_collabs_indexes"],
+        )
+        self.assertIn(
+            "idx_harmonizers_username_lower",
+            result["harmonizers_indexes"],
+        )
+        self.assertEqual(
+            result["index_columns"]["idx_comments_proposal_id"],
+            ["proposal_id", "id"],
+        )
+        self.assertEqual(
+            result["index_columns"]["idx_comment_votes_comment_id"],
+            ["comment_id"],
+        )
+        self.assertEqual(
+            result["index_columns"]["idx_proposal_collabs_proposal_status"],
+            ["proposal_id", "status"],
+        )
+        self.assertEqual(
+            result["index_columns"]["idx_harmonizers_username_lower"],
+            ["username"],
         )
 
 

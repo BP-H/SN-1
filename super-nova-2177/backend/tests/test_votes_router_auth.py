@@ -139,6 +139,16 @@ def vote_rows():
         db.close()
 
 
+def set_proposal_deadline(proposal_id, deadline):
+    db = backend_app.SessionLocal()
+    try:
+        proposal = db.query(backend_app.Proposal).filter(backend_app.Proposal.id == proposal_id).first()
+        proposal.voting_deadline = deadline
+        db.commit()
+    finally:
+        db.close()
+
+
 def dummy_harmonizers():
     db = backend_app.SessionLocal()
     try:
@@ -243,6 +253,71 @@ class VotesRouterAuthTests(unittest.TestCase):
         self.assertEqual(result["update_payload"], {"ok": True})
         self.assertEqual(len(result["votes"]), 1)
         self.assertEqual(result["votes"][0]["vote"], "down")
+
+    def test_post_votes_rejects_closed_proposal_and_exposes_read_flag(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seeded = seed_vote_world()
+            proposal_id = seeded["proposal_id"]
+            set_proposal_deadline(proposal_id, datetime.datetime.utcnow() + datetime.timedelta(seconds=60))
+            open_read = client.get(f"/proposals/{proposal_id}").json()
+            open_vote = client.post(
+                "/votes",
+                json={
+                    "proposal_id": proposal_id,
+                    "username": "alice",
+                    "choice": "up",
+                    "voter_type": "human",
+                },
+                headers=alice_headers,
+            )
+            set_proposal_deadline(proposal_id, datetime.datetime.utcnow() - datetime.timedelta(seconds=1))
+            closed_read = client.get(f"/proposals/{proposal_id}").json()
+            closed_vote = client.post(
+                "/votes",
+                json={
+                    "proposal_id": proposal_id,
+                    "username": "bob",
+                    "choice": "down",
+                    "voter_type": "ai",
+                },
+                headers=bob_headers,
+            )
+            missing_proposal = client.post(
+                "/votes",
+                json={
+                    "proposal_id": 999999,
+                    "username": "alice",
+                    "choice": "up",
+                    "voter_type": "human",
+                },
+                headers=alice_headers,
+            )
+            result = {
+                "open_read_voting_closed": open_read.get("voting_closed"),
+                "open_vote_status": open_vote.status_code,
+                "closed_read_voting_closed": closed_read.get("voting_closed"),
+                "closed_vote_status": closed_vote.status_code,
+                "closed_vote_detail": closed_vote.json().get("detail"),
+                "missing_proposal_status": missing_proposal.status_code,
+                "missing_proposal_detail": missing_proposal.json().get("detail"),
+                "votes": vote_rows(),
+            }
+            print("VOTES_ROUTER_AUTH_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_votes_probe(probe)
+
+        self.assertFalse(result["open_read_voting_closed"])
+        self.assertEqual(result["open_vote_status"], 200)
+        self.assertTrue(result["closed_read_voting_closed"])
+        self.assertEqual(result["closed_vote_status"], 409)
+        self.assertEqual(result["closed_vote_detail"], "Voting closed")
+        self.assertEqual(result["missing_proposal_status"], 404)
+        self.assertEqual(result["missing_proposal_detail"], "Proposal not found")
+        self.assertEqual(len(result["votes"]), 1)
+        self.assertEqual(result["votes"][0]["vote"], "up")
 
     def test_post_votes_does_not_auto_create_unknown_harmonizer(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(

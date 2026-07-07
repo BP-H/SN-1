@@ -3,6 +3,7 @@
 import sys
 import os
 import logging
+import datetime
 
 backend_path = os.path.dirname(__file__)
 if backend_path not in sys.path:
@@ -30,11 +31,13 @@ except ImportError:  # pragma: no cover - supports running votes_router as a top
 try:
     _runtime = load_supernova_runtime()
     _models = _runtime.get("models") or {}
+    Proposal = _models.get("Proposal")
     ProposalVote = _models.get("ProposalVote")
     Harmonizer = _models.get("Harmonizer")
-    if ProposalVote is None or Harmonizer is None:
-        from db_models import ProposalVote, Harmonizer
+    if Proposal is None or ProposalVote is None or Harmonizer is None:
+        from db_models import Proposal, ProposalVote, Harmonizer
 except Exception:
+    Proposal = None
     ProposalVote = None
     Harmonizer = None
 
@@ -84,6 +87,34 @@ def _require_token_identity_match(
         raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
     return token_username
 
+
+def _parse_utc_naive_datetime(value) -> datetime.datetime | None:
+    if not value:
+        return None
+    try:
+        if isinstance(value, datetime.datetime):
+            parsed = value
+        elif isinstance(value, str):
+            normalized = value.strip()
+            if not normalized:
+                return None
+            parsed = datetime.datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        else:
+            return None
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def _proposal_voting_closed(proposal, now: datetime.datetime | None = None) -> bool:
+    deadline = _parse_utc_naive_datetime(getattr(proposal, "voting_deadline", None))
+    if deadline is None:
+        return False
+    current = _parse_utc_naive_datetime(now) or datetime.datetime.utcnow()
+    return current > deadline
+
 class VoteIn(BaseModel):
     proposal_id: int
     username: str
@@ -97,7 +128,7 @@ def add_vote(
     db: Session = Depends(get_db),
 ):
     """Register or update a vote for an authenticated existing Harmonizer."""
-    if ProposalVote is None or Harmonizer is None:
+    if Proposal is None or ProposalVote is None or Harmonizer is None:
         raise HTTPException(status_code=503, detail="Voting system unavailable")
     username = (v.username or "").strip()
     if not username:
@@ -121,6 +152,11 @@ def add_vote(
                 harmonizer.species = requested_species
 
         harmonizer_id = harmonizer.id
+        proposal = db.query(Proposal).filter(Proposal.id == v.proposal_id).first()
+        if proposal is None:
+            raise HTTPException(status_code=404, detail="Proposal not found")
+        if _proposal_voting_closed(proposal):
+            raise HTTPException(status_code=409, detail="Voting closed")
 
         existing_vote = db.query(ProposalVote).filter(
             ProposalVote.proposal_id == v.proposal_id,

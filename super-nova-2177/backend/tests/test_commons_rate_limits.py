@@ -117,6 +117,8 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertIn('"votes"', module_text)
         self.assertIn('"follows"', module_text)
         self.assertIn('"ai_actions"', module_text)
+        self.assertIn('"reads"', module_text)
+        self.assertIn("SUPERNOVA_RATE_LIMIT_READS_PER_MINUTE", module_text)
         self.assertNotIn('"public_reads"', module_text)
 
     def test_auth_bucket_returns_friendly_429_and_status_is_exempt(self):
@@ -162,7 +164,7 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertTrue(all(hit["status"] != 429 for hit in result["health_hits"]))
         self.assertTrue(all(hit["status"] != 429 for hit in result["status_hits"]))
         self.assertTrue(all(hit["status"] != 429 for hit in result["proposal_hits"]))
-        self.assertTrue(all(hit["bucket"] is None for hit in result["proposal_hits"]))
+        self.assertTrue(all(hit["bucket"] == "reads" for hit in result["proposal_hits"]))
 
     def test_rate_limit_breach_logs_sanitized_observability_event(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -240,7 +242,7 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertNotIn("8675309", result["user_log"])
         self.assertNotIn("198.51.100.9", result["user_log"])
 
-    def test_write_buckets_are_route_specific_and_get_reads_remain_unlimited(self):
+    def test_write_buckets_are_route_specific_and_selected_reads_have_a_bucket(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             def limited_pair(path, method="post"):
@@ -299,6 +301,7 @@ class CommonsRateLimitTests(unittest.TestCase):
                 "SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE": "1",
                 "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE": "1",
                 "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_READS_PER_MINUTE": "240",
             },
         )
 
@@ -319,7 +322,54 @@ class CommonsRateLimitTests(unittest.TestCase):
             self.assertEqual(result[key]["second"]["status"], 429, key)
             self.assertEqual(result[key]["second"]["body"]["bucket"], bucket, key)
         self.assertTrue(all(hit["status"] != 429 for hit in result["public_feed_hits"]))
-        self.assertTrue(all(hit["bucket"] is None for hit in result["public_feed_hits"]))
+        self.assertTrue(all(hit["bucket"] == "reads" for hit in result["public_feed_hits"]))
+
+    def test_selected_public_reads_can_be_rate_limited_without_blocking_status_or_protocol(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            proposal_hits = [
+                response_payload(client.get("/proposals?filter=latest&limit=30"))
+                for _ in range(3)
+            ]
+            reset_rate_limits()
+            graph_hits = [response_payload(client.get("/social-graph")) for _ in range(3)]
+            reset_rate_limits()
+            analysis_hits = [response_payload(client.get("/network-analysis/")) for _ in range(3)]
+            reset_rate_limits()
+            exempt_hits = [
+                response_payload(client.get("/health")),
+                response_payload(client.get("/supernova-status")),
+                response_payload(client.get("/status")),
+                response_payload(client.get("/.well-known/supernova")),
+                response_payload(client.get("/protocol/supernova.public-ai-reader.schema.json")),
+                response_payload(client.get("/core")),
+            ]
+            print("RATE_LIMIT_RESULT=" + json.dumps({
+                "proposal_hits": proposal_hits,
+                "graph_hits": graph_hits,
+                "analysis_hits": analysis_hits,
+                "exempt_hits": exempt_hits,
+            }, sort_keys=True))
+            """
+        )
+        result = run_rate_probe(
+            probe,
+            {
+                "SUPERNOVA_RATE_LIMIT_ENABLED": "true",
+                "SUPERNOVA_RATE_LIMIT_READS_PER_MINUTE": "2",
+            },
+        )
+
+        for key in ["proposal_hits", "graph_hits", "analysis_hits"]:
+            self.assertNotEqual(result[key][0]["status"], 429, key)
+            self.assertNotEqual(result[key][1]["status"], 429, key)
+            self.assertEqual(result[key][2]["status"], 429, key)
+            self.assertEqual(result[key][2]["body"]["bucket"], "reads", key)
+            self.assertIn("commons stays reachable", result[key][2]["body"]["detail"])
+            self.assertTrue(result[key][2]["retry_after"])
+
+        self.assertTrue(all(hit["status"] != 429 for hit in result["exempt_hits"]))
+        self.assertTrue(all(hit["bucket"] is None for hit in result["exempt_hits"]))
 
     def test_upload_rate_limit_rejection_does_not_create_partial_file(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -417,9 +467,11 @@ class CommonsRateLimitTests(unittest.TestCase):
             "SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE",
             "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE",
             "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE",
+            "SUPERNOVA_RATE_LIMIT_READS_PER_MINUTE",
         ]:
             self.assertIn(name, checklist)
-        self.assertIn("Public GET reads are not rate-limited", checklist)
+        self.assertIn("Selected expensive public GET reads share the `reads` bucket", checklist)
+        self.assertIn("Health, status, protocol, core, connector discovery, and static upload reads stay exempt", checklist)
         self.assertIn("SUPERNOVA_RATE_LIMIT_ENABLED=false", checklist)
         self.assertIn("not paywalls", checklist)
         self.assertIn("Redis-backed buckets only when `REDIS_URL` is configured", sprint)
