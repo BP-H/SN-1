@@ -19,7 +19,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import and_, asc, desc, func, or_, text
+from sqlalchemy import and_, asc, bindparam, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 
@@ -1455,6 +1455,78 @@ def _public_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
         "total": total,
         "approval_ratio": round(up / total, 4) if total else None,
     }
+
+
+def _proposal_engagement_counts(
+    db: Session, proposal_ids: List[int]
+) -> Optional[Dict[int, Dict[str, int]]]:
+    """Set-based like/dislike/comment counts for a page of proposal ids.
+
+    Two aggregate queries regardless of page size (F02 prereq). The comment
+    count excludes the UI's deleted-comment sentinel so it matches what a
+    reader can actually see. Returns None when the aggregates cannot run so
+    callers omit the additive fields instead of reporting misleading zeros.
+    """
+    clean_ids: List[int] = []
+    for pid in proposal_ids:
+        try:
+            clean_ids.append(int(pid))
+        except (TypeError, ValueError):
+            continue
+    counts = {
+        pid: {"like_count": 0, "dislike_count": 0, "comment_count": 0}
+        for pid in clean_ids
+    }
+    if not clean_ids:
+        return counts
+    try:
+        if CRUD_MODELS_AVAILABLE:
+            vote_rows = (
+                db.query(ProposalVote.proposal_id, ProposalVote.vote, func.count())
+                .filter(ProposalVote.proposal_id.in_(clean_ids))
+                .group_by(ProposalVote.proposal_id, ProposalVote.vote)
+                .all()
+            )
+            comment_rows = (
+                db.query(Comment.proposal_id, func.count())
+                .filter(Comment.proposal_id.in_(clean_ids))
+                .filter(func.trim(Comment.content) != DELETED_COMMENT_TEXT)
+                .group_by(Comment.proposal_id)
+                .all()
+            )
+        else:
+            vote_rows = db.execute(
+                text(
+                    "SELECT proposal_id, vote, COUNT(*) FROM proposal_votes "
+                    "WHERE proposal_id IN :ids GROUP BY proposal_id, vote"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {"ids": clean_ids},
+            ).fetchall()
+            comment_rows = db.execute(
+                text(
+                    "SELECT proposal_id, COUNT(*) FROM comments "
+                    "WHERE proposal_id IN :ids "
+                    "AND TRIM(COALESCE(content, '')) != :deleted "
+                    "GROUP BY proposal_id"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {"ids": clean_ids, "deleted": DELETED_COMMENT_TEXT},
+            ).fetchall()
+    except Exception:
+        db.rollback()
+        return None
+    for row in vote_rows:
+        entry = counts.get(row[0])
+        if entry is None:
+            continue
+        if row[1] == "up":
+            entry["like_count"] = int(row[2] or 0)
+        elif row[1] == "down":
+            entry["dislike_count"] = int(row[2] or 0)
+    for row in comment_rows:
+        entry = counts.get(row[0])
+        if entry is not None:
+            entry["comment_count"] = int(row[1] or 0)
+    return counts
 
 
 SUPERNOVA_SYSTEM_AI_USERNAME = "supernova-ai"
@@ -3151,6 +3223,9 @@ class ProposalSchema(BaseModel):
     media: Dict = {}
     collabs: List[Dict] = []
     voting_closed: Optional[bool] = False
+    like_count: Optional[int] = None
+    dislike_count: Optional[int] = None
+    comment_count: Optional[int] = None
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -6611,6 +6686,9 @@ async def create_proposal(
                 getattr(db_proposal, "voting_deadline", None),
                 getattr(db_proposal, "payload", None),
             ),
+            like_count=0,
+            dislike_count=0,
+            comment_count=0,
         )
     except Exception as e:
         db.rollback()
@@ -6973,6 +7051,9 @@ def list_proposals(
             proposals = db.execute(text(base_query), params).fetchall()
 
         # --- SERIALIZATION ---
+        engagement_counts = _proposal_engagement_counts(
+            db, [getattr(prop, "id", None) for prop in proposals]
+        )
         proposals_list = []
         profile_metadata_cache: Dict[str, Dict[str, Any]] = {}
         for prop in proposals:
@@ -7071,7 +7152,7 @@ def list_proposals(
                 profile_metadata_cache[author_key] = _profile_metadata(db, user_name)
             author_metadata = profile_metadata_cache.get(author_key, {})
 
-            proposals_list.append({
+            serialized_proposal = {
                 "id": prop.id,
                 "title": getattr(prop, "title", ""),
                 "userName": str(user_name),
@@ -7098,7 +7179,13 @@ def list_proposals(
                     getattr(prop, "voting_deadline", None),
                     getattr(prop, "payload", None),
                 ),
-            })
+            }
+            if engagement_counts is not None:
+                serialized_proposal.update(
+                    engagement_counts.get(prop.id)
+                    or {"like_count": 0, "dislike_count": 0, "comment_count": 0}
+                )
+            proposals_list.append(serialized_proposal)
 
         return proposals_list
 
@@ -8161,6 +8248,8 @@ def list_runs(db: Session = Depends(get_db)):
 
 # --- Proposal detail endpoint (final version, single definition) ---
 def get_proposal(pid: int, db: Session = Depends(get_db)):
+    engagement_counts = _proposal_engagement_counts(db, [pid])
+    proposal_counts = (engagement_counts or {}).get(int(pid)) or {}
     if CRUD_MODELS_AVAILABLE:
         row = db.query(Proposal).filter(Proposal.id == pid).first()
         if not row:
@@ -8225,6 +8314,9 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "voting_deadline", None),
                 getattr(row, "payload", None),
             ),
+            like_count=proposal_counts.get("like_count"),
+            dislike_count=proposal_counts.get("dislike_count"),
+            comment_count=proposal_counts.get("comment_count"),
         )
     else:
         result = db.execute(
@@ -8290,6 +8382,9 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
                 getattr(row, "voting_deadline", None),
                 getattr(row, "payload", None),
             ),
+            like_count=proposal_counts.get("like_count"),
+            dislike_count=proposal_counts.get("dislike_count"),
+            comment_count=proposal_counts.get("comment_count"),
         )
 
 app.include_router(create_uploads_router(
