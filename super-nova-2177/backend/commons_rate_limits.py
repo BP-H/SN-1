@@ -26,6 +26,7 @@ RATE_LIMIT_BUCKET_CONFIG: Dict[str, Dict[str, int | str]] = {
     "follows": {"env": "SUPERNOVA_RATE_LIMIT_FOLLOWS_PER_MINUTE", "default": 120, "window": 60},
     "writes": {"env": "SUPERNOVA_RATE_LIMIT_WRITES_PER_MINUTE", "default": 180, "window": 60},
     "messages": {"env": "SUPERNOVA_RATE_LIMIT_MESSAGES_PER_MINUTE", "default": 120, "window": 60},
+    "reads": {"env": "SUPERNOVA_RATE_LIMIT_READS_PER_MINUTE", "default": 240, "window": 60},
 }
 RATE_LIMIT_FRIENDLY_DETAIL = (
     "Slow down for a moment so the commons stays reachable. "
@@ -63,6 +64,9 @@ def _rate_limit_path_bucket(method: str, path: str) -> Optional[str]:
     if clean_path.startswith(("/.well-known/", "/protocol", "/core")):
         return None
     if clean_method == "GET":
+        read_path = clean_path.rstrip("/") or "/"
+        if read_path in {"/proposals", "/social-graph", "/network-analysis"}:
+            return "reads"
         return None
     if clean_method == "POST" and (
         clean_path.startswith("/auth/")
