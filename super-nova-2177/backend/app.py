@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import urllib.request
 import uuid
 from datetime import timedelta
@@ -367,6 +368,30 @@ else:
                 return DB_ENGINE_URL
 
         return Settings()
+
+_base_get_db = get_db
+_SCHEMA_COMPATIBILITY_READY = False
+_SCHEMA_COMPATIBILITY_LOCK = threading.Lock()
+
+
+def _ensure_schema_compatibility_once() -> None:
+    global _SCHEMA_COMPATIBILITY_READY
+    if _SCHEMA_COMPATIBILITY_READY:
+        return
+    with _SCHEMA_COMPATIBILITY_LOCK:
+        if _SCHEMA_COMPATIBILITY_READY:
+            return
+        db = SessionLocal()
+        try:
+            _ensure_startup_schema_compatibility(db)
+            _SCHEMA_COMPATIBILITY_READY = True
+        finally:
+            db.close()
+
+
+def get_db():
+    _ensure_schema_compatibility_once()
+    yield from _base_get_db()
 
 try:
     from db_models import Notification
@@ -854,7 +879,6 @@ def _comment_vote_summary(db: Session, comment_id: Optional[int]) -> Dict[str, A
     if not comment_id:
         return {"likes": [], "dislikes": [], "total": 0}
     try:
-        _ensure_comment_votes_table(db)
         rows = db.execute(
             text("SELECT voter, voter_type, vote FROM comment_votes WHERE comment_id = :comment_id ORDER BY id ASC"),
             {"comment_id": int(comment_id)},
@@ -2977,6 +3001,18 @@ def _ensure_system_votes_table(db: Session) -> None:
         )
     """))
     db.commit()
+
+
+def _ensure_startup_schema_compatibility(db: Session) -> None:
+    _ensure_proposal_read_indexes(db)
+    _ensure_comment_thread_columns(db)
+    _ensure_comment_votes_table(db)
+    _ensure_system_votes_table(db)
+
+
+@app.on_event("startup")
+def _run_startup_schema_compatibility() -> None:
+    _ensure_schema_compatibility_once()
 
 
 def _serialize_system_vote_rows(rows, username: Optional[str] = None) -> Dict:
@@ -6653,7 +6689,6 @@ def list_proposals(
     - search: string search on title/description/username
     """
     try:
-        _ensure_proposal_read_indexes(db)
         has_comment_cap = embedded_comments_limit is not None
         has_vote_cap = embedded_votes_limit is not None
         safe_comment_cap = max(0, min(int(embedded_comments_limit), 500)) if has_comment_cap else None
@@ -6997,7 +7032,6 @@ def list_proposals(
 # --- Dedicated yes/no system vote ---
 def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends(get_db)):
     try:
-        _ensure_system_votes_table(db)
         rows = db.execute(
             text("SELECT username, choice, voter_type FROM system_votes ORDER BY updated_at DESC")
         ).fetchall()
@@ -7031,7 +7065,6 @@ def cast_system_vote(
     now = datetime.datetime.utcnow()
 
     try:
-        _ensure_system_votes_table(db)
         db.execute(
             text("DELETE FROM system_votes WHERE lower(username) = lower(:username)"),
             {"username": username},
@@ -7072,7 +7105,6 @@ def remove_system_vote(
         raise HTTPException(status_code=400, detail="username is required")
     _require_token_identity_match(authorization, db, requester)
     try:
-        _ensure_system_votes_table(db)
         db.execute(
             text("DELETE FROM system_votes WHERE lower(username) = lower(:username)"),
             {"username": requester},
@@ -7331,7 +7363,6 @@ def list_notifications(
 ):
     clean_user = (user or "").strip()
     items: List[Dict[str, Any]] = []
-    _ensure_comment_thread_columns(db)
 
     def add_recent_posts() -> None:
         remaining = max(0, limit - len(items))
@@ -7451,7 +7482,6 @@ def list_comments(
     offset: int = Query(0),
     db: Session = Depends(get_db),
 ):
-    _ensure_comment_thread_columns(db)
     has_pagination = limit is not None
     safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
     safe_offset = max(0, int(offset or 0))
@@ -7555,7 +7585,6 @@ def add_comment(
     import datetime
     try:
         _require_token_identity_match(authorization, db, c.user)
-        _ensure_comment_thread_columns(db)
         # --- 1. Obter ou criar Harmonizer ---
         author_obj = db.query(Harmonizer).filter(Harmonizer.username == c.user).first() if CRUD_MODELS_AVAILABLE else None
         if CRUD_MODELS_AVAILABLE and not author_obj:
@@ -7763,7 +7792,6 @@ def vote_comment(
     username = getattr(current_user, "username", "") or username
 
     try:
-        _ensure_comment_votes_table(db)
         if CRUD_MODELS_AVAILABLE:
             comment = db.query(Comment).filter(Comment.id == comment_id).first()
             if not comment:
@@ -7830,7 +7858,6 @@ def remove_comment_vote(
         raise HTTPException(status_code=400, detail="username is required")
     current_user = _require_token_identity_match(authorization, db, clean_username)
     try:
-        _ensure_comment_votes_table(db)
         harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first() if Harmonizer is not None else None
         if not harmonizer:
             harmonizer = _find_harmonizer_by_username(db, clean_username)
@@ -8053,7 +8080,6 @@ def list_runs(db: Session = Depends(get_db)):
 
 # --- Proposal detail endpoint (final version, single definition) ---
 def get_proposal(pid: int, db: Session = Depends(get_db)):
-    _ensure_proposal_read_indexes(db)
     if CRUD_MODELS_AVAILABLE:
         row = db.query(Proposal).filter(Proposal.id == pid).first()
         if not row:

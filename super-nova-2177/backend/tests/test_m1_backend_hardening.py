@@ -120,6 +120,49 @@ def seed_large_feed(count=30):
 
 
 class M1BackendHardeningTests(unittest.TestCase):
+    def test_schema_compatibility_ddl_is_centralized(self):
+        source = (PROJECT_ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+        expected_counts = {
+            "_ensure_proposal_read_indexes(db)": 1,
+            "_ensure_comment_thread_columns(db)": 1,
+            "_ensure_comment_votes_table(db)": 1,
+            "_ensure_system_votes_table(db)": 1,
+        }
+        for call, expected in expected_counts.items():
+            self.assertEqual(source.count(call), expected, call)
+        self.assertIn("@app.on_event(\"startup\")", source)
+        self.assertIn("def _ensure_startup_schema_compatibility", source)
+        self.assertIn("def _ensure_schema_compatibility_once", source)
+
+    def test_schema_compatibility_runs_for_non_lifespan_test_clients_once(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            first = client.get("/system-vote")
+            original = backend_app._ensure_startup_schema_compatibility
+            def fail_if_called_again(db):
+                raise AssertionError("schema compatibility should already be ready")
+            backend_app._ensure_startup_schema_compatibility = fail_if_called_again
+            try:
+                second = client.get("/system-vote")
+            finally:
+                backend_app._ensure_startup_schema_compatibility = original
+            result = {
+                "first_status": first.status_code,
+                "second_status": second.status_code,
+                "first_keys": sorted(first.json().keys()),
+                "second_keys": sorted(second.json().keys()),
+            }
+            print("M1_HARDENING_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m1_probe(probe)
+
+        self.assertEqual(result["first_status"], 200)
+        self.assertEqual(result["second_status"], 200)
+        self.assertIn("likes", result["first_keys"])
+        self.assertEqual(result["first_keys"], result["second_keys"])
+
     def test_procfile_runs_two_workers_by_default_and_rate_limit_note_is_present(self):
         procfile = PROJECT_ROOT / "Procfile"
         self.assertTrue(procfile.exists())
