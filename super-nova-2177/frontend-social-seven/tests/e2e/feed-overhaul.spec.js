@@ -208,6 +208,50 @@ test("composer open and typing re-render at most two feed cards", async ({ page 
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("feed order stays frozen across composer focus, modal open, and follows arrival", async ({ page }) => {
+  const posts = Array.from({ length: 10 }, (_, index) =>
+    feedPost({
+      id: 2178200 + index,
+      userName: `author-${index}`,
+      text: `Frozen order card ${index + 1}.`,
+      like_count: (index * 7) % 10,
+      comment_count: (index * 3) % 5,
+      time: new Date(Date.now() - index * 3600_000).toISOString(),
+    })
+  );
+  await seedPasswordSession(page);
+  let releaseFollows;
+  const followsGate = new Promise((resolve) => {
+    releaseFollows = resolve;
+  });
+  await page.route("**/follows?user=**", async (route) => {
+    await followsGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ following: [{ username: "author-9" }] }),
+    });
+  });
+  await mockFeedBackend(page, posts);
+
+  await page.goto("/");
+  await expect(page.getByText("Frozen order card 1.")).toBeVisible();
+  const cards = page.locator("[data-proposal-card]");
+  await expect(cards).toHaveCount(10);
+  const initialOrder = await cards.evaluateAll((nodes) => nodes.map((node) => node.dataset.proposalId));
+
+  await page.getByText("Post a signal, or ask AI...").click();
+  await page.getByPlaceholder("Share your idea, update, or question").fill("order probe");
+  await page.getByRole("button", { name: "Show vote breakdown" }).first().click();
+  await page.getByRole("button", { name: "Close vote breakdown" }).click();
+  releaseFollows();
+  await page.waitForTimeout(400);
+
+  const finalOrder = await cards.evaluateAll((nodes) => nodes.map((node) => node.dataset.proposalId));
+  expect(finalOrder).toEqual(initialOrder);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("opening comments loads the full thread past the embedded preview", async ({ page }) => {
   const proposalId = 2178004;
   const fullComments = Array.from({ length: 12 }, (_, index) => fixtureComment(index + 1, proposalId));

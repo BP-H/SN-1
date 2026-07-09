@@ -60,12 +60,12 @@ function normalizeAuthorName(name = "") {
   return String(name || "").trim().toLowerCase();
 }
 
-function postAgeHours(timeValue) {
+function postAgeHours(timeValue, nowMs = Date.now()) {
   if (!timeValue) return 0;
   const raw = String(timeValue);
   const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw}Z`);
   if (Number.isNaN(date.getTime())) return 0;
-  return Math.max(0, (Date.now() - date.getTime()) / 36e5);
+  return Math.max(0, (nowMs - date.getTime()) / 36e5);
 }
 
 // Server totals survive the embedded-array caps; the array length is only a
@@ -77,14 +77,14 @@ function postCount(post, countField, listField) {
   return Array.isArray(list) ? list.length : 0;
 }
 
-function homeRankScore(post, priorityAuthors) {
+function homeRankScore(post, priorityAuthors, nowMs) {
   const authorKey = normalizeAuthorName(post?.userName);
   const followedOrSelf = priorityAuthors.has(authorKey);
   const likes = postCount(post, "like_count", "likes");
   const dislikes = postCount(post, "dislike_count", "dislikes");
   const comments = postCount(post, "comment_count", "comments");
   const totalVotes = likes + dislikes;
-  const ageHours = postAgeHours(post?.time);
+  const ageHours = postAgeHours(post?.time, nowMs);
   const freshness = 1 / (1 + ageHours / 18);
   const engagement = Math.log1p(totalVotes * 1.5 + comments * 2.6) * 8;
   const supportBalance = totalVotes ? ((likes - dislikes) / totalVotes) * 8 : 0;
@@ -202,7 +202,6 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       return lastPage[lastPage.length - 1]?.id || undefined;
     },
   });
-  const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
 
   useEffect(() => {
     const handlePostCreated = (event) => {
@@ -247,16 +246,33 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     return names;
   }, [followsData, userData?.name]);
 
+  // Rank is frozen per arriving page-1 payload: one timestamp per fetch, follows
+  // as known at arrival. Later pages append in cursor order and unrelated state
+  // (composer focus, modals, follows loading) never re-sorts what's on screen.
+  const rankedFirstPageRef = useRef({ source: null, ranked: [] });
   const orderedPosts = useMemo(() => {
-    return posts
-      .map((post, index) => ({
-        post,
-        index,
-        score: homeRankScore(post, priorityAuthors),
-      }))
-      .sort((a, b) => b.score - a.score || a.index - b.index)
-      .map((entry) => entry.post);
-  }, [posts, priorityAuthors]);
+    const pages = postsData?.pages || [];
+    if (!pages.length) return [];
+    const firstPage = Array.isArray(pages[0]) ? pages[0] : [];
+    if (rankedFirstPageRef.current.source !== firstPage) {
+      const rankNow = Date.now();
+      rankedFirstPageRef.current = {
+        source: firstPage,
+        ranked: firstPage
+          .map((post, index) => ({
+            post,
+            index,
+            score: homeRankScore(post, priorityAuthors, rankNow),
+          }))
+          .sort((a, b) => b.score - a.score || a.index - b.index)
+          .map((entry) => entry.post),
+      };
+    }
+    const laterPages = pages.slice(1).filter(Array.isArray).flat();
+    return laterPages.length
+      ? [...rankedFirstPageRef.current.ranked, ...laterPages]
+      : rankedFirstPageRef.current.ranked;
+  }, [postsData, priorityAuthors]);
 
   // Derived card props are memoized so React.memo(ProposalCard) sees stable
   // references; fresh object literals in the map would defeat it every render.
