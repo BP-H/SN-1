@@ -252,6 +252,19 @@ test("feed order stays frozen across composer focus, modal open, and follows arr
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("expired system decision renders results mode instead of active voting", async ({ page }) => {
+  await mockFeedBackend(page, [feedPost()]);
+  await page.goto("/");
+
+  const section = page.locator("section").filter({ hasText: "System Decision" }).first();
+  await expect(section.getByText("Vote ended")).toBeVisible();
+  await expect(section.getByText("How the network answered")).toBeVisible();
+  // Only the breakdown button remains; the active yes/no controls are gone.
+  await expect(section.getByRole("button", { name: "Show species vote breakdown" })).toBeVisible();
+  await expect(section.getByRole("button")).toHaveCount(1);
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("opening comments loads the full thread past the embedded preview", async ({ page }) => {
   const proposalId = 2178004;
   const fullComments = Array.from({ length: 12 }, (_, index) => fixtureComment(index + 1, proposalId));

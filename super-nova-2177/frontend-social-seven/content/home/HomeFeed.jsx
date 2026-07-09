@@ -44,9 +44,13 @@ function formatRelativeTime(dateString) {
 }
 
 // Frontend copy is the source of truth so cached backend records cannot flash stale question text.
+// A new active question ships via env (or a copy change here); past the deadline
+// the section renders results mode instead of an active-feeling vote.
 const SYSTEM_VOTE_CONFIG = {
-  question: "Can clearly labeled AI contributions make public conversations better?",
-  deadline: "2026-04-27T18:00:00-07:00",
+  question:
+    process.env.NEXT_PUBLIC_SYSTEM_VOTE_QUESTION ||
+    "Can clearly labeled AI contributions make public conversations better?",
+  deadline: process.env.NEXT_PUBLIC_SYSTEM_VOTE_DEADLINE || "2026-04-27T18:00:00-07:00",
 };
 const FEED_PAGE_SIZE = 30;
 // Feed cards only need previews; totals come from the additive *_count fields
@@ -315,6 +319,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     const userVote = systemVoteData?.user_vote || null;
     const question = SYSTEM_VOTE_CONFIG.question || systemVoteData?.question;
     const deadline = SYSTEM_VOTE_CONFIG.deadline || systemVoteData?.deadline;
+    const deadlineTime = new Date(deadline).getTime();
 
     return {
       question,
@@ -323,6 +328,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       likes,
       dislikes,
       endsIn: formatCountdown(deadline, systemNow),
+      closed: Number.isFinite(deadlineTime) && systemNow > deadlineTime,
       userVote,
     };
   }, [systemNow, systemVoteData]);
@@ -334,6 +340,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   /* System vote handler — casts an independent system-level vote */
   const handleSystemVote = async (choice) => {
+    if (systemVote.closed) return;
     if (!isAuthenticated) {
       requireAccount("Sign in to cast a system vote.");
       return;
@@ -433,9 +440,17 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             {systemVote.question}
           </p>
 
-          {/* System vote controls — same style as post action bar */}
+          {/* System vote controls — same style as post action bar. After the
+              deadline the row becomes results mode: no active vote buttons,
+              just how the network answered plus the breakdown. */}
           <div className="flex items-center gap-2 rounded-full bg-[rgba(255,255,255,0.04)] px-2.5 py-1.5">
+            {systemVote.closed && (
+              <span className="shrink-0 px-1.5 text-[0.64rem] font-bold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                How the network answered
+              </span>
+            )}
             {/* 👎 NO — left */}
+            {!systemVote.closed && (
             <button
               type="button"
               onClick={() => handleSystemVote("dislike")}
@@ -447,6 +462,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             >
               <BiSolidDislike className="text-[1rem]" />
             </button>
+            )}
 
             {/* Slider */}
             <div className="relative flex-1 py-1">
@@ -480,6 +496,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
 
             {/* 👍 YES — right */}
+            {!systemVote.closed && (
             <button
               type="button"
               onClick={() => handleSystemVote("like")}
@@ -491,6 +508,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             >
               <BiSolidLike className="text-[1rem]" />
             </button>
+            )}
 
             {/* Breakdown */}
             <button
