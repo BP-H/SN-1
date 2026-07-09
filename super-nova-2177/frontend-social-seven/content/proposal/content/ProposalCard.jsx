@@ -111,6 +111,9 @@ function ProposalCard({
   logo,
   likes = [],
   dislikes = [],
+  likeCount = null,
+  dislikeCount = null,
+  commentCount = null,
   voteSummary = null,
   comments = [],
   collabs = [],
@@ -124,6 +127,7 @@ function ProposalCard({
 }) {
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
+  const [fullCommentsLoaded, setFullCommentsLoaded] = useState(false);
   const [localText, setLocalText] = useState(text || "");
   const [editText, setEditText] = useState(text || "");
   const [readMore, setReadMore] = useState(false);
@@ -816,7 +820,35 @@ function ProposalCard({
 
   useEffect(() => {
     setLocalComments(Array.isArray(comments) ? comments : []);
+    setFullCommentsLoaded(false);
   }, [comments, id]);
+
+  // Feeds embed only a capped comment preview (M3.1); the full thread loads
+  // on demand the first time the viewer opens the comments section.
+  const embeddedCommentCount = Array.isArray(comments) ? comments.length : 0;
+  const serverCommentCount = Number.isFinite(Number(commentCount)) ? Number(commentCount) : null;
+  const needsFullComments =
+    !isDetailPage && serverCommentCount !== null && serverCommentCount > embeddedCommentCount;
+
+  useEffect(() => {
+    if (!showComments || fullCommentsLoaded || !needsFullComments) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(id)}`);
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (cancelled || !payload) return;
+        if (Array.isArray(payload.comments)) setLocalComments(payload.comments);
+        setFullCommentsLoaded(true);
+      } catch {
+        // Keep the embedded preview if the full read fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showComments, fullCommentsLoaded, needsFullComments, id]);
 
   useEffect(() => {
     setLocalLogo(logo || "");
@@ -1056,10 +1088,16 @@ function ProposalCard({
               <IoSparklesOutline className="text-[0.9rem]" />
             </button>
           )}
-          commentCount={localComments.length}
+          commentCount={
+            serverCommentCount !== null && !fullCommentsLoaded
+              ? Math.max(0, serverCommentCount + (localComments.length - embeddedCommentCount))
+              : localComments.length
+          }
           copied={copied}
           dislikes={dislikes}
           likes={likes}
+          likeCount={likeCount}
+          dislikeCount={dislikeCount}
           onMessageShare={handleMessageShare}
           onShareLink={handleShareLink}
           onToggleComments={() => setShowComments((value) => !value)}

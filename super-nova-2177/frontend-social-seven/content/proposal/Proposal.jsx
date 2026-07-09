@@ -18,6 +18,8 @@ import FilterHeader from "../filters/FilterHeader";
 import ProposalCard from "./content/ProposalCard";
 
 const PROPOSAL_PAGE_SIZE = 30;
+// List cards read the additive *_count totals (M2); cap the embedded arrays.
+const FEED_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=25";
 
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";
@@ -133,7 +135,7 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
       };
 
       const filterParam = filterMap[filter];
-      let url = `${API_BASE_URL}/proposals?filter=${filterParam}&limit=${PROPOSAL_PAGE_SIZE}&offset=${pageParam}`;
+      let url = `${API_BASE_URL}/proposals?filter=${filterParam}&limit=${PROPOSAL_PAGE_SIZE}&offset=${pageParam}${FEED_EMBED_CAPS}`;
       if (search.trim()) {
         url += `&search=${encodeURIComponent(search.trim())}`;
       }
@@ -296,6 +298,9 @@ export default function Proposal({ activeBE, setErrorMsg, setNotify }) {
                   collabs={post.collabs}
                   likes={post.likes}
                   dislikes={post.dislikes}
+                  likeCount={post.like_count}
+                  dislikeCount={post.dislike_count}
+                  commentCount={post.comment_count}
                   profileUrl={post.profile_url}
                   domainAsProfile={post.domain_as_profile}
                   setErrorMsg={setErrorMsg}

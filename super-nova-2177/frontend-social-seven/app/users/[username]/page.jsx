@@ -37,6 +37,8 @@ import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
 const PROFILE_COLLAB_SWEEP_LIMIT = 200;
+// Profile cards read the additive *_count totals (M2); cap the embedded arrays.
+const PROFILE_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=25";
 const PROFILE_TABS = [
   { key: "all", label: "All", title: "All posts", icon: IoHomeOutline },
   { key: "visuals", label: "Visuals", title: "Visual posts", icon: IoGridOutline },
@@ -288,7 +290,7 @@ function CollabUserAvatar({ user }) {
 }
 
 async function fetchProfilePostsPage(username, pageParam) {
-  const baseUrl = `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}`;
+  const baseUrl = `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${USER_POST_PAGE_SIZE}&offset=${pageParam}${PROFILE_EMBED_CAPS}`;
   let withCollabs = null;
   try {
     withCollabs = await fetch(`${baseUrl}&include_collabs=true`);
@@ -320,7 +322,7 @@ async function fetchPublicProfileCollabPosts(username) {
   if (!profileKey) return [];
   try {
     const response = await fetch(
-      `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${PROFILE_COLLAB_SWEEP_LIMIT}&offset=0&include_collabs=true`
+      `${API_BASE_URL}/proposals?filter=latest&author=${encodeURIComponent(username)}&limit=${PROFILE_COLLAB_SWEEP_LIMIT}&offset=0&include_collabs=true${PROFILE_EMBED_CAPS}`
     );
     if (!response.ok) return [];
     const payload = await response.json().catch(() => []);
@@ -926,6 +928,9 @@ export default function UserPostsPage() {
           collabs={post.collabs}
           likes={post.likes}
           dislikes={post.dislikes}
+          likeCount={post.like_count}
+          dislikeCount={post.dislike_count}
+          commentCount={post.comment_count}
           voteSummary={post.vote_summary}
           profileUrl={post.profile_url}
           domainAsProfile={post.domain_as_profile}
