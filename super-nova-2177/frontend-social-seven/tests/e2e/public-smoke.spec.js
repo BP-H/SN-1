@@ -29,6 +29,10 @@ async function mockPublicBackend(
       comments: [],
       likes: [],
       dislikes: [],
+      like_count: 0,
+      dislike_count: 0,
+      comment_count: 0,
+      voting_closed: false,
     },
   ],
   options = {}
@@ -343,6 +347,10 @@ test("vote breakdown modal filters voter names by species and answer", async ({ 
       dislikes: [
         { voter: "org-no", type: "company" },
       ],
+      like_count: 2,
+      dislike_count: 1,
+      comment_count: 0,
+      voting_closed: false,
     },
   ]);
   await page.goto("/");
@@ -814,6 +822,10 @@ test("mocked image post keeps media after reload", async ({ page }) => {
       comments: [],
       likes: [],
       dislikes: [],
+      like_count: 0,
+      dislike_count: 0,
+      comment_count: 0,
+      voting_closed: false,
     },
   ]);
 
@@ -851,6 +863,10 @@ test("media gallery lightbox arrows advance without closing", async ({ page }) =
       comments: [],
       likes: [],
       dislikes: [],
+      like_count: 0,
+      dislike_count: 0,
+      comment_count: 0,
+      voting_closed: false,
     },
   ]);
 
@@ -895,6 +911,10 @@ test("composer shows posting progress while create request is pending", async ({
         comments: [],
         likes: [],
         dislikes: [],
+        like_count: 0,
+        dislike_count: 0,
+        comment_count: 0,
+        voting_closed: false,
       }),
     });
   });

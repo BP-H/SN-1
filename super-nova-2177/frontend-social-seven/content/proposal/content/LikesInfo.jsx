@@ -121,28 +121,31 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
   const backendUrl = userData?.activeBackend || API_BASE_URL;
 
   useEffect(() => {
-    if (likesData || dislikesData) {
+    // Embedded arrays seed the modal instantly, but feeds cap them (M3.1), so a
+    // proposalId always triggers a full single-proposal read for the real lists.
+    const seeded = Boolean(likesData || dislikesData);
+    if (seeded) {
       setLikes(likesData || []);
       setDislikes(dislikesData || []);
       setError("");
-      return undefined;
     }
+    if (proposalId === undefined || proposalId === null || proposalId === "") return undefined;
 
     // Guard against a slow response for a stale proposalId overwriting newer state.
     let cancelled = false;
 
     async function fetchVotes() {
       if (!backendUrl) {
-        setError("API base URL is not configured.");
+        if (!seeded) setError("API base URL is not configured.");
         return;
       }
 
       try {
-        setError("");
+        if (!seeded) setError("");
         const response = await fetch(`${backendUrl}/proposals/${proposalId}`);
         if (cancelled) return;
         if (!response.ok) {
-          setError(`Failed to load proposal: ${response.status} ${response.statusText}`);
+          if (!seeded) setError(`Failed to load proposal: ${response.status} ${response.statusText}`);
           return;
         }
 
@@ -150,8 +153,10 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
         if (cancelled) return;
         setLikes(data.likes || []);
         setDislikes(data.dislikes || []);
+        setError("");
       } catch (err) {
-        if (!cancelled) setError(`Failed to fetch vote details: ${err.message}`);
+        // Seeded modals keep the embedded preview when the refresh fails.
+        if (!cancelled && !seeded) setError(`Failed to fetch vote details: ${err.message}`);
       }
     }
 

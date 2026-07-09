@@ -44,11 +44,18 @@ function formatRelativeTime(dateString) {
 }
 
 // Frontend copy is the source of truth so cached backend records cannot flash stale question text.
+// A new active question ships via env (or a copy change here); past the deadline
+// the section renders results mode instead of an active-feeling vote.
 const SYSTEM_VOTE_CONFIG = {
-  question: "Can clearly labeled AI contributions make public conversations better?",
-  deadline: "2026-04-27T18:00:00-07:00",
+  question:
+    process.env.NEXT_PUBLIC_SYSTEM_VOTE_QUESTION ||
+    "Can clearly labeled AI contributions make public conversations better?",
+  deadline: process.env.NEXT_PUBLIC_SYSTEM_VOTE_DEADLINE || "2026-04-27T18:00:00-07:00",
 };
 const FEED_PAGE_SIZE = 30;
+// Feed cards only need previews; totals come from the additive *_count fields
+// (M2), so cap the embedded arrays the backend inlines per proposal.
+const FEED_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=25";
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 // Keep the compact mission hero available for future visual iteration, but off by default for release.
 const SHOW_HOME_MISSION_HERO = process.env.NEXT_PUBLIC_SHOW_HOME_MISSION_HERO === "true";
@@ -57,22 +64,31 @@ function normalizeAuthorName(name = "") {
   return String(name || "").trim().toLowerCase();
 }
 
-function postAgeHours(timeValue) {
+function postAgeHours(timeValue, nowMs = Date.now()) {
   if (!timeValue) return 0;
   const raw = String(timeValue);
   const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw}Z`);
   if (Number.isNaN(date.getTime())) return 0;
-  return Math.max(0, (Date.now() - date.getTime()) / 36e5);
+  return Math.max(0, (nowMs - date.getTime()) / 36e5);
 }
 
-function homeRankScore(post, priorityAuthors) {
+// Server totals survive the embedded-array caps; the array length is only a
+// fallback for backends that predate the additive count fields.
+function postCount(post, countField, listField) {
+  const total = Number(post?.[countField]);
+  if (Number.isFinite(total)) return total;
+  const list = post?.[listField];
+  return Array.isArray(list) ? list.length : 0;
+}
+
+function homeRankScore(post, priorityAuthors, nowMs) {
   const authorKey = normalizeAuthorName(post?.userName);
   const followedOrSelf = priorityAuthors.has(authorKey);
-  const likes = Array.isArray(post?.likes) ? post.likes.length : 0;
-  const dislikes = Array.isArray(post?.dislikes) ? post.dislikes.length : 0;
-  const comments = Array.isArray(post?.comments) ? post.comments.length : 0;
+  const likes = postCount(post, "like_count", "likes");
+  const dislikes = postCount(post, "dislike_count", "dislikes");
+  const comments = postCount(post, "comment_count", "comments");
   const totalVotes = likes + dislikes;
-  const ageHours = postAgeHours(post?.time);
+  const ageHours = postAgeHours(post?.time, nowMs);
   const freshness = 1 / (1 + ageHours / 18);
   const engagement = Math.log1p(totalVotes * 1.5 + comments * 2.6) * 8;
   const supportBalance = totalVotes ? ((likes - dislikes) / totalVotes) * 8 : 0;
@@ -180,7 +196,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     queryKey: ["home-feed", activeBE],
     queryFn: async ({ pageParam = null }) => {
       const cursor = pageParam ? `&before_id=${encodeURIComponent(pageParam)}` : "";
-      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=${FEED_PAGE_SIZE}${cursor}`);
+      const response = await fetch(`${API_BASE_URL}/proposals?filter=latest&limit=${FEED_PAGE_SIZE}${FEED_EMBED_CAPS}${cursor}`);
       if (!response.ok) throw new Error("Failed to fetch posts");
       return response.json();
     },
@@ -190,7 +206,6 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       return lastPage[lastPage.length - 1]?.id || undefined;
     },
   });
-  const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
 
   useEffect(() => {
     const handlePostCreated = (event) => {
@@ -235,16 +250,55 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     return names;
   }, [followsData, userData?.name]);
 
+  // Rank is frozen per arriving page-1 payload: one timestamp per fetch, follows
+  // as known at arrival. Later pages append in cursor order and unrelated state
+  // (composer focus, modals, follows loading) never re-sorts what's on screen.
+  const rankedFirstPageRef = useRef({ source: null, ranked: [] });
   const orderedPosts = useMemo(() => {
-    return posts
-      .map((post, index) => ({
+    const pages = postsData?.pages || [];
+    if (!pages.length) return [];
+    const firstPage = Array.isArray(pages[0]) ? pages[0] : [];
+    if (rankedFirstPageRef.current.source !== firstPage) {
+      const rankNow = Date.now();
+      rankedFirstPageRef.current = {
+        source: firstPage,
+        ranked: firstPage
+          .map((post, index) => ({
+            post,
+            index,
+            score: homeRankScore(post, priorityAuthors, rankNow),
+          }))
+          .sort((a, b) => b.score - a.score || a.index - b.index)
+          .map((entry) => entry.post),
+      };
+    }
+    const laterPages = pages.slice(1).filter(Array.isArray).flat();
+    return laterPages.length
+      ? [...rankedFirstPageRef.current.ranked, ...laterPages]
+      : rankedFirstPageRef.current.ranked;
+  }, [postsData, priorityAuthors]);
+
+  // Derived card props are memoized so React.memo(ProposalCard) sees stable
+  // references; fresh object literals in the map would defeat it every render.
+  const feedCards = useMemo(
+    () =>
+      orderedPosts.map((post) => ({
         post,
-        index,
-        score: homeRankScore(post, priorityAuthors),
-      }))
-      .sort((a, b) => b.score - a.score || a.index - b.index)
-      .map((entry) => entry.post);
-  }, [posts, priorityAuthors]);
+        timeLabel: formatRelativeTime(post.time),
+        media: {
+          image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
+          images: Array.isArray(post.media?.images)
+            ? post.media.images.map((image) => absoluteApiUrl(image))
+            : [],
+          layout: post.media?.layout || "carousel",
+          governance: post.media?.governance || null,
+          video: post.media?.video || post.video || "",
+          link: post.media?.link || post.link || "",
+          file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",
+        },
+      })),
+    [orderedPosts]
+  );
 
   const { data: systemVoteData } = useQuery({
     queryKey: ["system-vote", backendUrl, userData?.name || ""],
@@ -265,6 +319,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
     const userVote = systemVoteData?.user_vote || null;
     const question = SYSTEM_VOTE_CONFIG.question || systemVoteData?.question;
     const deadline = SYSTEM_VOTE_CONFIG.deadline || systemVoteData?.deadline;
+    const deadlineTime = new Date(deadline).getTime();
 
     return {
       question,
@@ -273,6 +328,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       likes,
       dislikes,
       endsIn: formatCountdown(deadline, systemNow),
+      closed: Number.isFinite(deadlineTime) && systemNow > deadlineTime,
       userVote,
     };
   }, [systemNow, systemVoteData]);
@@ -284,6 +340,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
   /* System vote handler — casts an independent system-level vote */
   const handleSystemVote = async (choice) => {
+    if (systemVote.closed) return;
     if (!isAuthenticated) {
       requireAccount("Sign in to cast a system vote.");
       return;
@@ -383,9 +440,17 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             {systemVote.question}
           </p>
 
-          {/* System vote controls — same style as post action bar */}
+          {/* System vote controls — same style as post action bar. After the
+              deadline the row becomes results mode: no active vote buttons,
+              just how the network answered plus the breakdown. */}
           <div className="flex items-center gap-2 rounded-full bg-[rgba(255,255,255,0.04)] px-2.5 py-1.5">
+            {systemVote.closed && (
+              <span className="shrink-0 px-1.5 text-[0.64rem] font-bold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+                How the network answered
+              </span>
+            )}
             {/* 👎 NO — left */}
+            {!systemVote.closed && (
             <button
               type="button"
               onClick={() => handleSystemVote("dislike")}
@@ -397,6 +462,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             >
               <BiSolidDislike className="text-[1rem]" />
             </button>
+            )}
 
             {/* Slider */}
             <div className="relative flex-1 py-1">
@@ -430,6 +496,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
 
             {/* 👍 YES — right */}
+            {!systemVote.closed && (
             <button
               type="button"
               onClick={() => handleSystemVote("like")}
@@ -441,6 +508,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             >
               <BiSolidLike className="text-[1rem]" />
             </button>
+            )}
 
             {/* Breakdown */}
             <button
@@ -534,31 +602,25 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
           ) : (
             <>
-              {orderedPosts.map((post) => (
+              {feedCards.map(({ post, timeLabel, media }) => (
                 <ProposalCard
                   key={post.id}
                   id={post.id}
                   userName={post.userName}
                   userInitials={post.userInitials}
-                  time={formatRelativeTime(post.time)}
+                  time={timeLabel}
                   title={post.title}
                   logo={post.author_img}
-                  media={{
-                    image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
-                    images: Array.isArray(post.media?.images)
-                      ? post.media.images.map((image) => absoluteApiUrl(image))
-                      : [],
-                    layout: post.media?.layout || "carousel",
-                    governance: post.media?.governance || null,
-                    video: post.media?.video || post.video || "",
-                    link: post.media?.link || post.link || "",
-                    file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",
-                  }}
+                  media={media}
                   text={post.text}
                   comments={post.comments}
                   collabs={post.collabs}
                   likes={post.likes}
                   dislikes={post.dislikes}
+                  likeCount={post.like_count}
+                  dislikeCount={post.dislike_count}
+                  commentCount={post.comment_count}
+                  votingClosed={post.voting_closed === true}
                   profileUrl={post.profile_url}
                   domainAsProfile={post.domain_as_profile}
                   setErrorMsg={setErrorMsg}

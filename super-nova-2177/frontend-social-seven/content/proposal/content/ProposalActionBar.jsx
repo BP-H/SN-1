@@ -10,6 +10,8 @@ export default function ProposalActionBar({
   copied,
   dislikes = [],
   likes = [],
+  likeCount = null,
+  dislikeCount = null,
   onMessageShare,
   onShareLink,
   onToggleComments,
@@ -20,6 +22,7 @@ export default function ProposalActionBar({
   shareMenuRef,
   showComments,
   userVote,
+  votingClosed = false,
 }) {
   return (
     <div
@@ -32,12 +35,13 @@ export default function ProposalActionBar({
       <div className="min-w-0 flex-1">
         <LikesDeslikes
           setErrorMsg={setErrorMsg}
-          initialLikes={likes.length}
-          initialDislikes={dislikes.length}
+          initialLikes={Number.isFinite(Number(likeCount)) ? Number(likeCount) : likes.length}
+          initialDislikes={Number.isFinite(Number(dislikeCount)) ? Number(dislikeCount) : dislikes.length}
           initialLikesList={likes}
           initialDislikesList={dislikes}
           initialClicked={userVote || null}
           proposalId={proposalId}
+          votingClosed={votingClosed}
         />
       </div>
 

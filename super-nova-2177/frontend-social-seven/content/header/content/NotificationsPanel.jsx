@@ -73,7 +73,7 @@ export default function NotificationsPanel({ onSelect = () => {} }) {
     queryFn: async () => {
       const endpoint = isAuthenticated && userData?.name
         ? `${API_BASE_URL}/notifications?user=${encodeURIComponent(userData.name)}&limit=12`
-        : `${API_BASE_URL}/proposals?filter=latest&limit=12`;
+        : `${API_BASE_URL}/proposals?filter=latest&limit=12&embedded_comments_limit=3&embedded_votes_limit=25`;
       const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch activity");
       return response.json();

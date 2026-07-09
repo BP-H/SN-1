@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
@@ -111,19 +111,35 @@ function ProposalCard({
   logo,
   likes = [],
   dislikes = [],
+  likeCount = null,
+  dislikeCount = null,
+  commentCount = null,
   voteSummary = null,
   comments = [],
   collabs = [],
   profileUrl = "",
   domainAsProfile = false,
+  votingClosed = false,
   specie = "human",
   setErrorMsg,
   setNotify,
   isDetailPage = false,
   showSupportSummary = false,
 }) {
+  // Dev-only render counter (NEXT_PUBLIC_DEBUG_RENDERS=true, or a window flag
+  // tests can set) proving memoization keeps unrelated cards quiet.
+  if (
+    typeof window !== "undefined" &&
+    (process.env.NEXT_PUBLIC_DEBUG_RENDERS === "true" || window.__SN_DEBUG_RENDERS === true)
+  ) {
+    window.__SN_CARD_RENDERS = window.__SN_CARD_RENDERS || {};
+    const renderKey = String(id ?? "unknown");
+    window.__SN_CARD_RENDERS[renderKey] = (window.__SN_CARD_RENDERS[renderKey] || 0) + 1;
+  }
+
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
+  const [fullCommentsLoaded, setFullCommentsLoaded] = useState(false);
   const [localText, setLocalText] = useState(text || "");
   const [editText, setEditText] = useState(text || "");
   const [readMore, setReadMore] = useState(false);
@@ -816,7 +832,35 @@ function ProposalCard({
 
   useEffect(() => {
     setLocalComments(Array.isArray(comments) ? comments : []);
+    setFullCommentsLoaded(false);
   }, [comments, id]);
+
+  // Feeds embed only a capped comment preview (M3.1); the full thread loads
+  // on demand the first time the viewer opens the comments section.
+  const embeddedCommentCount = Array.isArray(comments) ? comments.length : 0;
+  const serverCommentCount = Number.isFinite(Number(commentCount)) ? Number(commentCount) : null;
+  const needsFullComments =
+    !isDetailPage && serverCommentCount !== null && serverCommentCount > embeddedCommentCount;
+
+  useEffect(() => {
+    if (!showComments || fullCommentsLoaded || !needsFullComments) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(id)}`);
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (cancelled || !payload) return;
+        if (Array.isArray(payload.comments)) setLocalComments(payload.comments);
+        setFullCommentsLoaded(true);
+      } catch {
+        // Keep the embedded preview if the full read fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showComments, fullCommentsLoaded, needsFullComments, id]);
 
   useEffect(() => {
     setLocalLogo(logo || "");
@@ -1056,10 +1100,16 @@ function ProposalCard({
               <IoSparklesOutline className="text-[0.9rem]" />
             </button>
           )}
-          commentCount={localComments.length}
+          commentCount={
+            serverCommentCount !== null && !fullCommentsLoaded
+              ? Math.max(0, serverCommentCount + (localComments.length - embeddedCommentCount))
+              : localComments.length
+          }
           copied={copied}
           dislikes={dislikes}
           likes={likes}
+          likeCount={likeCount}
+          dislikeCount={dislikeCount}
           onMessageShare={handleMessageShare}
           onShareLink={handleShareLink}
           onToggleComments={() => setShowComments((value) => !value)}
@@ -1070,6 +1120,7 @@ function ProposalCard({
           shareMenuRef={shareMenuRef}
           showComments={showComments}
           userVote={userVote}
+          votingClosed={votingClosed}
         />
 
         <ProposalCommentsSection
@@ -1155,4 +1206,6 @@ function ProposalCard({
   );
 }
 
-export default ProposalCard;
+// Feed pages keep per-card props referentially stable, so a shallow memo stops
+// unrelated feed state (composer, modals, follows) from re-rendering every card.
+export default memo(ProposalCard);

@@ -175,6 +175,7 @@ export const messages = {
       noPostsCue: "Start the commons with a post, signal, image, or AI delegate draft.",
       noProposals: "No signals found.",
       people: "People",
+      votingClosed: "Voting closed",
     },
     forAi: {
       accessMode: "Access mode",
@@ -406,6 +407,7 @@ export const messages = {
       noPostsCue: "게시물, 제안, 이미지, 또는 AI 대표 초안으로 시작하세요.",
       noProposals: "제안을 찾을 수 없습니다.",
       people: "사람",
+      votingClosed: "투표 마감",
     },
     forAi: {
       accessMode: "접근 모드",
@@ -639,6 +641,7 @@ export const messages = {
       noPostsCue: "Empieza el commons con una publicación, propuesta, imagen o borrador de delegado de IA.",
       noProposals: "No se encontraron propuestas.",
       people: "Personas",
+      votingClosed: "Votación cerrada",
     },
     forAi: {
       accessMode: "Modo de acceso",
@@ -891,6 +894,7 @@ addLocaleCatalog("zh", {
     noPostsCue: "用帖子、提案、图片或 AI 代理草稿开启 commons。",
     noProposals: "未找到提案。",
     people: "成员",
+    votingClosed: "投票已结束",
   },
   forAi: {
     accessMode: "访问模式",
@@ -1120,6 +1124,7 @@ addLocaleCatalog("hi", {
     noPostsCue: "पोस्ट, प्रस्ताव, तस्वीर या AI प्रतिनिधि draft से commons शुरू करें।",
     noProposals: "कोई प्रस्ताव नहीं मिला।",
     people: "लोग",
+    votingClosed: "मतदान बंद",
   },
   forAi: {
     accessMode: "एक्सेस मोड",
@@ -1350,6 +1355,7 @@ addLocaleCatalog("ar", {
     noPostsCue: "ابدأ commons بمنشور أو اقتراح أو صورة أو مسودة وكيل AI.",
     noProposals: "لم يتم العثور على مقترحات.",
     people: "الأشخاص",
+    votingClosed: "انتهى التصويت",
   },
   forAi: {
     accessMode: "وضع الوصول",
@@ -1581,6 +1587,7 @@ addLocaleCatalog("pt", {
     noPostsCue: "Comece o commons com uma publicação, proposta, imagem ou rascunho de delegado de IA.",
     noProposals: "Nenhuma proposta encontrada.",
     people: "Pessoas",
+    votingClosed: "Votação encerrada",
   },
   forAi: {
     accessMode: "Modo de acesso",
@@ -1812,6 +1819,7 @@ addLocaleCatalog("fr", {
     noPostsCue: "Lancez le commons avec une publication, une proposition, une image ou un brouillon de délégué IA.",
     noProposals: "Aucune proposition trouvée.",
     people: "Personnes",
+    votingClosed: "Vote clôturé",
   },
   forAi: {
     accessMode: "Mode d'accès",
