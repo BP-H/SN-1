@@ -119,6 +119,7 @@ function ProposalCard({
   collabs = [],
   profileUrl = "",
   domainAsProfile = false,
+  votingClosed = false,
   specie = "human",
   setErrorMsg,
   setNotify,
@@ -1119,6 +1120,7 @@ function ProposalCard({
           shareMenuRef={shareMenuRef}
           showComments={showComments}
           userVote={userVote}
+          votingClosed={votingClosed}
         />
 
         <ProposalCommentsSection

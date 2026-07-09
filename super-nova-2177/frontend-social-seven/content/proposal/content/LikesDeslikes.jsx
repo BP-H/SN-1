@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { IoChevronUp } from "react-icons/io5";
 import { useUser } from "@/content/profile/UserContext";
+import { useI18n } from "@/content/i18n/LocaleContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import {
   BACKEND_AUTH_MISSING_MESSAGE,
@@ -34,8 +35,10 @@ function LikesDeslikes({
   initialDislikesList = [],
   initialClicked = null,
   proposalId,
+  votingClosed = false,
   setErrorMsg = () => {},
 }) {
+  const { t } = useI18n();
   const [clicked, setClicked] = useState(initialClicked);
   const [likes, setLikes] = useState(initialLikes);
   const [dislikes, setDislikes] = useState(initialDislikes);
@@ -173,6 +176,7 @@ function LikesDeslikes({
   }
 
   const handleLikeClick = async ({ allowToggle = true } = {}) => {
+    if (votingClosed) return;
     if (!validateProfile()) return;
     if (voteInFlightRef.current) return;
     voteInFlightRef.current = true;
@@ -202,6 +206,7 @@ function LikesDeslikes({
   };
 
   const handleDislikeClick = async ({ allowToggle = true } = {}) => {
+    if (votingClosed) return;
     if (!validateProfile()) return;
     if (voteInFlightRef.current) return;
     voteInFlightRef.current = true;
@@ -276,7 +281,9 @@ function LikesDeslikes({
         type="button"
         onClick={handleDislikeClick}
         aria-label="Vote no"
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
+        disabled={votingClosed}
+        title={votingClosed ? t("feed.votingClosed") : undefined}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
           clicked === "dislike"
             ? "bg-[var(--blue)] text-white shadow-[var(--shadow-blue)] scale-110"
             : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"
@@ -287,8 +294,11 @@ function LikesDeslikes({
 
       {/* Slider */}
       <div className="relative flex min-w-[4.5rem] flex-1 items-center py-1">
-        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[0.58rem] font-bold tabular-nums" style={{ color: knobColor }}>
-          {approvalRatio}%
+        <span
+          className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[0.58rem] font-bold tabular-nums"
+          style={{ color: votingClosed ? "var(--text-gray-light)" : knobColor }}
+        >
+          {votingClosed ? `${t("feed.votingClosed")} · ${approvalRatio}%` : `${approvalRatio}%`}
         </span>
         <div className="relative h-[3px] w-full rounded-full bg-[rgba(255,255,255,0.1)]">
           {/* Fill - solid color that matches the endpoint position */}
@@ -321,7 +331,9 @@ function LikesDeslikes({
         type="button"
         onClick={handleLikeClick}
         aria-label="Vote yes"
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
+        disabled={votingClosed}
+        title={votingClosed ? t("feed.votingClosed") : undefined}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
           clicked === "like"
             ? "bg-[var(--pink)] text-white shadow-[var(--shadow-pink)] scale-110"
             : "text-[var(--text-gray-light)] hover:bg-[rgba(255,255,255,0.07)]"

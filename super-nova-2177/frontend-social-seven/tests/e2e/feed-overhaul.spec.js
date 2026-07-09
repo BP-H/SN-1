@@ -265,6 +265,26 @@ test("expired system decision renders results mode instead of active voting", as
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test("voting_closed disables vote controls with a voting closed label", async ({ page }) => {
+  const post = feedPost({
+    id: 2178300,
+    text: "This decision has closed voting.",
+    likes: [{ voter: "closed-yes", type: "human" }],
+    like_count: 1,
+    voting_closed: true,
+  });
+  await mockFeedBackend(page, [post]);
+
+  await page.goto("/");
+  await expect(page.getByText("This decision has closed voting.")).toBeVisible();
+
+  const card = page.locator("[data-proposal-card]").first();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toBeDisabled();
+  await expect(card.getByRole("button", { name: "Vote no" })).toBeDisabled();
+  await expect(card.getByText(/Voting closed/)).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
 test("opening comments loads the full thread past the embedded preview", async ({ page }) => {
   const proposalId = 2178004;
   const fullComments = Array.from({ length: 12 }, (_, index) => fixtureComment(index + 1, proposalId));

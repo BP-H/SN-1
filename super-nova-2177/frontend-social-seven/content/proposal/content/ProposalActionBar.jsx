@@ -22,6 +22,7 @@ export default function ProposalActionBar({
   shareMenuRef,
   showComments,
   userVote,
+  votingClosed = false,
 }) {
   return (
     <div
@@ -40,6 +41,7 @@ export default function ProposalActionBar({
           initialDislikesList={dislikes}
           initialClicked={userVote || null}
           proposalId={proposalId}
+          votingClosed={votingClosed}
         />
       </div>
 

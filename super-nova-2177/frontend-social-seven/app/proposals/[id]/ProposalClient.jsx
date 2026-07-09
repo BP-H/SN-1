@@ -324,6 +324,7 @@ export default function ProposalClient({ id }) {
         collabs={proposal.collabs}
         profileUrl={proposal.profile_url}
         domainAsProfile={proposal.domain_as_profile}
+        votingClosed={proposal.voting_closed === true}
         specie={proposal.author_type}
         setErrorMsg={setErrorMsg}
         setNotify={setNotify}
