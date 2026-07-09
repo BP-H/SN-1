@@ -258,6 +258,28 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       .map((entry) => entry.post);
   }, [posts, priorityAuthors]);
 
+  // Derived card props are memoized so React.memo(ProposalCard) sees stable
+  // references; fresh object literals in the map would defeat it every render.
+  const feedCards = useMemo(
+    () =>
+      orderedPosts.map((post) => ({
+        post,
+        timeLabel: formatRelativeTime(post.time),
+        media: {
+          image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
+          images: Array.isArray(post.media?.images)
+            ? post.media.images.map((image) => absoluteApiUrl(image))
+            : [],
+          layout: post.media?.layout || "carousel",
+          governance: post.media?.governance || null,
+          video: post.media?.video || post.video || "",
+          link: post.media?.link || post.link || "",
+          file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",
+        },
+      })),
+    [orderedPosts]
+  );
+
   const { data: systemVoteData } = useQuery({
     queryKey: ["system-vote", backendUrl, userData?.name || ""],
     queryFn: async () => {
@@ -546,26 +568,16 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             </div>
           ) : (
             <>
-              {orderedPosts.map((post) => (
+              {feedCards.map(({ post, timeLabel, media }) => (
                 <ProposalCard
                   key={post.id}
                   id={post.id}
                   userName={post.userName}
                   userInitials={post.userInitials}
-                  time={formatRelativeTime(post.time)}
+                  time={timeLabel}
                   title={post.title}
                   logo={post.author_img}
-                  media={{
-                    image: post.media?.image ? absoluteApiUrl(post.media.image) : post.image ? absoluteApiUrl(post.image) : "",
-                    images: Array.isArray(post.media?.images)
-                      ? post.media.images.map((image) => absoluteApiUrl(image))
-                      : [],
-                    layout: post.media?.layout || "carousel",
-                    governance: post.media?.governance || null,
-                    video: post.media?.video || post.video || "",
-                    link: post.media?.link || post.link || "",
-                    file: post.media?.file ? absoluteApiUrl(post.media.file) : post.file ? absoluteApiUrl(post.file) : "",
-                  }}
+                  media={media}
                   text={post.text}
                   comments={post.comments}
                   collabs={post.collabs}

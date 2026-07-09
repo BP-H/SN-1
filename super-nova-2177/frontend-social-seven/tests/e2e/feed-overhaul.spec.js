@@ -98,6 +98,21 @@ async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedReques
   });
 }
 
+async function seedPasswordSession(page) {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem(
+      "supernova_password_session",
+      JSON.stringify({
+        token: "e2e-local-token",
+        id: "e2e-user",
+        username: "e2e-human",
+        email: "e2e@example.test",
+        species: "human",
+      })
+    );
+  });
+}
+
 test("home feed request carries the bounded embed caps", async ({ page }) => {
   const feedUrls = [];
   await mockFeedBackend(page, [feedPost()], {
@@ -166,6 +181,30 @@ test("vote breakdown modal fetches the full voter list on open", async ({ page }
   // A voter that only exists in the full single-proposal read proves the on-open fetch.
   await expect(modal.getByText("@deep-voter-27")).toBeVisible();
   await expect(modal.getByText("28 total votes")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("composer open and typing re-render at most two feed cards", async ({ page }) => {
+  const posts = Array.from({ length: 8 }, (_, index) =>
+    feedPost({ id: 2178100 + index, text: `Stable memo card ${index + 1}.` })
+  );
+  await seedPasswordSession(page);
+  await page.addInitScript(() => {
+    window.__SN_DEBUG_RENDERS = true;
+  });
+  await mockFeedBackend(page, posts);
+
+  await page.goto("/");
+  await expect(page.getByText("Stable memo card 8.")).toBeVisible();
+
+  const before = await page.evaluate(() => ({ ...(window.__SN_CARD_RENDERS || {}) }));
+  await page.getByText("Post a signal, or ask AI...").click();
+  await page.getByPlaceholder("Share your idea, update, or question").fill("memo render probe");
+  await page.waitForTimeout(250);
+
+  const after = await page.evaluate(() => ({ ...(window.__SN_CARD_RENDERS || {}) }));
+  const rerenderedCards = Object.keys(after).filter((key) => (after[key] || 0) > (before[key] || 0));
+  expect(rerenderedCards.length).toBeLessThanOrEqual(2);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 

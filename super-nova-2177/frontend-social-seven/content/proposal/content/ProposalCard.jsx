@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/content/profile/UserContext";
@@ -125,6 +125,17 @@ function ProposalCard({
   isDetailPage = false,
   showSupportSummary = false,
 }) {
+  // Dev-only render counter (NEXT_PUBLIC_DEBUG_RENDERS=true, or a window flag
+  // tests can set) proving memoization keeps unrelated cards quiet.
+  if (
+    typeof window !== "undefined" &&
+    (process.env.NEXT_PUBLIC_DEBUG_RENDERS === "true" || window.__SN_DEBUG_RENDERS === true)
+  ) {
+    window.__SN_CARD_RENDERS = window.__SN_CARD_RENDERS || {};
+    const renderKey = String(id ?? "unknown");
+    window.__SN_CARD_RENDERS[renderKey] = (window.__SN_CARD_RENDERS[renderKey] || 0) + 1;
+  }
+
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
   const [fullCommentsLoaded, setFullCommentsLoaded] = useState(false);
@@ -1193,4 +1204,6 @@ function ProposalCard({
   );
 }
 
-export default ProposalCard;
+// Feed pages keep per-card props referentially stable, so a shallow memo stops
+// unrelated feed state (composer, modals, follows) from re-rendering every card.
+export default memo(ProposalCard);
