@@ -303,6 +303,111 @@ def seed_busy_world(proposal_count=30, comments_per=10, votes_per=20):
 
 
 class M2AdditiveCountsTests(unittest.TestCase):
+    def test_authoritative_vote_summary_matches_feed_detail_and_connector(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            db = backend_app.SessionLocal()
+            try:
+                author = backend_app.Harmonizer(
+                    username="summary-author",
+                    email="summary-author@example.test",
+                    hashed_password="test",
+                    species="human",
+                    profile_pic="default.jpg",
+                )
+                db.add(author)
+                voters = []
+                for index in range(80):
+                    voter = backend_app.Harmonizer(
+                        username=f"summary-voter-{index:02d}",
+                        email=f"summary-voter-{index:02d}@example.test",
+                        hashed_password="test",
+                        species="human",
+                        profile_pic="default.jpg",
+                    )
+                    db.add(voter)
+                    voters.append(voter)
+                db.commit()
+                db.refresh(author)
+                for voter in voters:
+                    db.refresh(voter)
+
+                proposal = backend_app.Proposal(
+                    title="Authoritative summary fixture",
+                    description="The first 25 embedded votes differ from the full result.",
+                    userName=author.username,
+                    userInitials="SA",
+                    author_type="human",
+                    author_id=author.id,
+                    created_at=datetime.datetime.utcnow(),
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=7),
+                )
+                db.add(proposal)
+                db.commit()
+                db.refresh(proposal)
+
+                for index, voter in enumerate(voters):
+                    if index < 25:
+                        choice, species = "up", "human"
+                    elif index < 40:
+                        choice, species = "down", "human"
+                    elif index < 60:
+                        choice, species = "up", "ai" if index % 2 else "AI"
+                    else:
+                        choice = "down"
+                        species = ("company", "org", "organization")[index % 3]
+                    db.add(
+                        backend_app.ProposalVote(
+                            proposal_id=proposal.id,
+                            harmonizer_id=voter.id,
+                            vote=choice,
+                            voter_type=species,
+                        )
+                    )
+                db.commit()
+                proposal_id = proposal.id
+            finally:
+                db.close()
+
+            feed = client.get(
+                "/proposals?filter=latest&limit=30"
+                "&embedded_comments_limit=3&embedded_votes_limit=25"
+            ).json()
+            feed_item = feed_entry(feed, proposal_id)
+            detail = client.get(f"/proposals/{proposal_id}").json()
+            connector = client.get(f"/connector/proposals/{proposal_id}/votes").json()
+            result = {
+                "embedded_vote_count": len(feed_item.get("likes") or [])
+                + len(feed_item.get("dislikes") or []),
+                "feed": feed_item.get("vote_summary"),
+                "detail": detail.get("vote_summary"),
+                "connector": connector.get("vote_summary"),
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+
+        self.assertEqual(result["embedded_vote_count"], 25)
+        self.assertEqual(result["feed"], result["detail"])
+        self.assertEqual(result["feed"], result["connector"])
+        self.assertEqual(result["feed"]["schema"], "supernova.three_species_vote.v1")
+        self.assertEqual(result["feed"]["up"], 45)
+        self.assertEqual(result["feed"]["down"], 35)
+        self.assertEqual(result["feed"]["total"], 80)
+        self.assertAlmostEqual(result["feed"]["weighted_support_percent"], 54.1667, places=4)
+        self.assertEqual(
+            result["feed"]["by_species"]["company"],
+            {
+                "up": 0,
+                "down": 20,
+                "total": 20,
+                "internal_support_percent": 0.0,
+                "weighted_support_percent": 0.0,
+            },
+        )
+
     def test_counts_are_additive_true_totals_under_caps_and_on_single_read(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -495,6 +600,7 @@ class M2BatchedSerializerTests(unittest.TestCase):
                 "comments_len": len(first.get("comments") or []),
                 "like_count": first.get("like_count"),
                 "comment_count": first.get("comment_count"),
+                "vote_summary": first.get("vote_summary"),
             }
             print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -524,12 +630,17 @@ class M2BatchedSerializerTests(unittest.TestCase):
             "like_count",
             "dislike_count",
             "comment_count",
+            "vote_summary",
         ):
             self.assertIn(key, result["keys"])
         self.assertEqual(result["likes_len"], 2)
         self.assertEqual(result["comments_len"], 2)
         self.assertEqual(result["like_count"], 2)
         self.assertEqual(result["comment_count"], 2)
+        self.assertEqual(result["vote_summary"]["total"], 3)
+        self.assertAlmostEqual(
+            result["vote_summary"]["weighted_support_percent"], 66.6667, places=4
+        )
 
 
 class M2FallbackByUrlTests(unittest.TestCase):

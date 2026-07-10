@@ -212,6 +212,7 @@ class ProposalMentionNotificationTests(unittest.TestCase):
                 "userInitials",
                 "userName",
                 "voting_closed",
+                "vote_summary",
             },
         )
         self.assertGreater(result["proposal_id"], 0)
@@ -286,6 +287,7 @@ class ProposalMentionNotificationTests(unittest.TestCase):
                 "userInitials",
                 "userName",
                 "voting_closed",
+                "vote_summary",
             },
         )
         self.assertEqual(result["public_read_status"], 200)
@@ -295,4 +297,3 @@ class ProposalMentionNotificationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
