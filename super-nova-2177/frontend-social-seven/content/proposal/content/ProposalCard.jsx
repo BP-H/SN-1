@@ -106,6 +106,22 @@ function supportSummaryLabel(likes = [], dislikes = [], voteSummary = null) {
   return `${percent}% support`;
 }
 
+function isVisibleComment(comment) {
+  return !Boolean(comment?.deleted || comment?.user === "[deleted]");
+}
+
+function mergeCommentsById(primary = [], secondary = []) {
+  const merged = [];
+  const seen = new Set();
+  [...primary, ...secondary].forEach((comment, index) => {
+    const key = comment?.id == null ? `missing-${index}` : `id-${String(comment.id)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(comment);
+  });
+  return merged;
+}
+
 function ProposalCard({
   id,
   userName,
@@ -119,6 +135,8 @@ function ProposalCard({
   likeCount = null,
   dislikeCount = null,
   commentCount = null,
+  embeddedCommentCount = null,
+  hasMoreComments = null,
   voteSummary = null,
   comments = [],
   collabs = [],
@@ -849,21 +867,39 @@ function ProposalCard({
 
   // Feeds embed only a capped comment preview (M3.1); the full thread loads
   // on demand the first time the viewer opens the comments section.
-  const embeddedCommentCount = Array.isArray(comments) ? comments.length : 0;
+  const visibleEmbeddedComments = Array.isArray(comments)
+    ? comments.filter(isVisibleComment).length
+    : 0;
+  const backendEmbeddedCommentCount = Number.isFinite(Number(embeddedCommentCount))
+    ? Number(embeddedCommentCount)
+    : visibleEmbeddedComments;
+  const localVisibleCommentCount = localComments.filter(isVisibleComment).length;
   const serverCommentCount = Number.isFinite(Number(commentCount)) ? Number(commentCount) : null;
+  const backendHasMoreComments = typeof hasMoreComments === "boolean" ? hasMoreComments : null;
   const needsFullComments =
-    !isDetailPage && serverCommentCount !== null && serverCommentCount > embeddedCommentCount;
+    !isDetailPage &&
+    (backendHasMoreComments !== null
+      ? backendHasMoreComments
+      : serverCommentCount !== null && serverCommentCount > visibleEmbeddedComments);
 
   useEffect(() => {
     if (!showComments || fullCommentsLoaded || !needsFullComments) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(id)}`);
+        const response = await fetch(
+          `${API_BASE_URL}/comments?proposal_id=${encodeURIComponent(id)}`
+        );
         if (!response.ok) return;
         const payload = await response.json().catch(() => null);
         if (cancelled || !payload) return;
-        if (Array.isArray(payload.comments)) setLocalComments(payload.comments);
+        const fullComments = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload.items)
+          ? payload.items
+          : null;
+        if (!fullComments) return;
+        setLocalComments((current) => mergeCommentsById(fullComments, current));
         setFullCommentsLoaded(true);
       } catch {
         // Keep the embedded preview if the full read fails.
@@ -1114,8 +1150,12 @@ function ProposalCard({
           )}
           commentCount={
             serverCommentCount !== null && !fullCommentsLoaded
-              ? Math.max(0, serverCommentCount + (localComments.length - embeddedCommentCount))
-              : localComments.length
+              ? Math.max(
+                  0,
+                  serverCommentCount +
+                    (localVisibleCommentCount - backendEmbeddedCommentCount)
+                )
+              : localVisibleCommentCount
           }
           copied={copied}
           dislikes={dislikes}
@@ -1144,6 +1184,7 @@ function ProposalCard({
           deletingCommentId={deletingCommentId}
           isDetailPage={isDetailPage}
           localComments={localComments}
+          visibleCommentCount={localVisibleCommentCount}
           onAskAi={(target) => {
             const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
             openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`, target?.id || null);

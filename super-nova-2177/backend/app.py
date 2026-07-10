@@ -1604,6 +1604,32 @@ def _empty_proposal_engagement() -> Dict[str, Any]:
     }
 
 
+def _proposal_embed_completeness(
+    engagement: Optional[Dict[str, Any]],
+    comments: List[Dict[str, Any]],
+    likes: List[Dict[str, Any]],
+    dislikes: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    visible_comment_count = sum(
+        1 for comment in comments if not bool((comment or {}).get("deleted"))
+    )
+    embedded_vote_count = len(likes) + len(dislikes)
+    safe_engagement = engagement if isinstance(engagement, dict) else {}
+    total_comments = int(safe_engagement.get("comment_count", visible_comment_count) or 0)
+    vote_summary = safe_engagement.get("vote_summary")
+    total_votes = (
+        int(vote_summary.get("total", embedded_vote_count) or 0)
+        if isinstance(vote_summary, dict)
+        else embedded_vote_count
+    )
+    return {
+        "embedded_comment_count": visible_comment_count,
+        "has_more_comments": total_comments > visible_comment_count,
+        "embedded_vote_count": embedded_vote_count,
+        "has_more_votes": total_votes > embedded_vote_count,
+    }
+
+
 def _proposal_engagement_counts(
     db: Session, proposal_ids: List[int]
 ) -> Optional[Dict[int, Dict[str, Any]]]:
@@ -3387,6 +3413,10 @@ class ProposalSchema(BaseModel):
     dislike_count: Optional[int] = None
     comment_count: Optional[int] = None
     vote_summary: Optional[Dict] = None
+    embedded_comment_count: Optional[int] = None
+    has_more_comments: Optional[bool] = None
+    embedded_vote_count: Optional[int] = None
+    has_more_votes: Optional[bool] = None
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -6852,6 +6882,10 @@ async def create_proposal(
             dislike_count=0,
             comment_count=0,
             vote_summary=build_three_species_vote_summary(),
+            embedded_comment_count=0,
+            has_more_comments=False,
+            embedded_vote_count=0,
+            has_more_votes=False,
         )
     except Exception as e:
         db.rollback()
@@ -7366,10 +7400,17 @@ def _serialize_proposal_page_from_maps(
             ),
         }
         if engagement_counts is not None:
-            serialized_proposal.update(
-                engagement_counts.get(prop.id)
-                or _empty_proposal_engagement()
+            proposal_engagement = (
+                engagement_counts.get(prop.id) or _empty_proposal_engagement()
             )
+            serialized_proposal.update(proposal_engagement)
+        else:
+            proposal_engagement = None
+        serialized_proposal.update(
+            _proposal_embed_completeness(
+                proposal_engagement, comments_list, likes, dislikes
+            )
+        )
         proposals_list.append(serialized_proposal)
 
     return proposals_list
@@ -7741,10 +7782,17 @@ def list_proposals(
                 ),
             }
             if engagement_counts is not None:
-                serialized_proposal.update(
-                    engagement_counts.get(prop.id)
-                    or _empty_proposal_engagement()
+                proposal_engagement = (
+                    engagement_counts.get(prop.id) or _empty_proposal_engagement()
                 )
+                serialized_proposal.update(proposal_engagement)
+            else:
+                proposal_engagement = None
+            serialized_proposal.update(
+                _proposal_embed_completeness(
+                    proposal_engagement, comments_list, likes, dislikes
+                )
+            )
             proposals_list.append(serialized_proposal)
 
         return proposals_list
@@ -8879,6 +8927,9 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             comment_count=proposal_counts.get("comment_count"),
             vote_summary=proposal_counts.get("vote_summary")
             or build_three_species_vote_summary(),
+            **_proposal_embed_completeness(
+                proposal_counts, comments_list, likes, dislikes
+            ),
         )
     else:
         result = db.execute(
@@ -8950,6 +9001,9 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             comment_count=proposal_counts.get("comment_count"),
             vote_summary=proposal_counts.get("vote_summary")
             or build_three_species_vote_summary(),
+            **_proposal_embed_completeness(
+                proposal_counts, comments_list, likes, dislikes
+            ),
         )
 
 app.include_router(create_uploads_router(

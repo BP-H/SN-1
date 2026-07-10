@@ -936,6 +936,8 @@ export default function UserPostsPage() {
           likeCount={post.like_count}
           dislikeCount={post.dislike_count}
           commentCount={post.comment_count}
+          embeddedCommentCount={post.embedded_comment_count}
+          hasMoreComments={post.has_more_comments}
           votingClosed={post.voting_closed === true}
           voteSummary={post.vote_summary}
           profileUrl={post.profile_url}

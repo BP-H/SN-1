@@ -324,6 +324,9 @@ export default function ProposalClient({ id }) {
         dislikeCount={proposal.dislike_count}
         voteSummary={proposal.vote_summary}
         comments={proposal.comments}
+        commentCount={proposal.comment_count}
+        embeddedCommentCount={proposal.embedded_comment_count}
+        hasMoreComments={proposal.has_more_comments}
         collabs={proposal.collabs}
         profileUrl={proposal.profile_url}
         domainAsProfile={proposal.domain_as_profile}

@@ -70,7 +70,11 @@ function fixtureComment(index, proposalId) {
   };
 }
 
-async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedRequest = null } = {}) {
+async function mockFeedBackend(
+  page,
+  posts,
+  { singleProposals = {}, commentsByProposal = {}, onFeedRequest = null } = {}
+) {
   await page.route("**/proposals?**", async (route) => {
     if (onFeedRequest) onFeedRequest(route.request().url());
     await route.fulfill({
@@ -89,6 +93,16 @@ async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedReques
       });
     });
   }
+
+  await page.route("**/comments?**", async (route) => {
+    const url = new URL(route.request().url());
+    const proposalId = url.searchParams.get("proposal_id");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(commentsByProposal[proposalId] || []),
+    });
+  });
 
   await page.route("**/system-vote**", async (route) => {
     await route.fulfill({
@@ -174,6 +188,55 @@ test("displayed counts come from *_count fields even when embedded arrays are ca
   // The comment toggle shows the server total, not the capped preview length.
   await expect(page.locator(".post-action-bar").getByRole("button", { name: /^12$/ })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("opening an incomplete comment preview loads the full tombstone-preserving thread once", async ({ page }) => {
+  const proposalId = 2178012;
+  const tombstone = {
+    ...fixtureComment(1, proposalId),
+    id: "deleted-parent",
+    user: "[deleted]",
+    comment: "This comment was deleted.",
+    deleted: true,
+  };
+  const reply = {
+    ...fixtureComment(2, proposalId),
+    id: "visible-reply",
+    parent_comment_id: tombstone.id,
+    comment: "Visible reply under deleted parent.",
+  };
+  const embeddedPeer = fixtureComment(3, proposalId);
+  const laterComment = fixtureComment(4, proposalId);
+  const post = feedPost({
+    id: proposalId,
+    text: "Incomplete comment preview fixture.",
+    comments: [tombstone, reply, embeddedPeer],
+    comment_count: 3,
+    embedded_comment_count: 2,
+    has_more_comments: true,
+  });
+  let commentsReadCount = 0;
+  await mockFeedBackend(page, [post], {
+    commentsByProposal: {
+      [proposalId]: [tombstone, reply, embeddedPeer, laterComment, laterComment],
+    },
+  });
+  await page.route("**/comments?**", async (route) => {
+    commentsReadCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([tombstone, reply, embeddedPeer, laterComment, laterComment]),
+    });
+  });
+
+  await page.goto("/");
+  await page.locator(".post-action-bar").getByRole("button", { name: /^3$/ }).click();
+  await expect(page.getByText("Visible reply under deleted parent.")).toBeVisible();
+  await expect(page.getByText("Fixture comment number 4.")).toBeVisible();
+  await expect(page.getByText("Fixture comment number 4.")).toHaveCount(1);
+  await expect(page.getByText("This comment was deleted.")).toBeVisible();
+  expect(commentsReadCount).toBe(1);
 });
 
 test("vote breakdown modal fetches the full voter list on open", async ({ page }) => {

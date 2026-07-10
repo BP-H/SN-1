@@ -497,6 +497,109 @@ class M2AdditiveCountsTests(unittest.TestCase):
         self.assertEqual(result["single_p1"]["dislike_count"], 1)
         self.assertEqual(result["single_p1"]["comment_count"], 2)
 
+    def test_completeness_metadata_counts_visible_comments_and_preserves_tombstones(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            ids = seed_engagement_world()
+            db = backend_app.SessionLocal()
+            try:
+                proposal_id = ids["p1"]
+                db.query(backend_app.Comment).filter(
+                    backend_app.Comment.proposal_id == proposal_id
+                ).delete(synchronize_session=False)
+                author = db.query(backend_app.Harmonizer).filter(
+                    backend_app.Harmonizer.username == "alice"
+                ).first()
+                vibenode = db.query(backend_app.VibeNode).first()
+                parent = backend_app.Comment(
+                    content=backend_app.DELETED_COMMENT_TEXT,
+                    author_id=author.id,
+                    vibenode_id=vibenode.id,
+                    proposal_id=proposal_id,
+                    created_at=datetime.datetime.utcnow(),
+                )
+                db.add(parent)
+                db.flush()
+                reply = backend_app.Comment(
+                    content="Visible reply under deleted parent.",
+                    author_id=author.id,
+                    vibenode_id=vibenode.id,
+                    proposal_id=proposal_id,
+                    parent_comment_id=parent.id,
+                    created_at=datetime.datetime.utcnow(),
+                )
+                db.add_all([
+                    reply,
+                    backend_app.Comment(
+                        content="Visible embedded peer.",
+                        author_id=author.id,
+                        vibenode_id=vibenode.id,
+                        proposal_id=proposal_id,
+                        created_at=datetime.datetime.utcnow(),
+                    ),
+                    backend_app.Comment(
+                        content="Visible comment beyond cap.",
+                        author_id=author.id,
+                        vibenode_id=vibenode.id,
+                        proposal_id=proposal_id,
+                        created_at=datetime.datetime.utcnow(),
+                    ),
+                ])
+                db.commit()
+                parent_id = parent.id
+                reply_id = reply.id
+            finally:
+                db.close()
+
+            feed = client.get(
+                "/proposals?filter=latest&limit=10"
+                "&embedded_comments_limit=3&embedded_votes_limit=2"
+            ).json()
+            entry = feed_entry(feed, ids["p1"])
+            single = client.get(f"/proposals/{ids['p1']}").json()
+            full_comments = client.get(f"/comments?proposal_id={ids['p1']}").json()
+            result = {
+                "feed": {
+                    "comment_count": entry.get("comment_count"),
+                    "embedded_comment_count": entry.get("embedded_comment_count"),
+                    "has_more_comments": entry.get("has_more_comments"),
+                    "embedded_vote_count": entry.get("embedded_vote_count"),
+                    "has_more_votes": entry.get("has_more_votes"),
+                    "comments": entry.get("comments"),
+                },
+                "single": {
+                    "embedded_comment_count": single.get("embedded_comment_count"),
+                    "has_more_comments": single.get("has_more_comments"),
+                    "embedded_vote_count": single.get("embedded_vote_count"),
+                    "has_more_votes": single.get("has_more_votes"),
+                },
+                "full_ids": [comment.get("id") for comment in full_comments],
+                "parent_id": parent_id,
+                "reply_id": reply_id,
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+
+        self.assertEqual(result["feed"]["comment_count"], 3)
+        self.assertEqual(result["feed"]["embedded_comment_count"], 2)
+        self.assertTrue(result["feed"]["has_more_comments"])
+        self.assertEqual(result["feed"]["embedded_vote_count"], 2)
+        self.assertTrue(result["feed"]["has_more_votes"])
+        self.assertTrue(result["feed"]["comments"][0]["deleted"])
+        self.assertEqual(
+            result["feed"]["comments"][1]["parent_comment_id"],
+            result["parent_id"],
+        )
+        self.assertEqual(result["single"]["embedded_comment_count"], 3)
+        self.assertFalse(result["single"]["has_more_comments"])
+        self.assertEqual(result["single"]["embedded_vote_count"], 4)
+        self.assertFalse(result["single"]["has_more_votes"])
+        self.assertEqual(len(result["full_ids"]), len(set(result["full_ids"])))
+        self.assertIn(result["reply_id"], result["full_ids"])
+
 
 class M2BatchedSerializerTests(unittest.TestCase):
     def test_batched_serializer_matches_legacy_byte_for_byte(self):
