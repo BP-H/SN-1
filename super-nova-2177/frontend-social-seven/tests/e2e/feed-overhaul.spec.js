@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import {
+  normalizePublicRouteSegment,
+  publicProfilePath,
+} from "../../utils/publicRouteSegments.js";
+import { profileMetadataForUsername } from "../../app/users/[username]/layout.js";
 
 const obviousRuntimeErrors = /Application error|Unhandled Runtime Error|Build Error|Failed to compile|Module not found/i;
 
@@ -11,6 +16,24 @@ const emptyMedia = {
   link: "",
   file: "",
 };
+
+test("Unicode public profile segments preserve identity and encode only at URL construction", () => {
+  const cases = [
+    ["태하", "/users/%ED%83%9C%ED%95%98"],
+    ["Güngör", "/users/G%C3%BCng%C3%B6r"],
+    ["José", "/users/Jos%C3%A9"],
+    ["Open Science DAO", "/users/Open%20Science%20DAO"],
+  ];
+  for (const [username, expectedPath] of cases) {
+    expect(normalizePublicRouteSegment(username)).toBe(username);
+    expect(publicProfilePath(username)).toBe(expectedPath);
+  }
+  expect(normalizePublicRouteSegment(" @태/하?x#y\\z\0 ")).toBe("태하xyz0");
+  expect(normalizePublicRouteSegment("태하")).not.toBe(normalizePublicRouteSegment("타하"));
+  const metadata = profileMetadataForUsername("태하");
+  expect(metadata.title).toBe("@태하 profile");
+  expect(metadata.alternates.canonical).toBe("/users/%ED%83%9C%ED%95%98");
+});
 
 function feedPost(overrides = {}) {
   return {

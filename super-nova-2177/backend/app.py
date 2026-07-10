@@ -78,6 +78,11 @@ except ImportError:  # pragma: no cover - supports running backend/app.py direct
     from three_species_vote_summary import build_three_species_vote_summary
 
 try:
+    from .public_route_paths import public_profile_path, public_route_path
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from public_route_paths import public_profile_path, public_route_path
+
+try:
     from .password_reset import (
         build_password_reset_url,
         create_password_reset_code,
@@ -4819,8 +4824,8 @@ def supernova_well_known():
 def domain_verification_preview(domain: str = Query(...), username: str = Query(...)):
     host = _normalize_preview_domain(domain)
     clean_username = _normalize_preview_username(username)
-    profile_url = f"{PUBLIC_BASE_URL}/users/{clean_username}"
-    actor_url = f"{PUBLIC_BASE_URL}/actors/{clean_username}"
+    profile_url = f"{PUBLIC_BASE_URL}{public_profile_path(clean_username)}"
+    actor_url = f"{PUBLIC_BASE_URL}{public_route_path('actors', clean_username)}"
     well_known_url = f"https://{host}/.well-known/supernova"
     return JSONResponse(
         {
@@ -5363,11 +5368,11 @@ def profile(username: str, db: Session = Depends(get_db)):
 
 
 def _public_profile_url(username: str) -> str:
-    return f"{PUBLIC_BASE_URL}/users/{username}"
+    return f"{PUBLIC_BASE_URL}{public_profile_path(username)}"
 
 
 def _public_actor_url(username: str) -> str:
-    return f"{PUBLIC_BASE_URL}/actors/{username}"
+    return f"{PUBLIC_BASE_URL}{public_route_path('actors', username)}"
 
 
 def _username_from_webfinger_resource(resource: str) -> str:

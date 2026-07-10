@@ -4,6 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, or_, text
 from sqlalchemy.orm import Session
 
+try:
+    from ..public_route_paths import public_profile_path, public_route_path
+except ImportError:  # pragma: no cover - supports direct backend execution
+    from public_route_paths import public_profile_path, public_route_path
+
 
 def create_public_connector_router(
     *,
@@ -56,7 +61,7 @@ def create_public_connector_router(
             or getattr(proposal, "author_type", "human")
             or "human",
             "avatar_url": social_avatar(avatar_value),
-            "profile_url": connector_public_web_url(f"/users/{user_name}"),
+            "profile_url": connector_public_web_url(public_profile_path(user_name)),
         }
 
     def connector_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
@@ -153,7 +158,9 @@ def create_public_connector_router(
                 "username": (payload.get("author") or {}).get("username", ""),
                 "species": (payload.get("author") or {}).get("species", "human"),
                 "profile_url": (payload.get("author") or {}).get("profile_url", ""),
-                "connector_profile_url": f"/connector/profiles/{(payload.get('author') or {}).get('username', '')}",
+                "connector_profile_url": public_route_path(
+                    "connector/profiles", (payload.get("author") or {}).get("username", "")
+                ),
             },
             "created_at": payload.get("created_at"),
             "vote_summary": payload.get("vote_summary", {}),
@@ -222,7 +229,7 @@ def create_public_connector_router(
             "species": species,
             "bio": getattr(user, "bio", "") if user is not None else "",
             "avatar_url": social_avatar(avatar_value),
-            "web_url": connector_public_web_url(f"/users/{resolved_username}"),
+            "web_url": connector_public_web_url(public_profile_path(resolved_username)),
             "post_count": post_count,
             "followers": counts["followers"],
             "following": counts["following"],

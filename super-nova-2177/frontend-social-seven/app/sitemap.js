@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/utils/apiBase";
+import { normalizePublicRouteSegment, publicProfilePath } from "@/utils/publicRouteSegments";
 
 const siteUrl = "https://2177.tech";
 
@@ -13,12 +14,9 @@ const publicRoutes = [
   { route: "/proposals", changeFrequency: "daily", priority: 0.9 },
 ];
 
-function cleanPathPart(value) {
-  return String(value || "")
-    .trim()
-    .replace(/^@+/, "")
-    .replace(/[^\w.-]/g, "")
-    .slice(0, 80);
+function numericProposalId(value) {
+  const candidate = String(value ?? "").trim();
+  return /^\d+$/.test(candidate) ? candidate : "";
 }
 
 function dateFromPost(post) {
@@ -40,7 +38,7 @@ async function latestPublicEntries() {
     const users = new Map();
 
     for (const post of posts) {
-      const id = cleanPathPart(post?.id);
+      const id = numericProposalId(post?.id);
       const lastModified = dateFromPost(post);
       if (id) {
         entries.push({
@@ -51,7 +49,9 @@ async function latestPublicEntries() {
         });
       }
 
-      const username = cleanPathPart(post?.userName || post?.username || post?.author_username);
+      const username = normalizePublicRouteSegment(
+        post?.userName || post?.username || post?.author_username
+      );
       if (username && !users.has(username)) {
         users.set(username, lastModified);
       }
@@ -59,7 +59,7 @@ async function latestPublicEntries() {
 
     for (const [username, lastModified] of users) {
       entries.push({
-        url: `${siteUrl}/users/${encodeURIComponent(username)}`,
+        url: `${siteUrl}${publicProfilePath(username)}`,
         lastModified,
         changeFrequency: "weekly",
         priority: 0.55,

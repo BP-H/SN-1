@@ -1,15 +1,9 @@
-function cleanUsername(value) {
-  return String(value || "")
-    .replace(/^@+/, "")
-    .replace(/[^\w.-]/g, "")
-    .slice(0, 48);
-}
+import { normalizePublicRouteSegment, publicProfilePath } from "@/utils/publicRouteSegments";
 
-export async function generateMetadata({ params }) {
-  const resolvedParams = await params;
-  const username = cleanUsername(resolvedParams?.username);
+export function profileMetadataForUsername(value) {
+  const username = normalizePublicRouteSegment(value);
   const label = username ? `@${username}` : "Public profile";
-  const path = username ? `/users/${encodeURIComponent(username)}` : "/users";
+  const path = publicProfilePath(username);
 
   return {
     title: `${label} profile`,
@@ -31,6 +25,11 @@ export async function generateMetadata({ params }) {
         "Public SuperNova profile with visible signals, decisions, collaborations, and participation.",
     },
   };
+}
+
+export async function generateMetadata({ params }) {
+  const resolvedParams = await params;
+  return profileMetadataForUsername(resolvedParams?.username);
 }
 
 export default function UserProfileLayout({ children }) {
