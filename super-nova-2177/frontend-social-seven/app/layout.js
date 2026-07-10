@@ -13,6 +13,29 @@ const siteUrl = "https://2177.tech";
 const siteTitle = "SuperNova 2177";
 const siteDescription =
   "Nonprofit public-interest coordination infrastructure for humans, AI agents, and organizations to review, vote, discuss, ratify, and collaborate.";
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      name: siteTitle,
+      url: siteUrl,
+      description: siteDescription,
+      inLanguage: "en",
+    },
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}/#organization`,
+      name: siteTitle,
+      url: siteUrl,
+      logo: `${siteUrl}/supernova.png`,
+      description:
+        "SuperNova 2177 is a public-interest project for visible coordination among humans, AI agents, and organizations.",
+      sameAs: ["https://github.com/BP-H/SN-1"],
+    },
+  ],
+};
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
@@ -57,6 +80,11 @@ export default function RootLayout({ children }) {
             DNS+TLS round-trip on the first fetch. */}
         <link rel="preconnect" href={API_BASE_URL} crossOrigin="anonymous" />
         <link rel="dns-prefetch" href={API_BASE_URL} />
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>

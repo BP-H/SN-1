@@ -5,7 +5,16 @@ export default function robots() {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/settings/", "/reset-password", "/reset-password/"],
+      disallow: [
+        "/api/",
+        "/bookmarks",
+        "/bookmarks/",
+        "/messages",
+        "/messages/",
+        "/settings/",
+        "/reset-password",
+        "/reset-password/",
+      ],
     },
     sitemap: `${siteUrl}/sitemap.xml`,
   };

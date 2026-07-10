@@ -442,11 +442,11 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
 
           {/* System vote controls — same style as post action bar. After the
               deadline the row becomes results mode: no active vote buttons,
-              just how the network answered plus the breakdown. */}
+              just the compact result plus the breakdown. */}
           <div className="flex items-center gap-2 rounded-full bg-[rgba(255,255,255,0.04)] px-2.5 py-1.5">
             {systemVote.closed && (
-              <span className="shrink-0 px-1.5 text-[0.64rem] font-bold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-                How the network answered
+              <span className="shrink-0 px-1 text-[0.58rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)] sm:px-1.5 sm:text-[0.64rem]">
+                Result
               </span>
             )}
             {/* 👎 NO — left */}
@@ -467,7 +467,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
             {/* Slider */}
             <div className="relative flex-1 py-1">
               <span
-                className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[0.6rem] font-bold tabular-nums"
+                className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[0.6rem] font-bold tabular-nums"
                 style={{ color: voteAccentColor }}
               >
                 {systemVote.yesRatio}% yes
