@@ -16,12 +16,14 @@ export default function ProposalActionBar({
   onShareLink,
   onToggleComments,
   onToggleShareMenu,
+  onVoteSummaryChange,
   proposalId,
   setErrorMsg,
   shareMenuOpen,
   shareMenuRef,
   showComments,
   userVote,
+  voteSummary = null,
   votingClosed = false,
 }) {
   return (
@@ -40,7 +42,9 @@ export default function ProposalActionBar({
           initialLikesList={likes}
           initialDislikesList={dislikes}
           initialClicked={userVote || null}
+          initialVoteSummary={voteSummary}
           proposalId={proposalId}
+          onVoteSummaryChange={onVoteSummaryChange}
           votingClosed={votingClosed}
         />
       </div>

@@ -32,7 +32,7 @@ import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
-import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+import { weightedVoteSummary } from "@/utils/voteWeights";
 import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
@@ -70,8 +70,13 @@ function normalizeProfileTab(value) {
 function supportPercentLabel(post, compact = false) {
   const likes = Array.isArray(post?.likes) ? post.likes : [];
   const dislikes = Array.isArray(post?.dislikes) ? post.dislikes : [];
+  const weighted = weightedVoteSummary(post?.vote_summary, likes, dislikes);
+  if (weighted.authoritative) {
+    if ((weighted.total || 0) <= 0) return "";
+    const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
+    return compact ? `${percent}%` : `${percent}% support`;
+  }
   if (likes.length + dislikes.length > 0) {
-    const weighted = buildWeightedVoteSummary(likes, dislikes);
     const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
     return compact ? `${percent}%` : `${percent}% support`;
   }

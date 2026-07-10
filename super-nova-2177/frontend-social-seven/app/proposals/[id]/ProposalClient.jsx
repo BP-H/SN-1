@@ -320,6 +320,9 @@ export default function ProposalClient({ id }) {
         media={proposal.media}
         likes={proposal.likes}
         dislikes={proposal.dislikes}
+        likeCount={proposal.like_count}
+        dislikeCount={proposal.dislike_count}
+        voteSummary={proposal.vote_summary}
         comments={proposal.comments}
         collabs={proposal.collabs}
         profileUrl={proposal.profile_url}

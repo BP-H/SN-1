@@ -98,8 +98,8 @@ async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedReques
   });
 }
 
-async function seedPasswordSession(page) {
-  await page.addInitScript(() => {
+async function seedPasswordSession(page, { species = "human" } = {}) {
+  await page.addInitScript((sessionSpecies) => {
     window.sessionStorage.setItem(
       "supernova_password_session",
       JSON.stringify({
@@ -107,10 +107,10 @@ async function seedPasswordSession(page) {
         id: "e2e-user",
         username: "e2e-human",
         email: "e2e@example.test",
-        species: "human",
+        species: sessionSpecies,
       })
     );
-  });
+  }, species);
 }
 
 test("home feed request carries the bounded embed caps", async ({ page }) => {
@@ -181,6 +181,122 @@ test("vote breakdown modal fetches the full voter list on open", async ({ page }
   // A voter that only exists in the full single-proposal read proves the on-open fetch.
   await expect(modal.getByText("@deep-voter-27")).toBeVisible();
   await expect(modal.getByText("28 total votes")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("authoritative weighted summary stays coherent across card modal and vote changes", async ({ page }) => {
+  const proposalId = 2178005;
+  const humanYes = Array.from({ length: 25 }, (_, index) => ({
+    voter: `human-yes-${index + 1}`,
+    type: "human",
+  }));
+  const humanNo = Array.from({ length: 15 }, (_, index) => ({
+    voter: `human-no-${index + 1}`,
+    type: "human",
+  }));
+  const aiYes = Array.from({ length: 20 }, (_, index) => ({
+    voter: `ai-yes-${index + 1}`,
+    type: "ai",
+  }));
+  const companyNo = Array.from({ length: 20 }, (_, index) => ({
+    voter: `company-no-${index + 1}`,
+    type: "company",
+  }));
+  const voteSummary = {
+    schema: "supernova.three_species_vote.v1",
+    up: 45,
+    down: 35,
+    support: 45,
+    oppose: 35,
+    total: 80,
+    approval_ratio: 0.5625,
+    species_share_percent: 33.3333,
+    weighted_support_percent: 54.1667,
+    by_species: {
+      human: {
+        up: 25,
+        down: 15,
+        total: 40,
+        internal_support_percent: 62.5,
+        weighted_support_percent: 20.8333,
+      },
+      ai: {
+        up: 20,
+        down: 0,
+        total: 20,
+        internal_support_percent: 100,
+        weighted_support_percent: 33.3333,
+      },
+      company: {
+        up: 0,
+        down: 20,
+        total: 20,
+        internal_support_percent: 0,
+        weighted_support_percent: 0,
+      },
+    },
+  };
+  const post = feedPost({
+    id: proposalId,
+    text: "The card must use all eighty votes, not the capped preview.",
+    likes: humanYes,
+    dislikes: [],
+    like_count: 45,
+    dislike_count: 35,
+    vote_summary: voteSummary,
+  });
+  const fullPost = {
+    ...post,
+    likes: [...humanYes, ...aiYes],
+    dislikes: [...humanNo, ...companyNo],
+  };
+  let postVotes = 0;
+  let deleteVotes = 0;
+  let failNextPost = false;
+
+  await seedPasswordSession(page, { species: "company" });
+  await mockFeedBackend(page, [post], { singleProposals: { [proposalId]: fullPost } });
+  await page.route("**/votes", async (route) => {
+    postVotes += 1;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (failNextPost) {
+      failNextPost = false;
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "fixture failure" }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+  await page.route("**/votes?**", async (route) => {
+    deleteVotes += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, removed: 1 }) });
+  });
+
+  await page.goto("/");
+  const card = page.locator(`[data-proposal-id="${proposalId}"]`);
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+
+  await card.getByRole("button", { name: "Show vote breakdown" }).click();
+  const modal = page.locator("[data-vote-modal]");
+  await expect(modal.getByText("54%", { exact: true })).toBeVisible();
+  await expect(modal.getByText("80 total votes")).toBeVisible();
+  await modal.getByRole("button", { name: "Close vote breakdown" }).click();
+
+  await card.getByRole("button", { name: "Vote yes" }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await expect(card.getByText("56%", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Vote no" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Vote no" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+
+  failNextPost = true;
+  await card.getByRole("button", { name: "Vote yes" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+
+  expect(postVotes).toBe(3);
+  expect(deleteVotes).toBe(1);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 

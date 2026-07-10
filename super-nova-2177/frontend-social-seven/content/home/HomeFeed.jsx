@@ -619,6 +619,7 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   dislikes={post.dislikes}
                   likeCount={post.like_count}
                   dislikeCount={post.dislike_count}
+                  voteSummary={post.vote_summary}
                   commentCount={post.comment_count}
                   votingClosed={post.voting_closed === true}
                   profileUrl={post.profile_url}

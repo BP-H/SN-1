@@ -12,7 +12,10 @@ import {
   formatBackendAuthErrorMessage,
   requireBackendAuthSession,
 } from "@/utils/authSession";
-import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+import {
+  adjustAuthoritativeVoteSummary,
+  weightedVoteSummary,
+} from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 import VoteBreakdownModal from "./VoteBreakdownModal";
 
@@ -33,9 +36,11 @@ function LikesDeslikes({
   initialDislikes,
   initialLikesList = [],
   initialDislikesList = [],
+  initialVoteSummary = null,
   initialClicked = null,
   proposalId,
   votingClosed = false,
+  onVoteSummaryChange = () => {},
   setErrorMsg = () => {},
 }) {
   const { t } = useI18n();
@@ -44,6 +49,7 @@ function LikesDeslikes({
   const [dislikes, setDislikes] = useState(initialDislikes);
   const [likesList, setLikesList] = useState(initialLikesList);
   const [dislikesList, setDislikesList] = useState(initialDislikesList);
+  const [authoritativeSummary, setAuthoritativeSummary] = useState(initialVoteSummary);
   const [showInfo, setShowInfo] = useState(false);
   const [closingInfo, setClosingInfo] = useState(false);
   const containerRef = useRef(null);
@@ -60,8 +66,9 @@ function LikesDeslikes({
     setDislikes(Number(initialDislikes) || 0);
     setLikesList(initialLikesList || []);
     setDislikesList(initialDislikesList || []);
+    setAuthoritativeSummary(initialVoteSummary || null);
     setClicked(initialClicked);
-  }, [initialLikes, initialDislikes, initialLikesList, initialDislikesList, initialClicked]);
+  }, [initialLikes, initialDislikes, initialLikesList, initialDislikesList, initialVoteSummary, initialClicked]);
 
   useEffect(() => {
     const postCard = containerRef.current?.closest?.("[data-proposal-card]");
@@ -88,8 +95,8 @@ function LikesDeslikes({
   }, []);
 
   const weighted = useMemo(() => {
-    return buildWeightedVoteSummary(likesList, dislikesList);
-  }, [likesList, dislikesList]);
+    return weightedVoteSummary(authoritativeSummary, likesList, dislikesList);
+  }, [authoritativeSummary, likesList, dislikesList]);
 
   const pct = Math.max(weighted.supportPercent || 0, 0);
   const approvalRatio = Math.round(pct);
@@ -112,7 +119,12 @@ function LikesDeslikes({
       onRequestClose={closeInfo}
       onClosed={handleInfoClosed}
     >
-      <LikesInfo proposalId={proposalId} likesData={likesList} dislikesData={dislikesList} />
+      <LikesInfo
+        proposalId={proposalId}
+        likesData={likesList}
+        dislikesData={dislikesList}
+        voteSummary={authoritativeSummary}
+      />
     </VoteBreakdownModal>
   ) : null;
 
@@ -175,6 +187,31 @@ function LikesDeslikes({
     } catch (err) { setErrorMsg([formatBackendAuthErrorMessage(err, "Remove failed.")]); return false; }
   }
 
+  const commitVoteChange = (nextClicked) => {
+    const previousChoice = clicked === "like" ? "up" : clicked === "dislike" ? "down" : null;
+    const nextChoice = nextClicked === "like" ? "up" : nextClicked === "dislike" ? "down" : null;
+    const voter = { voter: userData.name, type: voterType };
+
+    setLikes((value) => Math.max(0, value - (previousChoice === "up" ? 1 : 0) + (nextChoice === "up" ? 1 : 0)));
+    setDislikes((value) => Math.max(0, value - (previousChoice === "down" ? 1 : 0) + (nextChoice === "down" ? 1 : 0)));
+    setLikesList((items) => {
+      const filtered = items.filter((vote) => !sameVoter(vote.voter, userData.name));
+      return nextChoice === "up" ? [...filtered, voter] : filtered;
+    });
+    setDislikesList((items) => {
+      const filtered = items.filter((vote) => !sameVoter(vote.voter, userData.name));
+      return nextChoice === "down" ? [...filtered, voter] : filtered;
+    });
+    const nextSummary = adjustAuthoritativeVoteSummary(authoritativeSummary, {
+      species: voterType,
+      previousChoice,
+      nextChoice,
+    });
+    setAuthoritativeSummary(nextSummary);
+    onVoteSummaryChange(nextSummary);
+    setClicked(nextClicked);
+  };
+
   const handleLikeClick = async ({ allowToggle = true } = {}) => {
     if (votingClosed) return;
     if (!validateProfile()) return;
@@ -184,21 +221,12 @@ function LikesDeslikes({
       if (clicked === "like") {
         if (!allowToggle) return;
         if (await removeVote()) {
-          setLikes((v) => Math.max(0, v - 1));
-          setLikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
-          setClicked(null);
+          commitVoteChange(null);
         }
         return;
       }
-      if (clicked === "dislike") {
-        if (!(await removeVote())) return;
-        setDislikes((v) => Math.max(0, v - 1));
-        setDislikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
-      }
       if (await sendVote("up")) {
-        setLikes((v) => v + 1);
-        setLikesList((v) => [...v.filter((vote) => !sameVoter(vote.voter, userData.name)), { voter: userData.name, type: voterType }]);
-        setClicked("like");
+        commitVoteChange("like");
       }
     } finally {
       voteInFlightRef.current = false;
@@ -214,21 +242,12 @@ function LikesDeslikes({
       if (clicked === "dislike") {
         if (!allowToggle) return;
         if (await removeVote()) {
-          setDislikes((v) => Math.max(0, v - 1));
-          setDislikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
-          setClicked(null);
+          commitVoteChange(null);
         }
         return;
       }
-      if (clicked === "like") {
-        if (!(await removeVote())) return;
-        setLikes((v) => Math.max(0, v - 1));
-        setLikesList((v) => v.filter((vote) => !sameVoter(vote.voter, userData.name)));
-      }
       if (await sendVote("down")) {
-        setDislikes((v) => v + 1);
-        setDislikesList((v) => [...v.filter((vote) => !sameVoter(vote.voter, userData.name)), { voter: userData.name, type: voterType }]);
-        setClicked("dislike");
+        commitVoteChange("dislike");
       }
     } finally {
       voteInFlightRef.current = false;

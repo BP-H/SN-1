@@ -34,7 +34,7 @@ import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/uti
 import { normalizeLinkHref } from "@/utils/linkify";
 import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
-import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+import { weightedVoteSummary } from "@/utils/voteWeights";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -81,8 +81,13 @@ function normalizeCollabSuggestions(payload = []) {
 function supportSummaryLabel(likes = [], dislikes = [], voteSummary = null) {
   const likeList = Array.isArray(likes) ? likes : [];
   const dislikeList = Array.isArray(dislikes) ? dislikes : [];
+  const weighted = weightedVoteSummary(voteSummary, likeList, dislikeList);
+  if (weighted.authoritative) {
+    if ((weighted.total || 0) <= 0) return "";
+    const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
+    return `${percent}% support`;
+  }
   if (likeList.length + dislikeList.length > 0) {
-    const weighted = buildWeightedVoteSummary(likeList, dislikeList);
     const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
     return `${percent}% support`;
   }
@@ -139,6 +144,7 @@ function ProposalCard({
 
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
+  const [localVoteSummary, setLocalVoteSummary] = useState(voteSummary);
   const [fullCommentsLoaded, setFullCommentsLoaded] = useState(false);
   const [localText, setLocalText] = useState(text || "");
   const [editText, setEditText] = useState(text || "");
@@ -796,7 +802,9 @@ function ProposalCard({
     : dislikes.some((v) => v.voter === userData?.name)
     ? "dislike"
     : "";
-  const supportSummary = showSupportSummary ? supportSummaryLabel(likes, dislikes, voteSummary) : "";
+  const supportSummary = showSupportSummary
+    ? supportSummaryLabel(likes, dislikes, localVoteSummary)
+    : "";
   const authorLabel = authorName || "Unknown";
 
   const youtubeId = getYouTubeId(displayVideo);
@@ -834,6 +842,10 @@ function ProposalCard({
     setLocalComments(Array.isArray(comments) ? comments : []);
     setFullCommentsLoaded(false);
   }, [comments, id]);
+
+  useEffect(() => {
+    setLocalVoteSummary(voteSummary || null);
+  }, [id, voteSummary]);
 
   // Feeds embed only a capped comment preview (M3.1); the full thread loads
   // on demand the first time the viewer opens the comments section.
@@ -1114,12 +1126,14 @@ function ProposalCard({
           onShareLink={handleShareLink}
           onToggleComments={() => setShowComments((value) => !value)}
           onToggleShareMenu={() => setShareMenuOpen((value) => !value)}
+          onVoteSummaryChange={setLocalVoteSummary}
           proposalId={id}
           setErrorMsg={setErrorMsg}
           shareMenuOpen={shareMenuOpen}
           shareMenuRef={shareMenuRef}
           showComments={showComments}
           userVote={userVote}
+          voteSummary={localVoteSummary}
           votingClosed={votingClosed}
         />
 

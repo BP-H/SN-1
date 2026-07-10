@@ -1,5 +1,14 @@
-const SPECIES_KEYS = ["human", "company", "ai"];
+export const SPECIES_KEYS = ["human", "company", "ai"];
 const SPECIES_SHARE_PERCENT = 100 / SPECIES_KEYS.length;
+
+export function normalizeVoteSpecies(value) {
+  const species = String(value || "human").trim().toLowerCase();
+  if (species === "ai") return "ai";
+  if (species === "company" || species === "org" || species === "organization") {
+    return "company";
+  }
+  return "human";
+}
 
 export function buildWeightedVoteSummary(likes = [], dislikes = []) {
   const bySpecies = Object.fromEntries(
@@ -23,13 +32,13 @@ export function buildWeightedVoteSummary(likes = [], dislikes = []) {
   );
 
   likes.forEach((vote) => {
-    const species = SPECIES_KEYS.includes(vote?.type) ? vote.type : "human";
+    const species = normalizeVoteSpecies(vote?.type);
     bySpecies[species].yes += 1;
     bySpecies[species].total += 1;
   });
 
   dislikes.forEach((vote) => {
-    const species = SPECIES_KEYS.includes(vote?.type) ? vote.type : "human";
+    const species = normalizeVoteSpecies(vote?.type);
     bySpecies[species].no += 1;
     bySpecies[species].total += 1;
   });
@@ -50,4 +59,102 @@ export function buildWeightedVoteSummary(likes = [], dislikes = []) {
     speciesSharePercent: SPECIES_SHARE_PERCENT,
     bySpecies,
   };
+}
+
+function authoritativeBuckets(summary) {
+  if (!summary || typeof summary !== "object" || !summary.by_species) return null;
+  return Object.fromEntries(
+    SPECIES_KEYS.map((species) => {
+      const entry = summary.by_species?.[species] || {};
+      const yes = Math.max(0, Number(entry.up ?? entry.yes) || 0);
+      const no = Math.max(0, Number(entry.down ?? entry.no) || 0);
+      return [species, { yes, no }];
+    })
+  );
+}
+
+function rebuildAuthoritativeSummary(summary, buckets) {
+  let up = 0;
+  let down = 0;
+  let weightedSupportPercent = 0;
+  const bySpecies = {};
+
+  for (const species of SPECIES_KEYS) {
+    const yes = Math.max(0, Number(buckets?.[species]?.yes) || 0);
+    const no = Math.max(0, Number(buckets?.[species]?.no) || 0);
+    const total = yes + no;
+    const internal = total ? (yes / total) * 100 : 0;
+    const weighted = (internal / 100) * SPECIES_SHARE_PERCENT;
+    up += yes;
+    down += no;
+    weightedSupportPercent += weighted;
+    bySpecies[species] = {
+      up: yes,
+      down: no,
+      total,
+      internal_support_percent: Number(internal.toFixed(4)),
+      weighted_support_percent: Number(weighted.toFixed(4)),
+    };
+  }
+
+  const total = up + down;
+  return {
+    ...(summary || {}),
+    schema: summary?.schema || "supernova.three_species_vote.v1",
+    up,
+    down,
+    support: up,
+    oppose: down,
+    total,
+    approval_ratio: total ? Number((up / total).toFixed(4)) : null,
+    species_share_percent: Number(SPECIES_SHARE_PERCENT.toFixed(4)),
+    weighted_support_percent: Number(weightedSupportPercent.toFixed(4)),
+    by_species: bySpecies,
+  };
+}
+
+export function authoritativeVoteSummaryForDisplay(summary) {
+  const buckets = authoritativeBuckets(summary);
+  if (!buckets) return null;
+  const rebuilt = rebuildAuthoritativeSummary(summary, buckets);
+  return {
+    authoritative: true,
+    supportPercent: rebuilt.weighted_support_percent,
+    speciesSharePercent: rebuilt.species_share_percent,
+    total: rebuilt.total,
+    bySpecies: Object.fromEntries(
+      SPECIES_KEYS.map((species) => {
+        const entry = rebuilt.by_species[species];
+        return [
+          species,
+          {
+            yes: entry.up,
+            no: entry.down,
+            total: entry.total,
+            internalPercent: entry.internal_support_percent,
+            supportPercent: entry.weighted_support_percent,
+          },
+        ];
+      })
+    ),
+  };
+}
+
+export function weightedVoteSummary(summary, likes = [], dislikes = []) {
+  return authoritativeVoteSummaryForDisplay(summary) || buildWeightedVoteSummary(likes, dislikes);
+}
+
+export function adjustAuthoritativeVoteSummary(
+  summary,
+  { species, previousChoice = null, nextChoice = null } = {}
+) {
+  const buckets = authoritativeBuckets(summary);
+  if (!buckets) return summary || null;
+  const normalizedSpecies = normalizeVoteSpecies(species);
+  const bucket = buckets[normalizedSpecies];
+  if (previousChoice === "up") bucket.yes = Math.max(0, bucket.yes - 1);
+  if (previousChoice === "down") bucket.no = Math.max(0, bucket.no - 1);
+  if (nextChoice === "up") bucket.yes += 1;
+  if (nextChoice === "down") bucket.no += 1;
+  return rebuildAuthoritativeSummary(summary, buckets);
 }
