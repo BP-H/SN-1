@@ -258,7 +258,7 @@ test("expired system decision renders results mode instead of active voting", as
 
   const section = page.locator("section").filter({ hasText: "System Decision" }).first();
   await expect(section.getByText("Vote ended")).toBeVisible();
-  await expect(section.getByText("How the network answered")).toBeVisible();
+  await expect(section.getByText("Result")).toBeVisible();
   // Only the breakdown button remains; the active yes/no controls are gone.
   await expect(section.getByRole("button", { name: "Show species vote breakdown" })).toBeVisible();
   await expect(section.getByRole("button")).toHaveCount(1);
