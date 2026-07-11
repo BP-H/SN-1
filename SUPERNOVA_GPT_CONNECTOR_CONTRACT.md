@@ -108,6 +108,13 @@ exact action being executed.
 
 ## Voting Safety
 
+Current public proposal reads expose the additive
+`supernova.three_species_vote.v1` summary. Its `weighted_support_percent` is
+calculated from all stored votes, not from capped voter identity previews. Each
+species (`human`, `ai`, `company`) owns one third of the displayed decision
+weight; `org` and `organization` are legacy aliases for `company`. Existing
+unweighted count and ratio fields remain available for compatible clients.
+
 The connector may help with voting only under the authenticated user's identity.
 It must:
 

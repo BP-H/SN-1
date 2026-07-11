@@ -684,6 +684,63 @@ class M2BatchedSerializerTests(unittest.TestCase):
         self.assertEqual(result["items"], 30)
         self.assertLessEqual(result["statement_count"], 12)
 
+    def test_capped_heavy_feed_stays_within_correctness_budgets(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            from sqlalchemy import event
+
+            seed_busy_world(proposal_count=30, comments_per=30, votes_per=80)
+            engine = current_bind()
+            url = (
+                "/proposals?filter=latest&limit=30"
+                "&embedded_comments_limit=3&embedded_votes_limit=20"
+            )
+            client.get(url)
+            statements = []
+
+            def count_statement(conn, cursor, statement, parameters, context, executemany):
+                statements.append(statement)
+
+            event.listen(engine, "before_cursor_execute", count_statement)
+            try:
+                measured = client.get(url)
+            finally:
+                event.remove(engine, "before_cursor_execute", count_statement)
+            payload = measured.json()
+            first = payload[0] if payload else {}
+            result = {
+                "status": measured.status_code,
+                "items": len(payload),
+                "statement_count": len(statements),
+                "response_bytes": len(measured.content),
+                "contains_inline_image": "data:image" in measured.text,
+                "first_key_bytes": {
+                    key: len(json.dumps(value, separators=(",", ":")).encode("utf-8"))
+                    for key, value in first.items()
+                },
+            }
+            print("M2_FEED_READ_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_m2_probe(probe)
+        print(
+            "C1_CORRECTNESS_BUDGET="
+            + json.dumps(
+                {
+                    "statement_count": result["statement_count"],
+                    "response_bytes": result["response_bytes"],
+                },
+                sort_keys=True,
+            )
+        )
+
+        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["items"], 30)
+        self.assertLessEqual(result["statement_count"], 12)
+        self.assertLessEqual(result["response_bytes"], 80 * 1024, result)
+        self.assertFalse(result["contains_inline_image"])
+
     def test_raw_sql_fallback_branch_keeps_shape(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -734,6 +791,10 @@ class M2BatchedSerializerTests(unittest.TestCase):
             "dislike_count",
             "comment_count",
             "vote_summary",
+            "embedded_comment_count",
+            "has_more_comments",
+            "embedded_vote_count",
+            "has_more_votes",
         ):
             self.assertIn(key, result["keys"])
         self.assertEqual(result["likes_len"], 2)

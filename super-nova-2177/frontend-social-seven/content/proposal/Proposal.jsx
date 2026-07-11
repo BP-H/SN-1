@@ -19,7 +19,7 @@ import ProposalCard from "./content/ProposalCard";
 
 const PROPOSAL_PAGE_SIZE = 30;
 // List cards read the additive *_count totals (M2); cap the embedded arrays.
-const FEED_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=25";
+const FEED_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=20";
 
 function formatRelativeTime(dateString) {
   if (!dateString) return "now";

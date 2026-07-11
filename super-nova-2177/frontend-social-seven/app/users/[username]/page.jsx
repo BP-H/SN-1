@@ -38,7 +38,7 @@ import { useUser } from "@/content/profile/UserContext";
 const USER_POST_PAGE_SIZE = 30;
 const PROFILE_COLLAB_SWEEP_LIMIT = 200;
 // Profile cards read the additive *_count totals (M2); cap the embedded arrays.
-const PROFILE_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=25";
+const PROFILE_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=20";
 const PROFILE_TABS = [
   { key: "all", label: "All", title: "All posts", icon: IoHomeOutline },
   { key: "visuals", label: "Visuals", title: "Visual posts", icon: IoGridOutline },

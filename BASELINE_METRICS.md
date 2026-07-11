@@ -55,3 +55,20 @@ Notes:
 - On the M2 busy fixture the 20 votes/post sit under the 25-vote embed cap, so only comments are capped (43.7%). Once embedded votes exceed the cap the reduction approaches the -80% target (78.3% on the heavy fixture) while `like_count`/`dislike_count`/`comment_count` keep the true totals.
 - Capped bytes stay roughly constant as engagement grows (62 KB -> 67 KB while uncapped tripled), i.e. the feed page is now bounded in bytes as well as queries.
 - Displayed counts, vote breakdowns, and comment threads read the additive fields; full arrays load on demand (single-proposal read) when a card is opened.
+
+## C1 Correctness Lock - 2026-07-10
+
+- Source branch: `codex/c1-correctness-lock`
+- Fixture: heavy feed (30 posts x 80 votes x 30 comments)
+- Endpoint: `GET /proposals?filter=latest&limit=30&embedded_comments_limit=3&embedded_votes_limit=20`
+- Measurement: local `TestClient`, SQLite, warm request followed by a measured request with SQLAlchemy statement instrumentation
+
+| Items | SQL statements | Uncompressed response bytes | Inline `data:image` |
+| ---: | ---: | ---: | --- |
+| 30 | 10 | 81,120 | no |
+
+The voter identity preview was reduced from 25 to 20 records per card to keep
+the response below 80 KiB after adding the authoritative three-species
+`vote_summary` and explicit preview-completeness fields. Scalar totals and
+weighted results still use every vote, and complete voter identities still load
+on demand. The backend continues to support and test a 25-record preview.

@@ -28,7 +28,7 @@ test("Unicode public profile segments preserve identity and encode only at URL c
     expect(normalizePublicRouteSegment(username)).toBe(username);
     expect(publicProfilePath(username)).toBe(expectedPath);
   }
-  expect(normalizePublicRouteSegment(" @태/하?x#y\\z\0 ")).toBe("태하xyz0");
+  expect(normalizePublicRouteSegment(" @태/하?x#y\\z\0 ")).toBe("태하xyz");
   expect(normalizePublicRouteSegment("태하")).not.toBe(normalizePublicRouteSegment("타하"));
   const metadata = profileMetadataForUsername("태하");
   expect(metadata.title).toBe("@태하 profile");
@@ -162,7 +162,7 @@ test("home feed request carries the bounded embed caps", async ({ page }) => {
   const homeFeedUrl = feedUrls.find((url) => url.includes("filter=latest") && url.includes("limit=30"));
   expect(homeFeedUrl).toBeTruthy();
   expect(homeFeedUrl).toContain("embedded_comments_limit=3");
-  expect(homeFeedUrl).toContain("embedded_votes_limit=25");
+  expect(homeFeedUrl).toContain("embedded_votes_limit=20");
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
