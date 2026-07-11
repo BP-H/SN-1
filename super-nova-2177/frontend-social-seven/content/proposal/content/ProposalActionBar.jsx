@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { FaCommentAlt, FaLink, FaShare } from "react-icons/fa";
 import { IoChatbubbleOutline } from "react-icons/io5";
 import LikesDeslikes from "./LikesDeslikes";
@@ -26,6 +27,15 @@ export default function ProposalActionBar({
   voteSummary = null,
   votingClosed = false,
 }) {
+  // LikesDeslikes owns the optimistic summary after a successful vote. Keep the
+  // server seed stable for the lifetime of this proposal so the child's prop
+  // synchronization effect cannot reset clicked/count/list state when the parent
+  // mirrors that same optimistic summary back down.
+  const voteSummarySeedRef = useRef({ proposalId, value: voteSummary });
+  if (voteSummarySeedRef.current.proposalId !== proposalId) {
+    voteSummarySeedRef.current = { proposalId, value: voteSummary };
+  }
+
   return (
     <div
       className="post-action-bar mt-0.5 flex w-full items-center gap-2 rounded-[0.8rem] px-1.5 py-1.5"
@@ -42,7 +52,7 @@ export default function ProposalActionBar({
           initialLikesList={likes}
           initialDislikesList={dislikes}
           initialClicked={userVote || null}
-          initialVoteSummary={voteSummary}
+          initialVoteSummary={voteSummarySeedRef.current.value}
           proposalId={proposalId}
           onVoteSummaryChange={onVoteSummaryChange}
           votingClosed={votingClosed}
