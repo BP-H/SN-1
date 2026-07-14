@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import {
+  normalizePublicRouteSegment,
+  publicProfilePath,
+} from "../../utils/publicRouteSegments.js";
+import { profileMetadataForUsername } from "../../app/users/[username]/layout.js";
 
 const obviousRuntimeErrors = /Application error|Unhandled Runtime Error|Build Error|Failed to compile|Module not found/i;
 
@@ -11,6 +16,24 @@ const emptyMedia = {
   link: "",
   file: "",
 };
+
+test("Unicode public profile segments preserve identity and encode only at URL construction", () => {
+  const cases = [
+    ["태하", "/users/%ED%83%9C%ED%95%98"],
+    ["Güngör", "/users/G%C3%BCng%C3%B6r"],
+    ["José", "/users/Jos%C3%A9"],
+    ["Open Science DAO", "/users/Open%20Science%20DAO"],
+  ];
+  for (const [username, expectedPath] of cases) {
+    expect(normalizePublicRouteSegment(username)).toBe(username);
+    expect(publicProfilePath(username)).toBe(expectedPath);
+  }
+  expect(normalizePublicRouteSegment(" @태/하?x#y\\z\0 ")).toBe("태하xyz");
+  expect(normalizePublicRouteSegment("태하")).not.toBe(normalizePublicRouteSegment("타하"));
+  const metadata = profileMetadataForUsername("태하");
+  expect(metadata.title).toBe("@태하 profile");
+  expect(metadata.alternates.canonical).toBe("/users/%ED%83%9C%ED%95%98");
+});
 
 function feedPost(overrides = {}) {
   return {
@@ -47,7 +70,16 @@ function fixtureComment(index, proposalId) {
   };
 }
 
-async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedRequest = null } = {}) {
+async function mockFeedBackend(
+  page,
+  posts,
+  {
+    singleProposals = {},
+    commentsByProposal = {},
+    onFeedRequest = null,
+    onCommentsRequest = null,
+  } = {}
+) {
   await page.route("**/proposals?**", async (route) => {
     if (onFeedRequest) onFeedRequest(route.request().url());
     await route.fulfill({
@@ -66,6 +98,17 @@ async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedReques
       });
     });
   }
+
+  await page.route("**/comments?**", async (route) => {
+    const url = new URL(route.request().url());
+    const proposalId = url.searchParams.get("proposal_id");
+    onCommentsRequest?.(url, proposalId);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(commentsByProposal[proposalId] || []),
+    });
+  });
 
   await page.route("**/system-vote**", async (route) => {
     await route.fulfill({
@@ -98,8 +141,8 @@ async function mockFeedBackend(page, posts, { singleProposals = {}, onFeedReques
   });
 }
 
-async function seedPasswordSession(page) {
-  await page.addInitScript(() => {
+async function seedPasswordSession(page, { species = "human" } = {}) {
+  await page.addInitScript((sessionSpecies) => {
     window.sessionStorage.setItem(
       "supernova_password_session",
       JSON.stringify({
@@ -107,10 +150,10 @@ async function seedPasswordSession(page) {
         id: "e2e-user",
         username: "e2e-human",
         email: "e2e@example.test",
-        species: "human",
+        species: sessionSpecies,
       })
     );
-  });
+  }, species);
 }
 
 test("home feed request carries the bounded embed caps", async ({ page }) => {
@@ -125,7 +168,7 @@ test("home feed request carries the bounded embed caps", async ({ page }) => {
   const homeFeedUrl = feedUrls.find((url) => url.includes("filter=latest") && url.includes("limit=30"));
   expect(homeFeedUrl).toBeTruthy();
   expect(homeFeedUrl).toContain("embedded_comments_limit=3");
-  expect(homeFeedUrl).toContain("embedded_votes_limit=25");
+  expect(homeFeedUrl).toContain("embedded_votes_limit=20");
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
@@ -151,6 +194,51 @@ test("displayed counts come from *_count fields even when embedded arrays are ca
   // The comment toggle shows the server total, not the capped preview length.
   await expect(page.locator(".post-action-bar").getByRole("button", { name: /^12$/ })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("opening an incomplete comment preview loads the full tombstone-preserving thread once", async ({ page }) => {
+  const proposalId = 2178012;
+  const tombstone = {
+    ...fixtureComment(1, proposalId),
+    id: "deleted-parent",
+    user: "[deleted]",
+    comment: "This comment was deleted.",
+    deleted: true,
+  };
+  const reply = {
+    ...fixtureComment(2, proposalId),
+    id: "visible-reply",
+    parent_comment_id: tombstone.id,
+    comment: "Visible reply under deleted parent.",
+  };
+  const embeddedPeer = fixtureComment(3, proposalId);
+  const laterComment = fixtureComment(4, proposalId);
+  const post = feedPost({
+    id: proposalId,
+    text: "Incomplete comment preview fixture.",
+    comments: [tombstone, reply, embeddedPeer],
+    comment_count: 3,
+    embedded_comment_count: 2,
+    has_more_comments: true,
+  });
+  let commentsReadCount = 0;
+  await mockFeedBackend(page, [post], {
+    commentsByProposal: {
+      [proposalId]: [tombstone, reply, embeddedPeer, laterComment, laterComment],
+    },
+    onCommentsRequest: () => {
+      commentsReadCount += 1;
+    },
+  });
+
+  await page.goto("/");
+  await page.locator(".post-action-bar").getByRole("button", { name: /^3$/ }).click();
+  await expect(page.getByText("This comment was deleted.")).toBeVisible();
+  await expect(page.getByText("Fixture comment number 4.")).toBeVisible();
+  await expect(page.getByText("Fixture comment number 4.")).toHaveCount(1);
+  await page.getByRole("button", { name: "View 1 reply" }).click();
+  await expect(page.getByText("Visible reply under deleted parent.")).toBeVisible();
+  expect(commentsReadCount).toBe(1);
 });
 
 test("vote breakdown modal fetches the full voter list on open", async ({ page }) => {
@@ -181,6 +269,128 @@ test("vote breakdown modal fetches the full voter list on open", async ({ page }
   // A voter that only exists in the full single-proposal read proves the on-open fetch.
   await expect(modal.getByText("@deep-voter-27")).toBeVisible();
   await expect(modal.getByText("28 total votes")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("authoritative weighted summary stays coherent across card modal and vote changes", async ({ page }) => {
+  const proposalId = 2178005;
+  const humanYes = Array.from({ length: 25 }, (_, index) => ({
+    voter: `human-yes-${index + 1}`,
+    type: "human",
+  }));
+  const humanNo = Array.from({ length: 15 }, (_, index) => ({
+    voter: `human-no-${index + 1}`,
+    type: "human",
+  }));
+  const aiYes = Array.from({ length: 20 }, (_, index) => ({
+    voter: `ai-yes-${index + 1}`,
+    type: "ai",
+  }));
+  const companyNo = Array.from({ length: 20 }, (_, index) => ({
+    voter: `company-no-${index + 1}`,
+    type: "company",
+  }));
+  const voteSummary = {
+    schema: "supernova.three_species_vote.v1",
+    up: 45,
+    down: 35,
+    support: 45,
+    oppose: 35,
+    total: 80,
+    approval_ratio: 0.5625,
+    species_share_percent: 33.3333,
+    weighted_support_percent: 54.1667,
+    by_species: {
+      human: {
+        up: 25,
+        down: 15,
+        total: 40,
+        internal_support_percent: 62.5,
+        weighted_support_percent: 20.8333,
+      },
+      ai: {
+        up: 20,
+        down: 0,
+        total: 20,
+        internal_support_percent: 100,
+        weighted_support_percent: 33.3333,
+      },
+      company: {
+        up: 0,
+        down: 20,
+        total: 20,
+        internal_support_percent: 0,
+        weighted_support_percent: 0,
+      },
+    },
+  };
+  const post = feedPost({
+    id: proposalId,
+    text: "The card must use all eighty votes, not the capped preview.",
+    likes: humanYes,
+    dislikes: [],
+    like_count: 45,
+    dislike_count: 35,
+    vote_summary: voteSummary,
+  });
+  const fullPost = {
+    ...post,
+    likes: [...humanYes, ...aiYes],
+    dislikes: [...humanNo, ...companyNo],
+  };
+  let postVotes = 0;
+  let deleteVotes = 0;
+  let failNextPost = false;
+
+  await seedPasswordSession(page, { species: "company" });
+  await mockFeedBackend(page, [post], { singleProposals: { [proposalId]: fullPost } });
+  await page.route("**/votes", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    postVotes += 1;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (failNextPost) {
+      failNextPost = false;
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "fixture failure" }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+  await page.route("**/votes?**", async (route) => {
+    expect(route.request().method()).toBe("DELETE");
+    deleteVotes += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, removed: 1 }) });
+  });
+
+  await page.goto("/");
+  const card = page.locator(`[data-proposal-id="${proposalId}"]`);
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+
+  await card.getByRole("button", { name: "Show vote breakdown" }).click();
+  const modal = page.locator("[data-vote-modal]");
+  await expect(modal.getByText("54%", { exact: true })).toBeVisible();
+  await expect(modal.getByText("80 total votes")).toBeVisible();
+  await modal.getByRole("button", { name: "Close vote breakdown" }).click();
+
+  await card.getByRole("button", { name: "Vote yes" }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await expect(card.getByText("56%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "true");
+  await card.getByRole("button", { name: "Vote no" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "false");
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "true");
+  await card.getByRole("button", { name: "Vote no" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "false");
+
+  failNextPost = true;
+  await card.getByRole("button", { name: "Vote yes" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+
+  expect(postVotes).toBe(3);
+  expect(deleteVotes).toBe(1);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
@@ -295,15 +505,25 @@ test("opening comments loads the full thread past the embedded preview", async (
     comment_count: 12,
   });
   await mockFeedBackend(page, [post], {
-    singleProposals: {
-      [proposalId]: { ...post, comments: fullComments },
+    commentsByProposal: {
+      [proposalId]: fullComments,
     },
   });
 
   await page.goto("/");
+  const commentsResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/comments") &&
+      url.searchParams.get("proposal_id") === String(proposalId) &&
+      response.status() === 200
+    );
+  });
   await page.locator(".post-action-bar").getByRole("button", { name: /^12$/ }).click();
+  await commentsResponse;
 
   await expect(page.getByText("Fixture comment number 12.")).toBeVisible();
   await expect(page.getByText("Fixture comment number 1.")).toBeVisible();
+  await expect(page.getByText("Fixture comment number 1.")).toHaveCount(1);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });

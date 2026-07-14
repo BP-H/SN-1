@@ -201,6 +201,10 @@ class ProposalMentionNotificationTests(unittest.TestCase):
                 "dislike_count",
                 "dislikes",
                 "domain_as_profile",
+                "embedded_comment_count",
+                "embedded_vote_count",
+                "has_more_comments",
+                "has_more_votes",
                 "id",
                 "like_count",
                 "likes",
@@ -212,6 +216,7 @@ class ProposalMentionNotificationTests(unittest.TestCase):
                 "userInitials",
                 "userName",
                 "voting_closed",
+                "vote_summary",
             },
         )
         self.assertGreater(result["proposal_id"], 0)
@@ -275,6 +280,10 @@ class ProposalMentionNotificationTests(unittest.TestCase):
                 "dislike_count",
                 "dislikes",
                 "domain_as_profile",
+                "embedded_comment_count",
+                "embedded_vote_count",
+                "has_more_comments",
+                "has_more_votes",
                 "id",
                 "like_count",
                 "likes",
@@ -286,6 +295,7 @@ class ProposalMentionNotificationTests(unittest.TestCase):
                 "userInitials",
                 "userName",
                 "voting_closed",
+                "vote_summary",
             },
         )
         self.assertEqual(result["public_read_status"], 200)
@@ -295,4 +305,3 @@ class ProposalMentionNotificationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

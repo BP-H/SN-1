@@ -34,7 +34,7 @@ import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/uti
 import { normalizeLinkHref } from "@/utils/linkify";
 import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
-import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+import { weightedVoteSummary } from "@/utils/voteWeights";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -81,8 +81,13 @@ function normalizeCollabSuggestions(payload = []) {
 function supportSummaryLabel(likes = [], dislikes = [], voteSummary = null) {
   const likeList = Array.isArray(likes) ? likes : [];
   const dislikeList = Array.isArray(dislikes) ? dislikes : [];
+  const weighted = weightedVoteSummary(voteSummary, likeList, dislikeList);
+  if (weighted.authoritative) {
+    if ((weighted.total || 0) <= 0) return "";
+    const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
+    return `${percent}% support`;
+  }
   if (likeList.length + dislikeList.length > 0) {
-    const weighted = buildWeightedVoteSummary(likeList, dislikeList);
     const percent = Math.max(0, Math.min(100, Math.round(weighted.supportPercent || 0)));
     return `${percent}% support`;
   }
@@ -101,6 +106,22 @@ function supportSummaryLabel(likes = [], dislikes = [], voteSummary = null) {
   return `${percent}% support`;
 }
 
+function isVisibleComment(comment) {
+  return !Boolean(comment?.deleted || comment?.user === "[deleted]");
+}
+
+function mergeCommentsById(primary = [], secondary = []) {
+  const merged = [];
+  const seen = new Set();
+  [...primary, ...secondary].forEach((comment, index) => {
+    const key = comment?.id == null ? `missing-${index}` : `id-${String(comment.id)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(comment);
+  });
+  return merged;
+}
+
 function ProposalCard({
   id,
   userName,
@@ -114,6 +135,8 @@ function ProposalCard({
   likeCount = null,
   dislikeCount = null,
   commentCount = null,
+  embeddedCommentCount = null,
+  hasMoreComments = null,
   voteSummary = null,
   comments = [],
   collabs = [],
@@ -139,6 +162,7 @@ function ProposalCard({
 
   const [showComments, setShowComments] = useState(false);
   const [localComments, setLocalComments] = useState(comments);
+  const [localVoteSummary, setLocalVoteSummary] = useState(voteSummary);
   const [fullCommentsLoaded, setFullCommentsLoaded] = useState(false);
   const [localText, setLocalText] = useState(text || "");
   const [editText, setEditText] = useState(text || "");
@@ -796,7 +820,9 @@ function ProposalCard({
     : dislikes.some((v) => v.voter === userData?.name)
     ? "dislike"
     : "";
-  const supportSummary = showSupportSummary ? supportSummaryLabel(likes, dislikes, voteSummary) : "";
+  const supportSummary = showSupportSummary
+    ? supportSummaryLabel(likes, dislikes, localVoteSummary)
+    : "";
   const authorLabel = authorName || "Unknown";
 
   const youtubeId = getYouTubeId(displayVideo);
@@ -835,23 +861,50 @@ function ProposalCard({
     setFullCommentsLoaded(false);
   }, [comments, id]);
 
+  useEffect(() => {
+    setLocalVoteSummary(voteSummary || null);
+  }, [id, voteSummary]);
+
   // Feeds embed only a capped comment preview (M3.1); the full thread loads
   // on demand the first time the viewer opens the comments section.
-  const embeddedCommentCount = Array.isArray(comments) ? comments.length : 0;
+  const visibleEmbeddedComments = Array.isArray(comments)
+    ? comments.filter(isVisibleComment).length
+    : 0;
+  const hasEmbeddedCommentCount =
+    embeddedCommentCount !== null &&
+    embeddedCommentCount !== undefined &&
+    embeddedCommentCount !== "" &&
+    Number.isFinite(Number(embeddedCommentCount));
+  const backendEmbeddedCommentCount = hasEmbeddedCommentCount
+    ? Math.max(0, Number(embeddedCommentCount))
+    : visibleEmbeddedComments;
+  const localVisibleCommentCount = localComments.filter(isVisibleComment).length;
   const serverCommentCount = Number.isFinite(Number(commentCount)) ? Number(commentCount) : null;
+  const backendHasMoreComments = typeof hasMoreComments === "boolean" ? hasMoreComments : null;
   const needsFullComments =
-    !isDetailPage && serverCommentCount !== null && serverCommentCount > embeddedCommentCount;
+    !isDetailPage &&
+    (backendHasMoreComments !== null
+      ? backendHasMoreComments
+      : serverCommentCount !== null && serverCommentCount > visibleEmbeddedComments);
 
   useEffect(() => {
     if (!showComments || fullCommentsLoaded || !needsFullComments) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/proposals/${encodeURIComponent(id)}`);
+        const response = await fetch(
+          `${API_BASE_URL}/comments?proposal_id=${encodeURIComponent(id)}`
+        );
         if (!response.ok) return;
         const payload = await response.json().catch(() => null);
         if (cancelled || !payload) return;
-        if (Array.isArray(payload.comments)) setLocalComments(payload.comments);
+        const fullComments = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload.items)
+          ? payload.items
+          : null;
+        if (!fullComments) return;
+        setLocalComments((current) => mergeCommentsById(fullComments, current));
         setFullCommentsLoaded(true);
       } catch {
         // Keep the embedded preview if the full read fails.
@@ -1102,8 +1155,12 @@ function ProposalCard({
           )}
           commentCount={
             serverCommentCount !== null && !fullCommentsLoaded
-              ? Math.max(0, serverCommentCount + (localComments.length - embeddedCommentCount))
-              : localComments.length
+              ? Math.max(
+                  0,
+                  serverCommentCount +
+                    (localVisibleCommentCount - backendEmbeddedCommentCount)
+                )
+              : localVisibleCommentCount
           }
           copied={copied}
           dislikes={dislikes}
@@ -1114,12 +1171,14 @@ function ProposalCard({
           onShareLink={handleShareLink}
           onToggleComments={() => setShowComments((value) => !value)}
           onToggleShareMenu={() => setShareMenuOpen((value) => !value)}
+          onVoteSummaryChange={setLocalVoteSummary}
           proposalId={id}
           setErrorMsg={setErrorMsg}
           shareMenuOpen={shareMenuOpen}
           shareMenuRef={shareMenuRef}
           showComments={showComments}
           userVote={userVote}
+          voteSummary={localVoteSummary}
           votingClosed={votingClosed}
         />
 
@@ -1130,6 +1189,7 @@ function ProposalCard({
           deletingCommentId={deletingCommentId}
           isDetailPage={isDetailPage}
           localComments={localComments}
+          visibleCommentCount={localVisibleCommentCount}
           onAskAi={(target) => {
             const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
             openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`, target?.id || null);

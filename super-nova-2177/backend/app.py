@@ -73,6 +73,16 @@ except ImportError:  # pragma: no cover - supports running backend/app.py direct
     )
 
 try:
+    from .three_species_vote_summary import build_three_species_vote_summary
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from three_species_vote_summary import build_three_species_vote_summary
+
+try:
+    from .public_route_paths import public_profile_path, public_route_path
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from public_route_paths import public_profile_path, public_route_path
+
+try:
     from .password_reset import (
         build_password_reset_url,
         create_password_reset_code,
@@ -1579,23 +1589,50 @@ def _compute_vote_totals(db: Session, proposal_id: int) -> Dict[str, int]:
 
 
 def _public_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
-    totals = _compute_vote_totals(db, proposal_id)
-    up = int(totals.get("up", 0) or 0)
-    down = int(totals.get("down", 0) or 0)
-    total = up + down
+    engagement = _proposal_engagement_counts(db, [proposal_id])
+    entry = (engagement or {}).get(int(proposal_id)) or {}
+    summary = entry.get("vote_summary")
+    return summary if isinstance(summary, dict) else build_three_species_vote_summary()
+
+
+def _empty_proposal_engagement() -> Dict[str, Any]:
     return {
-        "up": up,
-        "down": down,
-        "support": up,
-        "oppose": down,
-        "total": total,
-        "approval_ratio": round(up / total, 4) if total else None,
+        "like_count": 0,
+        "dislike_count": 0,
+        "comment_count": 0,
+        "vote_summary": build_three_species_vote_summary(),
+    }
+
+
+def _proposal_embed_completeness(
+    engagement: Optional[Dict[str, Any]],
+    comments: List[Dict[str, Any]],
+    likes: List[Dict[str, Any]],
+    dislikes: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    visible_comment_count = sum(
+        1 for comment in comments if not bool((comment or {}).get("deleted"))
+    )
+    embedded_vote_count = len(likes) + len(dislikes)
+    safe_engagement = engagement if isinstance(engagement, dict) else {}
+    total_comments = int(safe_engagement.get("comment_count", visible_comment_count) or 0)
+    vote_summary = safe_engagement.get("vote_summary")
+    total_votes = (
+        int(vote_summary.get("total", embedded_vote_count) or 0)
+        if isinstance(vote_summary, dict)
+        else embedded_vote_count
+    )
+    return {
+        "embedded_comment_count": visible_comment_count,
+        "has_more_comments": total_comments > visible_comment_count,
+        "embedded_vote_count": embedded_vote_count,
+        "has_more_votes": total_votes > embedded_vote_count,
     }
 
 
 def _proposal_engagement_counts(
     db: Session, proposal_ids: List[int]
-) -> Optional[Dict[int, Dict[str, int]]]:
+) -> Optional[Dict[int, Dict[str, Any]]]:
     """Set-based like/dislike/comment counts for a page of proposal ids.
 
     Two aggregate queries regardless of page size (F02 prereq). The comment
@@ -1609,18 +1646,24 @@ def _proposal_engagement_counts(
             clean_ids.append(int(pid))
         except (TypeError, ValueError):
             continue
-    counts = {
-        pid: {"like_count": 0, "dislike_count": 0, "comment_count": 0}
-        for pid in clean_ids
-    }
+    counts = {pid: _empty_proposal_engagement() for pid in clean_ids}
     if not clean_ids:
         return counts
     try:
         if CRUD_MODELS_AVAILABLE:
             vote_rows = (
-                db.query(ProposalVote.proposal_id, ProposalVote.vote, func.count())
+                db.query(
+                    ProposalVote.proposal_id,
+                    ProposalVote.vote,
+                    ProposalVote.voter_type,
+                    func.count(),
+                )
                 .filter(ProposalVote.proposal_id.in_(clean_ids))
-                .group_by(ProposalVote.proposal_id, ProposalVote.vote)
+                .group_by(
+                    ProposalVote.proposal_id,
+                    ProposalVote.vote,
+                    ProposalVote.voter_type,
+                )
                 .all()
             )
             comment_rows = (
@@ -1633,8 +1676,9 @@ def _proposal_engagement_counts(
         else:
             vote_rows = db.execute(
                 text(
-                    "SELECT proposal_id, vote, COUNT(*) FROM proposal_votes "
-                    "WHERE proposal_id IN :ids GROUP BY proposal_id, vote"
+                    "SELECT proposal_id, vote, voter_type, COUNT(*) FROM proposal_votes "
+                    "WHERE proposal_id IN :ids "
+                    "GROUP BY proposal_id, vote, voter_type"
                 ).bindparams(bindparam("ids", expanding=True)),
                 {"ids": clean_ids},
             ).fetchall()
@@ -1650,14 +1694,18 @@ def _proposal_engagement_counts(
     except Exception:
         db.rollback()
         return None
+    grouped_votes: Dict[int, List[Any]] = {pid: [] for pid in clean_ids}
     for row in vote_rows:
         entry = counts.get(row[0])
         if entry is None:
             continue
+        grouped_votes[row[0]].append((row[1], row[2], row[3]))
         if row[1] == "up":
-            entry["like_count"] = int(row[2] or 0)
+            entry["like_count"] += int(row[3] or 0)
         elif row[1] == "down":
-            entry["dislike_count"] = int(row[2] or 0)
+            entry["dislike_count"] += int(row[3] or 0)
+    for proposal_id, grouped_counts in grouped_votes.items():
+        counts[proposal_id]["vote_summary"] = build_three_species_vote_summary(grouped_counts)
     for row in comment_rows:
         entry = counts.get(row[0])
         if entry is not None:
@@ -3364,6 +3412,11 @@ class ProposalSchema(BaseModel):
     like_count: Optional[int] = None
     dislike_count: Optional[int] = None
     comment_count: Optional[int] = None
+    vote_summary: Optional[Dict] = None
+    embedded_comment_count: Optional[int] = None
+    has_more_comments: Optional[bool] = None
+    embedded_vote_count: Optional[int] = None
+    has_more_votes: Optional[bool] = None
 
 class VoteIn(BaseModel):
     proposal_id: int
@@ -4801,8 +4854,8 @@ def supernova_well_known():
 def domain_verification_preview(domain: str = Query(...), username: str = Query(...)):
     host = _normalize_preview_domain(domain)
     clean_username = _normalize_preview_username(username)
-    profile_url = f"{PUBLIC_BASE_URL}/users/{clean_username}"
-    actor_url = f"{PUBLIC_BASE_URL}/actors/{clean_username}"
+    profile_url = f"{PUBLIC_BASE_URL}{public_profile_path(clean_username)}"
+    actor_url = f"{PUBLIC_BASE_URL}{public_route_path('actors', clean_username)}"
     well_known_url = f"https://{host}/.well-known/supernova"
     return JSONResponse(
         {
@@ -5345,11 +5398,11 @@ def profile(username: str, db: Session = Depends(get_db)):
 
 
 def _public_profile_url(username: str) -> str:
-    return f"{PUBLIC_BASE_URL}/users/{username}"
+    return f"{PUBLIC_BASE_URL}{public_profile_path(username)}"
 
 
 def _public_actor_url(username: str) -> str:
-    return f"{PUBLIC_BASE_URL}/actors/{username}"
+    return f"{PUBLIC_BASE_URL}{public_route_path('actors', username)}"
 
 
 def _username_from_webfinger_resource(resource: str) -> str:
@@ -6828,6 +6881,11 @@ async def create_proposal(
             like_count=0,
             dislike_count=0,
             comment_count=0,
+            vote_summary=build_three_species_vote_summary(),
+            embedded_comment_count=0,
+            has_more_comments=False,
+            embedded_vote_count=0,
+            has_more_votes=False,
         )
     except Exception as e:
         db.rollback()
@@ -7342,10 +7400,17 @@ def _serialize_proposal_page_from_maps(
             ),
         }
         if engagement_counts is not None:
-            serialized_proposal.update(
-                engagement_counts.get(prop.id)
-                or {"like_count": 0, "dislike_count": 0, "comment_count": 0}
+            proposal_engagement = (
+                engagement_counts.get(prop.id) or _empty_proposal_engagement()
             )
+            serialized_proposal.update(proposal_engagement)
+        else:
+            proposal_engagement = None
+        serialized_proposal.update(
+            _proposal_embed_completeness(
+                proposal_engagement, comments_list, likes, dislikes
+            )
+        )
         proposals_list.append(serialized_proposal)
 
     return proposals_list
@@ -7717,10 +7782,17 @@ def list_proposals(
                 ),
             }
             if engagement_counts is not None:
-                serialized_proposal.update(
-                    engagement_counts.get(prop.id)
-                    or {"like_count": 0, "dislike_count": 0, "comment_count": 0}
+                proposal_engagement = (
+                    engagement_counts.get(prop.id) or _empty_proposal_engagement()
                 )
+                serialized_proposal.update(proposal_engagement)
+            else:
+                proposal_engagement = None
+            serialized_proposal.update(
+                _proposal_embed_completeness(
+                    proposal_engagement, comments_list, likes, dislikes
+                )
+            )
             proposals_list.append(serialized_proposal)
 
         return proposals_list
@@ -8853,6 +8925,11 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             like_count=proposal_counts.get("like_count"),
             dislike_count=proposal_counts.get("dislike_count"),
             comment_count=proposal_counts.get("comment_count"),
+            vote_summary=proposal_counts.get("vote_summary")
+            or build_three_species_vote_summary(),
+            **_proposal_embed_completeness(
+                proposal_counts, comments_list, likes, dislikes
+            ),
         )
     else:
         result = db.execute(
@@ -8922,6 +8999,11 @@ def get_proposal(pid: int, db: Session = Depends(get_db)):
             like_count=proposal_counts.get("like_count"),
             dislike_count=proposal_counts.get("dislike_count"),
             comment_count=proposal_counts.get("comment_count"),
+            vote_summary=proposal_counts.get("vote_summary")
+            or build_three_species_vote_summary(),
+            **_proposal_embed_completeness(
+                proposal_counts, comments_list, likes, dislikes
+            ),
         )
 
 app.include_router(create_uploads_router(

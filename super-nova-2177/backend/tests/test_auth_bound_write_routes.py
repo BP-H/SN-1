@@ -782,6 +782,7 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "text": payload.get("text"),
                 "userName": payload.get("userName"),
                 "author_type": payload.get("author_type"),
+                "vote_summary": payload.get("vote_summary"),
                 "public_read_status": public_read.status_code,
                 "public_read_count": len(public_read.json()),
             }
@@ -805,6 +806,10 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "dislike_count",
                 "dislikes",
                 "domain_as_profile",
+                "embedded_comment_count",
+                "embedded_vote_count",
+                "has_more_comments",
+                "has_more_votes",
                 "id",
                 "like_count",
                 "likes",
@@ -816,12 +821,15 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "userInitials",
                 "userName",
                 "voting_closed",
+                "vote_summary",
             },
         )
         self.assertEqual(result["title"], "Authenticated proposal")
         self.assertEqual(result["text"], "Proposal create should require a matching token.")
         self.assertEqual(result["userName"], "alice")
         self.assertEqual(result["author_type"], "human")
+        self.assertEqual(result["vote_summary"]["total"], 0)
+        self.assertEqual(result["vote_summary"]["weighted_support_percent"], 0.0)
         self.assertEqual(result["public_read_status"], 200)
         self.assertGreaterEqual(result["public_read_count"], 1)
 

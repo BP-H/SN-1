@@ -7,7 +7,7 @@ import LiquidGlass from "@/content/liquid glass/LiquidGlass";
 import { useUser } from "@/content/profile/UserContext";
 import { API_BASE_URL } from "@/utils/apiBase";
 import { speciesAccentGradient } from "@/utils/species";
-import { buildWeightedVoteSummary } from "@/utils/voteWeights";
+import { weightedVoteSummary } from "@/utils/voteWeights";
 
 const SLIDER_BLUE = "#5e8dfa";
 const SPECIES_OPTIONS = [
@@ -111,9 +111,10 @@ function SpeciesVoteRow({
   );
 }
 
-function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
+function LikesInfo({ proposalId, likesData, dislikesData, voteSummary = null, className = "" }) {
   const [likes, setLikes] = useState([]);
   const [dislikes, setDislikes] = useState([]);
+  const [authoritativeSummary, setAuthoritativeSummary] = useState(voteSummary);
   const [error, setError] = useState("");
   const [activeSpecies, setActiveSpecies] = useState("all");
   const [activeChoice, setActiveChoice] = useState("all");
@@ -127,6 +128,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
     if (seeded) {
       setLikes(likesData || []);
       setDislikes(dislikesData || []);
+      setAuthoritativeSummary(voteSummary || null);
       setError("");
     }
     if (proposalId === undefined || proposalId === null || proposalId === "") return undefined;
@@ -153,6 +155,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
         if (cancelled) return;
         setLikes(data.likes || []);
         setDislikes(data.dislikes || []);
+        setAuthoritativeSummary(data.vote_summary || null);
         setError("");
       } catch (err) {
         // Seeded modals keep the embedded preview when the refresh fails.
@@ -164,9 +167,12 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
     return () => {
       cancelled = true;
     };
-  }, [backendUrl, proposalId, likesData, dislikesData]);
+  }, [backendUrl, proposalId, likesData, dislikesData, voteSummary]);
 
-  const counts = useMemo(() => buildWeightedVoteSummary(likes, dislikes), [likes, dislikes]);
+  const counts = useMemo(
+    () => weightedVoteSummary(authoritativeSummary, likes, dislikes),
+    [authoritativeSummary, likes, dislikes]
+  );
   const voters = useMemo(() => {
     const yesVotes = likes.map((vote) => ({
       ...vote,
@@ -194,7 +200,9 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
   const activeChoiceLabel =
     CHOICE_OPTIONS.find((option) => option.key === activeChoice)?.label || "All votes";
 
-  const totalVotes = likes.length + dislikes.length;
+  const totalVotes = Number.isFinite(Number(counts.total))
+    ? Number(counts.total)
+    : likes.length + dislikes.length;
   const overallApproval = Math.round(counts.supportPercent || 0);
   const setFilter = (species, choice = activeChoice) => {
     setActiveSpecies(species);

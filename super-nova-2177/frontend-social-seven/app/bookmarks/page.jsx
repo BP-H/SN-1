@@ -150,7 +150,10 @@ export default function BookmarksPage() {
               dislikes={post.dislikes}
               likeCount={post.like_count}
               dislikeCount={post.dislike_count}
+              voteSummary={post.vote_summary}
               commentCount={post.comment_count}
+              embeddedCommentCount={post.embedded_comment_count}
+              hasMoreComments={post.has_more_comments}
               votingClosed={post.voting_closed === true}
               profileUrl={post.profile_url}
               domainAsProfile={post.domain_as_profile}

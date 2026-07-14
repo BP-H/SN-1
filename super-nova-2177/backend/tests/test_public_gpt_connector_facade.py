@@ -419,10 +419,13 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["title"], "Connector Public Proposal")
         self.assertEqual(items[0]["author"]["username"], "alice")
+        summary = items[0]["vote_summary"]
         self.assertEqual(
-            items[0]["vote_summary"],
+            {key: summary[key] for key in ("approval_ratio", "down", "oppose", "support", "total", "up")},
             {"approval_ratio": 0.5, "down": 1, "oppose": 1, "support": 1, "total": 2, "up": 1},
         )
+        self.assertEqual(summary["schema"], "supernova.three_species_vote.v1")
+        self.assertEqual(summary["weighted_support_percent"], 33.3333)
         self.assertEqual(items[0]["collabs"][0]["username"], "bob")
         self.assertEqual(items[0]["collabs"][0]["status"], "approved")
         self.assertTrue(items[0]["web_url"].endswith(f"/proposals/{items[0]['id']}"))
@@ -442,10 +445,13 @@ class PublicGptConnectorFacadeTests(unittest.TestCase):
         votes = self.result["votes"]
         self.assertEqual(votes["mode"], "public_read_only")
         self.assertEqual(votes["resource"], "proposal_vote_summary")
+        summary = votes["vote_summary"]
         self.assertEqual(
-            votes["vote_summary"],
+            {key: summary[key] for key in ("approval_ratio", "down", "oppose", "support", "total", "up")},
             {"approval_ratio": 0.5, "down": 1, "oppose": 1, "support": 1, "total": 2, "up": 1},
         )
+        self.assertEqual(summary["schema"], "supernova.three_species_vote.v1")
+        self.assertEqual(summary["weighted_support_percent"], 33.3333)
 
         votes_text = json.dumps(votes, sort_keys=True).lower()
         self.assertNotIn("alice@example.test", votes_text)

@@ -55,7 +55,7 @@ const SYSTEM_VOTE_CONFIG = {
 const FEED_PAGE_SIZE = 30;
 // Feed cards only need previews; totals come from the additive *_count fields
 // (M2), so cap the embedded arrays the backend inlines per proposal.
-const FEED_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=25";
+const FEED_EMBED_CAPS = "&embedded_comments_limit=3&embedded_votes_limit=20";
 const HOME_SCROLL_TOP_KEY = "supernova-home-scroll-top";
 // Keep the compact mission hero available for future visual iteration, but off by default for release.
 const SHOW_HOME_MISSION_HERO = process.env.NEXT_PUBLIC_SHOW_HOME_MISSION_HERO === "true";
@@ -619,7 +619,10 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                   dislikes={post.dislikes}
                   likeCount={post.like_count}
                   dislikeCount={post.dislike_count}
+                  voteSummary={post.vote_summary}
                   commentCount={post.comment_count}
+                  embeddedCommentCount={post.embedded_comment_count}
+                  hasMoreComments={post.has_more_comments}
                   votingClosed={post.voting_closed === true}
                   profileUrl={post.profile_url}
                   domainAsProfile={post.domain_as_profile}

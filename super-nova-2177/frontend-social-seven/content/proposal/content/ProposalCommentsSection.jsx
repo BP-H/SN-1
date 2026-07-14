@@ -11,6 +11,7 @@ export default function ProposalCommentsSection({
   deletingCommentId,
   isDetailPage,
   localComments = [],
+  visibleCommentCount = 0,
   onAskAi,
   onCancelReply,
   onDeleteComment,
@@ -50,7 +51,7 @@ export default function ProposalCommentsSection({
             <IoSparklesOutline className="text-[0.82rem]" />
           </button>
           <span className="rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
-            {localComments.length}
+            {visibleCommentCount}
           </span>
         </div>
       </div>
