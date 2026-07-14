@@ -870,8 +870,13 @@ function ProposalCard({
   const visibleEmbeddedComments = Array.isArray(comments)
     ? comments.filter(isVisibleComment).length
     : 0;
-  const backendEmbeddedCommentCount = Number.isFinite(Number(embeddedCommentCount))
-    ? Number(embeddedCommentCount)
+  const hasEmbeddedCommentCount =
+    embeddedCommentCount !== null &&
+    embeddedCommentCount !== undefined &&
+    embeddedCommentCount !== "" &&
+    Number.isFinite(Number(embeddedCommentCount));
+  const backendEmbeddedCommentCount = hasEmbeddedCommentCount
+    ? Math.max(0, Number(embeddedCommentCount))
     : visibleEmbeddedComments;
   const localVisibleCommentCount = localComments.filter(isVisibleComment).length;
   const serverCommentCount = Number.isFinite(Number(commentCount)) ? Number(commentCount) : null;

@@ -300,6 +300,7 @@ function LikesDeslikes({
         type="button"
         onClick={handleDislikeClick}
         aria-label="Vote no"
+        aria-pressed={clicked === "dislike"}
         disabled={votingClosed}
         title={votingClosed ? t("feed.votingClosed") : undefined}
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -350,6 +351,7 @@ function LikesDeslikes({
         type="button"
         onClick={handleLikeClick}
         aria-label="Vote yes"
+        aria-pressed={clicked === "like"}
         disabled={votingClosed}
         title={votingClosed ? t("feed.votingClosed") : undefined}
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed disabled:opacity-40 ${

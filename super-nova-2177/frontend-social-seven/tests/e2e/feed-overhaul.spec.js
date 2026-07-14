@@ -73,7 +73,12 @@ function fixtureComment(index, proposalId) {
 async function mockFeedBackend(
   page,
   posts,
-  { singleProposals = {}, commentsByProposal = {}, onFeedRequest = null } = {}
+  {
+    singleProposals = {},
+    commentsByProposal = {},
+    onFeedRequest = null,
+    onCommentsRequest = null,
+  } = {}
 ) {
   await page.route("**/proposals?**", async (route) => {
     if (onFeedRequest) onFeedRequest(route.request().url());
@@ -97,6 +102,7 @@ async function mockFeedBackend(
   await page.route("**/comments?**", async (route) => {
     const url = new URL(route.request().url());
     const proposalId = url.searchParams.get("proposal_id");
+    onCommentsRequest?.(url, proposalId);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -220,22 +226,18 @@ test("opening an incomplete comment preview loads the full tombstone-preserving 
     commentsByProposal: {
       [proposalId]: [tombstone, reply, embeddedPeer, laterComment, laterComment],
     },
-  });
-  await page.route("**/comments?**", async (route) => {
-    commentsReadCount += 1;
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([tombstone, reply, embeddedPeer, laterComment, laterComment]),
-    });
+    onCommentsRequest: () => {
+      commentsReadCount += 1;
+    },
   });
 
   await page.goto("/");
   await page.locator(".post-action-bar").getByRole("button", { name: /^3$/ }).click();
-  await expect(page.getByText("Visible reply under deleted parent.")).toBeVisible();
+  await expect(page.getByText("This comment was deleted.")).toBeVisible();
   await expect(page.getByText("Fixture comment number 4.")).toBeVisible();
   await expect(page.getByText("Fixture comment number 4.")).toHaveCount(1);
-  await expect(page.getByText("This comment was deleted.")).toBeVisible();
+  await page.getByRole("button", { name: "View 1 reply" }).click();
+  await expect(page.getByText("Visible reply under deleted parent.")).toBeVisible();
   expect(commentsReadCount).toBe(1);
 });
 
@@ -343,6 +345,7 @@ test("authoritative weighted summary stays coherent across card modal and vote c
   await seedPasswordSession(page, { species: "company" });
   await mockFeedBackend(page, [post], { singleProposals: { [proposalId]: fullPost } });
   await page.route("**/votes", async (route) => {
+    expect(route.request().method()).toBe("POST");
     postVotes += 1;
     await new Promise((resolve) => setTimeout(resolve, 100));
     if (failNextPost) {
@@ -353,6 +356,7 @@ test("authoritative weighted summary stays coherent across card modal and vote c
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
   });
   await page.route("**/votes?**", async (route) => {
+    expect(route.request().method()).toBe("DELETE");
     deleteVotes += 1;
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, removed: 1 }) });
   });
@@ -372,10 +376,14 @@ test("authoritative weighted summary stays coherent across card modal and vote c
     button.click();
   });
   await expect(card.getByText("56%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "true");
   await card.getByRole("button", { name: "Vote no" }).click();
   await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "false");
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "true");
   await card.getByRole("button", { name: "Vote no" }).click();
   await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "false");
 
   failNextPost = true;
   await card.getByRole("button", { name: "Vote yes" }).click();
@@ -497,15 +505,25 @@ test("opening comments loads the full thread past the embedded preview", async (
     comment_count: 12,
   });
   await mockFeedBackend(page, [post], {
-    singleProposals: {
-      [proposalId]: { ...post, comments: fullComments },
+    commentsByProposal: {
+      [proposalId]: fullComments,
     },
   });
 
   await page.goto("/");
+  const commentsResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/comments") &&
+      url.searchParams.get("proposal_id") === String(proposalId) &&
+      response.status() === 200
+    );
+  });
   await page.locator(".post-action-bar").getByRole("button", { name: /^12$/ }).click();
+  await commentsResponse;
 
   await expect(page.getByText("Fixture comment number 12.")).toBeVisible();
   await expect(page.getByText("Fixture comment number 1.")).toBeVisible();
+  await expect(page.getByText("Fixture comment number 1.")).toHaveCount(1);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
