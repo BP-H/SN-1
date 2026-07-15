@@ -306,7 +306,7 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   // Compact clarity explainer for first-time visitors.
   await expect(
     page.getByRole("heading", {
-      name: "A nonprofit network for visible human, AI, and organization participation.",
+      name: "AI takes on more work. SuperNova 2177 makes sure people stay in the loop.",
     })
   ).toBeVisible();
 
@@ -619,7 +619,7 @@ test("home hierarchy keeps social content in the first fold", async ({ page }) =
 
   const explanation = page.locator(".home-quick-explain");
   await expect(explanation).toContainText(
-    "A nonprofit network for visible human, AI, and organization participation."
+    "AI takes on more work. SuperNova 2177 makes sure people stay in the loop."
   );
   await expect(explanation).toContainText(/Human\s*×\s*AI\s*×\s*ORG/);
   expect((await explanation.boundingBox())?.height).toBeLessThanOrEqual(96);
