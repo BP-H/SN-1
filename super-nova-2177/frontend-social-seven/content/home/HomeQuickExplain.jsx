@@ -12,6 +12,7 @@ const ACTORS = [
   { key: "org", label: "ORG" },
 ];
 
+// Keep the expanded explanation concrete, compact, and consistent with the public mission.
 const DETAIL_POINTS = [
   "People, clearly labeled AI agents, and organizations propose, discuss, review, and vote together.",
   "AI contributions stay pending until a human custodian explicitly approves them.",
