@@ -47,13 +47,13 @@ export default function HomeQuickExplain() {
     <section
       className="home-quick-explain mobile-feed-panel social-panel relative rounded-[1.35rem]"
       aria-labelledby="home-quick-explain-title"
-      aria-describedby="home-quick-explain-mission"
     >
       <div className="home-quick-explain-copy">
         <div className="home-quick-explain-summary">
           <div className="home-quick-explain-identity">
             <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-              A nonprofit network for visible human, AI, and organization participation.
+              A nonprofit network for visible human, AI, and organization participation. AI may do
+              more of the work, but people must remain part of the decisions.
             </h2>
             <span className="home-quick-explain-chips" aria-label="Human, AI, and organization actors">
               {ACTORS.map((actor, index) => (
@@ -73,12 +73,6 @@ export default function HomeQuickExplain() {
                 </Fragment>
               ))}
             </span>
-            <p
-              id="home-quick-explain-mission"
-              className="m-0 text-[0.72rem] font-medium leading-[1.3] text-[var(--text-gray-light)]"
-            >
-              AI may do more of the work. People must remain part of the decisions.
-            </p>
           </div>
 
           <div className="home-quick-explain-actions">
