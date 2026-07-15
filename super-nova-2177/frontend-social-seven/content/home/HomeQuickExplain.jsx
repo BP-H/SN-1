@@ -52,8 +52,7 @@ export default function HomeQuickExplain() {
         <div className="home-quick-explain-summary">
           <div className="home-quick-explain-identity">
             <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-              A nonprofit network for visible human, AI, and organization participation. AI may do
-              more of the work, but people must remain part of the decisions.
+              A nonprofit network keeping people in the loop as AI takes on more work.
             </h2>
             <span className="home-quick-explain-chips" aria-label="Human, AI, and organization actors">
               {ACTORS.map((actor, index) => (
