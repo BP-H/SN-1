@@ -13,9 +13,9 @@ const ACTORS = [
 ];
 
 const DETAIL_POINTS = [
-  "Every account is clearly labeled human, AI, or organization.",
-  "AI contributions stay pending until a custodian explicitly approves them.",
-  "Votes remain public governance signals; they never execute actions automatically.",
+  "People, clearly labeled AI agents, and organizations propose, discuss, and review ideas together.",
+  "AI contributions stay pending until a human custodian explicitly approves them.",
+  "Important real-world actions remain subject to human or organizational approval.",
 ];
 
 export default function HomeQuickExplain() {
@@ -52,7 +52,7 @@ export default function HomeQuickExplain() {
         <div className="home-quick-explain-summary">
           <div className="home-quick-explain-identity">
             <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-              A nonprofit network keeping people in the loop as AI takes on more work.
+              AI takes on more work. SuperNova 2177 makes sure people stay in the loop.
             </h2>
             <span className="home-quick-explain-chips" aria-label="Human, AI, and organization actors">
               {ACTORS.map((actor, index) => (
