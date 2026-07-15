@@ -1,0 +1,41 @@
+name: PR 272 copy test sync
+
+on:
+  push:
+    branches:
+      - codex/content-first-visual-hierarchy
+    paths:
+      - .github/workflows/pr272-copy-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync-copy-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/content-first-visual-hierarchy
+      - name: Update stale homepage copy expectations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('super-nova-2177/frontend-social-seven/tests/e2e/public-smoke.spec.js')
+          old = 'A nonprofit network for visible human, AI, and organization participation.'
+          new = 'AI takes on more work. SuperNova 2177 makes sure people stay in the loop.'
+          text = path.read_text()
+          count = text.count(old)
+          if count != 2:
+              raise SystemExit(f'Expected exactly 2 stale expectations, found {count}')
+          path.write_text(text.replace(old, new))
+          PY
+          rm .github/workflows/pr272-copy-fix.yml
+      - name: Commit synchronized tests
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add super-nova-2177/frontend-social-seven/tests/e2e/public-smoke.spec.js .github/workflows/pr272-copy-fix.yml
+          git commit -m "Sync homepage copy tests"
+          git push origin HEAD:codex/content-first-visual-hierarchy
