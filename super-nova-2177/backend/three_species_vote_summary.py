@@ -56,7 +56,7 @@ def build_three_species_vote_summary(
 
     total = up + down
     return {
-        "schema": "supernova.three_species_vote.v1",
+        "schema": "supernova.three_species_vote_summary.v1",
         "up": up,
         "down": down,
         "support": up,

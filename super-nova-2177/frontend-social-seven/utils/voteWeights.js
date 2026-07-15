@@ -100,7 +100,7 @@ function rebuildAuthoritativeSummary(summary, buckets) {
   const total = up + down;
   return {
     ...(summary || {}),
-    schema: summary?.schema || "supernova.three_species_vote.v1",
+    schema: summary?.schema || "supernova.three_species_vote_summary.v1",
     up,
     down,
     support: up,

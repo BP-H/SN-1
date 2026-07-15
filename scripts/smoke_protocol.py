@@ -34,6 +34,7 @@ SCHEMA_PATHS = {
     "/protocol/supernova.organization.schema.json": "supernova.organization_manifest.v1",
     "/protocol/supernova.execution-intent.schema.json": "supernova.execution_intent.v1",
     "/protocol/supernova.three-species-vote.schema.json": "supernova.three_species_vote.v1",
+    "/protocol/supernova.three-species-vote-summary.schema.json": "supernova.three_species_vote_summary.v1",
     "/protocol/supernova.portable-profile.schema.json": "supernova.portable_profile.v1",
 }
 
@@ -41,6 +42,7 @@ EXAMPLE_PATHS = {
     "/protocol/examples/example-organization-manifest.json": "supernova.organization_manifest.v1",
     "/protocol/examples/example-execution-intent.json": "supernova.execution_intent.v1",
     "/protocol/examples/example-three-species-vote.json": "supernova.three_species_vote.v1",
+    "/protocol/examples/example-three-species-vote-summary.json": "supernova.three_species_vote_summary.v1",
     "/protocol/examples/example-portable-profile.json": "supernova.portable_profile.v1",
 }
 
@@ -152,11 +154,20 @@ class ProtocolSmoke:
         self.expect(policy.get("v1_automatic_execution") is False, "schema policy no v1 automatic execution")
         self.expect(policy.get("v1_company_webhooks") is False, "schema policy no v1 webhooks")
 
+        schemas = manifest.get("protocol_schemas", {})
+        for key, path in {
+            "three_species_vote": "/protocol/supernova.three-species-vote.schema.json",
+            "three_species_vote_summary": "/protocol/supernova.three-species-vote-summary.schema.json",
+        }.items():
+            value = schemas.get(key, "")
+            self.expect(value.endswith(path), f"manifest protocol_schemas {key}", str(value))
+
         examples = manifest.get("protocol_examples", {})
         for key, path in {
             "organization_manifest": "/protocol/examples/example-organization-manifest.json",
             "execution_intent": "/protocol/examples/example-execution-intent.json",
             "three_species_vote": "/protocol/examples/example-three-species-vote.json",
+            "three_species_vote_summary": "/protocol/examples/example-three-species-vote-summary.json",
             "portable_profile": "/protocol/examples/example-portable-profile.json",
         }.items():
             value = examples.get(key, "")
@@ -203,6 +214,13 @@ class ProtocolSmoke:
         self.expect(vote_execution.get("execution_current_mode") == "manual_preview_only", "vote example manual preview")
         self.expect(vote_execution.get("automatic_execution") is False, "vote example no automatic execution")
         self.expect(vote_execution.get("company_ratification_required") is True, "vote example company ratification")
+
+        summary = payloads.get("/protocol/examples/example-three-species-vote-summary.json", {})
+        self.expect(summary.get("up") == summary.get("support"), "vote summary support aliases up")
+        self.expect(summary.get("down") == summary.get("oppose"), "vote summary oppose aliases down")
+        self.expect(summary.get("total") == summary.get("up", 0) + summary.get("down", 0), "vote summary total matches counts")
+        self.expect(set(summary.get("by_species", {})) == set(EXPECTED_SPECIES), "vote summary three species")
+        self.expect("execution" not in summary, "vote summary has no execution semantics")
 
         profile = payloads.get("/protocol/examples/example-portable-profile.json", {})
         self.expect(profile.get("identity", {}).get("domain_verified") is False, "portable profile example unverified domain")

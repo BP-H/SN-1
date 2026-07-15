@@ -155,7 +155,10 @@ function LikesInfo({ proposalId, likesData, dislikesData, voteSummary = null, cl
         if (cancelled) return;
         setLikes(data.likes || []);
         setDislikes(data.dislikes || []);
-        setAuthoritativeSummary(data.vote_summary || null);
+        // The card owns the newest local authoritative summary, including an
+        // in-flight optimistic vote. The full read refreshes voter identities,
+        // but must not replace that newer summary with a slower response.
+        setAuthoritativeSummary(voteSummary || data.vote_summary || null);
         setError("");
       } catch (err) {
         // Seeded modals keep the embedded preview when the refresh fails.

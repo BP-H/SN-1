@@ -828,6 +828,10 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["text"], "Proposal create should require a matching token.")
         self.assertEqual(result["userName"], "alice")
         self.assertEqual(result["author_type"], "human")
+        self.assertEqual(
+            result["vote_summary"]["schema"],
+            "supernova.three_species_vote_summary.v1",
+        )
         self.assertEqual(result["vote_summary"]["total"], 0)
         self.assertEqual(result["vote_summary"]["weighted_support_percent"], 0.0)
         self.assertEqual(result["public_read_status"], 200)

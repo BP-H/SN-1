@@ -5,6 +5,7 @@ This matrix maps SuperNova v1 promises to the places that document, test, or smo
 | Guarantee | Documented by | Tested by | Smoke-checked by | Current status |
 | --- | --- | --- | --- | --- |
 | Votes do not execute automatically | `GOVERNANCE_CONTRACTS.md` | `test_system_vote_records_tally_without_execution_side_effects` and `test_proposal_governance_payload_stays_manual_and_non_executing` | Dangerous POST absence checks in `scripts/smoke_protocol.py` | Active |
+| Aggregate vote summaries have a distinct protocol identity | `GOVERNANCE_CONTRACTS.md` and protocol READMEs | Root schema identifier uniqueness and mirrored protocol assertions | Summary schema/example checks in `scripts/smoke_protocol.py` | Active |
 | Proposal governance stays manual | `GOVERNANCE_CONTRACTS.md` | `test_proposal_governance_payload_stays_manual_and_non_executing` | Manifest manual-preview checks in `scripts/smoke_protocol.py` | Active |
 | Domain preview does not verify or mutate | `VERIFIED_DOMAIN_V1_PLAN.md` | `test_domain_verification_preview_does_not_verify_or_mutate` | Domain-preview safety checks in `scripts/smoke_protocol.py` | Active |
 | Domain verification does not enable execution | `VERIFIED_DOMAIN_V1_PLAN.md` and `GOVERNANCE_CONTRACTS.md` | Route absence and preview safety tests | Dangerous POST and preview safety checks | Active |

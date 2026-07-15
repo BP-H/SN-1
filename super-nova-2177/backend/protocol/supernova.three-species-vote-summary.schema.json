@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://2177.tech/protocol/supernova.three-species-vote-summary.schema.json",
+  "title": "SuperNova Three-Species Vote Summary",
+  "description": "An aggregate read-only summary of proposal votes across human, AI, and company species. This schema reports counts and weighted support; it does not execute decisions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "up",
+    "down",
+    "support",
+    "oppose",
+    "total",
+    "approval_ratio",
+    "species_share_percent",
+    "weighted_support_percent",
+    "by_species"
+  ],
+  "properties": {
+    "schema": {
+      "const": "supernova.three_species_vote_summary.v1"
+    },
+    "up": { "$ref": "#/$defs/count" },
+    "down": { "$ref": "#/$defs/count" },
+    "support": { "$ref": "#/$defs/count" },
+    "oppose": { "$ref": "#/$defs/count" },
+    "total": { "$ref": "#/$defs/count" },
+    "approval_ratio": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "species_share_percent": { "$ref": "#/$defs/percent" },
+    "weighted_support_percent": { "$ref": "#/$defs/percent" },
+    "by_species": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["human", "ai", "company"],
+      "properties": {
+        "human": { "$ref": "#/$defs/speciesSummary" },
+        "ai": { "$ref": "#/$defs/speciesSummary" },
+        "company": { "$ref": "#/$defs/speciesSummary" }
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "speciesSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "up",
+        "down",
+        "total",
+        "internal_support_percent",
+        "weighted_support_percent"
+      ],
+      "properties": {
+        "up": { "$ref": "#/$defs/count" },
+        "down": { "$ref": "#/$defs/count" },
+        "total": { "$ref": "#/$defs/count" },
+        "internal_support_percent": { "$ref": "#/$defs/percent" },
+        "weighted_support_percent": { "$ref": "#/$defs/percent" }
+      }
+    }
+  }
+}

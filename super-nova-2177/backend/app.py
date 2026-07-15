@@ -4816,6 +4816,7 @@ def supernova_well_known():
             "organization_manifest": f"{PUBLIC_BASE_URL}/protocol/supernova.organization.schema.json",
             "execution_intent": f"{PUBLIC_BASE_URL}/protocol/supernova.execution-intent.schema.json",
             "three_species_vote": f"{PUBLIC_BASE_URL}/protocol/supernova.three-species-vote.schema.json",
+            "three_species_vote_summary": f"{PUBLIC_BASE_URL}/protocol/supernova.three-species-vote-summary.schema.json",
             "portable_profile": f"{PUBLIC_BASE_URL}/protocol/supernova.portable-profile.schema.json",
             "examples": f"{PUBLIC_BASE_URL}/protocol/examples/",
         },
@@ -4823,6 +4824,7 @@ def supernova_well_known():
             "organization_manifest": f"{PUBLIC_BASE_URL}/protocol/examples/example-organization-manifest.json",
             "execution_intent": f"{PUBLIC_BASE_URL}/protocol/examples/example-execution-intent.json",
             "three_species_vote": f"{PUBLIC_BASE_URL}/protocol/examples/example-three-species-vote.json",
+            "three_species_vote_summary": f"{PUBLIC_BASE_URL}/protocol/examples/example-three-species-vote-summary.json",
             "portable_profile": f"{PUBLIC_BASE_URL}/protocol/examples/example-portable-profile.json",
         },
         "schema_version_policy": {

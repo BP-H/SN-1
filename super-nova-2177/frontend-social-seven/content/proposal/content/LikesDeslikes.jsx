@@ -31,6 +31,70 @@ function getSliderColor(ratio) {
    list edits must match that to avoid leaving a stale duplicate of the voter. */
 const sameVoter = (a, b) => String(a || "").toLowerCase() === String(b || "").toLowerCase();
 
+function cloneVoteList(items) {
+  return (items || []).map((item) => ({ ...item }));
+}
+
+function cloneVoteSummary(summary) {
+  if (!summary || typeof summary !== "object") return summary || null;
+  return {
+    ...summary,
+    by_species: summary.by_species
+      ? Object.fromEntries(
+          Object.entries(summary.by_species).map(([species, value]) => [
+            species,
+            { ...(value || {}) },
+          ])
+        )
+      : summary.by_species,
+  };
+}
+
+function deriveVoteState(snapshot, nextClicked, voterName, voterType) {
+  const previousChoice =
+    snapshot.clicked === "like" ? "up" : snapshot.clicked === "dislike" ? "down" : null;
+  const nextChoice = nextClicked === "like" ? "up" : nextClicked === "dislike" ? "down" : null;
+  const voter = { voter: voterName, type: voterType };
+  const likesList = snapshot.likesList.filter((vote) => !sameVoter(vote.voter, voterName));
+  const dislikesList = snapshot.dislikesList.filter((vote) => !sameVoter(vote.voter, voterName));
+
+  if (nextChoice === "up") likesList.push(voter);
+  if (nextChoice === "down") dislikesList.push(voter);
+
+  return {
+    clicked: nextClicked,
+    likes: Math.max(
+      0,
+      snapshot.likes - (previousChoice === "up" ? 1 : 0) + (nextChoice === "up" ? 1 : 0)
+    ),
+    dislikes: Math.max(
+      0,
+      snapshot.dislikes - (previousChoice === "down" ? 1 : 0) + (nextChoice === "down" ? 1 : 0)
+    ),
+    likesList,
+    dislikesList,
+    authoritativeSummary: adjustAuthoritativeVoteSummary(snapshot.authoritativeSummary, {
+      species: voterType,
+      previousChoice,
+      nextChoice,
+    }),
+  };
+}
+
+async function getApiError(response, fallback) {
+  try {
+    const raw = await response.text();
+    try {
+      const payload = JSON.parse(raw);
+      return formatBackendAuthErrorMessage(payload?.detail || payload?.message, fallback);
+    } catch {
+      return formatBackendAuthErrorMessage(raw, fallback);
+    }
+  } catch {
+    return fallback;
+  }
+}
+
 function LikesDeslikes({
   initialLikes,
   initialDislikes,
@@ -57,18 +121,31 @@ function LikesDeslikes({
   /* Guards against re-entrant votes (rapid double-click / overlapping AI action)
      that would fire two requests and double-count the optimistic tally. */
   const voteInFlightRef = useRef(false);
+  const voteTransactionRef = useRef(0);
+  const activeVoteTransactionRef = useRef(null);
   const { userData, isAuthenticated } = useUser();
   const backendUrl = userData?.activeBackend || API_BASE_URL;
   const voterType = userData?.species?.trim() || "human";
 
   useEffect(() => {
+    voteTransactionRef.current += 1;
+    activeVoteTransactionRef.current = null;
+    voteInFlightRef.current = false;
     setLikes(Number(initialLikes) || 0);
     setDislikes(Number(initialDislikes) || 0);
     setLikesList(initialLikesList || []);
     setDislikesList(initialDislikesList || []);
     setAuthoritativeSummary(initialVoteSummary || null);
     setClicked(initialClicked);
-  }, [initialLikes, initialDislikes, initialLikesList, initialDislikesList, initialVoteSummary, initialClicked]);
+  }, [proposalId, initialLikes, initialDislikes, initialLikesList, initialDislikesList, initialVoteSummary, initialClicked]);
+
+  useEffect(() => {
+    return () => {
+      voteTransactionRef.current += 1;
+      activeVoteTransactionRef.current = null;
+      voteInFlightRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const postCard = containerRef.current?.closest?.("[data-proposal-card]");
@@ -128,16 +205,7 @@ function LikesDeslikes({
     </VoteBreakdownModal>
   ) : null;
 
-  async function getApiError(response, fallback) {
-    try {
-      const payload = await response.json();
-      return formatBackendAuthErrorMessage(payload?.detail || payload?.message, fallback);
-    } catch {
-      try { return formatBackendAuthErrorMessage(await response.text(), fallback); } catch { return fallback; }
-    }
-  }
-
-  const validateProfile = () => {
+  const validateProfile = useCallback(() => {
     if (!isAuthenticated) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "login" } }));
@@ -158,21 +226,25 @@ function LikesDeslikes({
       return false;
     }
     return true;
-  };
+  }, [backendUrl, isAuthenticated, setErrorMsg, userData?.name]);
 
-  async function sendVote(choice) {
+  const sendVote = useCallback(async (choice) => {
     try {
       const response = await fetch(`${backendUrl}/votes`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ proposal_id: proposalId, username: userData.name, choice, voter_type: voterType }),
       });
-      if (!response.ok) { setErrorMsg([await getApiError(response, `Vote failed: ${response.status}`)]); return false; }
-      return true;
-    } catch (err) { setErrorMsg([formatBackendAuthErrorMessage(err, "Vote failed.")]); return false; }
-  }
+      if (!response.ok) {
+        return { ok: false, error: await getApiError(response, `Vote failed: ${response.status}`) };
+      }
+      return { ok: true, error: "" };
+    } catch (err) {
+      return { ok: false, error: formatBackendAuthErrorMessage(err, "Vote failed.") };
+    }
+  }, [backendUrl, proposalId, userData?.name, voterType]);
 
-  async function removeVote() {
+  const removeVote = useCallback(async () => {
     try {
       const params = new URLSearchParams({
         proposal_id: String(proposalId),
@@ -182,77 +254,91 @@ function LikesDeslikes({
         method: "DELETE",
         headers: authHeaders(),
       });
-      if (!response.ok) { setErrorMsg([await getApiError(response, `Remove failed: ${response.status}`)]); return false; }
-      return true;
-    } catch (err) { setErrorMsg([formatBackendAuthErrorMessage(err, "Remove failed.")]); return false; }
-  }
+      if (!response.ok) {
+        return { ok: false, error: await getApiError(response, `Remove failed: ${response.status}`) };
+      }
+      return { ok: true, error: "" };
+    } catch (err) {
+      return { ok: false, error: formatBackendAuthErrorMessage(err, "Remove failed.") };
+    }
+  }, [backendUrl, proposalId, userData?.name]);
 
-  const commitVoteChange = (nextClicked) => {
-    const previousChoice = clicked === "like" ? "up" : clicked === "dislike" ? "down" : null;
-    const nextChoice = nextClicked === "like" ? "up" : nextClicked === "dislike" ? "down" : null;
-    const voter = { voter: userData.name, type: voterType };
+  const applyVoteState = useCallback((state) => {
+    setClicked(state.clicked);
+    setLikes(state.likes);
+    setDislikes(state.dislikes);
+    setLikesList(state.likesList);
+    setDislikesList(state.dislikesList);
+    setAuthoritativeSummary(state.authoritativeSummary);
+    onVoteSummaryChange(state.authoritativeSummary);
+  }, [onVoteSummaryChange]);
 
-    setLikes((value) => Math.max(0, value - (previousChoice === "up" ? 1 : 0) + (nextChoice === "up" ? 1 : 0)));
-    setDislikes((value) => Math.max(0, value - (previousChoice === "down" ? 1 : 0) + (nextChoice === "down" ? 1 : 0)));
-    setLikesList((items) => {
-      const filtered = items.filter((vote) => !sameVoter(vote.voter, userData.name));
-      return nextChoice === "up" ? [...filtered, voter] : filtered;
-    });
-    setDislikesList((items) => {
-      const filtered = items.filter((vote) => !sameVoter(vote.voter, userData.name));
-      return nextChoice === "down" ? [...filtered, voter] : filtered;
-    });
-    const nextSummary = adjustAuthoritativeVoteSummary(authoritativeSummary, {
-      species: voterType,
-      previousChoice,
-      nextChoice,
-    });
-    setAuthoritativeSummary(nextSummary);
-    onVoteSummaryChange(nextSummary);
-    setClicked(nextClicked);
-  };
-
-  const handleLikeClick = async ({ allowToggle = true } = {}) => {
+  const performVote = useCallback(async (requestedClicked, { allowToggle = true } = {}) => {
     if (votingClosed) return;
     if (!validateProfile()) return;
     if (voteInFlightRef.current) return;
-    voteInFlightRef.current = true;
-    try {
-      if (clicked === "like") {
-        if (!allowToggle) return;
-        if (await removeVote()) {
-          commitVoteChange(null);
-        }
-        return;
-      }
-      if (await sendVote("up")) {
-        commitVoteChange("like");
-      }
-    } finally {
-      voteInFlightRef.current = false;
-    }
-  };
+    if (clicked === requestedClicked && !allowToggle) return;
 
-  const handleDislikeClick = async ({ allowToggle = true } = {}) => {
-    if (votingClosed) return;
-    if (!validateProfile()) return;
-    if (voteInFlightRef.current) return;
     voteInFlightRef.current = true;
+    const transaction = voteTransactionRef.current + 1;
+    voteTransactionRef.current = transaction;
+    activeVoteTransactionRef.current = transaction;
+    const snapshot = {
+      clicked,
+      likes,
+      dislikes,
+      likesList: cloneVoteList(likesList),
+      dislikesList: cloneVoteList(dislikesList),
+      authoritativeSummary: cloneVoteSummary(authoritativeSummary),
+    };
+    const nextClicked = clicked === requestedClicked ? null : requestedClicked;
+    const optimisticState = deriveVoteState(
+      snapshot,
+      nextClicked,
+      userData.name,
+      voterType
+    );
+    applyVoteState(optimisticState);
+
     try {
-      if (clicked === "dislike") {
-        if (!allowToggle) return;
-        if (await removeVote()) {
-          commitVoteChange(null);
-        }
-        return;
-      }
-      if (await sendVote("down")) {
-        commitVoteChange("dislike");
+      const result = nextClicked === null
+        ? await removeVote()
+        : await sendVote(nextClicked === "like" ? "up" : "down");
+      if (activeVoteTransactionRef.current !== transaction) return;
+      if (!result.ok) {
+        applyVoteState(snapshot);
+        setErrorMsg([result.error]);
       }
     } finally {
-      voteInFlightRef.current = false;
+      if (activeVoteTransactionRef.current === transaction) {
+        activeVoteTransactionRef.current = null;
+        voteInFlightRef.current = false;
+      }
     }
-  };
+  }, [
+    applyVoteState,
+    authoritativeSummary,
+    clicked,
+    dislikes,
+    dislikesList,
+    likes,
+    likesList,
+    removeVote,
+    sendVote,
+    setErrorMsg,
+    userData?.name,
+    validateProfile,
+    voterType,
+    votingClosed,
+  ]);
+
+  const handleLikeClick = useCallback((options = {}) => {
+    return performVote("like", options);
+  }, [performVote]);
+
+  const handleDislikeClick = useCallback((options = {}) => {
+    return performVote("dislike", options);
+  }, [performVote]);
 
   useEffect(() => {
     const handleCursorAction = (event) => {
