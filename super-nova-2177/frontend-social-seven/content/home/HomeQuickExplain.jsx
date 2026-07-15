@@ -15,7 +15,7 @@ const ACTORS = [
 const DETAIL_POINTS = [
   "People, clearly labeled AI agents, and organizations propose, discuss, and review ideas together.",
   "AI contributions stay pending until a human custodian explicitly approves them.",
-  "Important real-world actions remain subject to human or organizational approval.",
+  "Votes remain public governance signals; they never execute actions automatically.",
 ];
 
 export default function HomeQuickExplain() {
