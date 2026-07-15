@@ -273,6 +273,7 @@ test("vote breakdown modal fetches the full voter list on open", async ({ page }
 });
 
 test("authoritative weighted summary stays coherent across card modal and vote changes", async ({ page }) => {
+  test.setTimeout(60_000);
   const proposalId = 2178005;
   const humanYes = Array.from({ length: 25 }, (_, index) => ({
     voter: `human-yes-${index + 1}`,
@@ -339,26 +340,40 @@ test("authoritative weighted summary stays coherent across card modal and vote c
     dislikes: [...humanNo, ...companyNo],
   };
   let postVotes = 0;
+  let completedPostVotes = 0;
   let deleteVotes = 0;
-  let failNextPost = false;
+  let completedDeleteVotes = 0;
+  let nextPostStatus = 200;
+  let nextDeleteStatus = 200;
+  const delayedResponseMs = 3500;
 
   await seedPasswordSession(page, { species: "company" });
   await mockFeedBackend(page, [post], { singleProposals: { [proposalId]: fullPost } });
   await page.route("**/votes", async (route) => {
     expect(route.request().method()).toBe("POST");
     postVotes += 1;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    if (failNextPost) {
-      failNextPost = false;
-      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "fixture failure" }) });
-      return;
-    }
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    const status = nextPostStatus;
+    nextPostStatus = 200;
+    await new Promise((resolve) => setTimeout(resolve, delayedResponseMs));
+    completedPostVotes += 1;
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(status === 200 ? { ok: true } : { detail: "fixture failure" }),
+    });
   });
   await page.route("**/votes?**", async (route) => {
     expect(route.request().method()).toBe("DELETE");
     deleteVotes += 1;
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, removed: 1 }) });
+    const status = nextDeleteStatus;
+    nextDeleteStatus = 200;
+    await new Promise((resolve) => setTimeout(resolve, delayedResponseMs));
+    completedDeleteVotes += 1;
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(status === 200 ? { ok: true, removed: 1 } : { detail: "fixture failure" }),
+    });
   });
 
   await page.goto("/");
@@ -371,26 +386,75 @@ test("authoritative weighted summary stays coherent across card modal and vote c
   await expect(modal.getByText("80 total votes")).toBeVisible();
   await modal.getByRole("button", { name: "Close vote breakdown" }).click();
 
-  await card.getByRole("button", { name: "Vote yes" }).evaluate((button) => {
+  const firstPaint = await card.getByRole("button", { name: "Vote yes" }).evaluate(async (button) => {
+    const startedAt = performance.now();
     button.click();
     button.click();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return {
+      elapsedMs: performance.now() - startedAt,
+      pressed: button.getAttribute("aria-pressed"),
+      cardText: button.closest("[data-proposal-card]")?.textContent || "",
+    };
   });
+  expect(firstPaint.pressed).toBe("true");
+  expect(firstPaint.cardText).toContain("56%");
+  test.info().annotations.push({
+    type: "vote-click-to-paint-ms",
+    description: firstPaint.elapsedMs.toFixed(1),
+  });
+  expect(firstPaint.elapsedMs).toBeLessThan(delayedResponseMs);
+  await expect.poll(() => postVotes).toBe(1);
+  expect(completedPostVotes).toBe(0);
   await expect(card.getByText("56%", { exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "true");
+
+  await card.getByRole("button", { name: "Show vote breakdown" }).click();
+  await expect(modal.getByText("56%", { exact: true })).toBeVisible();
+  await expect(modal.getByText("81 total votes")).toBeVisible();
+  await modal.getByRole("button", { name: "Close vote breakdown" }).click();
+  await expect.poll(() => completedPostVotes, { timeout: 5000 }).toBe(1);
+
+  nextPostStatus = 500;
   await card.getByRole("button", { name: "Vote no" }).click();
   await expect(card.getByText("54%", { exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "false");
   await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => completedPostVotes, { timeout: 5000 }).toBe(2);
+  await expect(card.getByText("56%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "true");
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "false");
+
+  await card.getByRole("button", { name: "Vote no" }).click();
+  await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => completedPostVotes, { timeout: 5000 }).toBe(3);
+
+  nextDeleteStatus = 500;
   await card.getByRole("button", { name: "Vote no" }).click();
   await expect(card.getByText("54%", { exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "false");
+  await card.getByRole("button", { name: "Show vote breakdown" }).click();
+  await expect(modal.getByText("80 total votes")).toBeVisible();
+  await expect.poll(() => completedDeleteVotes, { timeout: 5000 }).toBe(1);
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "true");
+  await expect(modal.getByText("81 total votes")).toBeVisible();
+  await modal.getByRole("button", { name: "Close vote breakdown" }).click();
 
-  failNextPost = true;
+  await card.getByRole("button", { name: "Vote no" }).click();
+  await expect(card.getByRole("button", { name: "Vote no" })).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => completedDeleteVotes, { timeout: 5000 }).toBe(2);
+
+  nextPostStatus = 500;
   await card.getByRole("button", { name: "Vote yes" }).click();
+  await expect(card.getByText("56%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => completedPostVotes, { timeout: 5000 }).toBe(4);
   await expect(card.getByText("54%", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Vote yes" })).toHaveAttribute("aria-pressed", "false");
 
-  expect(postVotes).toBe(3);
-  expect(deleteVotes).toBe(1);
+  expect(postVotes).toBe(4);
+  expect(deleteVotes).toBe(2);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
