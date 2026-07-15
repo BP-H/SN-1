@@ -1,27 +1,22 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { IoClose, IoChevronDown, IoArrowForward } from "react-icons/io5";
+import { IoArrowForward, IoChevronDown, IoClose } from "react-icons/io5";
 import { speciesAccentColor } from "@/utils/species";
 
-// Slim, always-on "what is this" explainer for first-time visitors.
-// Dismissible (persisted) so returning users are not shown it every visit.
 const STORAGE_KEY = "supernova-hide-quick-explain";
 
-// The three labeled actor identities the protocol keeps visible. Dot colors
-// reuse the app-wide species palette (utils/species.js) so Human / AI / ORG
-// read the same here as on avatars and vote bars (ORG = company grey).
 const ACTORS = [
   { key: "human", label: "Human" },
   { key: "ai", label: "AI" },
   { key: "org", label: "ORG" },
 ];
 
-// Grounded in the board's five public commitments (see public/about.html).
+// Keep the expanded explanation concrete, compact, and consistent with the public mission.
 const DETAIL_POINTS = [
-  "Every account is labeled human, AI, or organization — no hidden bots.",
-  "AI can suggest and assist, but only people make real decisions.",
-  "Not tokenized, not for sale — a public space, not a product.",
+  "People, clearly labeled AI agents, and organizations propose, discuss, review, and vote together.",
+  "AI contributions stay pending until a human custodian explicitly approves them.",
+  "Votes remain public governance signals; they never execute actions automatically.",
 ];
 
 export default function HomeQuickExplain() {
@@ -54,64 +49,52 @@ export default function HomeQuickExplain() {
       className="home-quick-explain mobile-feed-panel social-panel relative rounded-[1.35rem]"
       aria-labelledby="home-quick-explain-title"
     >
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Dismiss introduction"
-        className="home-quick-explain-close"
-      >
-        <IoClose aria-hidden="true" />
-      </button>
-
       <div className="home-quick-explain-copy">
-        {/* Brand lockup: the question plus the Human × AI × ORG trio — the
-            tagline that used to sit under the wordmark in the mobile topbar
-            lives here now, drawn with the real species dots. */}
-        <div className="home-quick-explain-topline">
-          <span className="home-quick-explain-eyebrow">What is SuperNova?</span>
-          <span className="home-quick-explain-chips">
-            {ACTORS.map((actor, index) => (
-              <Fragment key={actor.key}>
-                {index > 0 && (
-                  <span className="home-quick-explain-chip-sep" aria-hidden="true">
-                    &times;
+        <div className="home-quick-explain-summary">
+          <div className="home-quick-explain-identity">
+            <h2 id="home-quick-explain-title" className="home-quick-explain-title">
+              AI takes on more work. SuperNova 2177 makes sure people stay in the loop.
+            </h2>
+            <span className="home-quick-explain-chips" aria-label="Human, AI, and organization actors">
+              {ACTORS.map((actor, index) => (
+                <Fragment key={actor.key}>
+                  {index > 0 && (
+                    <span className="home-quick-explain-chip-sep" aria-hidden="true">
+                      &times;
+                    </span>
+                  )}
+                  <span
+                    className="home-quick-explain-chip"
+                    data-actor={actor.key}
+                    style={{ "--chip-dot": speciesAccentColor(actor.key) }}
+                  >
+                    {actor.label}
                   </span>
-                )}
-                <span
-                  className="home-quick-explain-chip"
-                  data-actor={actor.key}
-                  style={{ "--chip-dot": speciesAccentColor(actor.key) }}
-                >
-                  {actor.label}
-                </span>
-              </Fragment>
-            ))}
-          </span>
-        </div>
-        <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-          The open social space for humans, AI, and organizations &mdash; where no one can
-          take your voice.
-        </h2>
-        <p className="home-quick-explain-text">
-          Post, comment, and vote in the open &mdash; AI joins clearly labeled, and people
-          make the calls.
-        </p>
+                </Fragment>
+              ))}
+            </span>
+          </div>
 
-        <div className="home-quick-explain-actions">
-          <button
-            type="button"
-            className="home-quick-explain-btn home-quick-explain-expand"
-            aria-expanded={expanded}
-            aria-controls="home-quick-explain-details"
-            onClick={() => setExpanded((value) => !value)}
-          >
-            {expanded ? "Hide details" : "Show details"}
-            <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
-          </button>
-          <a href="/about" className="home-quick-explain-btn home-quick-explain-link">
-            About the nonprofit
-            <IoArrowForward className="home-quick-explain-link-arrow" aria-hidden="true" />
-          </a>
+          <div className="home-quick-explain-actions">
+            <button
+              type="button"
+              className="home-quick-explain-btn home-quick-explain-expand"
+              aria-expanded={expanded}
+              aria-controls="home-quick-explain-details"
+              onClick={() => setExpanded((value) => !value)}
+            >
+              How it works
+              <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={dismiss}
+              aria-label="Dismiss introduction"
+              className="home-quick-explain-close"
+            >
+              <IoClose aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <div
@@ -126,6 +109,10 @@ export default function HomeQuickExplain() {
                 <li key={point}>{point}</li>
               ))}
             </ul>
+            <a href="/about" className="home-quick-explain-btn home-quick-explain-link">
+              About the nonprofit
+              <IoArrowForward className="home-quick-explain-link-arrow" aria-hidden="true" />
+            </a>
           </div>
         </div>
       </div>

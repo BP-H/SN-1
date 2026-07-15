@@ -236,28 +236,15 @@ h6 {
 }
 
 .home-quick-explain.social-panel {
+  box-sizing: border-box;
   display: block;
   isolation: isolate;
   overflow: hidden;
-  padding: 1.1rem 1.2rem 1.08rem;
-  /* One quiet brand moment: a pink breath at the top-left answered by a blue
-     one at the top-right (the human/AI duality), on a near-black surface. */
-  background:
-    radial-gradient(110% 130% at 0% 0%, rgba(255, 79, 143, 0.085), transparent 44%),
-    radial-gradient(95% 120% at 100% 0%, rgba(94, 141, 250, 0.065), transparent 46%),
-    linear-gradient(180deg, rgba(13, 16, 23, 0.985), rgba(8, 11, 16, 0.965));
-  border-color: rgba(255, 255, 255, 0.105);
-  box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.6);
-}
-
-.home-quick-explain::before {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 48%);
-  opacity: 0.86;
+  min-height: 0;
+  padding: 0.4rem 1rem;
+  background: rgba(9, 12, 18, 0.98);
+  border-color: rgba(255, 255, 255, 0.075);
+  box-shadow: 0 8px 22px -18px rgba(0, 0, 0, 0.7);
 }
 
 .home-quick-explain-copy {
@@ -266,10 +253,6 @@ h6 {
 }
 
 .home-quick-explain-close {
-  position: absolute;
-  top: 0.7rem;
-  right: 0.7rem;
-  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -290,47 +273,28 @@ h6 {
   color: var(--text-black);
 }
 
-/* Question + species trio on one rail (wraps to two quiet lines on phones);
-   padding-right clears the absolute dismiss button. */
-.home-quick-explain-topline {
+.home-quick-explain-summary {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  column-gap: 1rem;
-  row-gap: 0.3rem;
-  margin-bottom: 0.48rem;
-  padding-right: 2.5rem;
+  gap: 1rem;
 }
 
-.home-quick-explain-eyebrow {
-  display: inline-flex;
+.home-quick-explain-identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  flex: 1;
   align-items: center;
-  width: fit-content;
-  color: color-mix(in srgb, var(--pink) 88%, var(--text-gray-light));
-  font-size: 0.6rem;
-  font-weight: 780;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  gap: 0.42rem 0.8rem;
 }
 
 .home-quick-explain-title {
-  max-width: 42rem;
-  padding-right: 2.5rem;
+  min-width: 0;
   color: var(--text-black);
-  font-size: clamp(1.04rem, 1.55vw, 1.3rem);
-  font-weight: 780;
-  line-height: 1.15;
-  letter-spacing: -0.014em;
-  text-wrap: balance;
-}
-
-.home-quick-explain-text {
-  max-width: 40rem;
-  margin: 0.5rem 0 0;
-  color: var(--text-gray-light);
   font-size: 0.84rem;
-  line-height: 1.55;
+  font-weight: 680;
+  line-height: 1.35;
   text-wrap: pretty;
 }
 
@@ -374,10 +338,9 @@ h6 {
 
 .home-quick-explain-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.9rem;
-  margin-top: 0.95rem;
+  gap: 0.3rem;
 }
 
 .home-quick-explain-btn {
@@ -393,11 +356,9 @@ h6 {
     transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-/* Secondary: quiet text-level disclosure — no box, so the About pill is the
-   card's single accented control. */
 .home-quick-explain-expand {
-  padding: 0.32rem 0.44rem;
-  margin-left: -0.44rem;
+  min-height: 2.5rem;
+  padding: 0.32rem 0.5rem;
   border: 0;
   border-radius: 0.6rem;
   background: transparent;
@@ -410,29 +371,20 @@ h6 {
   color: var(--text-black);
 }
 
-/* Primary-ish: brand-accented route to the about page. */
 .home-quick-explain-link {
-  padding: 0.44rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--pink) 38%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pink) 12%, transparent);
-  color: var(--pink);
+  margin-top: 0.65rem;
+  color: color-mix(in srgb, var(--text-black) 78%, var(--text-gray-light));
   text-decoration: none;
 }
 
 .home-quick-explain-link:hover {
-  transform: translateY(-1px);
-}
-
-.home-quick-explain-link:active {
-  transform: translateY(0);
+  color: var(--pink);
 }
 
 .home-quick-explain-link:hover,
 .home-quick-explain-link:focus-visible {
-  border-color: color-mix(in srgb, var(--pink) 62%, transparent);
-  background: color-mix(in srgb, var(--pink) 18%, transparent);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--pink) 22%, transparent);
+  text-decoration: underline;
+  text-underline-offset: 0.22rem;
 }
 
 .home-quick-explain-chevron,
@@ -472,8 +424,13 @@ h6 {
 .home-quick-explain-details-inner {
   min-height: 0;
   overflow: hidden;
+  padding-top: 0;
+  border-top: 0 solid rgba(255, 255, 255, 0.085);
+}
+
+.home-quick-explain-details[data-expanded="true"] .home-quick-explain-details-inner {
   padding-top: 0.72rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.085);
+  border-top-width: 1px;
 }
 
 .home-quick-explain-details ul {
@@ -486,7 +443,7 @@ h6 {
 
 .home-quick-explain-details li {
   position: relative;
-  padding-left: 0.86rem;
+  padding-inline-start: 0.86rem;
   color: var(--text-gray-light);
   font-size: 0.78rem;
   line-height: 1.45;
@@ -495,7 +452,7 @@ h6 {
 .home-quick-explain-details li::before {
   content: "";
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0.55em;
   width: 0.26rem;
   height: 0.26rem;
@@ -504,12 +461,9 @@ h6 {
 }
 
 html[data-theme="light"] .home-quick-explain.social-panel {
-  background:
-    radial-gradient(110% 130% at 0% 0%, rgba(255, 79, 143, 0.06), transparent 44%),
-    radial-gradient(95% 120% at 100% 0%, rgba(94, 141, 250, 0.055), transparent 46%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.992), rgba(249, 251, 255, 0.972));
-  border-color: rgba(17, 24, 39, 0.11);
-  box-shadow: 0 14px 30px -20px rgba(17, 24, 39, 0.28);
+  background: rgba(255, 255, 255, 0.985);
+  border-color: rgba(17, 24, 39, 0.085);
+  box-shadow: 0 8px 20px -18px rgba(17, 24, 39, 0.28);
 }
 
 html[data-theme="light"] .home-quick-explain-chip {
@@ -533,36 +487,51 @@ html[data-theme="light"] .home-quick-explain-close:focus-visible {
 
 @media (max-width: 760px) {
   .home-quick-explain.social-panel {
-    padding: 1rem 1rem 0.95rem;
+    min-height: 0;
+    padding: 0.48rem 0.66rem;
   }
 
-  .home-quick-explain-topline {
-    margin-bottom: 0.42rem;
-    padding-right: 2.85rem;
+  .home-quick-explain-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.24rem;
+  }
+
+  .home-quick-explain-identity {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.22rem;
   }
 
   .home-quick-explain-title {
-    font-size: 1.04rem;
-  }
-
-  .home-quick-explain-text {
-    margin-top: 0.42rem;
-    font-size: 0.8rem;
+    min-width: 0;
+    font-size: 0.76rem;
+    line-height: 1.22;
   }
 
   .home-quick-explain-chips {
-    gap: 0.42rem;
+    gap: 0.28rem;
+  }
+
+  .home-quick-explain-chip {
+    gap: 0.3rem;
+    font-size: 0.66rem;
   }
 
   .home-quick-explain-actions {
-    margin-top: 0.8rem;
+    gap: 0.12rem;
   }
 
-  /* Larger, easier tap target for the dismiss control on touch screens. */
+  .home-quick-explain-expand {
+    min-height: 2rem;
+    padding-inline: 0.24rem;
+    font-size: 0.68rem;
+  }
+
   .home-quick-explain-close {
-    width: 2.25rem;
-    height: 2.25rem;
-    font-size: 1.15rem;
+    width: 2rem;
+    height: 2rem;
   }
 }
 
@@ -6336,8 +6305,8 @@ html[data-theme="light"] .post-action-bar {
     border-left: 0;
     border-bottom: 0;
     border-radius: 0;
-    background: linear-gradient(180deg, rgba(12, 15, 22, 0.92), rgba(7, 10, 15, 0.94));
-    box-shadow: var(--shadow);
+    background: rgba(8, 11, 16, 0.96);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.14);
     padding: 0.9rem 0.8rem;
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
@@ -6393,8 +6362,8 @@ html[data-theme="light"] .post-action-bar {
     font-weight: 800;
     padding: 0.8rem 0.9rem;
     box-shadow:
-      0 16px 34px rgba(255, 79, 143, 0.28),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      0 10px 24px rgba(255, 79, 143, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.24);
   }
 
   .desktop-compose-button::before {
@@ -6522,8 +6491,8 @@ html[data-theme="light"] .post-action-bar {
 
   html[data-theme="light"] .desktop-shell-nav {
     border-color: rgba(31, 41, 55, 0.08);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.94));
-    box-shadow: 0 16px 45px rgba(15, 23, 42, 0.12);
+    background: rgba(251, 252, 254, 0.96);
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.07);
   }
 
   html[data-theme="light"] .desktop-brand-mark {
@@ -6590,8 +6559,8 @@ html[data-theme="light"] .post-action-bar {
   .desktop-insight-panel {
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 1.15rem;
-    background: linear-gradient(180deg, rgba(12, 15, 22, 0.86), rgba(7, 10, 15, 0.9));
-    box-shadow: var(--shadow);
+    background: rgba(8, 11, 16, 0.94);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
     padding: 0.85rem;
     color: var(--text-black);
     backdrop-filter: blur(18px);
@@ -6635,15 +6604,18 @@ html[data-theme="light"] .post-action-bar {
   .desktop-metric-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
+    gap: 0;
     margin-top: 0.85rem;
   }
 
   .desktop-metric-grid > div {
     min-width: 0;
-    border-radius: 0.8rem;
-    background: rgba(255, 255, 255, 0.055);
-    padding: 0.65rem;
+    padding: 0.15rem 0.65rem;
+  }
+
+  .desktop-metric-grid > div:first-child {
+    padding-left: 0;
+    border-inline-end: 1px solid rgba(255, 255, 255, 0.09);
   }
 
   .desktop-metric-label {
@@ -6654,7 +6626,7 @@ html[data-theme="light"] .post-action-bar {
     text-transform: uppercase;
   }
 
-  .desktop-metric-grid strong {
+  .desktop-metric-grid dd {
     display: block;
     margin-top: 0.25rem;
     font-size: 1rem;
@@ -7212,18 +7184,21 @@ html[data-theme="light"] .post-action-bar {
 
   html[data-theme="light"] .desktop-insight-panel {
     border-color: rgba(31, 41, 55, 0.095);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.93), rgba(247, 249, 253, 0.94));
+    background: rgba(252, 253, 255, 0.96);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.78),
-      0 16px 42px rgba(15, 23, 42, 0.095);
+      0 10px 28px rgba(15, 23, 42, 0.065);
   }
 
   html[data-theme="light"] .desktop-panel-icon,
   html[data-theme="light"] .desktop-panel-action,
-  html[data-theme="light"] .desktop-metric-grid > div,
   html[data-theme="light"] .desktop-empty-rail,
   html[data-theme="light"] .desktop-constellation-detail {
     background: rgba(15, 23, 42, 0.045);
+  }
+
+  html[data-theme="light"] .desktop-metric-grid > div:first-child {
+    border-inline-end-color: rgba(15, 23, 42, 0.09);
   }
 
   html[data-theme="light"] .desktop-constellation-stage {
