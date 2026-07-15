@@ -1,0 +1,23 @@
+name: Polish how it works mission bar
+
+on:
+  push:
+    branches:
+      - codex/polish-how-it-works-bar
+    paths:
+      - .github/workflows/polish-how-it-works-bar.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/polish-how-it-works-bar
+
+      - name: Apply compact mission bar polish
+        run: |
+          python - <<'
