@@ -606,16 +606,16 @@ export default function DesktopRightRail() {
           </span>
         </div>
 
-        <div className="desktop-metric-grid">
+        <dl className="desktop-metric-grid">
           <div>
-            <span className="desktop-metric-label">Protocol</span>
-            <strong>{compactNumber(metrics?.core_routes_count || 0)}</strong>
+            <dt className="desktop-metric-label">Protocol</dt>
+            <dd>{compactNumber(metrics?.core_routes_count || 0)}</dd>
           </div>
           <div>
-            <span className="desktop-metric-label">Connections</span>
-            <strong>{compactNumber(graphQuery.data?.meta?.edge_count || 0)}</strong>
+            <dt className="desktop-metric-label">Connections</dt>
+            <dd>{compactNumber(graphQuery.data?.meta?.edge_count || 0)}</dd>
           </div>
-        </div>
+        </dl>
       </section>
 
       <section className="desktop-insight-panel desktop-constellation-panel">

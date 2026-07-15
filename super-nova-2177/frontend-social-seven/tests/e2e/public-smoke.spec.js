@@ -303,18 +303,22 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
     page.getByText("A public signed-out feed item rendered from a mocked local backend response.")
   ).toBeVisible();
 
-  // Always-on clarity explainer for first-time visitors.
+  // Compact clarity explainer for first-time visitors.
   await expect(
-    page.getByRole("heading", { name: /no one can take your voice/i })
+    page.getByRole("heading", {
+      name: "A nonprofit network for visible human, AI, and organization participation.",
+    })
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /About the nonprofit/i })).toBeVisible();
 
-  // Expandable "Show details" disclosure reveals the trust points on demand.
-  const detailPoint = page.getByText(/only people make real decisions/i);
+  // The quiet disclosure reveals concrete custody guarantees on demand.
+  const detailPoint = page.getByText(/explicitly approves them/i);
+  const disclosure = page.getByRole("button", { name: "How it works" });
   await expect(detailPoint).toBeHidden();
-  await page.getByRole("button", { name: /Show details/i }).click();
+  await disclosure.click();
   await expect(detailPoint).toBeVisible();
-  await page.getByRole("button", { name: /Hide details/i }).click();
+  await expect(page.getByText(/never execute actions automatically/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /About the nonprofit/i })).toBeVisible();
+  await disclosure.click();
   await expect(detailPoint).toBeHidden();
 
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
@@ -579,6 +583,99 @@ test("collapsed composer stays aligned on narrow mobile", async ({ page }) => {
   expect(metrics.promptHeight).toBeLessThanOrEqual(42);
   expect(metrics.actionWidths.every((width) => width >= 30 && width <= 38)).toBeTruthy();
   expect(metrics.sameRow).toBeTruthy();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("home hierarchy keeps social content in the first fold", async ({ page }) => {
+  const imagePost = {
+    id: 2177099,
+    title: "Visible participation smoke signal",
+    text: "Real social content remains the visual priority.",
+    userName: "smoke-human",
+    userInitials: "SH",
+    author_type: "human",
+    time: new Date("2026-05-05T00:00:00Z").toISOString(),
+    media: {
+      image: "/uploads/smoke-image.png",
+      images: [],
+      layout: "carousel",
+      governance: null,
+      video: "",
+      link: "",
+      file: "",
+    },
+    comments: [],
+    likes: [],
+    dislikes: [],
+    like_count: 0,
+    dislike_count: 0,
+    comment_count: 0,
+    voting_closed: false,
+  };
+
+  await mockPublicBackend(page, [imagePost]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const explanation = page.locator(".home-quick-explain");
+  await expect(explanation).toContainText(
+    "A nonprofit network for visible human, AI, and organization participation."
+  );
+  await expect(explanation).toContainText(/Human\s*×\s*AI\s*×\s*ORG/);
+  expect((await explanation.boundingBox())?.height).toBeLessThanOrEqual(96);
+
+  const disclosure = explanation.getByRole("button", { name: "How it works" });
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await disclosure.click();
+  await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(explanation.getByText(/explicitly approves them/i)).toBeVisible();
+  await expect(explanation.getByText(/never execute actions automatically/i)).toBeVisible();
+  await disclosure.click();
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(explanation.getByText(/explicitly approves them/i)).toBeHidden();
+
+  const postCard = page.locator("[data-proposal-card]").first();
+  const media = postCard.locator('img[src*="smoke-image.png"]').first();
+  await expect(postCard.getByText("Real social content remains the visual priority.")).toBeVisible();
+  await expect(media).toHaveAttribute("alt", "Visible participation smoke signal");
+  await expect(media).toBeVisible();
+  expect(await media.evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(844);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.locator(".desktop-right-rail")).toBeVisible();
+  const desktopExplanationGeometry = await explanation.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const styles = getComputedStyle(element);
+    const childHeight = (selector) =>
+      element.querySelector(selector)?.getBoundingClientRect().height || 0;
+    return {
+      height: rect.height,
+      paddingBlock: `${styles.paddingTop} ${styles.paddingBottom}`,
+      summary: childHeight(".home-quick-explain-summary"),
+      title: childHeight(".home-quick-explain-title"),
+      chips: childHeight(".home-quick-explain-chips"),
+      actions: childHeight(".home-quick-explain-actions"),
+      details: childHeight(".home-quick-explain-details"),
+    };
+  });
+  expect(
+    desktopExplanationGeometry.height,
+    JSON.stringify(desktopExplanationGeometry)
+  ).toBeLessThanOrEqual(76);
+  expect(await media.evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(720);
+
+  const metricBackgrounds = await page.locator(".desktop-metric-grid > div").evaluateAll((nodes) =>
+    nodes.map((node) => getComputedStyle(node).backgroundColor)
+  );
+  expect(metricBackgrounds.every((value) => value === "rgba(0, 0, 0, 0)")).toBeTruthy();
+
+  await page.evaluate(() => document.documentElement.setAttribute("dir", "rtl"));
+  const overflow = await page.evaluate(() => ({
+    body: document.body.scrollWidth - document.body.clientWidth,
+    document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }));
+  expect(overflow.body).toBeLessThanOrEqual(1);
+  expect(overflow.document).toBeLessThanOrEqual(1);
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
