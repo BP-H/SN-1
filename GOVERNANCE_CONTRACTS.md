@@ -28,11 +28,16 @@ If a future version needs stronger powers, create a new schema/version and keep 
 ## Three-Species Vote Summary
 
 Proposal list, detail, create, and public connector responses expose an additive
-`vote_summary` object with schema `supernova.three_species_vote.v1`. Existing
+`vote_summary` object with schema `supernova.three_species_vote_summary.v1`. Existing
 `up`, `down`, `support`, `oppose`, `total`, and `approval_ratio` fields remain
 compatible. `weighted_support_percent` is authoritative across capped feed
 previews and full vote reads: human, AI, and company each own one third of the
 decision weight, and a species with no votes contributes zero.
+
+This aggregate read model is intentionally distinct from the portable
+`supernova.three_species_vote.v1` governance result. The portable result keeps
+its explicit manual-preview-only execution contract; the summary only reports
+counts and weighted support for proposal reads.
 
 Historical `org` and `organization` vote species normalize to `company`; all
 other unknown legacy values normalize to `human`. This display summary remains

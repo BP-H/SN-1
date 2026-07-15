@@ -392,7 +392,7 @@ class M2AdditiveCountsTests(unittest.TestCase):
         self.assertEqual(result["embedded_vote_count"], 25)
         self.assertEqual(result["feed"], result["detail"])
         self.assertEqual(result["feed"], result["connector"])
-        self.assertEqual(result["feed"]["schema"], "supernova.three_species_vote.v1")
+        self.assertEqual(result["feed"]["schema"], "supernova.three_species_vote_summary.v1")
         self.assertEqual(result["feed"]["up"], 45)
         self.assertEqual(result["feed"]["down"], 35)
         self.assertEqual(result["feed"]["total"], 80)

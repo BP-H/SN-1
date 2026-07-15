@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -25,12 +26,14 @@ PROTOCOL_FILENAMES = {
     "supernova.organization.schema.json",
     "supernova.execution-intent.schema.json",
     "supernova.three-species-vote.schema.json",
+    "supernova.three-species-vote-summary.schema.json",
     "supernova.portable-profile.schema.json",
 }
 PROTOCOL_EXAMPLE_FILENAMES = {
     "example-organization-manifest.json",
     "example-execution-intent.json",
     "example-three-species-vote.json",
+    "example-three-species-vote-summary.json",
     "example-portable-profile.json",
 }
 
@@ -64,6 +67,7 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(schemas["organization_manifest"].endswith("/protocol/supernova.organization.schema.json"))
         self.assertTrue(schemas["execution_intent"].endswith("/protocol/supernova.execution-intent.schema.json"))
         self.assertTrue(schemas["three_species_vote"].endswith("/protocol/supernova.three-species-vote.schema.json"))
+        self.assertTrue(schemas["three_species_vote_summary"].endswith("/protocol/supernova.three-species-vote-summary.schema.json"))
         self.assertTrue(schemas["portable_profile"].endswith("/protocol/supernova.portable-profile.schema.json"))
         self.assertTrue(schemas["examples"].endswith("/protocol/examples/"))
         self.assertIn("/domain-verification/preview", payload["endpoints"]["domain_verification_preview"])
@@ -72,6 +76,7 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertTrue(examples["organization_manifest"].endswith("/protocol/examples/example-organization-manifest.json"))
         self.assertTrue(examples["execution_intent"].endswith("/protocol/examples/example-execution-intent.json"))
         self.assertTrue(examples["three_species_vote"].endswith("/protocol/examples/example-three-species-vote.json"))
+        self.assertTrue(examples["three_species_vote_summary"].endswith("/protocol/examples/example-three-species-vote-summary.json"))
         self.assertTrue(examples["portable_profile"].endswith("/protocol/examples/example-portable-profile.json"))
 
         version_policy = payload["schema_version_policy"]
@@ -86,6 +91,7 @@ class PublicFederationSafetyTests(unittest.TestCase):
             "/protocol/supernova.organization.schema.json": "supernova.organization_manifest.v1",
             "/protocol/supernova.execution-intent.schema.json": "supernova.execution_intent.v1",
             "/protocol/supernova.three-species-vote.schema.json": "supernova.three_species_vote.v1",
+            "/protocol/supernova.three-species-vote-summary.schema.json": "supernova.three_species_vote_summary.v1",
             "/protocol/supernova.portable-profile.schema.json": "supernova.portable_profile.v1",
         }.items():
             response = client.get(path)
@@ -108,11 +114,41 @@ class PublicFederationSafetyTests(unittest.TestCase):
             backend_example = backend_protocol_dir / "examples" / name
             self.assertEqual(root_example.read_bytes(), backend_example.read_bytes())
 
+    def test_root_protocol_schemas_have_distinct_logical_identities(self):
+        schema_payloads = []
+        for path in sorted((ROOT / "protocol").glob("*.schema.json")):
+            schema_payloads.append((path.name, json.loads(path.read_text(encoding="utf-8"))))
+
+        schema_ids = [payload.get("$id") for _name, payload in schema_payloads]
+        logical_schemas = [
+            payload.get("properties", {}).get("schema", {}).get("const")
+            for _name, payload in schema_payloads
+        ]
+        self.assertTrue(all(schema_ids))
+        self.assertTrue(all(logical_schemas))
+        self.assertEqual(len(schema_ids), len(set(schema_ids)))
+        self.assertEqual(len(logical_schemas), len(set(logical_schemas)))
+
+        by_name = dict(schema_payloads)
+        portable = by_name["supernova.three-species-vote.schema.json"]
+        summary = by_name["supernova.three-species-vote-summary.schema.json"]
+        self.assertEqual(
+            portable["properties"]["schema"]["const"],
+            "supernova.three_species_vote.v1",
+        )
+        self.assertEqual(
+            summary["properties"]["schema"]["const"],
+            "supernova.three_species_vote_summary.v1",
+        )
+        self.assertIn("execution", portable["properties"])
+        self.assertNotIn("execution", summary["properties"])
+
     def test_protocol_examples_are_public_and_keep_v1_manual_only(self):
         for path, schema_name in {
             "/protocol/examples/example-organization-manifest.json": "supernova.organization_manifest.v1",
             "/protocol/examples/example-execution-intent.json": "supernova.execution_intent.v1",
             "/protocol/examples/example-three-species-vote.json": "supernova.three_species_vote.v1",
+            "/protocol/examples/example-three-species-vote-summary.json": "supernova.three_species_vote_summary.v1",
             "/protocol/examples/example-portable-profile.json": "supernova.portable_profile.v1",
         }.items():
             response = client.get(path)
@@ -135,6 +171,13 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertEqual(vote["execution"]["execution_current_mode"], "manual_preview_only")
         self.assertFalse(vote["execution"]["automatic_execution"])
         self.assertTrue(vote["execution"]["company_ratification_required"])
+
+        summary = client.get("/protocol/examples/example-three-species-vote-summary.json").json()
+        self.assertEqual(summary["up"], summary["support"])
+        self.assertEqual(summary["down"], summary["oppose"])
+        self.assertEqual(summary["total"], summary["up"] + summary["down"])
+        self.assertEqual(set(summary["by_species"]), {"human", "ai", "company"})
+        self.assertNotIn("execution", summary)
 
         profile = client.get("/protocol/examples/example-portable-profile.json").json()
         self.assertFalse(profile["identity"]["domain_verified"])

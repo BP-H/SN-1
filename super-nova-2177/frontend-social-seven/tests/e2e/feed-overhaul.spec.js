@@ -291,7 +291,7 @@ test("authoritative weighted summary stays coherent across card modal and vote c
     type: "company",
   }));
   const voteSummary = {
-    schema: "supernova.three_species_vote.v1",
+    schema: "supernova.three_species_vote_summary.v1",
     up: 45,
     down: 35,
     support: 45,

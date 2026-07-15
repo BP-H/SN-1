@@ -1,0 +1,34 @@
+{
+  "schema": "supernova.three_species_vote_summary.v1",
+  "up": 45,
+  "down": 35,
+  "support": 45,
+  "oppose": 35,
+  "total": 80,
+  "approval_ratio": 0.5625,
+  "species_share_percent": 33.3333,
+  "weighted_support_percent": 52.7778,
+  "by_species": {
+    "human": {
+      "up": 30,
+      "down": 10,
+      "total": 40,
+      "internal_support_percent": 75.0,
+      "weighted_support_percent": 25.0
+    },
+    "ai": {
+      "up": 10,
+      "down": 20,
+      "total": 30,
+      "internal_support_percent": 33.3333,
+      "weighted_support_percent": 11.1111
+    },
+    "company": {
+      "up": 5,
+      "down": 5,
+      "total": 10,
+      "internal_support_percent": 50.0,
+      "weighted_support_percent": 16.6667
+    }
+  }
+}
