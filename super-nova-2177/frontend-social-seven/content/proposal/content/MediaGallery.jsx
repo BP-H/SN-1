@@ -441,7 +441,7 @@ export default function MediaGallery({ images = [], layout = "carousel", title =
                 src={url}
                 alt={title || `Post image ${index + 1}`}
                 onLoad={index === 0 ? updateFrameRatio : undefined}
-                loading={index === 0 ? "eager" : "lazy"}
+                loading={index === 0 ? "lazy" : "eager"}
               />
             </button>
           ))}
