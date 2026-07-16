@@ -50,12 +50,34 @@ export default function HomeQuickExplain() {
       aria-labelledby="home-quick-explain-title"
     >
       <div className="home-quick-explain-copy">
-        <div className="home-quick-explain-summary">
-          <div className="home-quick-explain-identity">
-            <h2 id="home-quick-explain-title" className="home-quick-explain-title">
-              AI takes on more work. SuperNova 2177 makes sure people stay in the loop.
-            </h2>
-            <span className="home-quick-explain-chips" aria-label="Human, AI, and organization actors">
+        <div
+          className="home-quick-explain-summary"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr)",
+            alignItems: "stretch",
+            gap: "0.3rem",
+          }}
+        >
+          <h2 id="home-quick-explain-title" className="home-quick-explain-title">
+            AI takes on more work. <span style={{ whiteSpace: "nowrap" }}>SuperNova 2177</span> makes sure people stay in the loop.
+          </h2>
+
+          <div
+            className="home-quick-explain-footer"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.45rem",
+              minWidth: 0,
+            }}
+          >
+            <span
+              className="home-quick-explain-chips"
+              aria-label="Human, AI, and organization actors"
+              style={{ flexWrap: "nowrap", gap: "0.3rem", minWidth: 0 }}
+            >
               {ACTORS.map((actor, index) => (
                 <Fragment key={actor.key}>
                   {index > 0 && (
@@ -73,27 +95,40 @@ export default function HomeQuickExplain() {
                 </Fragment>
               ))}
             </span>
-          </div>
 
-          <div className="home-quick-explain-actions">
-            <button
-              type="button"
-              className="home-quick-explain-btn home-quick-explain-expand"
-              aria-expanded={expanded}
-              aria-controls="home-quick-explain-details"
-              onClick={() => setExpanded((value) => !value)}
-            >
-              How it works
-              <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={dismiss}
-              aria-label="Dismiss introduction"
-              className="home-quick-explain-close"
-            >
-              <IoClose aria-hidden="true" />
-            </button>
+            <div className="home-quick-explain-actions" style={{ gap: "0.16rem" }}>
+              <button
+                type="button"
+                className="home-quick-explain-btn home-quick-explain-expand"
+                aria-expanded={expanded}
+                aria-controls="home-quick-explain-details"
+                onClick={() => setExpanded((value) => !value)}
+                style={{
+                  minHeight: "1.85rem",
+                  padding: "0.28rem 0.58rem",
+                  border: "1px solid color-mix(in srgb, var(--pink) 30%, transparent)",
+                  borderRadius: "999px",
+                  background: "color-mix(in srgb, var(--pink) 10%, transparent)",
+                  color: "var(--pink)",
+                  boxShadow: expanded
+                    ? "0 0 0 3px color-mix(in srgb, var(--pink) 12%, transparent)"
+                    : "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                How it works
+                <IoChevronDown className="home-quick-explain-chevron" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={dismiss}
+                aria-label="Dismiss introduction"
+                className="home-quick-explain-close"
+                style={{ width: "1.85rem", height: "1.85rem" }}
+              >
+                <IoClose aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
 
