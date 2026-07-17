@@ -93,11 +93,20 @@ section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 .contact-inner{max-width:820px;margin:0 auto}
 .contact-label{font-size:0.72rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--pink);margin-bottom:1rem}
 .contact h2{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);line-height:1.2;margin-bottom:2.5rem}
-.contact-list{list-style:none;display:flex;flex-direction:column;gap:1.25rem}
-.contact-list li{display:flex;flex-wrap:wrap;gap:0.5rem 1rem;align-items:baseline;font-size:0.98rem;color:var(--off);border-left:1px solid var(--border);padding-left:1.25rem}
-.contact-role{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--dim);min-width:11rem}
-.contact-list a{color:var(--pink);text-decoration:none;border-bottom:1px solid var(--border);transition:border-color 0.2s}
-.contact-list a:hover{border-color:var(--pink)}
+.contact-intro{color:var(--off);font-size:1rem;line-height:1.75;margin:-1.25rem 0 2rem;max-width:660px}
+.contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem}
+.contact-card{position:relative;min-width:0;overflow:hidden;background:linear-gradient(145deg,rgba(20,24,35,0.98),rgba(14,17,24,0.98));border:1px solid var(--border);border-radius:12px;padding:1.75rem;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s}
+.contact-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--blue));opacity:0.9}
+.contact-card:hover{border-color:rgba(255,79,143,0.4);transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,0.18)}
+.contact-office{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--pink);margin-bottom:0.8rem}
+.contact-name{font-family:'Playfair Display',serif;font-size:1.35rem;line-height:1.25;color:var(--white);margin-bottom:0.45rem}
+.contact-title{color:var(--off);font-size:0.9rem;line-height:1.55;margin-bottom:1.1rem}
+.contact-email{display:inline-block;max-width:100%;color:var(--pink);text-decoration:none;border-bottom:1px solid var(--border);overflow-wrap:anywhere;word-break:break-word;transition:border-color 0.2s,color 0.2s}
+.contact-email:hover{border-color:var(--pink);color:var(--pink-bright)}
+.contact-source{display:flex;flex-wrap:wrap;align-items:baseline;gap:0.5rem 1rem;margin-top:1.5rem;border-left:1px solid var(--border-blue);padding-left:1.25rem;color:var(--off)}
+.contact-source-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--dim)}
+.contact-source a{color:var(--pink);text-decoration:none;border-bottom:1px solid var(--border);overflow-wrap:anywhere;transition:border-color 0.2s}
+.contact-source a:hover{border-color:var(--pink)}
 
 /* SUPPORT (quiet, optional — no pressure) */
 .support{padding:5.5rem 2.5rem;max-width:680px;margin:0 auto;text-align:center}
@@ -127,7 +136,15 @@ footer a:hover{text-decoration:underline}
   .faq,.programs{padding:4.5rem 1.25rem}
   .support{padding:4.5rem 1.25rem}
   .hero-stat-row{gap:2rem}
-  .contact-role{min-width:0}
+  .contact-grid{grid-template-columns:1fr}
+  .contact-card{padding:1.5rem}
+}
+@media(max-width:420px){
+  .contact{padding-left:1rem;padding-right:1rem}
+  .contact-card{padding:1.35rem}
+  .contact-name{font-size:1.22rem}
+  .contact-source{display:block}
+  .contact-source-label{display:block;margin-bottom:0.35rem}
 }
 </style>
 </head>
@@ -295,11 +312,25 @@ footer a:hover{text-decoration:underline}
   <div class="contact-inner">
     <div class="contact-label">Contact</div>
     <h2>How to reach us.</h2>
-    <ul class="contact-list">
-      <li><span class="contact-role">General contact</span> <a href="mailto:may@supernova2177.com">may@supernova2177.com</a></li>
-      <li><span class="contact-role">Organization inquiries</span> <span>Maeyee Kim · Secretary, SuperNova 2177 Inc.</span></li>
-      <li><span class="contact-role">Open source</span> <a href="https://github.com/BP-H/SN-1" target="_blank" rel="noopener noreferrer">github.com/BP-H/SN-1</a></li>
-    </ul>
+    <p class="contact-intro">Connect directly with SuperNova 2177 Inc.’s elected officers.</p>
+    <div class="contact-grid" aria-label="SuperNova 2177 leadership contacts">
+      <article class="contact-card">
+        <div class="contact-office">President</div>
+        <h3 class="contact-name">Kim Tae-ha</h3>
+        <p class="contact-title">President &amp; Board Director<br>SuperNova 2177 Inc.</p>
+        <a class="contact-email" href="mailto:taha@supernova2177.com">taha@supernova2177.com</a>
+      </article>
+      <article class="contact-card">
+        <div class="contact-office">Secretary &amp; Treasurer</div>
+        <h3 class="contact-name">Maeyee “May” Kim</h3>
+        <p class="contact-title">Secretary, Treasurer &amp; Board Director<br>SuperNova 2177 Inc.</p>
+        <a class="contact-email" href="mailto:may@supernova2177.com">may@supernova2177.com</a>
+      </article>
+    </div>
+    <div class="contact-source">
+      <span class="contact-source-label">Open source</span>
+      <a href="https://github.com/BP-H/SN-1" target="_blank" rel="noopener noreferrer">github.com/BP-H/SN-1</a>
+    </div>
   </div>
 </section>
 
@@ -363,7 +394,7 @@ window.addEventListener('resize',()=>{resize();initStars()});
 // (snapshot crawlers, in-app browsers, print, observer quirks).
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 if(!prefersReducedMotion && 'IntersectionObserver' in window){
-  const revealables = [...document.querySelectorAll('.pillar,.faq-item,.stat,.contact-list li')];
+  const revealables = [...document.querySelectorAll('.pillar,.faq-item,.stat,.contact-card,.contact-source')];
   let revealedAny = false;
   const reveal = (el)=>{
     revealedAny = true;
