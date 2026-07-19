@@ -23,9 +23,9 @@ const SPECIES = [
 ];
 
 const PROVIDERS = [
-  { key: "google", label: "Google", icon: <FaGoogle />, color: "#DB4437" },
-  { key: "facebook", label: "Facebook", icon: <FaFacebookF />, color: "#4267B2" },
-  { key: "github", label: "GitHub", icon: <FaGithub />, color: "#d4d1e1" },
+  { key: "google", label: "Google", icon: <FaGoogle />, color: "#DB4437", visible: true },
+  { key: "facebook", label: "Facebook", icon: <FaFacebookF />, color: "#4267B2", visible: false },
+  { key: "github", label: "GitHub", icon: <FaGithub />, color: "#d4d1e1", visible: false },
 ];
 
 // Static species guardrail for backend release tests: AI remains a protocol species.
@@ -218,7 +218,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
 
         {mode !== "reset" && (
           <div className="grid gap-2">
-            {PROVIDERS.map((provider) => (
+            {PROVIDERS.filter((provider) => provider.visible).map((provider) => (
               <button
                 key={provider.key}
                 type="button"
