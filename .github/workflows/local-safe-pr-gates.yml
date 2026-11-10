@@ -59,7 +59,8 @@ jobs:
 
   fe7-local-checks:
     name: FE7 local deterministic checks
-    runs-on: ubuntu-latest
+    # Playwright 1.59.1 supports Ubuntu 24.04, not the 26.04 latest image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Check out repository
