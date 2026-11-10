@@ -2457,6 +2457,16 @@ html[data-theme="light"] .vote-weight-cursor::before {
   color: rgba(247, 240, 255, 0.42);
 }
 
+.feed-video-frame {
+  aspect-ratio: 16 / 9;
+  min-height: 200px;
+  max-height: min(70svh, 36rem);
+}
+
+.feed-video-frame--portrait {
+  aspect-ratio: 9 / 16;
+}
+
 .pdf-pager,
 .pdf-pager object,
 .pdf-pager iframe {
