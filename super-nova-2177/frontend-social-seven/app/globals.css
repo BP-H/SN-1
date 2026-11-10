@@ -2467,6 +2467,142 @@ html[data-theme="light"] .vote-weight-cursor::before {
   aspect-ratio: 9 / 16;
 }
 
+.feed-video-frame:fullscreen {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+.uploaded-video-tap-target {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.uploaded-video-play-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.45rem;
+}
+
+.uploaded-video-controls {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  padding: 1.75rem 0.65rem 0.2rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  color: #fff;
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+
+.uploaded-video-controls--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.uploaded-video-control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.uploaded-video-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+  touch-action: manipulation;
+}
+
+.uploaded-video-control:hover,
+.uploaded-video-control:focus-visible {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.uploaded-video-control:focus-visible,
+.uploaded-video-tap-target:focus-visible,
+.uploaded-video-seek:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.uploaded-video-time {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.uploaded-video-seek {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.uploaded-video-seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--pink) var(--video-progress), rgba(255, 255, 255, 0.6) var(--video-progress), rgba(255, 255, 255, 0.6) var(--video-buffered), rgba(255, 255, 255, 0.3) var(--video-buffered));
+}
+
+.uploaded-video-seek::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  -webkit-appearance: none;
+  background: #fff;
+}
+
+.uploaded-video-seek::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.uploaded-video-seek::-moz-range-progress {
+  height: 4px;
+  background: var(--pink);
+}
+
+.uploaded-video-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.uploaded-video-seek:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .pdf-pager,
 .pdf-pager object,
 .pdf-pager iframe {

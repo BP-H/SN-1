@@ -40,6 +40,7 @@ test("one tap opens a visible inline YouTube player without replacing it with a 
   await page.goto("/");
   const play = page.getByRole("button", { name: "Play video: Video 1", exact: true });
   await expect(play).toBeVisible();
+  await expect(page.getByRole("link", { name: "Watch on YouTube" })).toHaveCount(0);
   await expect(page.locator("iframe")).toHaveCount(0);
   await expect(play.locator("img")).toHaveAttribute("src", /sddefault\.jpg$/);
   await play.click();
@@ -49,6 +50,7 @@ test("one tap opens a visible inline YouTube player without replacing it with a 
   await expect(frame).toHaveAttribute("src", /playsinline=1/);
   await expect(frame).toHaveAttribute("src", /start=83/);
   await expect(play).toHaveCount(0);
+  await expect(page.getByText("Use player controls for sound")).toHaveCount(0);
   await expect(page.getByText("Video fixture 1", { exact: true })).toBeVisible();
 });
 
@@ -70,7 +72,8 @@ test("native feed videos have inline controls, autoplay muted, and pause offscre
   await video.scrollIntoViewIfNeeded();
   await expect(video).toHaveJSProperty("muted", true);
   await expect(video).toHaveJSProperty("playsInline", true);
-  await expect(video).toHaveJSProperty("controls", true);
+  await expect(video).toHaveJSProperty("controls", false);
+  await expect(page.getByRole("slider", { name: "Seek video" })).toBeEnabled();
   await expect.poll(() => video.evaluate((element) => element.paused)).toBe(false);
   await page.getByText("Video fixture 19", { exact: true }).scrollIntoViewIfNeeded();
   await expect(video).toHaveJSProperty("paused", true);
@@ -127,4 +130,77 @@ test("mobile portrait videos fit the feed and the page has no horizontal overflo
   await expect(page.locator('iframe[title="Video 1"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/video-mobile.png", fullPage: true });
+});
+
+test("uploaded video controls play, pause, unmute and drag to a different time", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await mockFeed(page, [post(1, { media: { ...media, video: "/uploads/video-fixture.webm" } })]);
+  await page.goto("/");
+  const video = page.locator("video").first();
+  await video.scrollIntoViewIfNeeded();
+  const seek = page.getByRole("slider", { name: "Seek video" });
+  await expect(seek).toBeEnabled();
+  await page.getByRole("button", { name: "Play video", exact: true }).click();
+  await expect(video).toHaveJSProperty("paused", false);
+  await page.getByRole("button", { name: "Pause playback", exact: true }).click();
+  await expect(video).toHaveJSProperty("paused", true);
+  await page.getByRole("button", { name: "Unmute video", exact: true }).click();
+  await expect(video).toHaveJSProperty("muted", false);
+  const box = await seek.boundingBox();
+  await page.mouse.move(box.x + box.width * 0.15, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => video.evaluate((element) => element.currentTime / element.duration)).toBeGreaterThan(0.6);
+  await expect(video).toHaveJSProperty("paused", true);
+  await seek.focus();
+  const before = Number(await seek.inputValue());
+  await seek.press("ArrowLeft");
+  await expect.poll(async () => Number(await seek.inputValue())).toBeLessThan(before);
+  await page.screenshot({ path: "test-results/uploaded-video-controls.png" });
+});
+
+test("uploaded video fullscreen keeps the custom controls and exits cleanly", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await mockFeed(page, [post(1, { media: { ...media, video: "/uploads/video-fixture.webm" } })]);
+  await page.goto("/");
+  await page.locator("video").first().scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: "Enter fullscreen", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.dataset.feedVideo)).toBe("native");
+  await expect(page.getByRole("slider", { name: "Seek video" })).toBeVisible();
+  await page.getByRole("button", { name: "Exit fullscreen", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
+});
+
+test.describe("touch video controls", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test("finger dragging seeks while a swipe on the video still scrolls the feed", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockFeed(page, [post(1, { media: { ...media, video: "/uploads/video-fixture.webm" } }), ...Array.from({ length: 10 }, (_, i) => post(10 + i))]);
+    await page.goto("/");
+    const video = page.locator("video").first();
+    const frame = page.locator('[data-feed-video="native"]').first();
+    await video.scrollIntoViewIfNeeded();
+    const seek = page.getByRole("slider", { name: "Seek video" });
+    await expect(seek).toBeEnabled();
+    const box = await seek.boundingBox();
+    const cdp = await page.context().newCDPSession(page);
+    const touch = async (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+    const y = box.y + box.height / 2;
+    await touch("touchStart", box.x + box.width * 0.15, y);
+    for (const ratio of [0.3, 0.45, 0.6, 0.75]) await touch("touchMove", box.x + box.width * ratio, y);
+    await touch("touchEnd");
+    await expect.poll(() => video.evaluate((element) => element.currentTime / element.duration)).toBeGreaterThan(0.55);
+    await page.screenshot({ path: "test-results/uploaded-video-touch.png" });
+    const initial = await frame.boundingBox();
+    const startY = initial.y + initial.height * 0.4;
+    const x = initial.x + initial.width / 2;
+    await touch("touchStart", x, startY);
+    for (const distance of [30, 70, 110, 160]) await touch("touchMove", x, startY - distance);
+    await touch("touchEnd");
+    await expect.poll(async () => (await frame.boundingBox()).y).toBeLessThan(initial.y - 40);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await cdp.detach();
+  });
 });
