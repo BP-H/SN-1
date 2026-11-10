@@ -37,6 +37,7 @@ import {
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
+import { getYouTubeId } from "@/utils/videoUrls";
 
 function InputFields({
   setDiscard,
@@ -707,13 +708,7 @@ function InputFields({
   };
 
   const isYouTube = (url) => {
-    return url?.includes("youtube.com") || url?.includes("youtu.be");
-  };
-
-  const getYouTubeId = (url) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url?.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
+    return Boolean(getYouTubeId(url));
   };
 
   const openImagePicker = () => {
@@ -965,7 +960,7 @@ function InputFields({
             <iframe
               width="100%"
               height="100%"
-              src={`https://www.youtube.com/embed/${getYouTubeId(mediaValue)}`}
+              src={`https://www.youtube.com/embed/${getYouTubeId(mediaValue)}?playsinline=1`}
               title="YouTube video player"
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

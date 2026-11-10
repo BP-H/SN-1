@@ -2459,6 +2459,16 @@ html[data-theme="light"] .vote-weight-cursor::before {
 
 .pdf-pager,
 .pdf-pager object,
+.feed-video-frame {
+  aspect-ratio: 16 / 9;
+  min-height: 200px;
+  max-height: min(70svh, 36rem);
+}
+
+.feed-video-frame--portrait {
+  aspect-ratio: 9 / 16;
+}
+
 .pdf-pager iframe {
   -ms-overflow-style: none;
   scrollbar-width: none;

@@ -33,6 +33,7 @@ import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
 import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { weightedVoteSummary } from "@/utils/voteWeights";
+import { getYouTubeId } from "@/utils/videoUrls";
 import { useUser } from "@/content/profile/UserContext";
 
 const USER_POST_PAGE_SIZE = 30;
@@ -104,14 +105,6 @@ function mediaUrl(value) {
   if (!normalized) return "";
   if (normalized.startsWith("http://") || normalized.startsWith("https://")) return normalized;
   return absoluteApiUrl(normalized);
-}
-
-function getYouTubeId(url) {
-  if (!url) return "";
-  const match = String(url).match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-  );
-  return match?.[1] || "";
 }
 
 function getVisualMeta(post) {

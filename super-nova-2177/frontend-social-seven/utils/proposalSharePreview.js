@@ -1,15 +1,10 @@
 import { API_BASE_URL, absoluteApiUrl } from "./apiBase";
+import { getYouTubeId } from "./videoUrls";
 
 const DEFAULT_SITE_URL = "https://2177.tech";
 const DATA_IMAGE_PATTERN = /data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi;
 const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|avif)(?:[?#].*)?$/i;
 const VIDEO_EXTENSION_PATTERN = /\.(mp4|m4v|mov|webm)(?:[?#].*)?$/i;
-
-function getYouTubeId(value) {
-  const rawValue = String(value || "").trim();
-  if (!rawValue) return "";
-  return rawValue.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1] || "";
-}
 
 function youtubeThumbnailUrl(value) {
   const videoId = getYouTubeId(value);

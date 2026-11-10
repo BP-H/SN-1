@@ -35,6 +35,7 @@ import { normalizeLinkHref } from "@/utils/linkify";
 import { delegateDisplayLabel } from "@/utils/aiDelegateLabels";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { weightedVoteSummary } from "@/utils/voteWeights";
+import { getYouTubeId } from "@/utils/videoUrls";
 
 function formatDecisionCountdown(deadlineValue, fallbackDays, nowMs) {
   const safeFallbackDays = Number(fallbackDays || 0);
@@ -167,8 +168,6 @@ function ProposalCard({
   const [localText, setLocalText] = useState(text || "");
   const [editText, setEditText] = useState(text || "");
   const [readMore, setReadMore] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-  const [videoOpen, setVideoOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -491,25 +490,6 @@ function ProposalCard({
     return absoluteApiUrl(value);
   };
 
-  const getYouTubeId = (url) => {
-    if (!url) return "";
-    const regExp =
-      /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    return url.match(regExp)?.[1] || "";
-  };
-
-  const getEmbedUrl = (url) => {
-    if (!url) return "";
-    try {
-      if (url.includes("youtube.com/embed/")) return url;
-      const videoId = getYouTubeId(url);
-      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
-      return url;
-    } catch {
-      return url;
-    }
-  };
-
   useEffect(() => {
     if (!shareMenuOpen) return undefined;
     const closeShareMenu = (event) => {
@@ -825,15 +805,7 @@ function ProposalCard({
     : "";
   const authorLabel = authorName || "Unknown";
 
-  const youtubeId = getYouTubeId(displayVideo);
-  const videoThumbnail = youtubeId
-    ? `https://i.ytimg.com/vi_webp/${youtubeId}/maxresdefault.webp`
-    : "";
-  const videoThumbnailFallback = youtubeId
-    ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`
-    : "";
   const displayVideoUrl = displayVideo ? getFullImageUrl(displayVideo) : "";
-  const videoEmbedUrl = displayVideo ? getEmbedUrl(displayVideo) : "";
 
   useEffect(() => {
     const handlePostAction = (event) => {
@@ -1124,15 +1096,7 @@ function ProposalCard({
             getImageUrl={getFullImageUrl}
             isPdfFile={isPdfFile}
             mediaLayout={mediaLayout}
-            onOpenVideo={() => setVideoOpen(true)}
-            onVideoLoaded={() => setVideoLoaded(true)}
             title={title}
-            videoEmbedUrl={videoEmbedUrl}
-            videoLoaded={videoLoaded}
-            videoOpen={videoOpen}
-            videoThumbnail={videoThumbnail}
-            videoThumbnailFallback={videoThumbnailFallback}
-            youtubeId={youtubeId}
           />
         </div>
 
