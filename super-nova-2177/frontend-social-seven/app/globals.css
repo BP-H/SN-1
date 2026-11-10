@@ -2457,8 +2457,6 @@ html[data-theme="light"] .vote-weight-cursor::before {
   color: rgba(247, 240, 255, 0.42);
 }
 
-.pdf-pager,
-.pdf-pager object,
 .feed-video-frame {
   aspect-ratio: 16 / 9;
   min-height: 200px;
@@ -2469,6 +2467,8 @@ html[data-theme="light"] .vote-weight-cursor::before {
   aspect-ratio: 9 / 16;
 }
 
+.pdf-pager,
+.pdf-pager object,
 .pdf-pager iframe {
   -ms-overflow-style: none;
   scrollbar-width: none;
