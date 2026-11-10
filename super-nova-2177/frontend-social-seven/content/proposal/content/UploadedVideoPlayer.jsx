@@ -65,7 +65,9 @@ export default function UploadedVideoPlayer({ videoRef, frameRef, src, title, on
     if (!video) return;
     reveal();
     if (video.paused || video.ended) {
-      video.play()?.catch((error) => { if (error.name !== "AbortError") setNotice("Tap play to start the video."));
+      video.play()?.catch((error) => {
+        if (error.name !== "AbortError") setNotice("Tap play to start the video.");
+      });
     } else video.pause();
   };
 
@@ -104,6 +106,7 @@ export default function UploadedVideoPlayer({ videoRef, frameRef, src, title, on
         video.webkitEnterFullscreen();
       } else setNotice("Fullscreen is not available in this browser.");
     } catch {
+      if (video) video.controls = false;
       setNotice("Fullscreen is not available right now.");
     }
   };
