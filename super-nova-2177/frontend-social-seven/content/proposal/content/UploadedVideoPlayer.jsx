@@ -24,6 +24,7 @@ export default function UploadedVideoPlayer({ videoRef, frameRef, src, title, on
   const [activity, setActivity] = useState(0);
   const [notice, setNotice] = useState("");
   const surfaceRef = useRef(null);
+  const seekPointerRef = useRef(null);
 
   useEffect(() => {
     setEnhanced(true);
@@ -93,6 +94,19 @@ export default function UploadedVideoPlayer({ videoRef, frameRef, src, title, on
     if (!video.muted && video.volume === 0) video.volume = 1;
     setMuted(video.muted);
     reveal();
+  };
+
+  const seekFromPointer = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width > 0) seekTo((event.clientX - bounds.left) / bounds.width * duration);
+  };
+
+  const finishSeek = (event, cancelled = false) => {
+    if (seekPointerRef.current !== event.pointerId) return;
+    if (!cancelled) seekFromPointer(event);
+    seekPointerRef.current = null;
+    setScrubbing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   const toggleFullscreen = async () => {
@@ -172,10 +186,25 @@ export default function UploadedVideoPlayer({ videoRef, frameRef, src, title, on
               value={Math.min(position, duration) || 0}
               disabled={!duration}
               style={{ "--video-progress": `${duration ? position / duration * 100 : 0}%`, "--video-buffered": `${duration ? buffered / duration * 100 : 0}%` }}
-              onPointerDown={() => { setScrubbing(true); reveal(); }}
-              onPointerUp={() => setScrubbing(false)}
-              onPointerCancel={() => setScrubbing(false)}
-              onBlur={() => setScrubbing(false)}
+              onPointerDown={(event) => {
+                if (!duration || event.button !== 0) return;
+                event.preventDefault();
+                event.currentTarget.focus({ preventScroll: true });
+                event.currentTarget.setPointerCapture(event.pointerId);
+                seekPointerRef.current = event.pointerId;
+                setScrubbing(true);
+                seekFromPointer(event);
+              }}
+              onPointerMove={(event) => {
+                if (seekPointerRef.current !== event.pointerId) return;
+                event.preventDefault();
+                seekFromPointer(event);
+              }}
+              onPointerUp={(event) => finishSeek(event)}
+              onPointerCancel={(event) => finishSeek(event, true)}
+              onLostPointerCapture={() => { seekPointerRef.current = null; setScrubbing(false); }}
+              onBlur={() => { seekPointerRef.current = null; setScrubbing(false); }}
+              onClick={(event) => event.preventDefault()}
               onChange={(event) => seekTo(event.currentTarget.value)}
             />
             <div className="uploaded-video-control-row">
