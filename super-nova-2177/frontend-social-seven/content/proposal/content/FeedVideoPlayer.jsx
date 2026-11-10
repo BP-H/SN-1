@@ -195,7 +195,12 @@ export default function FeedVideoPlayer({ source, src, title = "Video" }) {
             preload="metadata"
             className="absolute inset-0 h-full w-full object-contain"
             onLoadedMetadata={(event) => setPortrait(event.currentTarget.videoHeight > event.currentTarget.videoWidth)}
-            onPlay={() => { userPausedRef.current = false; announcePlayback(); }}
+            onPlay={(event) => {
+              // A second player may already have paused a queued play event.
+              if (event.currentTarget.paused) return;
+              userPausedRef.current = false;
+              announcePlayback();
+            }}
             onPause={() => {
               if (!automaticPauseRef.current && visibleRef.current && !document.hidden) userPausedRef.current = true;
               automaticPauseRef.current = false;
