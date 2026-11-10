@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FaExternalLinkAlt, FaPlay } from "react-icons/fa";
+import { FaPlay } from "react-icons/fa";
+import UploadedVideoPlayer from "./UploadedVideoPlayer";
 import { getYouTubeId, youTubeEmbedUrl } from "@/utils/videoUrls";
 import { loadYouTubePlayerApi } from "@/utils/youtubePlayer";
 
@@ -185,16 +186,12 @@ export default function FeedVideoPlayer({ source, src, title = "Video" }) {
             </button>
           )
         ) : (
-          <video
-            ref={videoRef}
+          <UploadedVideoPlayer
+            videoRef={videoRef}
+            frameRef={frameRef}
             src={src}
-            aria-label={title || "Video"}
-            controls
-            playsInline
-            muted
-            preload="metadata"
-            className="absolute inset-0 h-full w-full object-contain"
-            onLoadedMetadata={(event) => setPortrait(event.currentTarget.videoHeight > event.currentTarget.videoWidth)}
+            title={title}
+            onMetadata={(event) => setPortrait(event.currentTarget.videoHeight > event.currentTarget.videoWidth)}
             onPlay={(event) => {
               // A second player may already have paused a queued play event.
               if (event.currentTarget.paused) return;
@@ -209,12 +206,7 @@ export default function FeedVideoPlayer({ source, src, title = "Video" }) {
           />
         )}
       </div>
-      {youtubeId && (
-        <div className="flex items-center justify-between gap-3 bg-black px-3 py-2 text-[0.72rem] text-white/70">
-          <span>{failed ? "This video cannot play here." : open ? "Use player controls for sound" : "YouTube"}</span>
-          <a href={`https://www.youtube.com/watch?v=${youtubeId}`} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 text-white hover:underline">Watch on YouTube <FaExternalLinkAlt aria-hidden="true" /></a>
-        </div>
-      )}
+      {youtubeId && failed && <p role="status" className="bg-black px-3 py-2 text-xs text-white">This video cannot play here. <a href={`https://www.youtube.com/watch?v=${youtubeId}`} target="_blank" rel="noopener noreferrer" className="underline">Open on YouTube</a></p>}
       {!youtubeId && failed && <p role="status" className="bg-black px-3 py-2 text-xs text-white">Unable to play this video. <a href={src} target="_blank" rel="noopener noreferrer" className="underline">Open video</a></p>}
     </div>
   );

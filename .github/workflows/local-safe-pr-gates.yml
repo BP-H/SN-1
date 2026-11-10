@@ -94,3 +94,12 @@ jobs:
         env:
           PLAYWRIGHT_PORT: "3107"
         run: npm run test:e2e:mocked
+
+      - name: Save mocked video previews for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fe7-video-previews
+          path: super-nova-2177/frontend-social-seven/test-results/*video*.png
+          if-no-files-found: ignore
+          retention-days: 7
