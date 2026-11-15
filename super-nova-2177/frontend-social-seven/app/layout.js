@@ -1,4 +1,5 @@
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import LayoutClient from "./LayoutClient";
 import { API_BASE_URL } from "@/utils/apiBase";
@@ -89,6 +90,7 @@ export default function RootLayout({ children }) {
           Skip to content
         </a>
         <LayoutClient>{children}</LayoutClient>
+        <Analytics />
       </body>
     </html>
   );
