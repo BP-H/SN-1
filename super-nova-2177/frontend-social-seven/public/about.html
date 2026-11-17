@@ -369,6 +369,9 @@ footer a:hover{color:var(--pink)}
 </footer>
 
 <script>
+// A direct About visit (for example, from a QR code) also counts as the welcome.
+try { window.localStorage.setItem('supernova-about-seen', '1'); } catch {}
+
 const canvas = document.getElementById('stars');
 const ctx = canvas.getContext('2d');
 let stars = [];
