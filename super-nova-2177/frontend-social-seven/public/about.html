@@ -34,8 +34,11 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1.25rem 2.5rem;displ
 .nav-links{display:flex;gap:2rem;align-items:center}
 .nav-links a{color:var(--off);text-decoration:none;font-size:0.85rem;letter-spacing:0.08em;text-transform:uppercase;transition:color 0.2s}
 .nav-links a:hover{color:var(--pink)}
-.nav-links .nav-cta{border:1px solid var(--border-strong);color:var(--white);padding:0.5rem 1.25rem;border-radius:6px;font-weight:500;white-space:nowrap}
-.nav-links .nav-cta:hover{border-color:var(--pink);color:var(--pink)}
+.nav-actions{display:flex;align-items:center;gap:0.5rem;flex-shrink:0}
+.nav-links .nav-cta,.nav-links .nav-linkedin{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--border-strong);border-radius:6px;color:var(--white);transition:color 0.2s,border-color 0.2s}
+.nav-links .nav-cta{padding:0.5rem 1.25rem;font-weight:500;white-space:nowrap}
+.nav-links .nav-linkedin{width:44px;background:var(--bg2)}
+.nav-links .nav-cta:hover,.nav-links .nav-linkedin:hover{border-color:var(--pink);color:var(--pink)}
 
 section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 
@@ -133,7 +136,8 @@ footer a:hover{color:var(--pink)}
 }
 @media(max-width:768px){
   nav{padding:1rem 1.25rem}
-  .nav-links a:not(.nav-cta){display:none}
+  .nav-links > a{display:none}
+  .nav-links .nav-cta{padding-inline:0.85rem}
   .hero{padding:7rem 1.25rem 4rem}
   .trust,.contact{padding:4.5rem 1.25rem}
   .faq,.programs{padding:4.5rem 1.25rem}
@@ -143,6 +147,8 @@ footer a:hover{color:var(--pink)}
   .contact-card{padding:1.5rem}
 }
 @media(max-width:420px){
+  nav{padding-inline:1rem;gap:0.75rem}
+  .nav-logo{font-size:1rem}
   .contact{padding-left:1rem;padding-right:1rem}
   .contact-card{padding:1.35rem}
   .contact-name{font-size:1.22rem}
@@ -161,7 +167,16 @@ footer a:hover{color:var(--pink)}
     <a href="#trust">Trust</a>
     <a href="#faq">FAQ</a>
     <a href="#contact">Contact</a>
-    <a href="https://www.2177.tech" class="nav-cta">Open App</a>
+    <div class="nav-actions">
+      <a href="https://www.2177.tech" class="nav-cta">Open App</a>
+      <a href="https://www.linkedin.com/company/supernova2177/" class="nav-linkedin" target="_blank" rel="noopener noreferrer" aria-label="SuperNova 2177 on LinkedIn" title="SuperNova 2177 on LinkedIn">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="2" y="2" width="20" height="20" rx="2" fill="currentColor"/>
+          <path fill="var(--bg2)" d="M6 10h2.6v8H6zm4.4 0h2.5v1.1a3 3 0 0 1 2.6-1.3c2.2 0 3.1 1.4 3.1 3.5V18H16v-4.1c0-1.2-.4-1.9-1.4-1.9s-1.6.7-1.6 1.9V18h-2.6z"/>
+          <circle cx="7.3" cy="7.3" r="1.45" fill="var(--bg2)"/>
+        </svg>
+      </a>
+    </div>
   </div>
 </nav>
 
@@ -328,7 +343,7 @@ footer a:hover{color:var(--pink)}
         <a class="contact-email" href="mailto:may@supernova2177.com">may@supernova2177.com</a>
       </article>
     </div>
-    <div class="contact-source" role="group" aria-label="Organization links">
+    <div class="contact-source">
       <a class="contact-link" href="https://github.com/BP-H/SN-1" target="_blank" rel="noopener noreferrer">
         <span class="contact-link-icon" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-2-15-4 18"/></svg>
@@ -336,20 +351,6 @@ footer a:hover{color:var(--pink)}
         <span class="contact-link-text">
           <span class="contact-link-name">Open source</span>
           <span class="contact-link-detail">github.com/BP-H/SN-1</span>
-        </span>
-        <svg class="contact-link-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12 12 4M5 4h7v7"/></svg>
-      </a>
-      <a class="contact-link" href="https://www.linkedin.com/company/supernova2177/" target="_blank" rel="noopener noreferrer">
-        <span class="contact-link-icon" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" focusable="false">
-            <rect x="2" y="2" width="20" height="20" rx="2" fill="currentColor"/>
-            <path fill="var(--bg2)" d="M6 10h2.6v8H6zm4.4 0h2.5v1.1a3 3 0 0 1 2.6-1.3c2.2 0 3.1 1.4 3.1 3.5V18H16v-4.1c0-1.2-.4-1.9-1.4-1.9s-1.6.7-1.6 1.9V18h-2.6z"/>
-            <circle cx="7.3" cy="7.3" r="1.45" fill="var(--bg2)"/>
-          </svg>
-        </span>
-        <span class="contact-link-text">
-          <span class="contact-link-name">LinkedIn</span>
-          <span class="contact-link-detail">SuperNova 2177</span>
         </span>
         <svg class="contact-link-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12 12 4M5 4h7v7"/></svg>
       </a>
