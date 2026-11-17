@@ -17,6 +17,11 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
+    // Existing feed tests exercise returning visitors; welcome tests use fresh storage.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: "supernova-about-seen", value: "1" }] }],
+    },
     trace: "retain-on-failure",
   },
   projects: [

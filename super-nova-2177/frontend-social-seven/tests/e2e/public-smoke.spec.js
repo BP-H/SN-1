@@ -770,6 +770,41 @@ test("malformed locale cookie falls back without breaking the shell", async ({ p
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
+test.describe("first homepage visit", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  const feedText = "A public signed-out feed item rendered from a mocked local backend response.";
+
+  test("new visitors see About once and can open the feed", async ({ page }) => {
+    await mockPublicBackend(page);
+    await page.goto("/?utm_source=card");
+    await expect(page).toHaveURL(/\/about\?utm_source=card$/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("humans, AI, and organizations");
+
+    const appLink = await page.getByRole("link", { name: "Open App", exact: true }).getAttribute("href");
+    const target = new URL(appLink);
+    expect(target.origin).toBe("https://www.2177.tech");
+    // Use the same path on the local server as the production Open App link.
+    await page.goto(target.pathname);
+    await expect(page.getByText(feedText, { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(feedText, { exact: true })).toBeVisible();
+  });
+
+  test("a direct About visit counts as the welcome", async ({ page }) => {
+    await mockPublicBackend(page);
+    await page.goto("/about");
+    await page.goto("/");
+    await expect(page.getByText(feedText, { exact: true })).toBeVisible();
+  });
+
+  test("the homepage preserves a sign-in return with a URL fragment", async ({ page }) => {
+    await mockPublicBackend(page);
+    await page.goto("/#error_description=example");
+    await expect(page.getByText(feedText, { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/#error_description=example$/);
+  });
+});
+
 test("about page route renders the standalone page", async ({ page }) => {
   await page.goto("/about");
 
