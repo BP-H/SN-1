@@ -9,37 +9,33 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  /* On-brand with the main app: pink primary, blue secondary, cool near-black surfaces */
+  /* Neutral surfaces and type, with the SuperNova pink as the only accent. */
+  color-scheme:dark;
   --pink:#ff4f8f;
   --pink-bright:#ff6fa3;
-  --blue:#5e8dfa;
-  --white:#F4F6FB;
-  --off:#AEB6C6;
-  --dim:#6B7384;
-  --bg:#090b11;
-  --bg2:#0e1118;
-  --bg3:#141823;
-  --border:rgba(255,79,143,0.16);
-  --border-blue:rgba(94,141,250,0.16);
+  --white:#f5f5f5;
+  --off:#c7c7c7;
+  --dim:#a3a3a3;
+  --bg:#0a0a0a;
+  --bg2:#101010;
+  --bg3:#171717;
+  --border:#303030;
+  --border-strong:#595959;
 }
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;font-weight:300;line-height:1.7;overflow-x:hidden}
+a:focus-visible{outline:2px solid var(--pink);outline-offset:4px}
 
-canvas#stars{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0.55}
+canvas#stars{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0.32}
 
-/* soft brand glow behind the hero, like the app's ambient gradients */
-body::before{content:'';position:fixed;top:-20%;left:-10%;width:60vw;height:60vw;z-index:0;pointer-events:none;
-  background:radial-gradient(circle at center, rgba(255,79,143,0.10), transparent 60%);filter:blur(40px)}
-body::after{content:'';position:fixed;bottom:-25%;right:-10%;width:55vw;height:55vw;z-index:0;pointer-events:none;
-  background:radial-gradient(circle at center, rgba(94,141,250,0.09), transparent 60%);filter:blur(40px)}
-
-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1.25rem 2.5rem;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(to bottom,rgba(9,11,17,0.95),transparent);backdrop-filter:blur(8px)}
-.nav-logo{font-family:'Playfair Display',serif;font-size:1.1rem;letter-spacing:0.05em;color:var(--pink)}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1.25rem 2.5rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;background:rgba(10,10,10,0.94);border-bottom:1px solid var(--border);backdrop-filter:blur(8px)}
+.nav-logo{display:flex;align-items:center;gap:0.65rem;font-family:'Playfair Display',serif;font-size:1.1rem;letter-spacing:0.05em;color:var(--white)}
+.nav-logo::before{content:'';flex:none;width:0.48rem;height:0.48rem;border-radius:50%;background:var(--pink)}
 .nav-links{display:flex;gap:2rem;align-items:center}
 .nav-links a{color:var(--off);text-decoration:none;font-size:0.85rem;letter-spacing:0.08em;text-transform:uppercase;transition:color 0.2s}
 .nav-links a:hover{color:var(--pink)}
-.nav-cta{background:var(--pink);color:#0A0710!important;padding:0.5rem 1.25rem;border-radius:6px;font-weight:500!important;box-shadow:0 6px 18px rgba(255,79,143,0.28)}
-.nav-cta:hover{background:var(--pink-bright)!important;color:#0A0710!important}
+.nav-links .nav-cta{border:1px solid var(--border-strong);color:var(--white);padding:0.5rem 1.25rem;border-radius:6px;font-weight:500;white-space:nowrap}
+.nav-links .nav-cta:hover{border-color:var(--pink);color:var(--pink)}
 
 section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 
@@ -47,19 +43,19 @@ section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 .hero{min-height:90vh;display:flex;flex-direction:column;justify-content:center;padding:8rem 2.5rem 5rem;max-width:1100px;margin:0 auto}
 .hero-eyebrow{font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--pink);margin-bottom:1.5rem;opacity:0;animation:fadeUp 0.8s 0.2s forwards}
 .hero h1{font-family:'Playfair Display',serif;font-size:clamp(2.4rem,5.5vw,4.4rem);line-height:1.14;font-weight:700;margin-bottom:1.5rem;max-width:14ch;opacity:0;animation:fadeUp 0.8s 0.4s forwards}
-.hero h1 em{font-style:italic;background:linear-gradient(90deg,var(--pink),#ff8ab7 46%,var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--pink)}
+.hero h1 em{font-style:italic}
 .hero-sub{font-size:1.15rem;color:var(--off);max-width:620px;line-height:1.8;margin-bottom:2.5rem;opacity:0;animation:fadeUp 0.8s 0.6s forwards}
 .hero-actions{display:flex;gap:1rem;flex-wrap:wrap;opacity:0;animation:fadeUp 0.8s 0.8s forwards}
-.btn-primary{background:var(--pink);color:#0A0710;padding:0.85rem 2rem;border-radius:6px;text-decoration:none;font-weight:500;font-size:0.95rem;transition:all 0.2s;display:inline-block;box-shadow:0 8px 22px rgba(255,79,143,0.26)}
-.btn-primary:hover{background:var(--pink-bright);transform:translateY(-1px);box-shadow:0 10px 26px rgba(255,79,143,0.34)}
+.btn-primary{background:var(--pink);color:var(--bg);padding:0.85rem 2rem;border-radius:6px;text-decoration:none;font-weight:500;font-size:0.95rem;transition:all 0.2s;display:inline-block}
+.btn-primary:hover{background:var(--pink-bright);transform:translateY(-1px)}
 .btn-secondary{border:1px solid var(--border);color:var(--off);padding:0.85rem 2rem;border-radius:6px;text-decoration:none;font-size:0.95rem;transition:all 0.2s;display:inline-block}
 .btn-secondary:hover{border-color:var(--pink);color:var(--pink)}
 
-.hero-rule{width:60px;height:1px;background:linear-gradient(90deg,var(--pink),var(--blue));margin:3rem 0;opacity:0;animation:fadeUp 0.8s 1s forwards}
+.hero-rule{width:60px;height:1px;background:var(--pink);margin:3rem 0;opacity:0;animation:fadeUp 0.8s 1s forwards}
 
 .hero-stat-row{display:flex;gap:3rem;flex-wrap:wrap;opacity:0;animation:fadeUp 0.8s 1.1s forwards}
 .stat{border-left:1px solid var(--border);padding-left:1.25rem}
-.stat-num{font-family:'Playfair Display',serif;font-size:1.6rem;color:var(--pink);font-weight:700}
+.stat-num{font-family:'Playfair Display',serif;font-size:1.6rem;color:var(--white);font-weight:700}
 .stat-label{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--dim);margin-top:0.1rem}
 
 /* TRUST (card grid) */
@@ -69,8 +65,8 @@ section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 .trust h2{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);text-align:center;max-width:700px;margin:0 auto 3.5rem;line-height:1.2}
 .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.5rem}
 .pillar{background:var(--bg3);border:1px solid var(--border);padding:2rem;border-radius:10px;transition:border-color 0.2s,transform 0.2s}
-.pillar:hover{border-color:rgba(255,79,143,0.4);transform:translateY(-2px)}
-.pillar-num{font-family:'Playfair Display',serif;font-size:2rem;color:var(--pink);opacity:0.45;font-weight:700;margin-bottom:0.75rem}
+.pillar:hover{border-color:var(--border-strong);transform:translateY(-2px)}
+.pillar-num{font-family:'Playfair Display',serif;font-size:2rem;color:var(--dim);font-weight:700;margin-bottom:0.75rem}
 .pillar h3{font-size:1rem;font-weight:500;margin-bottom:0.75rem;color:var(--white)}
 .pillar p{font-size:0.9rem;color:var(--dim);line-height:1.65}
 
@@ -95,56 +91,61 @@ section{position:relative;z-index:1;scroll-margin-top:5.25rem}
 .contact h2{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,3.5vw,2.6rem);line-height:1.2;margin-bottom:2.5rem}
 .contact-intro{color:var(--off);font-size:1rem;line-height:1.75;margin:-1.25rem 0 2rem;max-width:660px}
 .contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem}
-.contact-card{position:relative;min-width:0;overflow:hidden;background:linear-gradient(145deg,rgba(20,24,35,0.98),rgba(14,17,24,0.98));border:1px solid var(--border);border-radius:12px;padding:1.75rem;transition:border-color 0.2s,transform 0.2s,box-shadow 0.2s}
-.contact-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--blue));opacity:0.9}
-.contact-card:hover{border-color:rgba(255,79,143,0.4);transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,0.18)}
-.contact-office{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--pink);margin-bottom:0.8rem}
+.contact-card{min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:1.75rem;transition:border-color 0.2s,transform 0.2s}
+.contact-card:hover{border-color:var(--border-strong);transform:translateY(-2px)}
+.contact-office{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--dim);margin-bottom:0.8rem}
 .contact-name{font-family:'Playfair Display',serif;font-size:1.35rem;line-height:1.25;color:var(--white);margin-bottom:0.45rem}
 .contact-title{color:var(--off);font-size:0.9rem;line-height:1.55;margin-bottom:1.1rem}
-.contact-email{display:inline-block;max-width:100%;color:var(--pink);text-decoration:none;border-bottom:1px solid var(--border);overflow-wrap:anywhere;word-break:break-word;transition:border-color 0.2s,color 0.2s}
-.contact-email:hover{border-color:var(--pink);color:var(--pink-bright)}
-.contact-source{display:flex;flex-wrap:wrap;align-items:baseline;gap:0.5rem 1rem;margin-top:1.5rem;border-left:1px solid var(--border-blue);padding-left:1.25rem;color:var(--off)}
-.contact-source-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--dim)}
-.contact-source a{color:var(--pink);text-decoration:none;border-bottom:1px solid var(--border);overflow-wrap:anywhere;transition:border-color 0.2s}
-.contact-source a:hover{border-color:var(--pink)}
+.contact-email{display:inline-block;max-width:100%;color:var(--white);text-decoration:none;border-bottom:1px solid var(--border-strong);overflow-wrap:anywhere;word-break:break-word;transition:border-color 0.2s,color 0.2s}
+.contact-email:hover{border-color:var(--pink);color:var(--pink)}
+.contact-source{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem;margin-top:1.25rem}
+.contact-link{display:flex;align-items:center;gap:0.9rem;min-width:0;padding:1rem 1.25rem;background:var(--bg3);border:1px solid var(--border);border-radius:12px;color:var(--white);text-decoration:none;transition:border-color 0.2s}
+.contact-link:hover,.contact-link:focus-visible{border-color:var(--pink)}
+.contact-link-icon{display:grid;place-items:center;flex:none;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--white)}
+.contact-link-text{display:grid;gap:0.1rem;min-width:0;line-height:1.4}
+.contact-link-name{font-size:0.95rem;font-weight:500}
+.contact-link-detail{font-size:0.78rem;color:var(--dim);overflow-wrap:anywhere}
+.contact-link-arrow{flex:none;margin-left:auto;color:var(--dim);transition:color 0.2s}
+.contact-link:hover .contact-link-arrow,.contact-link:focus-visible .contact-link-arrow{color:var(--pink)}
 
 /* SUPPORT (quiet, optional — no pressure) */
 .support{padding:5.5rem 2.5rem;max-width:680px;margin:0 auto;text-align:center}
 .support-text{color:var(--off);font-size:1.02rem;line-height:1.8;margin-bottom:2rem}
-.btn-outline{display:inline-block;border:1px solid var(--pink);color:var(--pink);padding:0.8rem 2.2rem;border-radius:6px;text-decoration:none;font-size:0.95rem;letter-spacing:0.02em;transition:all 0.2s}
-.btn-outline:hover{background:var(--pink);color:#0A0710;transform:translateY(-1px);box-shadow:0 10px 26px rgba(255,79,143,0.30)}
+.btn-outline{display:inline-block;border:1px solid var(--border-strong);color:var(--white);padding:0.8rem 2.2rem;border-radius:6px;text-decoration:none;font-size:0.95rem;letter-spacing:0.02em;transition:all 0.2s}
+.btn-outline:hover{border-color:var(--pink);color:var(--pink);transform:translateY(-1px)}
 
 footer{border-top:1px solid var(--border);padding:2.5rem;text-align:center;max-width:900px;margin:0 auto}
 footer p{font-size:0.8rem;color:var(--dim);letter-spacing:0.03em}
 .footer-legal{max-width:680px;margin:0 auto 1.25rem;line-height:1.7}
-footer a{color:var(--pink);text-decoration:none}
-footer a:hover{text-decoration:underline}
+footer a{color:var(--white);text-decoration:underline;text-underline-offset:0.2em}
+footer a:hover{color:var(--pink)}
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 
 @media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
   *{animation:none!important;transition:none!important}
   .hero-eyebrow,.hero h1,.hero-sub,.hero-actions,.hero-rule,.hero-stat-row{opacity:1!important}
 }
 
+@media(max-width:900px){
+  .nav-links{gap:1rem}
+}
 @media(max-width:768px){
   nav{padding:1rem 1.25rem}
-  .nav-links{gap:1rem}
   .nav-links a:not(.nav-cta){display:none}
   .hero{padding:7rem 1.25rem 4rem}
   .trust,.contact{padding:4.5rem 1.25rem}
   .faq,.programs{padding:4.5rem 1.25rem}
   .support{padding:4.5rem 1.25rem}
   .hero-stat-row{gap:2rem}
-  .contact-grid{grid-template-columns:1fr}
+  .contact-grid,.contact-source{grid-template-columns:1fr}
   .contact-card{padding:1.5rem}
 }
 @media(max-width:420px){
   .contact{padding-left:1rem;padding-right:1rem}
   .contact-card{padding:1.35rem}
   .contact-name{font-size:1.22rem}
-  .contact-source{display:block}
-  .contact-source-label{display:block;margin-bottom:0.35rem}
 }
 </style>
 </head>
@@ -327,9 +328,31 @@ footer a:hover{text-decoration:underline}
         <a class="contact-email" href="mailto:may@supernova2177.com">may@supernova2177.com</a>
       </article>
     </div>
-    <div class="contact-source">
-      <span class="contact-source-label">Open source</span>
-      <a href="https://github.com/BP-H/SN-1" target="_blank" rel="noopener noreferrer">github.com/BP-H/SN-1</a>
+    <div class="contact-source" role="group" aria-label="Organization links">
+      <a class="contact-link" href="https://github.com/BP-H/SN-1" target="_blank" rel="noopener noreferrer">
+        <span class="contact-link-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-2-15-4 18"/></svg>
+        </span>
+        <span class="contact-link-text">
+          <span class="contact-link-name">Open source</span>
+          <span class="contact-link-detail">github.com/BP-H/SN-1</span>
+        </span>
+        <svg class="contact-link-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12 12 4M5 4h7v7"/></svg>
+      </a>
+      <a class="contact-link" href="https://www.linkedin.com/company/supernova2177/" target="_blank" rel="noopener noreferrer">
+        <span class="contact-link-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" focusable="false">
+            <rect x="2" y="2" width="20" height="20" rx="2" fill="currentColor"/>
+            <path fill="var(--bg2)" d="M6 10h2.6v8H6zm4.4 0h2.5v1.1a3 3 0 0 1 2.6-1.3c2.2 0 3.1 1.4 3.1 3.5V18H16v-4.1c0-1.2-.4-1.9-1.4-1.9s-1.6.7-1.6 1.9V18h-2.6z"/>
+            <circle cx="7.3" cy="7.3" r="1.45" fill="var(--bg2)"/>
+          </svg>
+        </span>
+        <span class="contact-link-text">
+          <span class="contact-link-name">LinkedIn</span>
+          <span class="contact-link-detail">SuperNova 2177</span>
+        </span>
+        <svg class="contact-link-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12 12 4M5 4h7v7"/></svg>
+      </a>
     </div>
   </div>
 </section>
@@ -349,7 +372,7 @@ footer a:hover{text-decoration:underline}
 const canvas = document.getElementById('stars');
 const ctx = canvas.getContext('2d');
 let stars = [];
-const STAR_COLORS = ['255,79,143', '94,141,250', '244,246,251']; // pink, blue, white
+const STAR_COLORS = ['168,168,168', '216,216,216', '245,245,245'];
 
 function resize(){
   canvas.width = window.innerWidth;
