@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import ErrorBanner from "@/content/Error";
 import Notification from "@/content/Notification";
@@ -19,6 +20,7 @@ export default function ProfilePage() {
           Profile
         </p>
         <h1 className="mt-2 text-[1.5rem] font-black">Your SuperNova identity</h1>
+        <Link href="/settings/shop" className="mt-3 inline-block font-semibold text-[var(--pink)]">Set up or manage my shop</Link>
       </div>
 
       <div className="flex justify-center">

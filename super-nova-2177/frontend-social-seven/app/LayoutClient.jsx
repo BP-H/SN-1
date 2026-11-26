@@ -1,5 +1,7 @@
 "use client";
 
+import { Analytics } from "@vercel/analytics/next";
+import { usePathname } from "next/navigation";
 import HeaderWrapper from "@/content/header/HeaderWrapper";
 import { ActiveBEProvider } from "@/content/ActiveBEContext";
 import { LocaleProvider } from "@/content/i18n/LocaleContext";
@@ -29,6 +31,14 @@ function createQueryClient() {
 }
 
 export default function LayoutClient({ children }) {
+  const path = usePathname() || "";
+  if (/^\/(shop|shops|pieces)(\/|$)/.test(path) || path === "/settings/shop") {
+    return <><main id="main-content">{children}</main>{!path.startsWith("/shop/receipt/") && <Analytics/>}</>;
+  }
+  return <><SocialLayout>{children}</SocialLayout><Analytics/></>;
+}
+
+function SocialLayout({ children }) {
   const [queryClient] = useState(() => createQueryClient());
   const [errorMsg, setErrorMsg] = useState([]);
   const [notify, setNotify] = useState([]);

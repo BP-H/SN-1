@@ -136,6 +136,13 @@ except ImportError:  # pragma: no cover - supports running backend/app.py direct
     from status_routes import build_supernova_runtime_payload, create_status_router
 
 try:
+    from .routers.shop import create_shop_router, shop_path
+    from .shop_models import ShopBase
+except ImportError:
+    from routers.shop import create_shop_router, shop_path
+    from shop_models import ShopBase
+
+try:
     from .routers.messages import create_messages_router
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.messages import create_messages_router
@@ -3335,6 +3342,7 @@ def _ensure_system_votes_table(db: Session) -> None:
 
 
 def _ensure_startup_schema_compatibility(db: Session) -> None:
+    ShopBase.metadata.create_all(db.get_bind())
     _ensure_comment_thread_columns(db)
     _ensure_comment_votes_table(db)
     _ensure_direct_messages_table(db)
@@ -5335,6 +5343,7 @@ def profile(username: str, db: Session = Depends(get_db)):
                 metadata = _profile_metadata(db, user.username)
                 return {
                     "username": user.username,
+                    "shop_path": shop_path(db, user.id),
                     "avatar_url": _social_avatar(avatar_value),
                     "bio": user.bio or "",
                     "domain_url": metadata.get("domain_url", ""),
@@ -7899,6 +7908,13 @@ def remove_system_vote(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to remove system vote: {str(exc)}")
 
+
+def _shop_profile_name(db, owner_id):
+    user = db.get(Harmonizer, owner_id) if Harmonizer is not None else None
+    return user.username if user else None
+
+
+app.include_router(create_shop_router(get_db, get_current_harmonizer, profile_name_for=_shop_profile_name))
 
 app.include_router(create_system_votes_router(
     get_system_vote_endpoint=get_system_vote,
