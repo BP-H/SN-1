@@ -3,12 +3,17 @@ import hashlib
 import hmac
 import json
 import os
-import smtplib
 import time
 import uuid
 from email.message import EmailMessage
 from typing import Any, Dict, Mapping, Optional
 from urllib.parse import urlencode, urlparse
+
+
+try:
+    from .mail_transport import deliver_message
+except ImportError:
+    from mail_transport import deliver_message
 
 
 PASSWORD_RESET_PURPOSE = "supernova_password_reset"
@@ -248,19 +253,8 @@ def send_password_reset_email(
         )
     )
 
-    if port == 465:
-        with smtplib.SMTP_SSL(host, port, timeout=12) as smtp:
-            if username_env or password_env:
-                smtp.login(username_env, password_env)
-            smtp.send_message(message)
-        return
-
-    with smtplib.SMTP(host, port, timeout=12) as smtp:
-        if use_tls:
-            smtp.starttls()
-        if username_env or password_env:
-            smtp.login(username_env, password_env)
-        smtp.send_message(message)
+    deliver_message(message, host=host, port=port, username=username_env,
+                    password=password_env, use_tls=use_tls)
 
 
 def password_reset_request_response(email_configured: bool) -> Dict[str, Any]:

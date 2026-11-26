@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -980,6 +981,8 @@ export default function UserPostsPage() {
             <p className="mt-1 text-[0.72rem] uppercase tracking-[0.16em] text-[var(--text-gray-light)]">
               {profileSpecies} node
             </p>
+            {profile.shop_path && <Link className="mr-3 inline-block font-semibold text-[var(--pink)]" href={profile.shop_path}>Shop</Link>}
+            {isOwnProfile && <Link className="inline-block font-semibold text-[var(--pink)]" href="/settings/shop">Manage my shop</Link>}
             {publicDomain && (
               <a
                 href={normalizeLinkHref(publicDomain)}
