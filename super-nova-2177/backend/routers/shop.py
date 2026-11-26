@@ -12,7 +12,7 @@ from uuid import UUID
 import stripe
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 try:
@@ -142,7 +142,8 @@ def settle(db, order, session, account):
     else:
         return False
     changed = db.execute(update(Order).where(Order.id == order.id, Order.status == "reserved")
-                         .values(status=state, session_id=session["id"], intent=session.get("payment_intent")))
+                         .values(status=state, session_id=session["id"], intent=session.get("payment_intent"),
+                                 payment_state="paid" if state == "paid" else "unpaid"))
     if changed.rowcount and state == "paid":
         db.execute(update(Piece).where(Piece.id == piece.id).values(sold=Piece.sold + 1))
     elif changed.rowcount and piece.edition is not None:
@@ -373,10 +374,13 @@ def create_shop_router(get_db, authenticate, gateway=None, profile_name_for=None
         if visibility.published:
             if not (shop.enabled and shop.ready and gateway.configured and seller_permitted(user.id)):
                 raise HTTPException(409, "Enable the shop and finish payment setup before publishing.")
-            if piece.kind == "digital" and not piece.filename:
+            published = db.execute(update(Piece).where(Piece.id == piece.id,
+                                   or_(Piece.kind == "physical", Piece.filename.is_not(None)))
+                                   .values(released=True, published=True))
+            if not published.rowcount:
                 raise HTTPException(409, "Attach the buyer's download before publishing.")
-            piece.released = True
-        piece.published = visibility.published
+        else:
+            piece.published = False
         db.commit()
         return public_piece(piece)
 
@@ -440,6 +444,13 @@ def create_shop_router(get_db, authenticate, gateway=None, profile_name_for=None
             db.commit()
         return {"url": order.session_url}
 
+    def refresh_payment(db, order):
+        state = provider(gateway.payment_state, order)
+        if order.payment_state != state:
+            order.payment_state = state
+            db.commit()
+        return state
+
     async def handle_event(request, db, platform):
         event = gateway.event(await request.body(), request.headers.get("stripe-signature", ""), platform)
         account, obj = event.get("account"), event["data"]["object"]
@@ -449,7 +460,17 @@ def create_shop_router(get_db, authenticate, gateway=None, profile_name_for=None
             key = (obj.get("metadata") or {}).get("order")
             order = db.get(Order, key) if key else None
             if order and settle(db, order, obj, account) and order.status == "paid" and obj.get("payment_status") == "paid":
-                send_receipt(db, order, obj, site_url())
+                state = refresh_payment(db, order)
+                if state == "processing":
+                    raise HTTPException(503, "Waiting for the confirmed charge details.")
+                if state in ("paid", "partially_refunded"):
+                    send_receipt(db, order, obj, site_url())
+        elif event["type"] in ("charge.refunded", "charge.dispute.created", "charge.dispute.closed"):
+            intent = obj.get("payment_intent")
+            if intent:
+                order = db.scalar(select(Order).where(Order.intent == intent, Order.status == "paid"))
+                if order and order.processor_account == account:
+                    refresh_payment(db, order)
         elif account and event["type"] in ("account.updated", "account.application.deauthorized"):
             shop = db.scalar(select(Shop).where(Shop.account == account))
             if shop:
@@ -493,12 +514,12 @@ def create_shop_router(get_db, authenticate, gateway=None, profile_name_for=None
         piece = db.get(Piece, order.piece_id)
         message = (json.loads(order.checkout_params).get("custom_text") or {}).get("submit", {}).get("message", "")
         return {"title": piece.title, "piece_id": piece.id, "delivery": order.delivery,
-                "filename": piece.filename, "pickup": message}
+                "filename": piece.filename, "pickup": message, "payment_state": order.payment_state}
 
     @router.get("/orders/{order_id}/download")
     def download(order_id: UUID, authorization: Optional[str] = Header(None), db=Depends(get_db)):
         order = receipt_order(db, order_id, authorization)
-        if order.delivery != "digital" or not provider(gateway.download_allowed, order):
+        if order.delivery != "digital" or refresh_payment(db, order) not in ("paid", "partially_refunded"):
             raise HTTPException(403, "This download is unavailable.")
         piece = db.get(Piece, order.piece_id)
         return Response(piece.content, media_type="application/octet-stream", headers={
@@ -511,7 +532,7 @@ def create_shop_router(get_db, authenticate, gateway=None, profile_name_for=None
                           .where(Piece.owner_id == user.id, Order.status == "paid")
                           .order_by(Order.created.desc())).all()
         return [{"id": o.id, "title": title, "delivery": o.delivery, "fulfilled": o.fulfilled,
-                 "date": o.created, "intent": o.intent} for o, title in rows]
+                 "date": o.created, "intent": o.intent, "payment_state": o.payment_state} for o, title in rows]
 
     @router.get("/me/orders/{order_id}/delivery")
     def shipping(order_id: UUID, response: Response, user=Depends(owner), db=Depends(get_db)):
@@ -530,6 +551,8 @@ def create_shop_router(get_db, authenticate, gateway=None, profile_name_for=None
         order = db.get(Order, str(order_id))
         if not order or db.get(Piece, order.piece_id).owner_id != user.id or order.status != "paid":
             raise HTTPException(404, "Paid order not found.")
+        if refresh_payment(db, order) not in ("paid", "partially_refunded"):
+            raise HTTPException(409, "Check the payment status before fulfilling this order.")
         order.fulfilled = True
         db.commit()
         return {"fulfilled": True}

@@ -31,7 +31,7 @@ export default function BuyPiece({ piece, held = false }) {
     } catch (e) { setError(e.message); setBusy(false); }
   }
   return <div className="edition-buy">
-    {!held && (piece.pickup ? <label>Delivery<select value={delivery} onChange={e => setDelivery(e.target.value)}><option value="ship">US shipping included</option><option value="pickup">{piece.pickup}</option></select></label> :
+    {!held && (piece.pickup ? <label>Delivery<select aria-label="Delivery" value={delivery} onChange={e => setDelivery(e.target.value)}><option value="ship">US shipping included</option><option value="pickup">{piece.pickup}</option></select></label> :
       <p>{piece.kind === "digital" ? "Download after payment." : "US shipping included."} Applicable tax is calculated at checkout.</p>)}
     <button className="edition-primary" type="button" disabled={busy} onClick={buy}>{busy ? "Opening checkout…" : held ? "Resume my checkout" : "Buy with Stripe"}</button>
     {error && <p className="edition-notice" role="alert">{error}</p>}

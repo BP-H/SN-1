@@ -68,6 +68,7 @@ class Order(ShopBase):
     intent = Column(String(160), index=True)
     receipt_sent = Column(Boolean, nullable=False, default=False)
     mail_lease = Column(Integer, nullable=False, default=0)
+    payment_state = Column(String(24), nullable=False, default="unpaid")
     fulfilled = Column(Boolean, nullable=False, default=False)
 
     @property

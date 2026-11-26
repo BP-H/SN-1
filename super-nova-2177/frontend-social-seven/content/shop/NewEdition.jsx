@@ -23,7 +23,7 @@ export default function NewEdition({ shop, run, busy, piece }) {
     <div className="edition-field-grid"><label>Work title<input name="title" defaultValue={piece?.title || ""} maxLength="120" required/></label>
       <label>Edition code<input name="code" defaultValue={piece?.code || ""} maxLength="48" pattern="[A-Za-z0-9][A-Za-z0-9\-]*" placeholder="SF-GUGU-001" required/></label>
       <label>Artist credit<input name="artist" defaultValue={piece?.artist || shop.name} maxLength="90" required/></label>
-      <label>Format<select value={medium} onChange={e => setMedium(e.target.value)}>
+      <label>Format<select aria-label="Format" value={medium} onChange={e => setMedium(e.target.value)}>
         <option value="magnet">Collectible magnet</option><option value="art">Physical art</option><option value="apparel">Apparel</option><option value="other">Other physical item</option><option value="download">Digital download</option></select></label></div>
     <label>Artist’s story<textarea name="story" defaultValue={piece?.story || ""} maxLength="4000" required/></label>
     <label>Public image URL<input name="image" defaultValue={piece?.image || ""} required maxLength="1600" placeholder={shop.official ? "/shop-assets/gugu-sf.webp" : "https://…"}/></label>

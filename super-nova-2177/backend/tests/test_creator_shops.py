@@ -50,8 +50,8 @@ class TestGateway:
         return next((s for (a, _), s in self.sessions.items()
                      if a == order.processor_account and s["client_reference_id"] == order.id), None)
 
-    def download_allowed(self, order):
-        return not self.refunded
+    def payment_state(self, order):
+        return "refunded" if self.refunded else "paid"
 
     def event(self, body, signature, platform=False):
         return json.loads(body)
@@ -289,3 +289,21 @@ def test_receipt_delivery_retries_without_double_fulfillment(storefront, monkeyp
     assert len(deliveries) == 2
     assert s["id"] in deliveries[-1].get_content()
     assert c.get("pieces/" + p).json()["sold"] == 1
+
+def test_refund_preserves_ledger_and_prevents_handoff(storefront):
+    c, g, _ = storefront
+    start(c, 1)
+    p = draft(c).json()["id"]
+    visibility(c, p)
+    key = str(uuid4())
+    buy(c, p, key)
+    s = next(iter(g.sessions.values()))
+    s.update(status="complete", payment_status="paid")
+    event(c, s, "acct_1", "completed")
+    g.refunded = True
+    body = {"type": "charge.refunded", "account": "acct_1",
+            "data": {"object": {"payment_intent": s["payment_intent"]}}}
+    assert c.post("stripe/events", json=body).is_success
+    assert c.get("me/orders", headers=auth(1)).json()[0]["payment_state"] == "refunded"
+    assert c.put(f"me/orders/{key}/fulfilled", headers=auth(1)).status_code == 409
+    assert c.get("pieces/" + p).json()["remaining"] == 0

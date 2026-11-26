@@ -80,9 +80,9 @@ export default function SellerDesk() {
           <div className="edition-actions"><button type="button" className="edition-outline" disabled={busy || (!p.published && (!shop.ready || !shop.enabled || !shop.can_sell || (p.kind === "digital" && !p.has_file)))}
             onClick={() => run(() => sellerApi("/pieces/" + p.id + "/visibility", "PUT", { published: !p.published }), p.published ? "Edition archived. Its story is still available." : "Edition published.")}>{p.published ? "Archive edition" : "Publish edition"}</button>
           {p.released && <><Link href={"/pieces/" + p.id}>Open edition</Link><a href={"/shop/qr?piece=" + p.id} download>Download print QR</a></>}</div></article>)}</section>
-      <section><h2>Paid orders</h2>{!orders.length && <p>Your paid orders will appear here.</p>}
+      <section><h2>Orders</h2>{!orders.length && <p>Your paid orders will appear here.</p>}
         {orders.map(o => <article key={o.id}><h3>{o.title}</h3><p>{new Date(o.date * 1000).toLocaleDateString()} · {o.delivery === "ship" ? "Ship" : o.delivery === "pickup" ? "Event pickup" : "Digital download"}</p>
-          <p>Order {o.id}</p><DeliveryInfo order={o}/>
-          {o.delivery !== "digital" && (o.fulfilled ? <p>Fulfilled</p> : <button disabled={busy} className="edition-outline" onClick={() => run(() => sellerApi("/orders/" + o.id + "/fulfilled", "PUT"), "Order marked fulfilled.")}>Mark fulfilled</button>)}</article>)}</section>
+          <p>Order {o.id} · {o.payment_state.replaceAll("_", " ")}</p><DeliveryInfo order={o}/>
+          {o.delivery !== "digital" && (o.fulfilled ? <p>Fulfilled</p> : <button disabled={busy || !["paid","partially_refunded"].includes(o.payment_state)} className="edition-outline" onClick={() => run(() => sellerApi("/orders/" + o.id + "/fulfilled", "PUT"), "Order marked fulfilled.")}>Mark fulfilled</button>)}</article>)}</section>
     </>}</div>;
 }

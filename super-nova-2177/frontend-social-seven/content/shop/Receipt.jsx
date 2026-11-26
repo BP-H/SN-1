@@ -32,12 +32,12 @@ export default function Receipt({ id }) {
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
-  return <div className="edition-panel"><p className="edition-kicker">Order receipt</p><h1>{order ? "Payment received." : "Your order"}</h1>
+  return <div className="edition-panel"><p className="edition-kicker">Order receipt</p><h1>{order?.payment_state === "refunded" ? "Order refunded." : order ? "Your order receipt" : "Your order"}</h1>
     {error && <p className="edition-notice" role="alert">{error}</p>}
     {!order ? <button className="edition-outline" onClick={verify} disabled={busy}>{busy ? "Checking payment…" : "Check payment again"}</button> :
-      <><h2>{order.title}</h2><p>{order.delivery === "digital" ? "Save this private receipt to return to your download." :
+      <><h2>{order.title}</h2><p>{["refunded", "disputed", "processing"].includes(order.payment_state) ? "Payment status: " + order.payment_state + ". Contact your seller for assistance." : order.delivery === "digital" ? "Save this private receipt to return to your download." :
         order.delivery === "pickup" ? order.pickup : "The seller will ship to the address you entered at checkout."}</p>
-      <div className="edition-actions">{order.delivery === "digital" && <button className="edition-primary" disabled={busy} onClick={download}>Download your file</button>}
+      <div className="edition-actions">{order.delivery === "digital" && ["paid","partially_refunded"].includes(order.payment_state) && <button className="edition-primary" disabled={busy} onClick={download}>Download your file</button>}
         <Link className="edition-outline" href={"/pieces/" + order.piece_id}>Return to the artist’s story</Link></div></>}
   </div>;
 }

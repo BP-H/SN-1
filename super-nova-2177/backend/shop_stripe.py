@@ -43,12 +43,20 @@ class StripeGateway:
         # Recovery after a disconnect between Stripe accepting and us saving its ID.
         sessions = stripe.checkout.Session.list(created={"gte": order.created - 60, "lte": order.expires},
                                                 limit=100, **self.options(order.processor_account))
-        return next((s for s in sessions.auto_paging_iter() if s.client_reference_id == order.id), None)
+        return next((s for s in sessions.auto_paging_iter() if s.get("client_reference_id") == order.id), None)
 
-    def download_allowed(self, order):
+    def payment_state(self, order):
         intent = stripe.PaymentIntent.retrieve(order.intent, expand=["latest_charge"], **self.options(order.processor_account))
         charge = intent.latest_charge
-        return intent.status == "succeeded" and charge and not charge.refunded and not charge.disputed
+        if intent.status != "succeeded" or not charge:
+            return "processing"
+        if charge.refunded:
+            return "refunded"
+        if charge.disputed:
+            disputes = stripe.Dispute.list(charge=charge.id, limit=1, **self.options(order.processor_account))
+            if not disputes.data or disputes.data[0].status not in ("won", "warning_closed"):
+                return "disputed"
+        return "partially_refunded" if charge.amount_refunded else "paid"
 
     def event(self, body, signature, platform=False):
         if not self.configured:
